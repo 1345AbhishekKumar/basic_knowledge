@@ -1,0 +1,1865 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The WhatsApp Way — Thirty Engineers, Zero Process</title>
+
+<!-- Typography: Archivo (display) + Source Sans 3 (body) via fontsource; mono is the system stack -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/archivo@latest/latin-700-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/archivo@latest/latin-800-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/source-sans-3@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/source-sans-3@latest/latin-400-italic.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/source-sans-3@latest/latin-600-normal.css">
+
+<style>
+/* ============================================================
+   1. TOKENS & BASE
+   ============================================================ */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f6f5f1; --panel:#fbfaf7; --ink:#1e2226; --muted:#5f656c; --line:#d9d5cd;
+  --accent:#0e7a6b; --accent-ink:#0a5f53; --soft:rgba(14,122,107,.08);
+  --bad:#a4432c; --badbg:rgba(164,67,44,.07);
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;
+}
+html[data-theme="dark"]{
+  --bg:#141719; --panel:#1a1e21; --ink:#d7dadc; --muted:#969ca2; --line:#2d3237;
+  --accent:#5db3a4; --accent-ink:#7cc7b9; --soft:rgba(93,179,164,.11);
+  --bad:#d28a6b; --badbg:rgba(210,138,107,.10);
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--ink);
+  font:400 17px/1.7 'Source Sans 3',system-ui,-apple-system,'Segoe UI',sans-serif;
+  transition:background-color .3s ease,color .3s ease;-webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:'Archivo','Source Sans 3',system-ui,sans-serif;line-height:1.15;letter-spacing:-.01em}
+a{color:var(--accent-ink)}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+.wrap{max-width:920px;margin:0 auto;padding:0 24px}
+.skip{position:absolute;left:-999px;top:0;background:var(--panel);padding:8px 14px;z-index:300;font:600 13px var(--mono)}
+.skip:focus{left:12px;top:12px}
+
+/* ============================================================
+   2. CHROME — loader, progress bar, theme toggle
+   ============================================================ */
+#loader{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center;
+  font:500 13px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);transition:opacity .45s ease}
+#loader.off{opacity:0;pointer-events:none}
+#pbar{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:80}
+#themeBtn{position:fixed;top:14px;right:16px;z-index:90;width:36px;height:36px;border-radius:6px;border:1px solid var(--line);
+  background:var(--panel);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink);
+  transition:background-color .3s ease,border-color .2s ease,color .3s ease}
+#themeBtn:hover{border-color:var(--accent)}
+html[data-theme="light"] .icon-sun{display:none}
+html[data-theme="dark"] .icon-moon{display:none}
+
+/* ============================================================
+   3. MASTHEAD
+   ============================================================ */
+.masthead{padding:86px 0 42px;border-bottom:1px solid var(--line)}
+.kicker{font:600 12px/1.4 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink)}
+.masthead h1{font-size:clamp(2.2rem,5.6vw,3.8rem);font-weight:800;margin:16px 0 18px;max-width:22ch}
+.masthead h1 .hl{color:var(--accent-ink)}
+.deck{font-size:1.12rem;color:var(--muted);max-width:64ch}
+.facts{display:flex;flex-wrap:wrap;margin-top:28px}
+.facts span{font:500 12px var(--mono);letter-spacing:.08em;color:var(--muted);padding:4px 0}
+.facts span+span::before{content:'·';margin:0 12px;color:var(--line)}
+
+/* ============================================================
+   4. SECTION SCAFFOLDING
+   ============================================================ */
+section{padding:52px 0}
+.h-sm{font:600 11.5px var(--mono);letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+.overview p{max-width:66ch;margin-bottom:14px}
+ul.learn{list-style:none;max-width:66ch}
+ul.learn li{padding:9px 0 9px 30px;border-top:1px solid var(--line);position:relative}
+ul.learn li::before{content:'→';position:absolute;left:2px;color:var(--accent-ink);font-family:var(--mono)}
+.map-note{font:500 12.5px var(--mono);color:var(--muted);margin-bottom:14px}
+.map-scroll{overflow-x:auto;padding-bottom:6px}
+.map-scroll svg{min-width:760px}
+
+/* ============================================================
+   5. TIMELINE THEME — rail, markers, modules
+   ============================================================ */
+.timeline{position:relative;padding:8px 0 24px}
+.timeline::before{content:'';position:absolute;left:31px;top:0;bottom:0;width:1px;background:var(--line)}
+.module{position:relative;display:grid;grid-template-columns:64px 1fr;gap:0 28px;padding:54px 0;scroll-margin-top:26px}
+.marker{position:relative}
+.marker .yr{display:block;text-align:center;font:600 12px var(--mono);letter-spacing:.1em;color:var(--muted);padding-top:2px}
+.marker .dot{position:absolute;left:25px;top:26px;width:13px;height:13px;border-radius:50%;
+  border:1.5px solid var(--accent);background:var(--bg);transition:background-color .3s ease}
+.module h2{font-size:clamp(1.55rem,3.4vw,2.15rem);font-weight:800;margin:8px 0 18px}
+.core p{margin:0 0 1.05em;max-width:68ch}
+@media (max-width:720px){
+  .timeline::before{left:16px}
+  .module{grid-template-columns:34px 1fr;gap:0 16px}
+  .marker .yr{display:none}
+  .marker .dot{left:10px;top:8px}
+}
+
+/* scroll reveal — horizontal slide-in, subtle */
+.reveal{opacity:0;transform:translateX(-16px);transition:opacity .55s ease,transform .55s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* ============================================================
+   6. MODULE SUB-COMPONENTS
+   ============================================================ */
+.steps{counter-reset:s;list-style:none;max-width:68ch}
+.steps li{counter-increment:s;position:relative;padding:12px 0 12px 54px;border-top:1px solid var(--line)}
+.steps li::before{content:counter(s,decimal-leading-zero);position:absolute;left:0;top:14px;font:600 12px var(--mono);color:var(--accent-ink)}
+.ex{border-left:2px solid var(--line);padding:2px 0 2px 18px;margin:18px 0;max-width:66ch}
+.ex .tag{display:inline-block;font:600 10.5px var(--mono);letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent-ink);border:1px solid var(--accent);border-radius:3px;padding:2px 7px;margin-bottom:7px}
+.ex p{margin:0}
+.ex .sc{color:var(--muted);font-size:.95rem;margin-top:3px}
+
+/* analogy card — split view */
+.analogy{border:1px solid var(--line);border-radius:6px;margin:28px 0;background:var(--panel);overflow:hidden;max-width:720px}
+.an-grid{display:grid;grid-template-columns:1fr 1fr}
+.an-side{padding:18px 20px}
+.an-side+.an-side{border-left:1px solid var(--line)}
+.an-side h4{font:600 11px var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.an-side .mini{max-width:200px;width:100%}
+.an-bridge{border-top:1px solid var(--line);padding:14px 20px;font-size:.97rem;color:var(--muted)}
+@media (max-width:640px){.an-grid{grid-template-columns:1fr}.an-side+.an-side{border-left:none;border-top:1px solid var(--line)}}
+
+/* misconception details */
+details.myth{border:1px solid var(--line);border-radius:6px;margin:28px 0;background:var(--panel);max-width:720px}
+details.myth summary{cursor:pointer;padding:14px 18px;font-weight:600;list-style:none;display:flex;gap:10px;align-items:baseline}
+details.myth summary::-webkit-details-marker{display:none}
+details.myth[open] summary{border-bottom:1px solid var(--line)}
+.myth .body{padding:16px 18px}
+.myth .body p{margin:0 0 12px;max-width:64ch}
+.myth .body p:last-child{margin-bottom:0}
+.mlab{font:600 10.5px var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--accent-ink);display:block;margin-bottom:3px}
+.mlab.bad{color:var(--bad)}
+
+.matters{margin:24px 0;padding:2px 0 2px 18px;border-left:2px solid var(--accent);max-width:66ch}
+.matters em{font-style:italic;font-size:1.07rem}
+.matters .h-sm{margin-bottom:4px}
+.xlink{font:500 13.5px/1.6 var(--mono);color:var(--muted);border-left:2px solid var(--line);padding:6px 0 6px 14px;margin:20px 0 0;max-width:66ch}
+
+/* elaborative interrogation + chunking */
+.why{background:none;border:none;border-bottom:1px dashed var(--accent);color:var(--accent-ink);
+  font:600 13px var(--mono);cursor:pointer;padding:0 0 1px;letter-spacing:.02em}
+.why:hover{color:var(--accent)}
+.why-body{display:none;margin:10px 0 4px;padding:12px 16px;border-left:2px solid var(--line);color:var(--muted);font-size:.96rem;max-width:64ch}
+.why-body.open{display:block}
+.more{font:600 11.5px var(--mono);letter-spacing:.08em;background:none;border:1px solid var(--line);border-radius:4px;
+  padding:5px 12px;cursor:pointer;color:var(--muted);margin-top:10px;transition:border-color .2s ease,color .2s ease}
+.more:hover{border-color:var(--accent);color:var(--accent-ink)}
+.extra-list{display:none;margin-top:10px}
+.extra-list.open{display:block}
+.extra-list li{list-style:none;padding:6px 0 6px 22px;border-top:1px solid var(--line);position:relative;font-size:.96rem}
+.extra-list li::before{content:'—';position:absolute;left:0;color:var(--muted)}
+
+/* ============================================================
+   7. DIAGRAMS — editorial SVG styling
+   ============================================================ */
+figure.dg{margin:32px 0;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:18px;max-width:820px}
+figure.dg figcaption{font:400 12.5px/1.6 var(--mono);color:var(--muted);margin-top:14px;letter-spacing:.02em}
+.dg-scroll{overflow-x:auto}
+.dg svg{display:block;width:100%;height:auto;color:var(--ink)}
+.dg svg.mini{min-width:0!important}
+.dg .st{stroke:currentColor;fill:none;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
+.dg .stl{stroke:var(--line);fill:none;stroke-width:1.2}
+.dg .acc{stroke:var(--accent);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.dg .fillsoft{fill:var(--accent);fill-opacity:.10;stroke:var(--accent);stroke-width:1.4}
+.dg .fillpanel{fill:var(--panel)}
+.dg .fillink{fill:var(--ink);stroke:none}
+.dg .fillacc{fill:var(--accent);stroke:none}
+.dg .lbl{font:500 10px var(--mono);fill:var(--muted)}
+.dg .lblb{font:600 10.5px var(--mono);fill:var(--ink)}
+.dg .lbla{font:600 10px var(--mono);fill:var(--accent-ink)}
+.dg .bignum{font:700 22px 'Archivo',sans-serif;fill:var(--ink)}
+/* sequential path drawing, triggered once on view */
+.dg .draw{stroke-dasharray:1;stroke-dashoffset:1}
+.dg.in .draw{stroke-dashoffset:0;transition:stroke-dashoffset 1.1s ease;transition-delay:var(--d,.15s)}
+/* hotspots */
+.hs{cursor:pointer}
+.hs .frame{transition:stroke .2s ease}
+.hs:hover .frame,.hs:focus .frame{stroke:var(--accent);stroke-dasharray:3 3}
+.tip{position:absolute;z-index:6;max-width:250px;background:var(--panel);border:1px solid var(--accent);border-radius:4px;
+  padding:9px 12px;font-size:.86rem;line-height:1.5;transform:translate(-50%,-100%);pointer-events:none;
+  box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.tip[hidden]{display:none}
+
+/* ============================================================
+   8. INTERACTIVE WIDGETS
+   ============================================================ */
+.quiz{border:1px solid var(--line);border-radius:6px;background:var(--panel);margin:28px 0;padding:18px 20px;max-width:720px}
+.quiz.mini{padding:14px 16px;margin:18px 0}
+.quiz-k{font:600 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.quiz-q{font-weight:600;font-size:1.05rem;margin-bottom:12px}
+.quiz.mini .quiz-q{font-size:.98rem}
+.opt{display:block;width:100%;text-align:left;font:inherit;font-size:.97rem;background:none;border:1px solid var(--line);
+  border-radius:4px;padding:10px 14px;margin:8px 0;cursor:pointer;color:inherit;
+  transition:border-color .2s ease,background-color .2s ease}
+.opt:hover:not(:disabled){border-color:var(--accent);background:var(--soft)}
+.opt:disabled{cursor:default;opacity:.72}
+.opt.correct{border-color:var(--accent)!important;background:var(--soft)!important;opacity:1!important}
+.opt.incorrect{border-color:var(--bad)!important;background:var(--badbg)!important;opacity:1!important}
+.opt.chosen-good{border-color:var(--accent)!important;background:var(--soft)!important;opacity:1!important}
+.opt.chosen-mid{border-color:var(--muted)!important;opacity:1!important}
+.opt.chosen-bad{border-color:var(--bad)!important;background:var(--badbg)!important;opacity:1!important}
+.fb{margin-top:12px;padding:10px 14px;border-left:2px solid var(--accent);font-size:.95rem}
+.fb.bad{border-color:var(--bad)}
+.fb[hidden]{display:none}
+
+/* decision scenario */
+.dec{border:1px solid var(--line);border-radius:6px;background:var(--panel);margin:28px 0;max-width:720px}
+.dec-head{padding:12px 18px;border-bottom:1px solid var(--line);font:600 11px var(--mono);letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dec-body{padding:18px}
+.dec-prompt{font-weight:600;margin-bottom:12px}
+.conseq{border-left:2px solid var(--accent);padding:10px 0 4px 14px;margin-top:12px}
+.conseq.mid{border-color:var(--muted)}
+.conseq.bad{border-color:var(--bad)}
+.conseq[hidden]{display:none}
+.ctag{font:600 10.5px var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--accent-ink);display:block;margin-bottom:4px}
+.conseq.mid .ctag{color:var(--muted)}
+.conseq.bad .ctag{color:var(--bad)}
+.dec-sum{margin-top:12px;font-size:.96rem;color:var(--muted)}
+.btn{font:600 13px var(--mono);letter-spacing:.06em;background:none;border:1px solid var(--ink);border-radius:4px;
+  padding:8px 16px;cursor:pointer;color:inherit;transition:border-color .2s ease,color .2s ease}
+.btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.mini-btn{font:600 11px var(--mono);letter-spacing:.06em;border:1px solid var(--line);background:none;border-radius:4px;
+  padding:5px 10px;cursor:pointer;color:inherit;transition:border-color .2s ease,color .2s ease}
+.mini-btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.mini-btn[disabled]{opacity:.5;cursor:default}
+
+/* flashcards — simple 2D flip */
+.deck{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;max-width:760px}
+@media (max-width:680px){.deck{grid-template-columns:1fr}}
+.fcard{perspective:900px;height:225px}
+.fcard-in{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .5s ease}
+.fcard.flip .fcard-in{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:18px;display:flex;flex-direction:column;overflow:auto}
+.face.back{transform:rotateY(180deg)}
+button.face{text-align:left;cursor:pointer;color:inherit;font:inherit;width:100%}
+button.face:hover{border-color:var(--accent)}
+.face .t{font-family:'Archivo',sans-serif;font-weight:700;font-size:1.25rem}
+.face .hint{margin-top:auto;font:500 11px var(--mono);color:var(--muted);letter-spacing:.12em;text-transform:uppercase;padding-top:10px}
+.back p{font-size:.95rem;margin:8px 0}
+.extra{display:none;font-size:.9rem;color:var(--muted)}
+.extra.show{display:block}
+.cardbtns{margin-top:auto;display:flex;gap:8px;align-items:center;padding-top:8px}
+.fcard.mastered .face{border-color:var(--accent)}
+.deck-status{font:600 12px var(--mono);letter-spacing:.1em;color:var(--muted);margin:14px 0 0}
+
+/* drag & drop matching */
+.match{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:18px 20px;margin:28px 0;max-width:760px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}
+.chip{font:600 12px var(--mono);letter-spacing:.04em;border:1px solid var(--ink);border-radius:4px;padding:6px 12px;
+  cursor:grab;background:var(--bg);color:inherit;transition:border-color .2s ease,background-color .2s ease}
+.chip.sel{border-color:var(--accent);background:var(--soft)}
+.chip.used{display:none}
+.slot{display:flex;gap:12px;align-items:baseline;width:100%;text-align:left;font:inherit;background:none;color:inherit;
+  border:1px dashed var(--line);border-radius:4px;padding:10px 14px;margin:8px 0;cursor:pointer;
+  transition:border-color .2s ease,background-color .2s ease}
+.slot.over{border-color:var(--accent);background:var(--soft)}
+.slot.done{border-style:solid;border-color:var(--accent);cursor:default}
+.slot.flash{border-color:var(--bad);background:var(--badbg)}
+.slot .ans{font:600 12px var(--mono);color:var(--accent-ink);min-width:0}
+.slot .def{font-size:.95rem}
+.match-status{font:600 12px var(--mono);letter-spacing:.1em;color:var(--muted);margin-top:10px}
+
+/* fill in the blank */
+.fill{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:16px 20px;margin:18px 0;max-width:760px}
+.fill p{font-size:1.02rem}
+.blank{font:600 15px var(--mono);border:none;border-bottom:1.5px solid var(--muted);background:var(--soft);
+  width:9ch;padding:2px 6px;color:inherit;border-radius:3px 3px 0 0}
+.blank.ok{border-color:var(--accent)}
+.blank.no{border-color:var(--bad);background:var(--badbg)}
+.fill-row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.hint-line{font:500 12.5px var(--mono);color:var(--muted);margin-top:8px}
+
+/* teach-back */
+.teach textarea{width:100%;font:inherit;background:var(--panel);border:1px solid var(--line);border-radius:4px;
+  padding:12px;color:inherit;min-height:110px;resize:vertical;transition:border-color .2s ease}
+.teach textarea:focus{border-color:var(--accent);outline:none}
+.kw-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.kw{font:600 11px var(--mono);border:1px solid var(--line);border-radius:3px;padding:3px 8px;color:var(--muted);
+  transition:border-color .2s ease,color .2s ease}
+.kw.hit{border-color:var(--accent);color:var(--accent-ink)}
+blockquote.model{border-left:2px solid var(--accent);padding:10px 16px;color:var(--muted);font-style:italic;margin-top:14px;max-width:64ch}
+blockquote.model[hidden]{display:none}
+
+/* ============================================================
+   9. SUMMARY, FAQ, NEXT STEPS, FOOTER
+   ============================================================ */
+.cheat{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:26px 28px;max-width:820px}
+.pr{display:grid;grid-template-columns:64px 1fr;gap:14px;padding:13px 0;border-top:1px solid var(--line)}
+.pr:first-of-type{border-top:none}
+.pr .n{font:600 13px var(--mono);color:var(--accent-ink);padding-top:3px}
+.pr .txt strong{font-family:'Archivo',sans-serif;font-weight:700}
+.pr .txt span{display:block;color:var(--muted);font-size:.94rem}
+.numbers{font:500 12.5px/2 var(--mono);letter-spacing:.05em;color:var(--muted);margin:22px 0 0}
+.sr-list{list-style:none;max-width:640px}
+.sr-list li{padding:9px 0 9px 92px;border-top:1px solid var(--line);position:relative;font-size:.97rem}
+.sr-list li::before{content:attr(data-t);position:absolute;left:0;top:11px;font:600 12px var(--mono);color:var(--accent-ink)}
+#finish{display:none;margin:28px 0 0;font:600 12px var(--mono);letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent-ink);border:1px solid var(--accent);border-radius:6px;padding:10px 16px;background:var(--soft)}
+#finish.show{display:inline-block}
+details.faq{border-top:1px solid var(--line);max-width:760px}
+details.faq:last-of-type{border-bottom:1px solid var(--line)}
+details.faq summary{cursor:pointer;padding:16px 4px;font-weight:600;font-size:1.03rem;list-style:none;display:flex;justify-content:space-between;gap:14px}
+details.faq summary::-webkit-details-marker{display:none}
+details.faq summary::after{content:'+';font-family:var(--mono);color:var(--muted)}
+details.faq[open] summary::after{content:'–'}
+details.faq .a{padding:0 4px 18px;color:var(--muted);max-width:66ch}
+ul.next{list-style:none;max-width:66ch}
+ul.next li{padding:10px 0 10px 30px;border-top:1px solid var(--line);position:relative}
+ul.next li::before{content:'□';position:absolute;left:2px;color:var(--accent-ink);font-family:var(--mono)}
+footer{border-top:1px solid var(--line);padding:26px 0 60px;font:400 12.5px var(--mono);color:var(--muted)}
+
+/* interlude sections inside the timeline */
+.interlude{position:relative;display:grid;grid-template-columns:64px 1fr;gap:0 28px;padding:36px 0}
+.interlude .marker .dot{top:8px}
+@media (max-width:720px){.interlude{grid-template-columns:34px 1fr;gap:0 16px}}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .reveal{transition:none;opacity:1;transform:none}
+  .dg .draw{stroke-dashoffset:0!important;transition:none}
+  .fcard-in{transition:none}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#overview">Skip to lesson</a>
+
+<!-- Shared SVG defs: arrowheads + hatch pattern -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L8 4 L0 8 z" style="fill:var(--ink)"/></marker>
+    <marker id="aha" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L8 4 L0 8 z" style="fill:var(--accent)"/></marker>
+    <pattern id="hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--muted)" stroke-width="1" stroke-opacity=".55"/></pattern>
+  </defs>
+</svg>
+
+<div id="loader" role="status">Preparing your lesson…</div>
+<div id="pbar" aria-hidden="true"></div>
+
+<!-- Theme toggle -->
+<button id="themeBtn" aria-label="Toggle dark mode">
+  <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+  <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3L19 19M19 5l-1.7 1.7M6.7 17.3L5 19"/></svg>
+</button>
+
+<!-- ================= MASTHEAD ================= -->
+<header class="masthead">
+  <div class="wrap">
+    <p class="kicker">Case file · The Pragmatic Engineer Podcast · Gene Lee, WhatsApp engineer #19</p>
+    <h1>Thirty engineers. Zero process. <span class="hl">One $19 billion exit.</span></h1>
+    <p class="deck">Gene Lee was one of four people under thirty in a room of veterans. She watched a team with no code reviews, no scrum, and a founder who said no 99% of the time serve 450 million users — then get acquired for $19 billion while she sat at her desk with noise-cancelling headphones on. This lesson reverse-engineers that operating system.</p>
+    <div class="facts" aria-label="Key numbers">
+      <span>EMPLOYEE #19</span><span>30 ENGINEERS</span><span>450M MONTHLY USERS</span><span>8 NATIVE PLATFORMS</span><span>$1 A YEAR</span><span>$19B EXIT</span><span>99% “NO”</span>
+    </div>
+  </div>
+</header>
+
+<!-- ================= OVERVIEW ================= -->
+<section class="overview" id="overview">
+  <div class="wrap">
+    <p class="h-sm">What you’ll learn</p>
+    <p>Six ideas made WhatsApp the most capital-efficient product in startup history. You’ll move chronologically — from the founding technical bet, through the culture of saying no and the absence of all process, to the dollar that paid for everything, the visibility game that begins when smallness ends, and the lessons for AI-native teams. Every module has a diagram, three examples, a decision scenario, and a check for understanding.</p>
+    <ul class="learn">
+      <li>Why WhatsApp built <strong>eight native apps</strong> — and why the “dead” platforms were the whole point.</li>
+      <li>The <strong>grandma test</strong>: how saying no 99% of the time became a product strategy, not a mood.</li>
+      <li>How <strong>30 engineers out-shipped Skype’s thousands</strong> with no reviews, no scrum, no standups.</li>
+      <li>The <strong>$1 fee that covered every cost</strong> — and secretly throttled growth on purpose.</li>
+      <li>The <strong>lawyer mindset</strong>: how promotions really work once you’re big, and why visibility isn’t vanity.</li>
+      <li>What <strong>AI-native teams can steal</strong> from a company that had no AI at all.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= KNOWLEDGE MAP (start) ================= -->
+<section id="mapsec">
+  <div class="wrap">
+    <p class="h-sm">The route — an interactive knowledge map</p>
+    <p class="map-note">Hover a node to trace the route · click (or press Enter) to jump to that module.</p>
+    <div class="map-scroll"><div id="mapTop" role="navigation" aria-label="Lesson knowledge map"></div></div>
+  </div>
+</section>
+
+<!-- ================= TIMELINE OF MODULES ================= -->
+<main class="wrap">
+<div class="timeline">
+
+<!-- ═══════════ MODULE 01 · 2009 ═══════════ -->
+<article class="module reveal" id="m1">
+  <div class="marker" aria-hidden="true"><span class="yr">2009</span><span class="dot"></span></div>
+  <div>
+    <p class="kicker">Module 01 · The founding bet</p>
+    <h2>Eight Platforms, One Erlang Heart</h2>
+    <div class="core">
+      <p>Here is a list that should make any engineering manager faint: iPhone, in Objective-C. Android, in Java. BlackBerry. Windows Phone. Nokia S40. Nokia S60, written in Symbian C++. KaiOS. And a web client. <strong>Eight separate native stacks, maintained by a handful of engineers, for one app.</strong> Conventional wisdom — before and since — says don’t be silly: use a cross-platform framework, write once, run everywhere. WhatsApp did the opposite, on purpose, and the reason is a person you’ll meet in the next module: the grandma in the remote countryside. Cross-platform layers add weight, and weight is a tax that the oldest, cheapest phone in the remotest village pays first. Native code stayed featherweight exactly where it mattered.</p>
+      <p>The backend was even more exotic: <strong>Erlang</strong>, a language Ericsson built for telephone switches. Rick Reed, one of the engineers, described working on it as “trying to maintain the engine of an airplane while it’s flying, 24/7.” That isn’t poetry — it’s a technical requirement. WhatsApp was global, and it is always 8 a.m. somewhere, so a maintenance window simply did not exist. Erlang offered two superpowers: massive <em>concurrency</em> (millions of simultaneous connections) and <em>hot code swapping</em> (patching the live system without dropping a single message). They found it by accident, through another tool that happened to use it, and never looked back.</p>
+      <p>The annual stress test was New Year’s Eve: the entire planet types “Happy New Year” at the same instant. Surviving it — “hey, we didn’t go down” — was the company’s quiet celebration. And those obscure platforms? The Symbian contractors Jan Koum cold-emailed across Europe weren’t nostalgia projects. They were how WhatsApp reached the next billion users while every competitor fought over iPhone owners.</p>
+      <button class="why" aria-expanded="false">But why is that true?</button>
+      <div class="why-body">Because the cost of abstraction isn’t paid equally. On a flagship iPhone a translation layer is invisible. On a 2010 Nokia with a sliver of memory it’s the difference between an app that opens and one that doesn’t. When your mission is the weakest device, that tax is existential — so WhatsApp paid the higher cost of eight codebases rather than charging it to their users.</div>
+    </div>
+
+    <!-- Diagram: hotspot network of 8 platforms + Erlang core -->
+    <figure class="dg" id="fig-m1">
+      <div class="dg-scroll">
+      <svg viewBox="0 0 760 392" role="img" aria-label="Diagram: eight native device platforms connected by thin lines to a central Erlang core">
+        <!-- connecting lines -->
+        <path class="st draw" pathLength="1" style="--d:.1s" d="M90 128 L320 196"/>
+        <path class="st draw" pathLength="1" style="--d:.2s" d="M250 128 L355 196"/>
+        <path class="st draw" pathLength="1" style="--d:.3s" d="M510 128 L405 196"/>
+        <path class="st draw" pathLength="1" style="--d:.4s" d="M670 128 L440 196"/>
+        <path class="st draw" pathLength="1" style="--d:.5s" d="M320 264 L90 298"/>
+        <path class="st draw" pathLength="1" style="--d:.6s" d="M355 264 L250 298"/>
+        <path class="st draw" pathLength="1" style="--d:.7s" d="M405 264 L510 298"/>
+        <path class="st draw" pathLength="1" style="--d:.8s" d="M440 264 L670 298"/>
+        <!-- Erlang core -->
+        <rect class="fillsoft" x="290" y="196" width="180" height="68" rx="6"/>
+        <text class="lblb" x="380" y="224" text-anchor="middle">ERLANG CORE</text>
+        <text class="lbl" x="380" y="242" text-anchor="middle">concurrent · hot-swappable</text>
+        <!-- top row devices -->
+        <g class="hs" tabindex="0" role="button" data-tip="Objective-C. The flagship users — not the mission, but the money." aria-label="iPhone, Objective-C">
+          <g transform="translate(70,64)"><rect class="st frame fillpanel" x="0" y="0" width="40" height="60" rx="7"/><line class="st" x1="14" y1="7" x2="26" y2="7"/><circle class="st" cx="20" cy="51" r="3.2"/></g>
+          <text class="lbl" x="90" y="142" text-anchor="middle">iPhone · Objective-C</text></g>
+        <g class="hs" tabindex="0" role="button" data-tip="Java. The fast-growing middle — soon the majority of all users." aria-label="Android, Java">
+          <g transform="translate(230,64)"><rect class="st frame fillpanel" x="0" y="0" width="40" height="60" rx="5"/><rect class="st" x="5" y="6" width="30" height="38" rx="2"/><path class="st" d="M12 53 l4 -6 l4 6 z"/><circle class="st" cx="28" cy="50" r="2.4"/><rect class="st" x="32" y="47.6" width="4.8" height="4.8"/></g>
+          <text class="lbl" x="250" y="142" text-anchor="middle">Android · Java</text></g>
+        <g class="hs" tabindex="0" role="button" data-tip="Huge in 2009–12, in enterprise and emerging markets. A must-have at launch." aria-label="BlackBerry, native">
+          <g transform="translate(490,64)"><rect class="st frame fillpanel" x="0" y="0" width="40" height="60" rx="4"/><rect class="st" x="6" y="6" width="28" height="24"/><g class="fillink"><circle cx="11" cy="37" r="1.4"/><circle cx="18" cy="37" r="1.4"/><circle cx="25" cy="37" r="1.4"/><circle cx="32" cy="37" r="1.4"/><circle cx="11" cy="44" r="1.4"/><circle cx="18" cy="44" r="1.4"/><circle cx="25" cy="44" r="1.4"/><circle cx="32" cy="44" r="1.4"/><circle cx="11" cy="51" r="1.4"/><circle cx="18" cy="51" r="1.4"/><circle cx="25" cy="51" r="1.4"/><circle cx="32" cy="51" r="1.4"/></g></g>
+          <text class="lbl" x="510" y="142" text-anchor="middle">BlackBerry · native</text></g>
+        <g class="hs" tabindex="0" role="button" data-tip="Small but loyal audience. Even Microsoft’s platform got a proper native client." aria-label="Windows Phone, native">
+          <g transform="translate(650,64)"><rect class="st frame fillpanel" x="0" y="0" width="40" height="60" rx="3"/><rect class="fillsoft" x="6" y="8" width="13" height="13"/><rect class="st" x="21" y="8" width="13" height="13"/><rect class="st" x="6" y="23" width="13" height="13"/><rect class="st" x="21" y="23" width="13" height="13"/></g>
+          <text class="lbl" x="670" y="142" text-anchor="middle">Windows Phone</text></g>
+        <!-- bottom row devices -->
+        <g class="hs" tabindex="0" role="button" data-tip="Java ME. The grandma phone — cheap, nearly indestructible, everywhere in India and Africa." aria-label="Nokia S40, Java ME">
+          <g transform="translate(70,298)"><rect class="st frame fillpanel" x="4" y="0" width="32" height="60" rx="4"/><rect class="st" x="9" y="6" width="22" height="20"/><g class="fillink"><circle cx="13" cy="33" r="1.4"/><circle cx="20" cy="33" r="1.4"/><circle cx="27" cy="33" r="1.4"/><circle cx="13" cy="40" r="1.4"/><circle cx="20" cy="40" r="1.4"/><circle cx="27" cy="40" r="1.4"/><circle cx="13" cy="47" r="1.4"/><circle cx="20" cy="47" r="1.4"/><circle cx="27" cy="47" r="1.4"/><circle cx="20" cy="54" r="1.4"/></g></g>
+          <text class="lbl" x="90" y="376" text-anchor="middle">Nokia S40 · Java ME</text></g>
+        <g class="hs" tabindex="0" role="button" data-tip="Symbian C++. Staffed by the European contractors Jan cold-emailed — self-managing experts." aria-label="Nokia S60, Symbian C++">
+          <g transform="translate(230,298)"><rect class="st frame fillpanel" x="0" y="0" width="40" height="60" rx="5"/><rect class="st" x="5" y="5" width="30" height="26"/><line class="st" x1="8" y1="37" x2="16" y2="37"/><line class="st" x1="24" y1="37" x2="32" y2="37"/><g class="fillink"><circle cx="12" cy="45" r="1.4"/><circle cx="20" cy="45" r="1.4"/><circle cx="28" cy="45" r="1.4"/><circle cx="12" cy="52" r="1.4"/><circle cx="20" cy="52" r="1.4"/><circle cx="28" cy="52" r="1.4"/></g></g>
+          <text class="lbl" x="250" y="376" text-anchor="middle">Nokia S60 · Symbian C++</text></g>
+        <g class="hs" tabindex="0" role="button" data-tip="Smart feature phones. Supported for a while — even the outliers got a serious native attempt." aria-label="KaiOS, supported briefly">
+          <g transform="translate(490,298)"><rect class="st frame fillpanel" x="4" y="0" width="32" height="60" rx="9"/><rect class="st" x="9" y="6" width="22" height="22"/><path class="st" d="M10 42 Q20 50 30 42"/><g class="fillink"><circle cx="13" cy="36" r="1.4"/><circle cx="20" cy="36" r="1.4"/><circle cx="27" cy="36" r="1.4"/></g></g>
+          <text class="lbl" x="510" y="376" text-anchor="middle">KaiOS · briefly</text></g>
+        <g class="hs" tabindex="0" role="button" data-tip="The browser client — the last platform, for everyone whose phone made the list impossible." aria-label="Web client">
+          <g transform="translate(648,298)"><rect class="st frame fillpanel" x="0" y="4" width="44" height="52" rx="3"/><line class="st" x1="0" y1="13" x2="44" y2="13"/><g class="fillink"><circle cx="6" cy="8.5" r="1.4"/><circle cx="11.5" cy="8.5" r="1.4"/><circle cx="17" cy="8.5" r="1.4"/></g><rect class="st" x="22" y="6" width="17" height="5" rx="2.5"/></g>
+          <text class="lbl" x="670" y="376" text-anchor="middle">Web client</text></g>
+        <g class="hs" tabindex="0" role="button" data-tip="Erlang: built for telephone switches. Hot code swapping means patching the engine mid-flight — no user ever notices." aria-label="Erlang core detail">
+          <rect x="290" y="196" width="180" height="68" fill="transparent"/></g>
+      </svg>
+      </div>
+      <div class="dg-scroll">
+      <svg viewBox="0 0 760 118" role="img" aria-label="Three-panel strip: an airplane whose engine is serviced while flying, an analogy for Erlang hot code swapping">
+        <g><rect class="stl" x="8" y="6" width="236" height="100" rx="4"/>
+          <rect class="st" x="48" y="44" width="110" height="14" rx="7"/><path class="st" d="M56 44 L70 26 L80 26 L72 44 Z"/><path class="st" d="M98 44 L122 22 L130 22 L114 44 Z"/><line class="st" x1="106" y1="58" x2="106" y2="62"/><circle class="st" cx="106" cy="68" r="6"/>
+          <line class="st" x1="170" y1="40" x2="196" y2="40"/><line class="st" x1="170" y1="51" x2="204" y2="51"/><line class="st" x1="170" y1="62" x2="196" y2="62"/>
+          <text class="lbl" x="126" y="96" text-anchor="middle">1 · always flying — no maintenance window</text></g>
+        <g><rect class="stl" x="262" y="6" width="236" height="100" rx="4"/>
+          <rect class="st" x="302" y="44" width="110" height="14" rx="7"/><path class="st" d="M310 44 L324 26 L334 26 L326 44 Z"/><path class="st" d="M352 44 L376 22 L384 22 L368 44 Z"/>
+          <rect class="st" x="352" y="40" width="26" height="18" stroke-dasharray="3 3" fill="none"/>
+          <line class="st" x1="386" y1="76" x2="400" y2="62"/><circle class="st" cx="403" cy="59" r="4"/>
+          <text class="lbl" x="380" y="96" text-anchor="middle">2 · open the panel mid-flight</text></g>
+        <g><rect class="stl" x="516" y="6" width="236" height="100" rx="4"/>
+          <rect class="st" x="556" y="44" width="110" height="14" rx="7"/><path class="st" d="M564 44 L578 26 L588 26 L580 44 Z"/><path class="st" d="M606 44 L630 22 L638 22 L622 44 Z"/>
+          <circle class="st" cx="580" cy="76" r="6"/><line class="st" x1="580" y1="84" x2="580" y2="90" marker-end="url(#ah)"/>
+          <circle class="acc" cx="640" cy="26" r="6"/><path class="acc draw" pathLength="1" style="--d:.3s" d="M636 34 L612 56" stroke-dasharray="3 3" marker-end="url(#aha)"/>
+          <text class="lbl" x="634" y="96" text-anchor="middle">3 · swap the engine — nobody notices</text></g>
+      </svg>
+      </div>
+      <figcaption>Fig. 01 — Eight native clients, one Erlang core. Click any device for its story. Below: hot code swapping, the reason Erlang existed — “maintaining the engine of an airplane while it’s flying, 24/7.”</figcaption>
+    </figure>
+
+    <p class="h-sm">How the eight-platform machine ran</p>
+    <ol class="steps">
+      <li>Start from the user’s constraint — old phone, little memory, expensive data — not from developer convenience.</li>
+      <li>One native codebase per platform, each owned by a specialist: often a self-managing contractor Jan found by cold-emailing the domain expert.</li>
+      <li>All eight clients speak to a single Erlang backend built for concurrency and hot upgrades.</li>
+      <li>Stress-test against the worst possible moment: New Year’s Eve midnight, everywhere on Earth at once.</li>
+      <li>Keep the shared protocol thin, so eight very different apps behave like one product.</li>
+    </ol>
+    <button class="more" data-label="Show the full eight-platform ledger ↓">Show the full eight-platform ledger ↓</button>
+    <ul class="extra-list">
+      <li>iPhone · Objective-C — the flagship money</li>
+      <li>Android · Java — the fast-growing majority</li>
+      <li>BlackBerry · native — huge at launch in enterprise &amp; emerging markets</li>
+      <li>Windows Phone · native — small, loyal, still served properly</li>
+      <li>Nokia S40 · Java ME — the grandma phone of India and Africa</li>
+      <li>Nokia S60 · Symbian C++ — staffed by cold-emailed European experts</li>
+      <li>KaiOS · supported briefly — even outliers got a native attempt</li>
+      <li>Web client · the last platform, for everyone else</li>
+    </ul>
+
+    <p class="h-sm" style="margin-top:34px">Three ways to see it</p>
+    <div class="ex"><span class="tag">Obvious</span>
+      <p>iPhone in Objective-C, Android in Java — the two normal platforms, done natively and done well.</p></div>
+    <div class="ex"><span class="tag">Counter-intuitive</span>
+      <p>Hiring Symbian specialists in 2012. Every pundit said those platforms were dead — which is exactly why the experts were available, and exactly where the next billion users in India and Europe were about to come online.</p>
+      <p class="sc">Counter-intuitive moves are usually just conventional wisdom with a longer time horizon.</p></div>
+    <div class="ex"><span class="tag">Edge case</span>
+      <p>KaiOS — smart feature phones, supported for a while and then cut. The rule was never “support everything forever.” It was “try natively first, and only cut when the constraint math stops working.”</p></div>
+
+    <div class="analogy">
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="Eight small device rectangles each connected to one core dot">
+            <g class="st"><rect x="12" y="12" width="11" height="14" rx="2"/><rect x="32" y="12" width="11" height="14" rx="2"/><rect x="52" y="12" width="11" height="14" rx="2"/><rect x="72" y="12" width="11" height="14" rx="2"/><rect x="12" y="40" width="11" height="14" rx="2"/><rect x="32" y="40" width="11" height="14" rx="2"/><rect x="52" y="40" width="11" height="14" rx="2"/><rect x="72" y="40" width="11" height="14" rx="2"/></g>
+            <circle class="fillsoft" cx="116" cy="36" r="8"/>
+            <g class="st"><line x1="24" y1="19" x2="109" y2="33"/><line x1="44" y1="19" x2="110" y2="33"/><line x1="64" y1="19" x2="112" y2="34"/><line x1="84" y1="19" x2="113" y2="34"/><line x1="24" y1="47" x2="109" y2="39"/><line x1="44" y1="47" x2="110" y2="39"/><line x1="64" y1="47" x2="112" y2="38"/><line x1="84" y1="47" x2="113" y2="38"/></g>
+            <text class="lbl" x="12" y="82">eight tailored clients → one core</text></svg></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="A suit jacket with a measurement arrow across the chest">
+            <path class="st" d="M55 22 L95 22 L108 84 L42 84 Z"/><path class="st" d="M55 22 L75 46 L95 22"/><line class="st" x1="75" y1="46" x2="75" y2="84"/>
+            <line class="acc" x1="30" y1="60" x2="120" y2="60" marker-start="url(#aha)" marker-end="url(#aha)"/>
+            <line class="acc" x1="30" y1="55" x2="30" y2="65"/><line class="acc" x1="120" y1="55" x2="120" y2="65"/>
+            <text class="lbl" x="75" y="97" text-anchor="middle">tailored to one body</text></svg></div>
+      </div>
+      <p class="an-bridge">A poncho fits everyone and flatters no one; a tailored suit fits one body perfectly. Cross-platform frameworks are the poncho — fine on a flagship, shapeless on grandma’s Nokia. WhatsApp tailored eight suits, because the people who needed the fit most were the ones nobody else was dressing.</p>
+    </div>
+
+    <details class="myth"><summary>❌ What People Get Wrong</summary>
+      <div class="body">
+        <p><span class="mlab bad">Myth</span>“If you must support many platforms, you have to use a cross-platform framework.”</p>
+        <p><span class="mlab">Truth</span>The translation layer’s tax is paid first — and hardest — by the weakest devices. Native kept WhatsApp featherweight exactly where its mission lived.</p>
+        <p><span class="mlab">Why it sticks</span>Frameworks have improved, but the trade-off is real: WhatsApp’s users were precisely the people who couldn’t afford the bloat, and the “dead” platforms were where the next billion users lived.</p>
+      </div>
+    </details>
+
+    <div class="matters"><p class="h-sm">Why this matters</p>
+      <p><em>Architecture should follow your users’ constraints — not your hiring convenience, and not the fashion of the framework.</em></p></div>
+    <p class="xlink">🔗 This connects to Module 02, because the eight-platform bet was the grandma principle expressed in code — years before anyone named it.</p>
+
+    <div class="quiz" id="quiz-m1"></div>
+    <div class="dec" id="dec-m1"></div>
+  </div>
+</article>
+
+<!-- ═══════════ MODULE 02 · 2012 ═══════════ -->
+<article class="module reveal" id="m2">
+  <div class="marker" aria-hidden="true"><span class="yr">2012</span><span class="dot"></span></div>
+  <div>
+    <p class="kicker">Module 02 · Ruthless prioritization</p>
+    <h2>The Grandma Principle: Why Jan Said No 99% of the Time</h2>
+    <div class="core">
+      <p>It’s 2012, and Gene Lee has just joined WhatsApp as engineer number nineteen. She looks at the product and notices what’s missing. Groups: missing. Voice calls: missing. Video: missing. Stories: missing. Meanwhile WeChat and a dozen rivals are shipping everything, everywhere, all at once. So she does what any good engineer does — she pitches ideas. And Jan Koum, the co-founder, says no. <strong>About 99% of the time.</strong></p>
+      <p>That number sounds like stubbornness, but it was a system. Every feature request — from a user, an engineer, an investor — ran through a single filter Jan phrased as a person: <em>“I want a grandma in a remote countryside to be able to use our app.”</em> That grandma doesn’t have the newest iPhone. She has a cheap phone, little memory, a flaky network, and she depends on this app to talk to her family. If a feature cannot work flawlessly for her, it does not ship. Full stop. This is what <strong>ruthless prioritization</strong> means: not picking the best ideas, but systematically refusing every good idea that isn’t the mission.</p>
+      <p>WhatsApp worked on video calling for years — quietly <em>dogfooding</em> it (using their own product internally) through beta lists of family phone numbers — and refused to launch until the team was, in Gene’s words, “100% sure about the quality.” The conventional wisdom says launch early and iterate. WhatsApp did the opposite, and the reason is worth sitting with: when your product is someone’s only line to their family, “we’ll fix it in the next release” isn’t a strategy, it’s a betrayal. Every feature you ship is a promise you’ll keep on every device, every network, every day — forever. Saying no is how you keep the promises you’ve already made.</p>
+    </div>
+
+    <!-- Diagram: the feature decision funnel -->
+    <figure class="dg">
+      <div class="dg-scroll">
+      <svg viewBox="0 0 720 348" role="img" aria-label="Flowchart: six feature ideas flow into a grandma test filter; 99 percent are rejected, one passes through a long family beta to ship">
+        <g><rect class="st fillpanel" x="36" y="20" width="86" height="26" rx="4"/><text class="lblb" x="79" y="37" text-anchor="middle">Stories</text></g>
+        <g><rect class="st fillpanel" x="140" y="20" width="86" height="26" rx="4"/><text class="lblb" x="183" y="37" text-anchor="middle">Video</text></g>
+        <g><rect class="st fillpanel" x="244" y="20" width="86" height="26" rx="4"/><text class="lblb" x="287" y="37" text-anchor="middle">Stickers</text></g>
+        <g><rect class="st fillpanel" x="348" y="20" width="86" height="26" rx="4"/><text class="lblb" x="391" y="37" text-anchor="middle">Payments</text></g>
+        <g><rect class="st fillpanel" x="452" y="20" width="86" height="26" rx="4"/><text class="lblb" x="495" y="37" text-anchor="middle">Groups</text></g>
+        <g><rect class="st fillpanel" x="556" y="20" width="110" height="26" rx="4"/><text class="lblb" x="611" y="37" text-anchor="middle">“the cool thing”</text></g>
+        <g class="st" stroke-opacity=".55">
+          <line class="draw" pathLength="1" style="--d:.05s" x1="79" y1="46" x2="200" y2="104"/>
+          <line class="draw" pathLength="1" style="--d:.1s" x1="183" y1="46" x2="250" y2="104"/>
+          <line class="draw" pathLength="1" style="--d:.15s" x1="287" y1="46" x2="310" y2="104"/>
+          <line class="draw" pathLength="1" style="--d:.2s" x1="391" y1="46" x2="370" y2="104"/>
+          <line class="draw" pathLength="1" style="--d:.25s" x1="495" y1="46" x2="430" y2="104"/>
+          <line class="draw" pathLength="1" style="--d:.3s" x1="611" y1="46" x2="500" y2="104"/>
+        </g>
+        <rect class="st fillpanel" x="150" y="104" width="420" height="64" rx="6"/>
+        <text class="lblb" x="360" y="130" text-anchor="middle">THE GRANDMA TEST</text>
+        <text class="lbl" x="360" y="150" text-anchor="middle">flawless on a cheap phone · bad network · remote town?</text>
+        <path class="st draw" pathLength="1" style="--d:.5s" d="M255 168 C 255 200, 165 205, 165 236" marker-end="url(#ah)"/>
+        <path class="acc draw" pathLength="1" style="--d:.65s" d="M465 168 C 465 200, 550 205, 550 236" marker-end="url(#aha)"/>
+        <rect class="st fillpanel" x="60" y="236" width="210" height="76" rx="4"/>
+        <g class="st"><rect x="80" y="254" width="14" height="14"/><line x1="80" y1="254" x2="94" y2="268"/><line x1="94" y1="254" x2="80" y2="268"/>
+          <rect x="104" y="254" width="14" height="14"/><line x1="104" y1="254" x2="118" y2="268"/><line x1="118" y1="254" x2="104" y2="268"/>
+          <rect x="128" y="254" width="14" height="14"/><line x1="128" y1="254" x2="142" y2="268"/><line x1="142" y1="254" x2="128" y2="268"/></g>
+        <text class="lblb" x="165" y="298" text-anchor="middle">NO — 99% of ideas</text>
+        <rect class="st fillpanel" x="430" y="236" width="240" height="34" rx="4"/>
+        <text class="lbl" x="550" y="257" text-anchor="middle">held in family beta — months to years</text>
+        <line class="acc draw" pathLength="1" style="--d:.85s" x1="550" y1="270" x2="550" y2="282" marker-end="url(#aha)"/>
+        <rect class="fillsoft" x="430" y="284" width="240" height="34" rx="4"/>
+        <text class="lblb" x="550" y="305" text-anchor="middle">shipped when 100% certain</text>
+      </svg>
+      </div>
+      <figcaption>Fig. 02 — The feature decision funnel. Ideas were cheap; the filter was the product. The right-hand path could take years.</figcaption>
+    </figure>
+
+    <p class="h-sm">The decision machine, step by step</p>
+    <ol class="steps">
+      <li>An idea arrives — from an engineer, a competitor’s launch, a user request.</li>
+      <li>Run it through the single filter: would this work flawlessly for a grandma in a remote countryside?</li>
+      <li>If it passes, build it quietly and hold it in a family beta list — for months, sometimes years.</li>
+      <li>Ship only when the team is 100% sure of the quality.</li>
+      <li>Everything else gets a no. Even if it’s cool. <em>Especially</em> if it’s cool — cool is the most dangerous distraction.</li>
+    </ol>
+
+    <p class="h-sm" style="margin-top:34px">Three ways to see it</p>
+    <div class="ex"><span class="tag">Obvious</span>
+      <p>When Gene joined in 2012 there were no groups, no voice, no video, no stories. “All the cool features were missing in my mind — but that was by design.”</p></div>
+    <div class="ex"><span class="tag">Counter-intuitive</span>
+      <p>WhatsApp was working on video calling long before competitors announced theirs — and still held it for years, testing with family phone lists, until they were certain. Holding a finished feature is harder than building one; the discipline was the moat.</p></div>
+    <div class="ex"><span class="tag">Edge case</span>
+      <p>The no extended to growth itself (the $1 fee, Module 04) — and to Jan’s own job description: his LinkedIn title read “Chief QA Officer.” The founder’s role was breaking things, not adding them.</p></div>
+
+    <div class="analogy">
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="Many dots funnel down to a single dot">
+            <g class="fillink"><circle cx="30" cy="14" r="2.6"/><circle cx="55" cy="12" r="2.6"/><circle cx="80" cy="14" r="2.6"/><circle cx="105" cy="12" r="2.6"/><circle cx="130" cy="14" r="2.6"/></g>
+            <path class="st" d="M45 34 L105 34 L80 62 L70 62 Z"/>
+            <g class="st" stroke-opacity=".55"><line x1="30" y1="18" x2="55" y2="34"/><line x1="55" y1="16" x2="65" y2="34"/><line x1="80" y1="18" x2="75" y2="34"/><line x1="105" y1="16" x2="88" y2="34"/><line x1="130" y1="18" x2="98" y2="34"/></g>
+            <line class="acc" x1="75" y1="62" x2="75" y2="74" marker-end="url(#aha)"/>
+            <circle class="fillacc" cx="75" cy="82" r="3.6"/>
+            <text class="lbl" x="75" y="97" text-anchor="middle">many in → one out</text></svg></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="A small tasting menu card with five lines">
+            <rect class="st fillpanel" x="42" y="10" width="66" height="76" rx="3"/>
+            <line class="st" x1="52" y1="26" x2="98" y2="26"/><line class="st" x1="52" y1="38" x2="98" y2="38"/><line class="st" x1="52" y1="50" x2="98" y2="50"/><line class="st" x1="52" y1="62" x2="98" y2="62"/><line class="st" x1="52" y1="74" x2="98" y2="74"/>
+            <text class="lbl" x="75" y="97" text-anchor="middle">a five-dish tasting menu</text></svg></div>
+      </div>
+      <p class="an-bridge">A 200-item menu is a hundred small promises a kitchen can barely keep; a five-dish tasting menu is five promises kept nightly. Every feature WhatsApp shipped was a dish it had to cook perfectly, on every stove, forever — so the menu stayed short and the kitchen stayed honest.</p>
+    </div>
+
+    <details class="myth"><summary>❌ What People Get Wrong</summary>
+      <div class="body">
+        <p><span class="mlab bad">Myth</span>“Always ship early and iterate — that’s the only way to build a product.”</p>
+        <p><span class="mlab">Truth</span>That advice optimizes for learning speed. WhatsApp optimized for trust. Iterate when being wrong is cheap; polish when it isn’t.</p>
+        <p><span class="mlab">Why it sticks</span>When the app is someone’s only line to their family on a flaky network, a crash isn’t a bug report — it’s a dropped lifeline. The users who needed WhatsApp most were the ones who could least tolerate “move fast and break things.”</p>
+      </div>
+    </details>
+
+    <div class="matters"><p class="h-sm">Why this matters</p>
+      <p><em>Every feature you ship is a promise you’ll keep on every device, every network, every day. Saying no is how you keep the promises you’ve already made.</em></p></div>
+    <p class="xlink">🔗 This connects to Module 03, because saying no is what kept the team small enough that trust could replace process.</p>
+
+    <div class="quiz" id="quiz-m2"></div>
+    <div class="dec" id="dec-m2"></div>
+  </div>
+</article>
+
+<!-- ═══ QUICK RECALL after modules 1–2 ═══ -->
+<div class="interlude reveal">
+  <div class="marker" aria-hidden="true"><span class="dot"></span></div>
+  <div>
+    <p class="kicker">Retrieval practice · Modules 01–02</p>
+    <div class="quiz mini" id="qr-1"></div>
+  </div>
+</div>
+
+<!-- ═══════════ MODULE 03 · 2013 ═══════════ -->
+<article class="module reveal" id="m3">
+  <div class="marker" aria-hidden="true"><span class="yr">2013</span><span class="dot"></span></div>
+  <div>
+    <p class="kicker">Module 03 · The zero-process company</p>
+    <h2>Thirty Engineers, No Code Reviews, No Scrum</h2>
+    <div class="core">
+      <p>Let’s get the numbers straight, because they sound invented. By the time Facebook acquired WhatsApp, the company had a little over twenty engineers — under thirty people total — serving <strong>450 million monthly active users</strong>. That’s roughly fifteen million users per engineer. And here is what they did not have: code reviews. Standups. Sprint planning. Scrum. TDD. Canary releases. Feature flags. Blameless-postmortem documents. Gene’s entire WhatsApp career included exactly <em>one</em> formal code review — her very first commit, when Brian Acton pulled it aside and grilled her through it like a coding interview. After that? Nothing. Never again.</p>
+      <p>So how did anything ship? Three words: adults, trust, and dogfooding. They hired experienced engineers — most over thirty, many self-managing contractors spread across Europe — and treated them like adults. Everyone read everyone’s git commits, because with thirty people, you can. Questions surfaced in group chats, not meetings. Before every release the whole company used the build; Jan’s LinkedIn title literally read “Chief QA Officer,” and his job was to try to break things. On the office wall sat a single counter: <strong>days since the last outage</strong>. No documentation, no blame — with thirty people, everyone already knew who was working on what, so when something broke you just walked over and talked.</p>
+      <p>The comparison Gene draws is brutal. At the same time, Skype ran thousands of engineers, sent everyone to scrum training, certified scrum masters, and juggled a hundred teams with prioritized queues — and WhatsApp out-shipped them. The lesson isn’t “scrum is bad.” It’s that most process exists to solve problems created by <em>scale</em> — audits, accountability, who-did-what — not problems created by the work itself.</p>
+      <button class="why" aria-expanded="false">But why is that true?</button>
+      <div class="why-body">Because visibility is free at small scale. When thirty people can read every commit and know every spouse’s and dog’s name, a paper trail is redundant — the social graph <em>is</em> the audit log. Process becomes necessary only when that graph breaks, which is exactly what headcount does to it.</div>
+    </div>
+
+    <!-- Diagram: Skype vs WhatsApp -->
+    <figure class="dg">
+      <div class="dg-scroll">
+      <svg viewBox="0 0 760 336" role="img" aria-label="Comparison diagram: Skype's layered org pyramid versus WhatsApp's flat team of thirty dots shipping directly">
+        <line class="stl" x1="388" y1="24" x2="388" y2="312" stroke-dasharray="4 4"/>
+        <text class="lblb" x="40" y="30">SKYPE · ~2013</text>
+        <g class="st fillpanel"><rect x="40" y="44" width="42" height="18" rx="2"/><rect x="94" y="44" width="42" height="18" rx="2"/><rect x="148" y="44" width="42" height="18" rx="2"/><rect x="202" y="44" width="42" height="18" rx="2"/><rect x="256" y="44" width="42" height="18" rx="2"/><rect x="310" y="44" width="42" height="18" rx="2"/></g>
+        <text class="lbl" x="40" y="80">100+ teams</text>
+        <rect class="st fillpanel" x="40" y="92" width="312" height="22" rx="2"/><text class="lbl" x="196" y="107" text-anchor="middle">scrum masters · ceremonies · training</text>
+        <rect class="st fillpanel" x="40" y="122" width="312" height="22" rx="2"/><text class="lbl" x="196" y="137" text-anchor="middle">prioritized queues · steering groups</text>
+        <rect class="st fillpanel" x="40" y="152" width="312" height="22" rx="2"/><text class="lbl" x="196" y="167" text-anchor="middle">release boards · sign-offs</text>
+        <line class="st" x1="196" y1="174" x2="196" y2="202" marker-end="url(#ah)"/>
+        <rect class="st fillpanel" x="156" y="206" width="80" height="24" rx="3"/><text class="lblb" x="196" y="222" text-anchor="middle">ship</text>
+        <text class="lbl" x="40" y="256">coordination became the product</text>
+        <text class="lblb" x="420" y="30">WHATSAPP · 2013</text>
+        <g class="fillink">
+          <circle cx="424" cy="56" r="3.5"/><circle cx="443" cy="56" r="3.5"/><circle cx="462" cy="56" r="3.5"/><circle cx="481" cy="56" r="3.5"/><circle cx="500" cy="56" r="3.5"/><circle cx="519" cy="56" r="3.5"/><circle cx="538" cy="56" r="3.5"/><circle cx="557" cy="56" r="3.5"/><circle cx="576" cy="56" r="3.5"/><circle cx="595" cy="56" r="3.5"/>
+          <circle cx="424" cy="74" r="3.5"/><circle cx="443" cy="74" r="3.5"/><circle cx="462" cy="74" r="3.5"/><circle cx="481" cy="74" r="3.5"/><circle cx="500" cy="74" r="3.5"/><circle cx="519" cy="74" r="3.5"/><circle cx="538" cy="74" r="3.5"/><circle cx="557" cy="74" r="3.5"/><circle cx="576" cy="74" r="3.5"/><circle cx="595" cy="74" r="3.5"/>
+          <circle cx="424" cy="92" r="3.5"/><circle cx="443" cy="92" r="3.5"/><circle cx="462" cy="92" r="3.5"/><circle cx="481" cy="92" r="3.5"/><circle cx="500" cy="92" r="3.5"/><circle cx="519" cy="92" r="3.5"/><circle cx="538" cy="92" r="3.5"/><circle cx="557" cy="92" r="3.5"/><circle cx="576" cy="92" r="3.5"/><circle cx="595" cy="92" r="3.5"/>
+        </g>
+        <text class="lbl" x="424" y="116">30 engineers — everyone reads every commit</text>
+        <line class="acc draw" pathLength="1" style="--d:.3s" x1="560" y1="126" x2="560" y2="148" marker-end="url(#aha)"/>
+        <rect class="fillsoft" x="520" y="152" width="80" height="24" rx="3"/><text class="lblb" x="560" y="168" text-anchor="middle">ship</text>
+        <rect class="st fillpanel" x="420" y="206" width="312" height="48" rx="3"/>
+        <text class="lbl" x="436" y="226">DAYS SINCE LAST OUTAGE</text>
+        <text class="bignum" x="436" y="248">42</text>
+        <text class="lbl" x="420" y="278">one number, in public</text>
+      </svg>
+      </div>
+      <figcaption>Fig. 03 — Two companies, one race. Layers coordinate; dots ship. The wall counter did the work of a whole observability culture.</figcaption>
+    </figure>
+
+    <p class="h-sm">How work actually got done</p>
+    <ol class="steps">
+      <li>Hire experienced adults — mostly over thirty, self-managing, many remote across Europe.</li>
+      <li>Founders set <em>what</em> to build; <em>how</em> is up for debate, and owned by the engineer.</li>
+      <li>One deep review at the first commit — then total trust, forever.</li>
+      <li>Everyone reads every commit; questions surface in group chats, not meetings.</li>
+      <li>Before release, the whole company dogfoods; the Chief QA Officer tries to break it.</li>
+      <li>Ship, watch the outage counter, and if it resets — talk it through and fix. No documents, no blame.</li>
+    </ol>
+    <button class="more" data-label="Show the full list of what they skipped ↓">Show the full list of what they skipped ↓</button>
+    <ul class="extra-list">
+      <li>Code reviews (after the first commit, ever)</li>
+      <li>Standups, sprint planning, retrospectives</li>
+      <li>Scrum, TDD, “Agile with a capital A”</li>
+      <li>Canary releases and feature flags</li>
+      <li>Blameless postmortem documents — “we did not have documentations”</li>
+      <li>Unscheduled meetings of any kind</li>
+    </ul>
+
+    <p class="h-sm" style="margin-top:34px">Three ways to see it</p>
+    <div class="ex"><span class="tag">Obvious</span>
+      <p>Gene’s first commit. Brian Acton reviewed it like a coding interview — probing, questioning, making her defend every choice. It was the only formal review of her career, and it calibrated her standard permanently.</p></div>
+    <div class="ex"><span class="tag">Counter-intuitive</span>
+      <p>Skype, at the same moment, had scrum training for everyone, certified scrum masters, and a hundred prioritized teams — and got out-shipped by a company with zero methodology. Organizational discipline and shipping speed are not the same thing.</p></div>
+    <div class="ex"><span class="tag">Edge case</span>
+      <p>The $19B acquisition announcement: the only unscheduled all-hands in company history, phones confiscated, one colleague late because she was getting her eyebrows done. Even the exception proves the rule — no meetings was the default state of nature.</p></div>
+
+    <div class="analogy">
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="Thirty dots in three rows with one straight arrow to a ship box">
+            <g class="fillink"><circle cx="16" cy="22" r="2.6"/><circle cx="28" cy="22" r="2.6"/><circle cx="40" cy="22" r="2.6"/><circle cx="52" cy="22" r="2.6"/><circle cx="64" cy="22" r="2.6"/><circle cx="16" cy="36" r="2.6"/><circle cx="28" cy="36" r="2.6"/><circle cx="40" cy="36" r="2.6"/><circle cx="52" cy="36" r="2.6"/><circle cx="64" cy="36" r="2.6"/><circle cx="16" cy="50" r="2.6"/><circle cx="28" cy="50" r="2.6"/><circle cx="40" cy="50" r="2.6"/><circle cx="52" cy="50" r="2.6"/><circle cx="64" cy="50" r="2.6"/></g>
+            <line class="acc" x1="76" y1="36" x2="112" y2="36" marker-end="url(#aha)"/>
+            <rect class="st" x="116" y="28" width="22" height="16" rx="2"/>
+            <text class="lbl" x="75" y="82" text-anchor="middle">flat · direct · no ceremony</text></svg></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="Four musicians connected by loose arcs, coordinating by eye contact">
+            <g class="st"><circle cx="35" cy="30" r="5.5"/><circle cx="75" cy="22" r="5.5"/><circle cx="115" cy="34" r="5.5"/><circle cx="70" cy="66" r="5.5"/></g>
+            <g class="st" stroke-opacity=".6"><path d="M41 28 Q 58 14 69 23"/><path d="M81 24 Q 100 18 110 31"/><path d="M112 40 Q 100 60 77 64"/><path d="M64 63 Q 44 52 37 37"/></g>
+            <text class="lbl" x="75" y="90" text-anchor="middle">a quartet — eye contact, no conductor</text></svg></div>
+      </div>
+      <p class="an-bridge">A quartet coordinates with eye contact and a shared repertoire; an orchestra needs a conductor, written parts, and rehearsals. Neither is wrong — but you don’t bring a score and a podium to a jam session. Thirty people who can read each other’s commits don’t need ceremony. They need a song.</p>
+    </div>
+
+    <details class="myth"><summary>❌ What People Get Wrong</summary>
+      <div class="body">
+        <p><span class="mlab bad">Myth</span>“Process creates quality and speed.”</p>
+        <p><span class="mlab">Truth</span>Process creates <em>accountability at scale</em>. At thirty senior engineers, trust plus radical visibility replaces it entirely.</p>
+        <p><span class="mlab">Why it sticks</span>Every ceremony is a coordination tax. Skype paid the tax with thousands of people; WhatsApp spent the same energy on shipping. When Gene heard Skype teams believed scrum made them faster, she was surprised — from the inside, the absence of process simply felt like work.</p>
+      </div>
+    </details>
+
+    <div class="matters"><p class="h-sm">Why this matters</p>
+      <p><em>Most process exists to solve problems created by scale — not problems created by the work itself.</em></p></div>
+    <p class="xlink">🔗 This connects to Module 05, because when WhatsApp entered Facebook’s thousands-person org, the trust-based system collided head-on with calibration rooms and visibility politics.</p>
+
+    <div class="quiz" id="quiz-m3"></div>
+    <div class="dec" id="dec-m3"></div>
+  </div>
+</article>
+
+<!-- ═══════════ MODULE 04 · 2014 ═══════════ -->
+<article class="module reveal" id="m4">
+  <div class="marker" aria-hidden="true"><span class="yr">2014</span><span class="dot"></span></div>
+  <div>
+    <p class="kicker">Module 04 · The business model that said no</p>
+    <h2>The $1 That Paid For Everything</h2>
+    <div class="core">
+      <p>One dollar. That’s what WhatsApp charged per year, after a free first year — and that dollar is one of the most misunderstood business decisions in startup history. Once a year, Brian Acton stood at an all-hands and walked the entire company through the books with total transparency. The dollar split into rough thirds: about a third paid for <strong>servers</strong>, a third paid <strong>engineer salaries</strong>, and a third paid the <strong>SMS codes</strong> — those registration texts that cost ten cents each and add up fast when hundreds of millions of people sign up. WhatsApp was <em>break-even</em>: revenue covered costs, every year. And the roughly eight million dollars Sequoia had invested? Never touched. Brian treated it the way his father — a small-business owner who’d lain awake worrying about payroll — would have: as a backup, not a budget.</p>
+      <p>Now the twist. Most people assume the dollar was primitive monetization. It wasn’t — <strong>it was a brake</strong>. Serving users cost real money, and growing too fast was genuinely expensive, so in the countries where growth was hottest, WhatsApp switched the fee on specifically to slow it down. Price as throttle. Some countries were never charged at all. It is hard to overstate how strange this is in a startup culture built on the religion of grow-at-all-costs and raise-while-you-can.</p>
+      <p>The proof arrived after the acquisition. Facebook looked at the dollar and said, essentially: we don’t need it — we can fund the growth. They removed the fee, and growth exploded. The brake had been the only thing holding the line. A business that covers its own costs buys something rarer than profit: the freedom to say no.</p>
+      <button class="why" aria-expanded="false">But why is that true?</button>
+      <div class="why-body">Because money with expectations attached changes what “no” costs. A funded company that burns must eventually say yes to whatever extends the runway. A break-even company says no by default and yes only when the mission demands it. The dollar wasn’t revenue — it was sovereignty.</div>
+    </div>
+
+    <!-- Diagram: the $1 split, untouched funding, growth kink -->
+    <figure class="dg">
+      <div class="dg-scroll">
+      <svg viewBox="0 0 760 312" role="img" aria-label="Chart: one dollar split into thirds for servers, salaries and SMS codes; Sequoia's eight million dollars never spent; a growth line that steepens after the fee is removed in 2014">
+        <text class="lblb" x="40" y="44">$1.00 / YEAR</text>
+        <rect class="st fillpanel" x="40" y="58" width="420" height="52"/>
+        <line class="st" x1="180" y1="58" x2="180" y2="110"/><line class="st" x1="320" y1="58" x2="320" y2="110"/>
+        <text class="lbl" x="110" y="132" text-anchor="middle">servers ⅓</text>
+        <text class="lbl" x="250" y="132" text-anchor="middle">salaries ⅓</text>
+        <text class="lbl" x="390" y="132" text-anchor="middle">SMS codes ⅓</text>
+        <text class="lbl" x="40" y="160">revenue − costs = 0, every year — break-even</text>
+        <text class="lbl" x="500" y="44">SEQUOIA $8M — THE BACKUP</text>
+        <rect class="st" x="500" y="54" width="220" height="24" fill="url(#hatch)"/>
+        <text class="lbl" x="610" y="98" text-anchor="middle">never spent</text>
+        <line class="st" x1="500" y1="250" x2="724" y2="250"/>
+        <line class="st" x1="500" y1="250" x2="500" y2="138"/>
+        <path class="acc draw" pathLength="1" style="--d:.3s" d="M506 242 L556 234 L600 226 L652 182 L716 128" fill="none" marker-end="url(#aha)"/>
+        <circle class="fillacc" cx="600" cy="226" r="3.6"/>
+        <text class="lbla" x="610" y="214">fee removed</text>
+        <text class="lbl" x="506" y="268">2010</text>
+        <text class="lbl" x="600" y="268">2014</text>
+        <text class="lbl" x="704" y="268">2016</text>
+      </svg>
+      </div>
+      <figcaption>Fig. 04 — The dollar that did three jobs. The hatched bar is insurance, not fuel. The kink in the line is the moment Facebook took the brake off.</figcaption>
+    </figure>
+
+    <p class="h-sm">The money machine, step by step</p>
+    <ol class="steps">
+      <li>Charge $1 a year after a free first year — enough to cover the real cost of a user, not a cent more.</li>
+      <li>Split the books into thirds — servers, salaries, SMS codes — and show everyone, once a year, with total transparency.</li>
+      <li>Keep investor money as a backup, not as fuel. Never touch it.</li>
+      <li>Use the fee as a throttle: charge where growth needs slowing; skip it where it doesn’t.</li>
+      <li>Let break-even buy independence — a company that pays its own bills negotiates from strength.</li>
+    </ol>
+
+    <p class="h-sm" style="margin-top:34px">Three ways to see it</p>
+    <div class="ex"><span class="tag">Obvious</span>
+      <p>Users in Europe and the US paid $1 a year and barely noticed. From the outside it looked like monetization — a quaint, almost apologetic one.</p></div>
+    <div class="ex"><span class="tag">Counter-intuitive</span>
+      <p>The fee was a brake, not a business. It was switched on in specific countries <em>to suppress growth</em>, because every new user cost real money in SMS fees. When Facebook removed it, growth exploded — proof the brake had been the only thing holding the line.</p></div>
+    <div class="ex"><span class="tag">Edge case</span>
+      <p>The Sequoia money — $8M sitting untouched for years, because Brian’s dad was a business owner who knew what it feels like to fear payroll night. The funding was a night-light, not a budget.</p></div>
+
+    <div class="analogy">
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="A bar split into three equal segments">
+            <rect class="st fillpanel" x="25" y="40" width="100" height="20"/>
+            <line class="st" x1="58" y1="40" x2="58" y2="60"/><line class="st" x1="91" y1="40" x2="91" y2="60"/>
+            <text class="lbl" x="75" y="82" text-anchor="middle">one dollar, three jobs</text></svg></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="A velvet rope between two posts with a short queue">
+            <line class="st" x1="50" y1="38" x2="50" y2="72"/><line class="st" x1="100" y1="38" x2="100" y2="72"/>
+            <path class="acc" d="M50 44 Q 75 58 100 44"/>
+            <rect class="st" x="62" y="24" width="26" height="48" fill="none"/>
+            <g class="fillink"><circle cx="20" cy="60" r="3"/><circle cx="30" cy="64" r="3"/><circle cx="39" cy="58" r="3"/></g>
+            <text class="lbl" x="75" y="90" text-anchor="middle">a velvet rope, not a rejection</text></svg></div>
+      </div>
+      <p class="an-bridge">A velvet rope isn’t a rejection of customers — it’s protection of the kitchen. Charge at the door, and demand arrives at the pace the kitchen can serve. WhatsApp’s dollar was the rope: growth stayed exactly as fast as the unit economics could carry.</p>
+    </div>
+
+    <details class="myth"><summary>❌ What People Get Wrong</summary>
+      <div class="body">
+        <p><span class="mlab bad">Myth</span>“Startups should raise as much as possible and grow as fast as possible.”</p>
+        <p><span class="mlab">Truth</span>WhatsApp grew as fast as its unit economics allowed, stayed break-even, and kept the Sequoia money as insurance. Growth was a choice, not an obligation.</p>
+        <p><span class="mlab">Why it sticks</span>Money with expectations attached turns growth into a debt you repay with your roadmap. Brian’s refusal to touch the funding wasn’t frugality for its own sake — it was the business-model version of Jan’s 99% no.</p>
+      </div>
+    </details>
+
+    <div class="matters"><p class="h-sm">Why this matters</p>
+      <p><em>A business that covers its own costs buys something rarer than profit: the freedom to say no.</em></p></div>
+    <p class="xlink">🔗 This connects to Module 02, because the $1 fee was the grandma test applied to the business model — saying no to growth itself.</p>
+
+    <div class="dec" id="dec-m4"></div>
+  </div>
+</article>
+
+<!-- ═══ QUICK RECALL after modules 3–4 ═══ -->
+<div class="interlude reveal">
+  <div class="marker" aria-hidden="true"><span class="dot"></span></div>
+  <div>
+    <p class="kicker">Retrieval practice · Modules 01–04</p>
+    <div class="quiz mini" id="qr-2"></div>
+  </div>
+</div>
+
+<!-- ═══════════ MODULE 05 · 2016 ═══════════ -->
+<article class="module reveal" id="m5">
+  <div class="marker" aria-hidden="true"><span class="yr">2016</span><span class="dot"></span></div>
+  <div>
+    <p class="kicker">Module 05 · When smallness ends</p>
+    <h2>The Lawyer Mindset: Visibility Inside a Big Company</h2>
+    <div class="core">
+      <p>The acquisition announcement is legend — Gene at her desk, noise-cancelling headphones on, deep in a playlist called “Let Me Think,” while Neeraj waved his arms: stop everything, meeting room, phones off. Jan and Brian wearing a face they thought was neutral and everyone else read as barely contained joy; Mark Zuckerberg walking in for Q&amp;A; one colleague missing the nineteen-billion-dollar moment because she was getting her eyebrows done. But the real culture shock came later, quietly, in the leveling paperwork. Facebook had no titles — everyone was “Software Engineer” — but it had levels. And Gene Lee, <strong>employee number nineteen, eight-year veteran, the woman who helped open the London office, was leveled L3. Junior.</strong> She had to climb all over again.</p>
+      <p>That’s when she learned how big companies actually decide who rises. Her description is perfect: a middle manager has <em>no authority</em> to promote you and no budget to raise you — comp percentages are fixed per level by the comp team. The manager is <strong>a lawyer representing a client</strong>. Promotions happen in <em>calibration</em> rooms, where managers across the org argue cases about people they’ve often never worked with. So what makes strangers agree your client deserves to rise? Evidence they already know. Gene noticed the engineers who got the easiest consensus weren’t always the best — they were the most <em>visible</em>. They posted launch write-ups on Workplace. They answered questions in public comments. By the time calibration arrived, the room already knew their work; the manager’s argument was just the closing statement.</p>
+      <p>Her own path bent the same way. She never asked to manage — a teammate begged her manager to report to Gene, and that was that. She learned the craft from books on communication and personality, matched tasks to strengths — the debugger got bugs, the builder got features — and refused to make the mold too small: “if you make a mold too small, that’s the limit of how far they will grow.” Then came London, and the turning point arrived quietly: “I realized I don’t know who that person is.” The intimacy was gone. After eight years, burned out from always getting A+s, she left — and gave herself six months to do nothing at all.</p>
+    </div>
+
+    <!-- Diagram: the calibration room -->
+    <figure class="dg">
+      <div class="dg-scroll">
+      <svg viewBox="0 0 720 336" role="img" aria-label="Diagram of a calibration room: five managers at a table, one manager presenting as a lawyer, Workplace posts flowing into an impact file, leading to consensus">
+        <rect class="stl" x="30" y="100" width="660" height="214" rx="6"/>
+        <g><rect class="st fillpanel" x="120" y="22" width="130" height="34" rx="3"/><text class="lblb" x="185" y="43" text-anchor="middle">launch post</text></g>
+        <g><rect class="st fillpanel" x="300" y="22" width="130" height="34" rx="3"/><text class="lblb" x="365" y="43" text-anchor="middle">comment thread</text></g>
+        <g><rect class="st fillpanel" x="480" y="22" width="130" height="34" rx="3"/><text class="lblb" x="545" y="43" text-anchor="middle">public answer</text></g>
+        <text class="lbl" x="360" y="14" text-anchor="middle">Workplace — evidence entered early</text>
+        <path class="acc draw" pathLength="1" style="--d:.2s" d="M185 56 C 185 120, 330 110, 348 198" fill="none" marker-end="url(#aha)"/>
+        <path class="acc draw" pathLength="1" style="--d:.4s" d="M365 56 C 365 110, 358 140, 356 198" fill="none" marker-end="url(#aha)"/>
+        <path class="acc draw" pathLength="1" style="--d:.6s" d="M545 56 C 545 120, 390 110, 366 198" fill="none" marker-end="url(#aha)"/>
+        <g class="st fillpanel"><circle cx="230" cy="158" r="9"/><circle cx="310" cy="158" r="9"/><circle cx="390" cy="158" r="9"/><circle cx="470" cy="158" r="9"/><circle cx="550" cy="158" r="9"/></g>
+        <text class="lbl" x="390" y="136" text-anchor="middle">managers from across the org — the jury</text>
+        <rect class="st fillpanel" x="190" y="190" width="340" height="48" rx="6"/>
+        <rect class="fillsoft" x="330" y="200" width="60" height="28" rx="2"/>
+        <line class="st" x1="338" y1="209" x2="382" y2="209"/><line class="st" x1="338" y1="217" x2="374" y2="217"/>
+        <text class="lbl" x="360" y="256" text-anchor="middle">your impact file</text>
+        <circle class="fillsoft" cx="118" cy="214" r="9"/>
+        <line class="st" x1="127" y1="214" x2="186" y2="214" marker-end="url(#ah)"/>
+        <text class="lbl" x="118" y="244" text-anchor="middle">your manager</text>
+        <text class="lbl" x="118" y="258" text-anchor="middle">— the lawyer</text>
+        <circle class="st" cx="615" cy="255" r="27" stroke-dasharray="4 3" fill="none"/>
+        <text class="lbl" x="615" y="258" text-anchor="middle">consensus</text>
+        <line class="st" x1="532" y1="226" x2="586" y2="246" marker-end="url(#ah)"/>
+      </svg>
+      </div>
+      <figcaption>Fig. 05 — The calibration room. Your manager argues the case; the room decides. Posts published months earlier do most of the persuading.</figcaption>
+    </figure>
+
+    <p class="h-sm">How a promotion actually happens at scale</p>
+    <ol class="steps">
+      <li>Do work that matters — but treat the work as only half the job.</li>
+      <li>Publish the evidence: launch posts with the what, the why, the impact, and the lessons learned.</li>
+      <li>Answer questions in public, so strangers in the calibration room already know your name.</li>
+      <li>Hand your manager — your lawyer — a specific impact file they can read into the room.</li>
+      <li>If you manage: grow your people’s evidence trail, match work to strengths, and never make the mold too small.</li>
+    </ol>
+
+    <p class="h-sm" style="margin-top:34px">Three ways to see it</p>
+    <div class="ex"><span class="tag">Obvious</span>
+      <p>The engineers who posted launch write-ups on Workplace got the easiest consensus in calibration. When your manager said “they’re ready,” the room already agreed — they’d liked the post, asked a question in the comments, and gotten a sharp answer.</p></div>
+    <div class="ex"><span class="tag">Counter-intuitive</span>
+      <p>The best engineer in the room wasn’t necessarily the one who got promoted — the most <em>legible</em> one was. Merit needs a witness. Uncomfortable? Yes. False? No.</p></div>
+    <div class="ex"><span class="tag">Edge case</span>
+      <p>Gene herself — employee #19, eight years, helped open the London office — leveled L3 at Facebook. Junior. The system doesn’t know your lore; it only knows your file.</p></div>
+
+    <div class="analogy">
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="Five reviewers at a table with one document between them">
+            <g class="st"><circle cx="45" cy="38" r="4.6"/><circle cx="60" cy="38" r="4.6"/><circle cx="75" cy="38" r="4.6"/><circle cx="90" cy="38" r="4.6"/><circle cx="105" cy="38" r="4.6"/></g>
+            <rect class="st fillpanel" x="35" y="52" width="80" height="14" rx="2"/>
+            <rect class="fillsoft" x="67" y="55" width="16" height="8" rx="1"/>
+            <text class="lbl" x="75" y="86" text-anchor="middle">the impact file, argued aloud</text></svg></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="A courtroom: judge bench, jury box, and a lawyer with a document">
+            <circle class="st" cx="75" cy="16" r="5.5"/><rect class="st fillpanel" x="45" y="24" width="60" height="12" rx="2"/>
+            <rect class="st" x="28" y="56" width="94" height="22" rx="2" fill="none"/>
+            <g class="fillink"><circle cx="42" cy="67" r="3.4"/><circle cx="58" cy="67" r="3.4"/><circle cx="74" cy="67" r="3.4"/><circle cx="90" cy="67" r="3.4"/><circle cx="106" cy="67" r="3.4"/></g>
+            <circle class="st" cx="14" cy="48" r="4.6"/><line class="st" x1="18" y1="52" x2="27" y2="60"/>
+            <text class="lbl" x="75" y="92" text-anchor="middle">a courtroom, not a meritometer</text></svg></div>
+      </div>
+      <p class="an-bridge">Your manager can’t grant a promotion any more than a lawyer can grant a verdict — they argue the case to a jury of peers. And juries are swayed by evidence they’ve already seen. Your public work is the exhibit entered long before the trial begins.</p>
+    </div>
+
+    <details class="myth"><summary>❌ What People Get Wrong</summary>
+      <div class="body">
+        <p><span class="mlab bad">Myth</span>“My manager gives me my promotion.”</p>
+        <p><span class="mlab">Truth</span>Your manager has no authority over the outcome — they argue your case to peers who must consent, inside percentages the comp team has already fixed.</p>
+        <p><span class="mlab">Why it sticks</span>Humans decide by recognition, not by audit. A room of managers has forty cases to weigh; the ones that resolve fast are the ones where the name is already attached to a body of work. Visibility isn’t politics — it’s reducing the cognitive cost of believing in you.</p>
+      </div>
+    </details>
+
+    <div class="matters"><p class="h-sm">Why this matters</p>
+      <p><em>In a big organization, visibility isn’t vanity — it’s how the machine actually decides.</em></p></div>
+    <p class="xlink">🔗 This connects to Module 03, because everything WhatsApp didn’t need — paper trails, accountability theater — became a survival skill at Facebook scale.</p>
+
+    <div class="quiz" id="quiz-m5"></div>
+    <div class="dec" id="dec-m5"></div>
+  </div>
+</article>
+
+<!-- ═══════════ MODULE 06 · NOW ═══════════ -->
+<article class="module reveal" id="m6">
+  <div class="marker" aria-hidden="true"><span class="yr">NOW</span><span class="dot"></span></div>
+  <div>
+    <p class="kicker">Module 06 · The payoff</p>
+    <h2>Back to Fundamentals: What AI-Native Teams Can Steal</h2>
+    <div class="core">
+      <p>Gene made an observation that should rattle the AI era: everyone assumes tiny teams are a new thing, made possible by AI. But <strong>WhatsApp had no AI</strong>. They were efficient because they were <em>small</em> — because thirty people who trust each other don’t need ceremonies, and ownership does the work that process usually fakes. Today’s investors have flipped from bragging about headcount to celebrating leanness, and teams attribute their new efficiency to AI. Some of that is real — agents generate code, run tasks in parallel, eat grunt work. WhatsApp once had an engineer whose job was adding comments to code; AI takes that job first. But part of the efficiency was always available, sitting in the fundamentals: a clear goal, a small team of adults, and the discipline to say no.</p>
+      <p>Her career advice follows the same shape. Tools come and go — she has watched dozens of video-sharing sites consolidate into one, dozens of messaging apps do the same, and now she’s watching dozens of AI startups multiply, and the pattern rhymes. The survivors won’t be the ones who chased the shiniest tool; they’ll be the ones with <strong>foundations</strong> — people who know what they’re building and why. <em>Option paralysis</em> is the real risk: too many choices, too much noise, and you can work very hard and end up nowhere.</p>
+      <p>Her own post-WhatsApp story is the method applied to a life. Six months of deliberate nothing — reading, walking, meditation retreats. A spreadsheet of a hundred founders she interviewed, only to realize she didn’t want to join any of them. Then the slow discovery that what she loved wasn’t building products — it was unblocking people. So she stopped looking for a company and started doing the work directly: mentoring, writing, and a YouTube channel she nearly quit because being seen in public terrified her — her grandmother had fled North Korea, and generations of “do not speak publicly” run deep. A mentor told her it was okay to do something you enjoy. She stayed. Last week she passed 100,000 subscribers. Foundations over tools. Clear goals over shiny options. It worked in 2012. It works now.</p>
+    </div>
+
+    <!-- Diagram: three waves, one baseline -->
+    <figure class="dg">
+      <div class="dg-scroll">
+      <svg viewBox="0 0 760 306" role="img" aria-label="Chart: three waves of clones — video sharing, messaging, AI — each producing one survivor, above a steady fundamentals baseline">
+        <line class="st" x1="40" y1="226" x2="724" y2="226"/>
+        <path class="st" d="M70 226 C 110 226 118 118 180 118 C 242 118 250 226 290 226" fill="none"/>
+        <path class="st" d="M290 226 C 330 226 338 118 400 118 C 462 118 470 226 510 226" fill="none"/>
+        <path class="st" d="M510 226 C 550 226 558 118 620 118 C 682 118 690 226 730 226" fill="none"/>
+        <g class="fillink"><circle cx="108" cy="206" r="2.6"/><circle cx="120" cy="186" r="2.6"/><circle cx="132" cy="166" r="2.6"/><circle cx="146" cy="146" r="2.6"/><circle cx="160" cy="132" r="2.6"/>
+          <circle cx="328" cy="206" r="2.6"/><circle cx="340" cy="186" r="2.6"/><circle cx="352" cy="166" r="2.6"/><circle cx="366" cy="146" r="2.6"/><circle cx="380" cy="132" r="2.6"/>
+          <circle cx="548" cy="206" r="2.6"/><circle cx="560" cy="186" r="2.6"/><circle cx="572" cy="166" r="2.6"/><circle cx="586" cy="146" r="2.6"/><circle cx="600" cy="132" r="2.6"/></g>
+        <circle class="fillacc" cx="180" cy="118" r="4.6"/><circle class="fillacc" cx="400" cy="118" r="4.6"/><circle class="fillacc" cx="620" cy="118" r="4.6"/>
+        <text class="lbl" x="84" y="182">dozens of clones</text>
+        <line class="stl" x1="128" y1="186" x2="146" y2="196"/>
+        <text class="lbla" x="196" y="106">one survivor</text>
+        <line class="stl" x1="194" y1="110" x2="186" y2="114"/>
+        <text class="lbl" x="180" y="248" text-anchor="middle">video sharing · ~2006</text>
+        <text class="lbl" x="400" y="248" text-anchor="middle">messaging · ~2012</text>
+        <text class="lbl" x="620" y="248" text-anchor="middle">AI · ~2024</text>
+        <line class="acc" x1="40" y1="274" x2="724" y2="274"/>
+        <text class="lbl" x="382" y="294" text-anchor="middle">fundamentals — clear goal · small team · ownership · the disciplined no</text>
+      </svg>
+      </div>
+      <figcaption>Fig. 06 — Three waves, one playbook. The wave picks the moment; the anchor picks the outcome.</figcaption>
+    </figure>
+
+    <p class="h-sm">Stealing the playbook, step by step</p>
+    <ol class="steps">
+      <li>Make the goal so clear that “no” becomes automatic — the filter is the strategy.</li>
+      <li>Stay small on purpose; let tools multiply people, not replace judgment.</li>
+      <li>Strip any process that exists only for audit theater.</li>
+      <li>Give adults real ownership — one deep onboarding challenge, then trust. Maybe we’ve been over-babying capable adults.</li>
+      <li>Invest in foundations; they outlive every tool cycle.</li>
+    </ol>
+    <button class="more" data-label="Show Gene’s post-WhatsApp experiments ↓">Show Gene’s post-WhatsApp experiments ↓</button>
+    <ul class="extra-list">
+      <li>Six months of deliberate nothing — reading, exercise, long walks, meditation retreats</li>
+      <li>A spreadsheet of 100 founders interviewed; conclusion: none of them were it</li>
+      <li>A year of reading 100 books — her version of “doing nothing”</li>
+      <li>A brief stint coaching, then dropping it</li>
+      <li>YouTube — nearly quit after a video went viral; a mentor talked her out of it; 100K subscribers and counting</li>
+      <li>Full-time mentoring, writing, and advising founders — the unblocking work, without the company</li>
+    </ul>
+
+    <p class="h-sm" style="margin-top:34px">Three ways to see it</p>
+    <div class="ex"><span class="tag">Obvious</span>
+      <p>Gene uses AI every day as a thought partner — “be my executive coach,” “be a hardware-trained futurist.” Tools as sparring partners, not replacements.</p></div>
+    <div class="ex"><span class="tag">Counter-intuitive</span>
+      <p>WhatsApp’s efficiency may have had nothing to do with tools at all. No AI, no magic — just smallness, trust, and a clear goal. Today’s “AI-enabled leanness” may mostly be a return to fundamentals that were always available.</p></div>
+    <div class="ex"><span class="tag">Edge case</span>
+      <p>WhatsApp once employed an engineer whose entire job was adding comments to code. AI eats that job first — and frees the humans for judgment, which was the actual bottleneck all along.</p></div>
+
+    <div class="analogy">
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="A straight arrow through scattered dots, heading to one point">
+            <g class="fillink"><circle cx="30" cy="28" r="2.6"/><circle cx="52" cy="62" r="2.6"/><circle cx="72" cy="24" r="2.6"/><circle cx="94" cy="60" r="2.6"/><circle cx="112" cy="30" r="2.6"/></g>
+            <line class="acc" x1="16" y1="46" x2="128" y2="46" marker-end="url(#aha)"/>
+            <text class="lbl" x="75" y="86" text-anchor="middle">one clear direction</text></svg></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg class="mini" viewBox="0 0 150 100" role="img" aria-label="An anchor below two wave lines">
+            <path class="st" d="M15 24 Q 40 14 65 24 T 115 24" fill="none"/><path class="st" d="M15 36 Q 40 26 65 36 T 115 36" fill="none"/>
+            <circle class="st" cx="75" cy="52" r="4" fill="none"/><line class="st" x1="75" y1="56" x2="75" y2="82"/><line class="st" x1="62" y1="62" x2="88" y2="62"/>
+            <path class="st" d="M55 74 Q 75 90 95 74" fill="none"/><line class="st" x1="55" y1="74" x2="50" y2="68"/><line class="st" x1="95" y1="74" x2="100" y2="68"/>
+            <text class="lbl" x="75" y="97" text-anchor="middle">an anchor under the waves</text></svg></div>
+      </div>
+      <p class="an-bridge">Waves are loud and the anchor is silent. Every tool cycle crashes overhead — video, messaging, AI — and every time, the survivors are the ones holding the bottom: a clear goal, a small team, the discipline to say no. The wave picks the moment; the anchor picks the outcome.</p>
+    </div>
+
+    <details class="myth"><summary>❌ What People Get Wrong</summary>
+      <div class="body">
+        <p><span class="mlab bad">Myth</span>“AI is what finally makes small teams possible.”</p>
+        <p><span class="mlab">Truth</span>Small teams were always more efficient; AI just makes the pattern more visible — and more investable.</p>
+        <p><span class="mlab">Why it sticks</span>WhatsApp’s “technology” was thirty people who trusted each other. AI lowers the cost of grunt work, but ownership and a clear goal were doing the heavy lifting in 2012, and they still are. As Gene puts it: maybe AI just lets companies operate the way most companies always wished they could.</p>
+      </div>
+    </details>
+
+    <div class="matters"><p class="h-sm">Why this matters</p>
+      <p><em>Tools churn every five years; judgment, focus, and foundations compound forever.</em></p></div>
+    <p class="xlink">🔗 This connects to every module, because the whole lesson is one operating system: build for constraints (01), say no (02), trust adults (03), cover your costs (04), and make impact legible when you do scale (05).</p>
+
+    <div class="dec" id="dec-m6"></div>
+  </div>
+</article>
+
+<!-- ═══ QUICK RECALL after modules 5–6 ═══ -->
+<div class="interlude reveal">
+  <div class="marker" aria-hidden="true"><span class="dot"></span></div>
+  <div>
+    <p class="kicker">Retrieval practice · the whole lesson</p>
+    <div class="quiz mini" id="qr-3"></div>
+  </div>
+</div>
+
+<!-- ═══════════ PRACTICE STUDIO ═══════════ -->
+<section class="reveal" id="practice" style="padding-left:0;padding-right:0">
+  <p class="kicker">Active recall · the gym</p>
+  <h2 style="font-size:clamp(1.5rem,3vw,2rem);margin:10px 0 8px">Practice Studio</h2>
+  <p style="color:var(--muted);max-width:62ch;margin-bottom:8px">Four ways to make this stick. Your mastery and answers are saved on this device.</p>
+
+  <p class="h-sm" style="margin-top:34px">📝 The card deck — flip, learn, mark mastered</p>
+  <div class="deck" id="deck"></div>
+  <p class="deck-status" id="deckStatus" aria-live="polite">0 / 8 mastered</p>
+
+  <p class="h-sm" style="margin-top:44px">🧩 Match the system — drag a principle onto its practice (or click to select, then click a slot)</p>
+  <div class="match" id="match"></div>
+
+  <p class="h-sm" style="margin-top:44px">🎯 Fill the gaps — three levels of hints if you stall</p>
+  <div id="fills"></div>
+
+  <p class="h-sm" style="margin-top:44px">✍️ Teach it back — the Feynman move</p>
+  <div class="teach quiz" style="background:var(--panel)">
+    <p class="quiz-q">Explain the WhatsApp playbook to a curious five-year-old (or your least technical relative). Two to four sentences.</p>
+    <textarea id="teachBox" aria-label="Your explanation" placeholder="Well, WhatsApp was a tiny team who…"></textarea>
+    <div class="fill-row">
+      <button class="btn" id="teachCheck">Check coverage</button>
+      <button class="mini-btn" id="teachReveal">Reveal a model answer</button>
+    </div>
+    <div class="kw-list" id="teachKws" aria-live="polite"></div>
+    <p class="hint-line" id="teachMsg" aria-live="polite"></p>
+    <blockquote class="model" id="teachModel"></blockquote>
+  </div>
+</section>
+
+</div><!-- /timeline -->
+</main>
+
+<!-- ================= SUMMARY & CHEAT SHEET ================= -->
+<section id="summary">
+  <div class="wrap">
+    <p class="h-sm">Summary &amp; cheat sheet</p>
+    <h2 style="font-size:clamp(1.5rem,3vw,2rem);margin-bottom:18px">Six principles, one operating system</h2>
+    <div class="cheat">
+      <div class="pr"><span class="n">01</span><div class="txt"><strong>Build for your users’ worst device, not your best developer.</strong><span>Eight native apps and one Erlang core — the constraint was the strategy.</span></div></div>
+      <div class="pr"><span class="n">02</span><div class="txt"><strong>Run every idea through one human filter.</strong><span>The grandma test turned “no” into a system. 99% rejected; the 1% shipped only when 100% certain.</span></div></div>
+      <div class="pr"><span class="n">03</span><div class="txt"><strong>Hire adults, give them ownership, delete the ceremony.</strong><span>30 engineers, 450M users, one code review ever. Trust plus visibility replaces process — at that size.</span></div></div>
+      <div class="pr"><span class="n">04</span><div class="txt"><strong>Cover your costs; keep investors as insurance.</strong><span>$1 = servers + salaries + SMS. The $8M never touched. Break-even is sovereignty.</span></div></div>
+      <div class="pr"><span class="n">05</span><div class="txt"><strong>In a big org, impact needs a witness.</strong><span>Your manager is the lawyer, calibration is the jury, your public work is the evidence.</span></div></div>
+      <div class="pr"><span class="n">06</span><div class="txt"><strong>Tools churn; foundations compound.</strong><span>Clear goals beat option paralysis in every wave — video, messaging, AI.</span></div></div>
+      <p class="numbers">#19 employee · 30 engineers · 450M monthly users · 8 platforms · $1/yr · $8M untouched · $19B exit · 99% no · 100 founders interviewed · 100 books read</p>
+    </div>
+
+    <p class="h-sm" style="margin-top:44px">A schedule for keeping this</p>
+    <ul class="sr-list">
+      <li data-t="IN 1 MIN">Name the six principles out loud, in order.</li>
+      <li data-t="IN 10 MIN">Redraw the feature decision funnel from memory.</li>
+      <li data-t="IN 1 HOUR">Explain the $1 brake to someone in two sentences.</li>
+      <li data-t="IN 1 DAY">Redo the matching exercise without looking back.</li>
+      <li data-t="IN 3 DAYS">Rewrite the cheat sheet from memory. Compare. Wince. Repeat.</li>
+      <li data-t="IN 1 WEEK">Apply one disciplined “no” in your own backlog — and note what it cost and what it protected.</li>
+    </ul>
+
+    <p class="h-sm" style="margin-top:44px">The route, once more</p>
+    <div class="map-scroll"><div id="mapEnd" role="navigation" aria-label="Lesson knowledge map, repeated"></div></div>
+
+    <div id="finish" role="status">✓ You finished the lesson.</div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section id="faq" style="border-top:1px solid var(--line)">
+  <div class="wrap">
+    <p class="h-sm">Still confused?</p>
+    <h2 style="font-size:clamp(1.5rem,3vw,2rem);margin-bottom:18px">Fair questions, honest answers</h2>
+
+    <details class="faq"><summary>Wasn’t skipping code reviews reckless?</summary>
+      <p class="a">At WhatsApp’s size, no — and the transcript shows why. The single deep review at onboarding calibrated standards permanently, and thirty senior engineers reading every commit in a shared group is continuous review, just informal. The safety net was the hiring bar plus the outage counter on the wall. Copy the principle — high-trust, high-visibility review — not the absence of process; at 500 people, the same informality would be negligence.</p>
+    </details>
+    <details class="faq"><summary>Could this work at my 500-person company?</summary>
+      <p class="a">Not wholesale, and Gene says so herself: process exists to solve problems created by scale, and at scale those problems are real. What transfers is the underlying kit — a mission filter sharp enough to say no automatically, dogfooding before release, one visible metric instead of forty dashboards, and ownership given to adults rather than withheld by ceremony. Steal the principles; leave the anarchy.</p>
+    </details>
+    <details class="faq"><summary>Is cross-platform always wrong, then?</summary>
+      <p class="a">No — it’s a trade-off, not a sin. WhatsApp’s users sat on the weakest devices on Earth, so the translation-layer tax was existential for them. If your users carry flagships, cross-platform can be exactly right. The lesson is to let <em>your users’ constraints</em> make the call, rather than framework fashion or hiring convenience.</p>
+    </details>
+    <details class="faq"><summary>Why would Facebook pay $19B for a break-even company?</summary>
+      <p class="a">Because the dollar was a choice, not a ceiling. Facebook bought 450 million deeply engaged users whose growth was being deliberately throttled — and the moment Facebook removed the fee and funded the servers, growth exploded. The acquisition only makes sense once you understand that WhatsApp’s “small” revenue was an artifact of its brake, not its potential.</p>
+    </details>
+    <details class="faq"><summary>Did WhatsApp’s culture survive the acquisition?</summary>
+      <p class="a">Slowly, no. At first: same office, own chairs, own area, business as usual. Then the gradual merge — Facebook’s HR, recruiting, leveling, the Menlo Park move, headcount growth from dozens to hundreds to thousands. Gene’s own arc traces it: leveled L3, promoted again, sent to open London, and eventually the moment she realized she didn’t know people’s names anymore. The intimacy was the culture; scale dissolved it.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ================= NEXT STEPS ================= -->
+<section id="next" style="border-top:1px solid var(--line)">
+  <div class="wrap">
+    <p class="h-sm">Next steps</p>
+    <h2 style="font-size:clamp(1.5rem,3vw,2rem);margin-bottom:18px">Where to go from here</h2>
+    <ul class="next">
+      <li>Watch <strong>Rick Reed’s talk on WhatsApp’s Erlang architecture</strong> — referenced in the episode, still on YouTube, the deepest dive into the “airplane engine” backend.</li>
+      <li>Read <strong><em>A Random Walk Down Wall Street</em></strong> — Gene’s post-acquisition homework for managing sudden wealth.</li>
+      <li>Read <strong><em>Surrounded by Idiots</em></strong> for the DISC communication model Gene leaned on as a new manager.</li>
+      <li>Read <strong><em>What Color Is Your Parachute?</em></strong> for the strengths-first career mapping she still recommends.</li>
+      <li>If you build for the next billion users, study <strong>feature-phone constraints</strong> — KaiOS and S40 budgets are a masterclass in engineering empathy.</li>
+      <li>Follow <strong>Gene Lee’s YouTube and LinkedIn</strong> for ongoing career advice from the WhatsApp trenches — she just passed 100K subscribers.</li>
+      <li>This week, run one item from your own backlog through <strong>your version of the grandma test</strong> — and let the answer be no.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Built from a conversation with Gene Lee · The Pragmatic Engineer podcast · All diagrams are editorial interpretations, drawn in pure SVG.</div>
+</footer>
+
+<script>
+/* ============================================================
+   UTILITIES & PERSISTENCE
+   ============================================================ */
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const store = {
+  get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+/* ============================================================
+   THEME — dark/light toggle with persistence
+   ============================================================ */
+(function initTheme(){
+  const saved = store.get('wa_theme');
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.dataset.theme = saved || (prefersDark ? 'dark' : 'light');
+  $('#themeBtn').addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    store.set('wa_theme', next);
+  });
+})();
+
+/* ============================================================
+   LOADER — single quiet line, fades once content is ready
+   ============================================================ */
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const l = $('#loader');
+    l.classList.add('off');
+    setTimeout(() => l.remove(), 500);
+  }, 350);
+});
+
+/* ============================================================
+   PROGRESS BAR + FINISH BADGE (thin, quiet, persisted)
+   ============================================================ */
+(function initProgress(){
+  const bar = $('#pbar'), badge = $('#finish');
+  let last = 0;
+  function update(){
+    const h = document.documentElement;
+    const max = h.scrollHeight - h.clientHeight;
+    const pct = max > 0 ? h.scrollTop / max : 0;
+    bar.style.width = (pct * 100) + '%';
+    if (pct > 0.97){ badge.classList.add('show'); store.set('wa_finished', true); }
+    else if (!store.get('wa_finished')) badge.classList.remove('show');
+    const now = Date.now();
+    if (now - last > 800){ store.set('wa_progress', Math.round(pct * 100)); last = now; }
+  }
+  window.addEventListener('scroll', update, {passive:true});
+  window.addEventListener('resize', update);
+  if (store.get('wa_finished')) badge.classList.add('show');
+  update();
+})();
+
+/* ============================================================
+   SCROLL REVEAL + DIAGRAM DRAW-ON (once, subtle)
+   ============================================================ */
+(function initReveal(){
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, {threshold:.12});
+  $$('.reveal, figure.dg').forEach(el => io.observe(el));
+})();
+
+/* ============================================================
+   KNOWLEDGE MAP — monochrome SVG timeline, hover + click
+   ============================================================ */
+const MAP_NODES = [
+  {id:'m1', year:'2009', name:'Eight Platforms'},
+  {id:'m2', year:'2012', name:'Saying No'},
+  {id:'m3', year:'2013', name:'Zero Process'},
+  {id:'m4', year:'2014', name:'The $1 Engine'},
+  {id:'m5', year:'2016', name:'Visibility'},
+  {id:'m6', year:'Now',  name:'Fundamentals'}
+];
+function buildMap(containerId){
+  const host = document.getElementById(containerId);
+  if (!host) return;
+  const svg = document.createElementNS(SVGNS,'svg');
+  svg.setAttribute('viewBox','0 0 880 130');
+  svg.setAttribute('role','group');
+  svg.setAttribute('aria-label','Knowledge map: six modules along a timeline');
+  const y = 64, xs = MAP_NODES.map((_,i)=> 70 + i*148);
+  const segs = [];
+  // connecting segments
+  for (let i=0;i<xs.length-1;i++){
+    const p = document.createElementNS(SVGNS,'path');
+    p.setAttribute('d', `M ${xs[i]+12} ${y} L ${xs[i+1]-12} ${y}`);
+    p.setAttribute('class','st'); p.setAttribute('fill','none');
+    svg.appendChild(p); segs.push(p);
+  }
+  // nodes
+  MAP_NODES.forEach((n,i)=>{
+    const g = document.createElementNS(SVGNS,'g');
+    g.setAttribute('tabindex','0'); g.setAttribute('role','button');
+    g.setAttribute('aria-label', `Module ${i+1}: ${n.name}, ${n.year}. Jump to module.`);
+    g.style.cursor = 'pointer';
+    const c = document.createElementNS(SVGNS,'circle');
+    c.setAttribute('cx', xs[i]); c.setAttribute('cy', y); c.setAttribute('r', 7);
+    c.setAttribute('class','fillpanel'); c.setAttribute('stroke','currentColor'); c.setAttribute('stroke-width','1.5');
+    const t1 = document.createElementNS(SVGNS,'text');
+    t1.setAttribute('x', xs[i]); t1.setAttribute('y', 40); t1.setAttribute('text-anchor','middle');
+    t1.setAttribute('class','lblb'); t1.textContent = `${String(i+1).padStart(2,'0')} ${n.name}`;
+    const t2 = document.createElementNS(SVGNS,'text');
+    t2.setAttribute('x', xs[i]); t2.setAttribute('y', 94); t2.setAttribute('text-anchor','middle');
+    t2.setAttribute('class','lbl'); t2.textContent = n.year;
+    g.append(c,t1,t2);
+    const setHot = on => {
+      c.setAttribute('stroke', on ? 'var(--accent)' : 'currentColor');
+      c.setAttribute('fill', on ? 'var(--soft)' : 'var(--panel)');
+      [segs[i-1], segs[i]].forEach(s => { if (s) s.setAttribute('stroke', on ? 'var(--accent)' : 'currentColor'); });
+    };
+    const jump = () => document.getElementById(n.id).scrollIntoView({behavior:'smooth', block:'start'});
+    g.addEventListener('mouseenter', ()=>setHot(true));
+    g.addEventListener('mouseleave', ()=>setHot(false));
+    g.addEventListener('focus', ()=>setHot(true));
+    g.addEventListener('blur', ()=>setHot(false));
+    g.addEventListener('click', jump);
+    g.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); jump(); } });
+    svg.appendChild(g);
+  });
+  host.appendChild(svg);
+}
+buildMap('mapTop'); buildMap('mapEnd');
+
+/* ============================================================
+   HOTSPOT DIAGRAM — tooltips near the clicked element
+   ============================================================ */
+(function initHotspots(){
+  $$('figure.dg').forEach(fig => {
+    const spots = $$('.hs', fig);
+    if (!spots.length) return;
+    fig.style.position = 'relative';
+    const tip = document.createElement('div');
+    tip.className = 'tip'; tip.setAttribute('role','status'); tip.hidden = true;
+    fig.appendChild(tip);
+    let openG = null;
+    function close(){ tip.hidden = true; openG = null; }
+    spots.forEach(g => {
+      const show = () => {
+        if (openG === g){ close(); return; }
+        const fr = fig.getBoundingClientRect(), r = g.getBoundingClientRect();
+        let x = r.left - fr.left + r.width/2;
+        const y = r.top - fr.top - 8;
+        x = Math.max(130, Math.min(x, fr.width - 130));
+        tip.textContent = g.dataset.tip;
+        tip.style.left = x + 'px'; tip.style.top = y + 'px';
+        tip.hidden = false; openG = g;
+      };
+      g.addEventListener('click', e => { e.stopPropagation(); show(); });
+      g.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); show(); } });
+    });
+    document.addEventListener('click', e => { if (!e.target.closest('.hs')) close(); });
+    document.addEventListener('keydown', e => { if (e.key==='Escape') close(); });
+  });
+})();
+
+/* ============================================================
+   ELABORATIVE ("But why?") + CHUNKING ("Show more") toggles
+   ============================================================ */
+document.addEventListener('click', e => {
+  const w = e.target.closest('.why');
+  if (w){
+    const b = w.nextElementSibling;
+    const open = b.classList.toggle('open');
+    w.setAttribute('aria-expanded', open);
+    w.textContent = open ? 'Because — hide' : 'But why is that true?';
+  }
+  const m = e.target.closest('.more');
+  if (m){
+    const x = m.nextElementSibling;
+    const open = x.classList.toggle('open');
+    m.textContent = open ? 'Show less ↑' : m.dataset.label;
+  }
+});
+
+/* ============================================================
+   QUIZ ENGINE — 4-option MC with per-option feedback, persisted
+   ============================================================ */
+const QUIZ = {
+  'quiz-m1': { k:'Check for understanding', q:'Why did WhatsApp choose Erlang — an obscure telecom language — for its backend?',
+    opts:[
+      {t:'It was the most popular language among startup engineers at the time.', ok:false,
+       fb:'Not quite. The correct answer is “concurrency and hot code swapping.” Erlang was famously uncool — they stumbled onto it through another tool that happened to use it. Let’s review: popularity was irrelevant; the requirement was a system that could never stop, because it is always 8 a.m. somewhere.'},
+      {t:'It offered massive concurrency and hot code swapping — no maintenance window needed.', ok:true,
+       fb:'That’s right. Rick Reed described it as maintaining the engine of an airplane while it’s flying, 24/7. WhatsApp is global, so the engine can never stop — Erlang was the only language built for exactly that.'},
+      {t:'It was the cheapest language to hire for.', ok:false,
+       fb:'Not quite. The correct answer is “concurrency and hot code swapping.” Erlang engineers were rare — Jan cold-emailed experts across Europe to staff the stack. Let’s review: they hired for the constraint, not the cost.'},
+      {t:'Jan Koum had used it at Yahoo and preferred it.', ok:false,
+       fb:'Not quite. The correct answer is “concurrency and hot code swapping.” The choice was accidental in origin — a tool they already used ran on Erlang — and deliberate in fit. Let’s review: the requirement was zero downtime, not familiarity.'}
+    ]},
+  'quiz-m2': { k:'Check for understanding', q:'WhatsApp worked on video calling for years before shipping it. Why hold a finished feature?',
+    opts:[
+      {t:'They were waiting for patent licensing to clear.', ok:false,
+       fb:'Not quite. The correct answer is “until they were 100% sure of the quality.” Patents never came up — the hold was a quality decision, not a legal one. Let’s review: the grandma test means nothing ships until it works flawlessly for the most fragile user.'},
+      {t:'They refused to ship until they were 100% sure of the quality.', ok:true,
+       fb:'That’s right. Gene says they beta-tested with family phone lists for a very long time before going public. The hold wasn’t slowness — it was the brand promise being enforced.'},
+      {t:'There weren’t enough engineers to finish it sooner.', ok:false,
+       fb:'Not quite. The correct answer is “until they were 100% sure of the quality.” Headcount wasn’t the constraint — conviction was. Let’s review: features were held by choice, not by capacity.'},
+      {t:'Facebook required them to wait until after the acquisition.', ok:false,
+       fb:'Not quite. The correct answer is “until they were 100% sure of the quality.” The hold began years before Facebook entered the picture. Let’s review: the no came from Jan, not from Menlo Park.'}
+    ]},
+  'quiz-m3': { k:'Check for understanding', q:'How many formal code reviews did Gene receive in her entire WhatsApp career?',
+    opts:[
+      {t:'One per quarter, like everyone else.', ok:false,
+       fb:'Not quite. The correct answer is “exactly one — her first commit.” There were no recurring reviews of any kind. Let’s review: thirty people reading every commit in a group chat replaced the ritual.'},
+      {t:'Exactly one — her very first commit, which Brian Acton grilled her through.', ok:true,
+       fb:'That’s right. It played like a coding interview: why this approach, what are the alternatives, what breaks? After that, total trust — and total ownership. One deep review calibrated the standard forever.'},
+      {t:'One before every release.', ok:false,
+       fb:'Not quite. The correct answer is “exactly one — her first commit.” Releases were gated by dogfooding and Jan trying to break things, not by review. Let’s review: the safety net was the whole company using the build.'},
+      {t:'None at all — WhatsApp never reviewed code.', ok:false,
+       fb:'Close, but not quite. There was exactly one: her first commit, then never again. Let’s review: the single review mattered precisely because it was the only one — it set the bar and then got out of the way.'}
+    ]},
+  'quiz-m5': { k:'Check for understanding', q:'At Meta, who actually decides whether you get promoted?',
+    opts:[
+      {t:'Your direct manager — they control the outcome.', ok:false,
+       fb:'Not quite. The correct answer is “a calibration room of managers across the org.” Gene is explicit: middle managers have no authority to promote — they argue your case to peers. Let’s review: the manager is the lawyer, not the judge.'},
+      {t:'A calibration room of managers across the org, arguing cases.', ok:true,
+       fb:'That’s right. Strangers must agree your work deserves the rating — which is exactly why visibility before the meeting matters so much. Your manager makes the closing argument; your public work has already made the case.'},
+      {t:'The comp team, which sets the percentages.', ok:false,
+       fb:'Not quite. The comp team fixes the percentage per level — the budget rails — but the promotion decision itself comes out of calibration. Let’s review: comp constrains; calibration decides.'},
+      {t:'Self-nomination through the performance tool.', ok:false,
+       fb:'Not quite. Self-reviews feed the process, but the verdict comes from the room of managers. Let’s review: your evidence travels through your manager’s argument — which is why you should hand them a great file.'}
+    ]}
+};
+
+/* Quick Recall data — cumulative retrieval practice */
+const QR = {
+  'qr-1': { k:'Quick recall · Modules 01–02', qs:[
+    { q:'The grandma test asks whether a feature…',
+      opts:[['works flawlessly on a cheap old phone in a remote place',true,'That’s right. One human, one constraint, one filter — that’s the whole system.'],
+            ['ships faster than the competition',false,'Not quite. The answer is “works flawlessly on a cheap old phone.” Speed was never the filter — reliability for the weakest user was.'],
+            ['makes money in its first year',false,'Not quite. The answer is “works flawlessly on a cheap old phone.” Monetization never entered the grandma test.'],
+            ['is technically novel',false,'Not quite. The answer is “works flawlessly on a cheap old phone.” Novelty usually failed the test — that was the point.']]},
+    { q:'Erlang gave WhatsApp two superpowers:',
+      opts:[['massive concurrency and hot code swapping',true,'That’s right. Millions of connections, patched mid-flight — the airplane engine that never stops.'],
+            ['faster UI rendering',false,'Not quite. The answer is “concurrency and hot code swapping.” Erlang never touched the UI — it was the backend’s superpower.'],
+            ['cheaper hosting bills',false,'Not quite. The answer is “concurrency and hot code swapping.” Cost was a side effect, not the reason.'],
+            ['cross-platform client code',false,'Not quite. The answer is “concurrency and hot code swapping.” Clients were deliberately native; Erlang was the shared core.']]},
+    { q:'WhatsApp supported eight platforms natively because…',
+      opts:[['cross-platform layers tax the weakest phones first',true,'That’s right. The poncho fits nobody poorly — and grandma’s Nokia was the whole point.'],
+            ['frameworks didn’t exist yet',false,'Not quite. The answer is “cross-platform layers tax the weakest phones first.” Frameworks existed; WhatsApp rejected them on principle.'],
+            ['investors required broad coverage',false,'Not quite. The answer is “cross-platform layers tax the weakest phones first.” Sequoia barely got a word in — the mission drove the stack.'],
+            ['they wanted to hire as many engineers as possible',false,'Not quite. The answer is “cross-platform layers tax the weakest phones first.” They famously wanted to stay small.']]}
+  ]},
+  'qr-2': { k:'Quick recall · Modules 01–04', qs:[
+    { q:'The $1 yearly fee split roughly into…',
+      opts:[['servers, salaries, and SMS codes',true,'That’s right. A third each — and Brian showed everyone the math once a year.'],
+            ['marketing, sales, and R&D',false,'Not quite. The answer is “servers, salaries, and SMS codes.” There was no marketing budget to speak of.'],
+            ['founders’ bonuses',false,'Not quite. The answer is “servers, salaries, and SMS codes.” The founders famously lived on the same break-even dollar.'],
+            ['office rent and perks',false,'Not quite. The answer is “servers, salaries, and SMS codes.” The money went straight into running the service.']]},
+    { q:'Sequoia’s $8M investment was…',
+      opts:[['never touched — kept as a backup',true,'That’s right. Brian’s dad had taught him what payroll-night anxiety feels like. Insurance, not fuel.'],
+            ['spent on servers in year one',false,'Not quite. The answer is “never touched — kept as a backup.” The $1 paid for the servers.'],
+            ['used to hire the European contractors',false,'Not quite. The answer is “never touched — kept as a backup.” Salaries came out of the dollar.'],
+            ['returned to Sequoia at the acquisition',false,'Not quite. The answer is “never touched — kept as a backup.” It simply sat there, doing its job by existing.']]},
+    { q:'What replaced code reviews at WhatsApp?',
+      opts:[['thirty people reading every commit, plus brutal dogfooding',true,'That’s right. Visibility plus a founder whose hobby was breaking your build.'],
+            ['weekly audit meetings',false,'Not quite. The answer is “thirty people reading every commit, plus brutal dogfooding.” Meetings were nearly nonexistent.'],
+            ['an external QA firm',false,'Not quite. The answer is “thirty people reading every commit, plus brutal dogfooding.” QA was internal — the Chief QA Officer was the co-founder.'],
+            ['automated linting only',false,'Not quite. The answer is “thirty people reading every commit, plus brutal dogfooding.” Humans, not tools, were the safety net.']]}
+  ]},
+  'qr-3': { k:'Quick recall · the whole lesson', qs:[
+    { q:'At Meta, a middle manager’s real role in your promotion is…',
+      opts:[['a lawyer arguing your case to a committee of peers',true,'That’s right. No authority over the outcome — only the quality of the argument and the evidence you supplied.'],
+            ['the final decision-maker',false,'Not quite. The answer is “a lawyer arguing your case to a committee of peers.” The room decides, not the manager.'],
+            ['the budget owner',false,'Not quite. The answer is “a lawyer arguing your case to a committee of peers.” Comp percentages are fixed per level by the comp team.'],
+            ['a note-taker for HR',false,'Not quite. The answer is “a lawyer arguing your case to a committee of peers.” They advocate — actively — but they don’t decide.']]},
+    { q:'Gene’s explanation for small-team efficiency is…',
+      opts:[['smallness itself — trust and visibility replace process',true,'That’s right. WhatsApp had no AI. Thirty people who trust each other simply don’t need ceremonies.'],
+            ['secretly adopted AI tools',false,'Not quite. The answer is “smallness itself.” WhatsApp predated modern AI — the efficiency was structural.'],
+            ['better project-management software',false,'Not quite. The answer is “smallness itself.” They had less tooling than Skype, not more.'],
+            ['longer working hours',false,'Not quite. The answer is “smallness itself.” The transcript never mentions hours — it mentions ownership.']]},
+    { q:'The pattern across the video, messaging, and AI waves is…',
+      opts:[['dozens of clones → consolidation → survivors with clear goals and fundamentals',true,'That’s right. The wave picks the moment; the anchor picks the outcome.'],
+            ['the first mover always wins',false,'Not quite. The answer is “dozens of clones → consolidation → survivors with fundamentals.” WhatsApp was not first — it was focused.'],
+            ['the most-funded company wins',false,'Not quite. The answer is “dozens of clones → consolidation → survivors with fundamentals.” WhatsApp barely touched its funding.'],
+            ['whoever has the best tools wins',false,'Not quite. The answer is “dozens of clones → consolidation → survivors with fundamentals.” Tools churn; foundations compound.']]}
+  ]}
+};
+
+/* renderQuiz: builds a quiz (or multi-question quick recall) into a container */
+function renderQuiz(mountId, spec, isQR){
+  const el = document.getElementById(mountId);
+  if (!el) return;
+  const questions = spec.qs || [spec];
+  el.innerHTML = '';
+  questions.forEach((q, qi) => {
+    const key = mountId + '_' + qi;
+    const saved = store.get('wa_quiz_' + key);
+    const wrap = document.createElement('div');
+    if (qi > 0) wrap.style.marginTop = '18px';
+    const k = document.createElement('p'); k.className = 'quiz-k';
+    k.textContent = isQR ? `${spec.k} · ${qi+1}/${questions.length}` : spec.k;
+    const qt = document.createElement('p'); qt.className = 'quiz-q'; qt.textContent = q.q;
+    const fb = document.createElement('div'); fb.className = 'fb'; fb.hidden = true;
+    fb.setAttribute('aria-live','polite');
+    wrap.append(k, qt);
+    let locked = false;
+    const finish = (i, silent) => {
+      locked = true;
+      const chosen = q.opts[i];
+      buttons.forEach((b, bi) => {
+        b.disabled = true;
+        if (q.opts[bi][1]) b.classList.add('correct');
+        else if (bi === i) b.classList.add('incorrect');
+      });
+      fb.textContent = chosen[2];
+      fb.classList.toggle('bad', !chosen[1]);
+      fb.hidden = false;
+      if (!silent) store.set('wa_quiz_' + key, i);
+    };
+    const buttons = q.opts.map((o, i) => {
+      const b = document.createElement('button');
+      b.className = 'opt'; b.textContent = o[0];
+      b.addEventListener('click', () => { if (!locked) finish(i, false); });
+      wrap.appendChild(b);
+      return b;
+    });
+    wrap.appendChild(fb);
+    if (saved !== null && saved !== undefined) finish(saved, true);
+    el.appendChild(wrap);
+  });
+}
+Object.keys(QUIZ).forEach(id => renderQuiz(id, QUIZ[id], false));
+Object.keys(QR).forEach(id => renderQuiz(id, QR[id], true));
+
+/* ============================================================
+   DECISION SCENARIOS — "You're in the room", 3 calls each
+   ============================================================ */
+const TAG_LABEL = {good:'Sound call', mid:'Risky', bad:'Costly'};
+const DEC = {
+  'dec-m1': {k:'You’re in the room · Platform lead, 2013', intro:'You own the client platforms. Every call below trades effort against the mission.',
+    d:[
+      {p:'An exec suggests killing Nokia S40 support and going cross-platform — “40% less effort.”',
+       o:[{t:'Do it — the platform is dying anyway.', tag:'bad', f:'You just uninstalled yourself from the phones your mission exists for. The “dying” platform is where the next billion users live.'},
+          {t:'Keep native, and show the memory footprint on a 2010 phone.', tag:'good', f:'Data beats fashion. A featherweight native app on a weak phone is worth ten elegant abstractions that bloat it.'},
+          {t:'Outsource S40 to an agency to save internal effort.', tag:'mid', f:'Cheaper now, drift later. The specialist in the room is the quality bar; the agency is a phone call away from it.'}]},
+      {p:'It’s December 31, 22:00. Traffic is about to tenfold.',
+       o:[{t:'Pre-provision capacity and rehearse the spike.', tag:'good', f:'This is the annual ritual: plan for the one moment the whole planet types at once — then celebrate surviving it.'},
+          {t:'Trust the autoscaler to absorb it.', tag:'mid', f:'Erlang’s concurrency buys a lot, but capacity is planned, not hoped for. Hope is not an architecture.'},
+          {t:'Take a maintenance window at 23:00 while it’s quiet.', tag:'bad', f:'It’s 8 a.m. somewhere — always. There is no window; that’s the whole reason Erlang is under the hood.'}]},
+      {p:'A critical Erlang bug surfaces at 3 a.m. Millions are connected.',
+       o:[{t:'Hot-patch the running system.', tag:'good', f:'That’s the superpower: swap the engine mid-flight. Done carefully, nobody ever knows it broke.'},
+          {t:'Wait for a morning maintenance window.', tag:'bad', f:'The window doesn’t exist, and “wait” is another phrase for “outage with extra steps.”'},
+          {t:'Roll back the entire backend.', tag:'mid', f:'Sometimes right, usually blunt — rolling back stateful messaging throws away more than the bug did.'}]}
+  ]},
+  'dec-m2': {k:'You’re in the room · You are Jan, 2013', intro:'Feature pressure from every direction. The filter is the strategy.',
+    d:[
+      {p:'An engineer pitches Stories. “Our competitor is growing fast with it.”',
+       o:[{t:'Build it this quarter to keep pace.', tag:'bad', f:'You become a follower with their roadmap and your bugs. The app gets heavier; grandma’s phone struggles; your differentiation evaporates.'},
+          {t:'Say no — and restate the mission out loud.', tag:'good', f:'Short-term FOMO, long-term trust. The competitor’s shiny feature may fizzle, and you’ve kept the queue clean for what actually matters.'},
+          {t:'Ship a minimal half-version to hedge.', tag:'mid', f:'A half-feature is the worst of both worlds: the distraction cost without the quality payoff — and it still breaks things on weak phones.'}]},
+      {p:'The video-calling beta crashes on the Nokia S40. Launch is scheduled for Friday.',
+       o:[{t:'Ship anyway; patch it next week.', tag:'bad', f:'“Move fast and break things” — except the thing you break is trust, on exactly the devices your mission is built for.'},
+          {t:'Delay until it’s unbreakable.', tag:'good', f:'This is the actual playbook: hold the feature, fix the crash, ship only when you’re 100% sure. The delay is the brand.'},
+          {t:'Cancel video calling entirely.', tag:'mid', f:'Overcorrection. The mission isn’t “build nothing” — it’s “build nothing badly.” Fix, don’t flee.'}]},
+      {p:'A reporter asks why WhatsApp has so few features compared to rivals.',
+       o:[{t:'Apologize and publish a feature roadmap.', tag:'bad', f:'A public roadmap invites public pressure to fill it with distractions. You’ve just outsourced your priorities.'},
+          {t:'Restate the grandma test, plainly and proudly.', tag:'good', f:'The no is the product. Said out loud, it becomes a promise customers can hold you to — and a filter your team can use.'},
+          {t:'“No comment.”', tag:'mid', f:'Safe, but a wasted chance. Silence reads as shame; the mission, said proudly, reads as conviction.'}]}
+  ]},
+  'dec-m3': {k:'You’re in the room · Engineer #31, first week', intro:'No process means no place to hide. Every call is cultural.',
+    d:[
+      {p:'You spot a bug in a teammate’s commit that just hit production.',
+       o:[{t:'File a ticket and CC a manager for visibility.', tag:'bad', f:'You’ve imported bureaucracy to fix a problem that needed one sentence. The ticket becomes the trail; the fix waits.'},
+          {t:'Message them directly in the group chat.', tag:'good', f:'Thirty people, one chat. The fix lands in an hour, and the owner learns in public without being shamed.'},
+          {t:'Quietly fix it yourself to save time.', tag:'mid', f:'Fast — but you’ve stolen their ownership and hidden the lesson. Next time, the same bug ships again.'}]},
+      {p:'Your feature is done, but Jan — “just the Chief QA Officer” — found a crash while dogfooding.',
+       o:[{t:'Ship — the founder isn’t in the formal test matrix.', tag:'bad', f:'The Chief QA Officer outranks your deadline. Ship over his bug and you’ll find out what the outage counter feels like at zero.'},
+          {t:'Hold the release until he can’t break it.', tag:'good', f:'A founder breaking your build is free, early, and brutal — exactly the QA most companies pay fortunes for.'},
+          {t:'Call a formal bug-triage meeting to decide.', tag:'mid', f:'A meeting about a bug is a delay wearing a suit. Thirty people can resolve this in one thread.'}]},
+      {p:'A new hire asks: “Who approves my releases?”',
+       o:[{t:'“The release manager.”', tag:'bad', f:'That role doesn’t exist — and inventing it is how 30-person companies become 300-person companies.'},
+          {t:'“You do. That’s the job.”', tag:'good', f:'Ownership is the whole operating system. Say it out loud and you’ve just finished onboarding them.'},
+          {t:'“The founders, eventually.”', tag:'mid', f:'Now you’ve created a bottleneck out of two people who are already the bottleneck.'}]}
+  ]},
+  'dec-m4': {k:'You’re in the room · You are Brian, money decisions', intro:'Every dollar is a vote about what kind of company this is.',
+    d:[
+      {p:'Growth is 100% a year and the SMS registration bills are exploding.',
+       o:[{t:'Raise a big round and subsidize the growth.', tag:'mid', f:'Now the money has opinions. You’ve traded a brake for a boss.'},
+          {t:'Switch on the $1 fee in the hottest markets.', tag:'good', f:'Price as throttle: slow the burn, cover the cost, and keep the Sequoia money as insurance, not fuel.'},
+          {t:'Cap new signups until costs fall.', tag:'bad', f:'A messaging app is worth its network. Cap the network and you’ve capped the company.'}]},
+      {p:'Sequoia offers a follow-on round. “Take more — it’s cheap capital.”',
+       o:[{t:'Take it — capital is oxygen.', tag:'mid', f:'Oxygen you don’t need is pressure you don’t feel yet. It arrives with expectations attached.'},
+          {t:'Decline politely; keep the original as backup.', tag:'good', f:'Brian’s father lay awake worrying about payroll. The fund is the night-light, not the budget.'},
+          {t:'Return the original investment too, for total purity.', tag:'bad', f:'Theater. Insurance you’ve paid for and never used is still insurance; returning it is just drama.'}]},
+      {p:'An analyst asks about your long-term monetization strategy.',
+       o:[{t:'Pitch an ads roadmap to show ambition.', tag:'bad', f:'Jan built WhatsApp partly to escape ads. The moment you promise extraction, the product stops being the product.'},
+          {t:'“Costs are covered. The product is the point.”', tag:'good', f:'Break-even is the answer. It’s boring, it’s true, and it buys you every future no.'},
+          {t:'“A premium tier with exclusive features.”', tag:'mid', f:'A two-tier product is a two-tier mission. Grandma doesn’t get the good version — that’s the whole point.'}]}
+  ]},
+  'dec-m5': {k:'You’re in the room · Senior engineer, big company', intro:'The machine decides by evidence it already knows. Play it well.',
+    d:[
+      {p:'You shipped the biggest project of your year. Calibration is in six weeks.',
+       o:[{t:'Stay quiet — good work speaks for itself.', tag:'bad', f:'It doesn’t. It whispers, to the one manager who already knows. The room has never heard of it.'},
+          {t:'Write a launch post: what, why, impact, lessons.', tag:'good', f:'Evidence entered early. By calibration, strangers in the room already recognize your name — the case argues itself.'},
+          {t:'Email leadership every Friday with updates.', tag:'mid', f:'Visibility is real, but this is spam. Noise earns attention the way a fire alarm earns friends.'}]},
+      {p:'Your manager says: “Don’t worry, I’ll handle your review.”',
+       o:[{t:'Great — hand it over fully.', tag:'bad', f:'They can argue your case, not grant it. And they can’t argue what they can’t evidence.'},
+          {t:'Hand them a specific impact doc they can read into the room.', tag:'good', f:'Feed your lawyer. Specifics — numbers, names, shipped outcomes — turn a nice story into a verdict.'},
+          {t:'Demand the promotion directly from the director.', tag:'mid', f:'Courageous, misfired. You’ve skipped the mechanism and annoyed the jury.'}]},
+      {p:'You now manage a brilliant engineer nobody has heard of.',
+       o:[{t:'Rate them high and hope it sticks.', tag:'bad', f:'You have no such power — and an unsupported high rating makes you look naive, not persuasive.'},
+          {t:'Coach them to publish, and narrate their work yourself.', tag:'good', f:'Two levers, both legal: grow their evidence trail, and lend them your credibility until they build their own.'},
+          {t:'Shield them from visibility entirely — they hate it.', tag:'mid', f:'Kind, and quietly career-limiting. Protection without exposure is a ceiling with good intentions.'}]}
+  ]},
+  'dec-m6': {k:'You’re in the room · Founding engineer #3, AI startup', intro:'The WhatsApp playbook, transplanted to your era.',
+    d:[
+      {p:'Three investors want three different pivots.',
+       o:[{t:'Say yes to all — hedge the bets.', tag:'bad', f:'A company pointed three ways moves in none. You’ve recreated the distracted competitor WhatsApp beat.'},
+          {t:'Run each through your mission’s grandma test.', tag:'good', f:'One clear goal turns every pivot pitch into a yes-or-no in one sentence. The filter is the strategy.'},
+          {t:'Ignore investors entirely.', tag:'mid', f:'Independence is good; deafness is expensive. They see patterns you can’t — hear them, then filter.'}]},
+      {p:'AI now writes your boilerplate in minutes.',
+       o:[{t:'Keep hiring juniors to write boilerplate.', tag:'bad', f:'You’re paying 2019 prices for work a prompt does in 2026. The headcount becomes the overhead.'},
+          {t:'Stay small; move humans to judgment work.', tag:'good', f:'The WhatsApp move: fewer people, more ownership. AI types; humans decide what’s worth typing.'},
+          {t:'Replace the whole engineering team with agents.', tag:'mid', f:'Judgment is the bottleneck, and agents don’t have it. You’ve automated the easy part and fired the hard part.'}]},
+      {p:'A competitor ships a shiny feature that’s trending everywhere.',
+       o:[{t:'Copy it this sprint.', tag:'bad', f:'The WeChat trap: chasing features turns you into a follower with their roadmap and your bugs.'},
+          {t:'Ask “does this serve the one goal?” — default to no.', tag:'good', f:'Ninety-nine percent no, one percent certain. If it survives the question, build it properly; if not, the distraction dies in one meeting.'},
+          {t:'Acquire the competitor.', tag:'mid', f:'Sometimes brilliant, usually a distraction purchase — you buy their roadmap, their culture, and their distractions.'}]}
+  ]}
+};
+
+/* renderDecision: stepped scenario with consequence feedback and a final tally */
+function renderDecision(mountId, spec){
+  const el = document.getElementById(mountId);
+  if (!el) return;
+  const head = document.createElement('div'); head.className = 'dec-head';
+  head.innerHTML = `<span>${spec.k}</span><span class="dec-dots"></span>`;
+  const body = document.createElement('div'); body.className = 'dec-body';
+  el.append(head, body);
+  const dots = head.querySelector('.dec-dots');
+  let idx = 0, goods = 0;
+  function draw(){
+    dots.textContent = `decision ${Math.min(idx+1, spec.d.length)} / ${spec.d.length}`;
+    body.innerHTML = '';
+    if (idx >= spec.d.length){
+      const s = document.createElement('p'); s.className = 'dec-sum';
+      s.textContent = goods === 3 ? 'Three sound calls. You’re thinking like a founder — the mission did the deciding for you.'
+        : goods === 2 ? 'Two sound calls. The instinct is there; revisit the one where the mission got traded for convenience.'
+        : 'The mission kept losing to convenience. Walk back through the module — the filter is the strategy.';
+      const again = document.createElement('button'); again.className = 'btn'; again.textContent = 'Run it again';
+      again.addEventListener('click', () => { idx = 0; goods = 0; draw(); });
+      body.append(s, again);
+      return;
+    }
+    const step = spec.d[idx];
+    if (idx === 0){ const intro = document.createElement('p'); intro.style.color='var(--muted)'; intro.style.marginBottom='14px'; intro.textContent = spec.intro; body.appendChild(intro); }
+    const pr = document.createElement('p'); pr.className = 'dec-prompt'; pr.textContent = step.p;
+    body.appendChild(pr);
+    const conseq = document.createElement('div'); conseq.className = 'conseq'; conseq.hidden = true;
+    const next = document.createElement('button'); next.className = 'btn'; next.hidden = true;
+    next.textContent = idx === spec.d.length - 1 ? 'See your tally' : 'Next decision →';
+    next.addEventListener('click', () => { idx++; draw(); });
+    step.o.forEach(o => {
+      const b = document.createElement('button'); b.className = 'opt'; b.textContent = o.t;
+      b.addEventListener('click', () => {
+        $$('.opt', body).forEach(x => x.disabled = true);
+        b.classList.add('chosen-' + o.tag);
+        if (o.tag === 'good') goods++;
+        conseq.className = 'conseq ' + o.tag;
+        conseq.innerHTML = `<span class="ctag">${TAG_LABEL[o.tag]}</span>${o.f}`;
+        conseq.hidden = false; next.hidden = false;
+      });
+      body.appendChild(b);
+    });
+    body.append(conseq, next);
+  }
+  draw();
+}
+Object.keys(DEC).forEach(id => renderDecision(id, DEC[id]));
+
+/* ============================================================
+   FLASHCARDS — simple 2D flip, extra context, mastery tracking
+   ============================================================ */
+const CARDS = [
+  {t:'Erlang', d:'A telecom-born programming language built for massive concurrency and hot code swapping — patching a live system without dropping a single connection.',
+   x:'Ericsson built it for phone switches. Rick Reed compared WhatsApp’s Erlang core to maintaining an airplane engine mid-flight. It’s always 8 a.m. somewhere.'},
+  {t:'Dogfooding', d:'Using your own product internally, hard, before releasing it to the public.',
+   x:'WhatsApp beta-tested voice and video calling with lists of family phone numbers for months and years. Jan’s LinkedIn title was literally “Chief QA Officer.”'},
+  {t:'The Grandma Test', d:'Jan Koum’s product filter: would this work flawlessly for a grandma in a remote countryside, on a cheap phone, on a bad network?',
+   x:'It turned “no” into a system. 99% of feature ideas failed the test — on purpose.'},
+  {t:'Chief QA Officer', d:'The title Jan Koum put on LinkedIn: the founder whose job was to personally try to break every release.',
+   x:'Founder-led QA meant the quality bar was a person, not a process. When he found a bug, he pushed until it was truly broken — then it got fixed.'},
+  {t:'Days Since Last Outage', d:'The only metric WhatsApp tracked visibly: a counter on the office wall counting days since the service went down.',
+   x:'No vanity dashboards. One number, in public, that reset to zero on failure — peer pressure as an SLO.'},
+  {t:'Calibration', d:'The big-company ritual where managers across an org argue performance and promotion cases in a room; your manager advocates but does not decide.',
+   x:'Gene calls the manager “the lawyer representing the client.” Strangers must agree — so visibility before the meeting does most of the work.'},
+  {t:'Break-even', d:'Revenue that covers all costs — servers, salaries, SMS codes — with no burn and no outside money spent.',
+   x:'WhatsApp’s $1 did this. Sequoia’s $8M sat untouched as a backup, because Brian’s dad had taught him what payroll anxiety feels like.'},
+  {t:'Native vs Cross-platform', d:'Native: one codebase per platform, tuned to that device. Cross-platform: one codebase everywhere, with a translation layer in between.',
+   x:'WhatsApp chose native eight times over, because the translation tax is paid first by the cheapest phone — grandma’s.'}
+];
+(function initDeck(){
+  const deck = $('#deck'), status = $('#deckStatus');
+  if (!deck) return;
+  let mastered = new Set(store.get('wa_cards') || []);
+  function paint(){ status.textContent = `${mastered.size} / ${CARDS.length} mastered`; }
+  CARDS.forEach((c, i) => {
+    const card = document.createElement('div'); card.className = 'fcard';
+    if (mastered.has(i)) card.classList.add('mastered');
+    card.innerHTML = `
+      <div class="fcard-in">
+        <button class="face front" aria-label="Flashcard: ${c.t}. Activate to flip.">
+          <span class="t">${c.t}</span>
+          <span class="hint">Click to flip ↺</span>
+        </button>
+        <div class="face back">
+          <p>${c.d}</p>
+          <p class="extra">${c.x}</p>
+          <div class="cardbtns">
+            <button class="mini-btn extra-btn">Show extra context</button>
+            <button class="mini-btn got-btn">${mastered.has(i) ? 'Mastered ✓' : 'Got it ✓'}</button>
+          </div>
+        </div>
+      </div>`;
+    $('.front', card).addEventListener('click', () => card.classList.add('flip'));
+    $('.back', card).addEventListener('click', e => { if (e.target.classList.contains('face')) card.classList.remove('flip'); });
+    $('.extra-btn', card).addEventListener('click', e => {
+      const ex = $('.extra', card); const open = ex.classList.toggle('show');
+      e.target.textContent = open ? 'Hide extra' : 'Show extra context';
+    });
+    $('.got-btn', card).addEventListener('click', e => {
+      mastered.add(i); card.classList.add('mastered');
+      e.target.textContent = 'Mastered ✓'; e.target.disabled = true;
+      store.set('wa_cards', Array.from(mastered)); paint();
+    });
+    deck.appendChild(card);
+  });
+  paint();
+})();
+
+/* ============================================================
+   DRAG-AND-DROP MATCHING — with click-to-place fallback
+   ============================================================ */
+const MATCH = [
+  {c:'Saying no', d:'Video calling sat in beta for years before launch'},
+  {c:'Dogfooding', d:'Features tested on family phone lists before the public ever saw them'},
+  {c:'Ownership', d:'One code review ever — then total trust'},
+  {c:'Price as brake', d:'The $1 fee used deliberately to slow growth'},
+  {c:'Visibility', d:'Workplace posts that pre-sold the calibration room'},
+  {c:'Foundations', d:'Hire experienced adults, skip the ceremonies'}
+];
+(function initMatch(){
+  const host = $('#match');
+  if (!host) return;
+  let matched = 0, selected = null;
+  const chipsWrap = document.createElement('div'); chipsWrap.className = 'chips';
+  const slotsWrap = document.createElement('div');
+  const status = document.createElement('p'); status.className = 'match-status'; status.setAttribute('aria-live','polite');
+  status.textContent = '0 / 6 matched';
+  const shuffled = MATCH.map((m,i)=>i).sort(()=>Math.random()-.5);
+  const chips = {};
+  shuffled.forEach(i => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.textContent = MATCH[i].c; b.draggable = true; b.dataset.id = i;
+    b.setAttribute('aria-label', `Concept: ${MATCH[i].c}. Click to select, then click a definition.`);
+    b.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', String(i)); b.classList.add('sel'); });
+    b.addEventListener('dragend', () => b.classList.remove('sel'));
+    b.addEventListener('click', () => {
+      if (selected === b){ b.classList.remove('sel'); selected = null; }
+      else { if (selected) selected.classList.remove('sel'); selected = b; b.classList.add('sel'); }
+    });
+    chips[i] = b; chipsWrap.appendChild(b);
+  });
+  MATCH.forEach((m, i) => {
+    const s = document.createElement('button');
+    s.className = 'slot'; s.dataset.pair = i;
+    s.innerHTML = `<span class="ans">?</span><span class="def">${m.d}</span>`;
+    s.setAttribute('aria-label', `Definition slot: ${m.d}. Drop or click a concept here.`);
+    const attempt = chip => {
+      if (!chip || s.classList.contains('done')) return;
+      if (Number(chip.dataset.id) === i){
+        s.classList.add('done');
+        s.querySelector('.ans').textContent = m.c;
+        chip.classList.add('used'); chip.classList.remove('sel');
+        if (selected === chip) selected = null;
+        matched++; status.textContent = matched === 6 ? '6 / 6 — the system is the strategy. ✓' : `${matched} / 6 matched`;
+      } else {
+        s.classList.add('flash');
+        setTimeout(()=>s.classList.remove('flash'), 600);
+      }
+    };
+    s.addEventListener('dragover', e => { e.preventDefault(); s.classList.add('over'); });
+    s.addEventListener('dragleave', () => s.classList.remove('over'));
+    s.addEventListener('drop', e => {
+      e.preventDefault(); s.classList.remove('over');
+      attempt(chips[e.dataTransfer.getData('text/plain')]);
+    });
+    s.addEventListener('click', () => attempt(selected));
+    slotsWrap.appendChild(s);
+  });
+  host.append(chipsWrap, slotsWrap, status);
+})();
+
+/* ============================================================
+   FILL-IN-THE-BLANK — with 3-level hints
+   ============================================================ */
+const FILLS = [
+  {pre:'WhatsApp’s backend ran on ', ans:['erlang'], post:', a telecom language chosen for concurrency and hot code swaps.',
+   hints:['It was born at Ericsson, for telephone switches.','Six letters, starts with “Er”.','erlang'],
+   ok:'That’s right — Erlang, the airplane engine that never stops.', no:'Not quite. The answer is “Erlang.”'},
+  {pre:'The only number on the office wall counted days since the last ', ans:['outage'], post:'.',
+   hints:['It’s what the counter reset to zero.','Six letters, starts with “o”.','outage'],
+   ok:'That’s right — the outage counter: peer pressure as an SLO.', no:'Not quite. The answer is “outage.”'},
+  {pre:'Jan said ', ans:['no'], post:' to roughly 99% of feature ideas.',
+   hints:['Two letters.','The opposite of yes.','no'],
+   ok:'That’s right — the disciplined no, applied 99 times out of 100.', no:'Not quite. The answer is “no.”'}
+];
+(function initFills(){
+  const host = $('#fills');
+  if (!host) return;
+  FILLS.forEach(f => {
+    const box = document.createElement('div'); box.className = 'fill';
+    const p = document.createElement('p');
+    const input = document.createElement('input');
+    input.className = 'blank'; input.setAttribute('aria-label','Fill in the blank');
+    input.autocomplete = 'off'; input.spellcheck = false;
+    p.append(document.createTextNode(f.pre), input, document.createTextNode(f.post));
+    const row = document.createElement('div'); row.className = 'fill-row';
+    const check = document.createElement('button'); check.className = 'btn'; check.textContent = 'Check';
+    const hint = document.createElement('button'); hint.className = 'mini-btn'; hint.textContent = 'Hint (0/3)';
+    const hintLine = document.createElement('p'); hintLine.className = 'hint-line'; hintLine.setAttribute('aria-live','polite');
+    const fb = document.createElement('p'); fb.className = 'hint-line'; fb.setAttribute('aria-live','polite');
+    let level = 0, solved = false;
+    const doCheck = () => {
+      if (solved) return;
+      const v = input.value.trim().toLowerCase();
+      if (f.ans.includes(v)){
+        solved = true; input.classList.remove('no'); input.classList.add('ok'); input.disabled = true;
+        check.disabled = true; hint.disabled = true;
+        fb.textContent = f.ok; fb.style.color = 'var(--accent-ink)';
+      } else {
+        input.classList.add('no'); fb.textContent = f.no; fb.style.color = 'var(--bad)';
+      }
+    };
+    check.addEventListener('click', doCheck);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    hint.addEventListener('click', () => {
+      if (level < 3){ hintLine.textContent = 'Hint ' + (level+1) + '/3 — ' + f.hints[level]; level++; hint.textContent = `Hint (${level}/3)`; }
+    });
+    row.append(check, hint);
+    box.append(p, row, hintLine, fb);
+    host.appendChild(box);
+  });
+})();
+
+/* ============================================================
+   TEACH-BACK — keyword coverage + model answer
+   ============================================================ */
+const TEACH = {
+  groups: [
+    ['no','refuse','saying no'], ['grandma','grandmother','family'], ['small','thirty','30','tiny'],
+    ['simple','lightweight','old phone'], ['dollar','$1','one dollar','money','break-even'],
+    ['trust','ownership','freedom'], ['break','outage','crash','reliable']
+  ],
+  labels: ['saying no','grandma','small team','simplicity','the $1','trust','reliability'],
+  model:'WhatsApp was a tiny team of about thirty people who made one promise: even grandma’s old phone, far away, would always be able to call her family. To keep the promise, they said “no” to almost every cool idea, tested everything on their own families first, charged one dollar a year so the company paid its own bills, and trusted each other so much they didn’t need meetings or rules. And when they got big and joined Facebook, people had to show their work to get credit — because in a huge crowd, even good work needs a witness.'
+};
+(function initTeach(){
+  const box = $('#teachBox'), kws = $('#teachKws'), msg = $('#teachMsg'), model = $('#teachModel');
+  if (!box) return;
+  const draft = store.get('wa_teach'); if (draft) box.value = draft;
+  let t; box.addEventListener('input', () => { clearTimeout(t); t = setTimeout(()=>store.set('wa_teach', box.value), 400); });
+  TEACH.groups.forEach((_, i) => {
+    const s = document.createElement('span'); s.className = 'kw'; s.textContent = TEACH.labels[i]; kws.appendChild(s);
+  });
+  $('#teachCheck').addEventListener('click', () => {
+    const text = box.value.toLowerCase();
+    let hits = 0;
+    $$('.kw', kws).forEach((el, i) => {
+      const hit = TEACH.groups[i].some(w => text.includes(w));
+      el.classList.toggle('hit', hit);
+      if (hit) hits++;
+    });
+    msg.textContent = text.trim().length === 0 ? 'Write two to four sentences first — simplicity is the point.'
+      : `You covered ${hits} of ${TEACH.groups.length} key ideas. ${hits >= 5 ? 'Excellent — you could teach this on stage.' : hits >= 3 ? 'Solid. One more pass on the missed ideas.' : 'Keep going — reread the cheat sheet, then simplify again.'}`;
+  });
+  $('#teachReveal').addEventListener('click', () => {
+    model.textContent = TEACH.model; model.hidden = !model.hidden;
+  });
+})();
+</script>
+</body>
+</html>

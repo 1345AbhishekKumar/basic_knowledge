@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Atlas of Everything — 195 Countries in Six Ideas</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://cdn.jsdelivr.net/fontsource/css/fraunces@latest/latin-400-normal.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/fraunces@latest/latin-700-normal.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/fraunces@latest/latin-900-normal.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/fraunces@latest/latin-400-italic.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/archivo@latest/latin-400-normal.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/archivo@latest/latin-500-normal.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/archivo@latest/latin-700-normal.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/space-mono@latest/latin-400-normal.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/space-mono@latest/latin-700-normal.css" rel="stylesheet">
+<style>
+:root{
+  --disp:'Fraunces',Georgia,serif;
+  --body:'Archivo',system-ui,sans-serif;
+  --mono:'Space Mono',monospace;
+}
+[data-theme="light"]{
+  --bg:#e9ede6; --bg2:#dde4da; --paper:#f7f9f4; --card:#ffffff;
+  --ink:#152638; --ink2:#47586c; --line:#c2cdc2; --line2:#a9b8ab;
+  --acc:#c2402c; --acc2:#0d7a70; --gold:#a4761a; --seal:#8c2f22;
+  --sky:#cfe0ea; --sea:#a9c9da; --land:#d7d2b8; --landline:#8d9a86;
+  --ok:#1c7c3c; --bad:#b3372a; --shadow:0 10px 30px rgba(21,38,56,.14);
+}
+[data-theme="dark"]{
+  --bg:#0a1520; --bg2:#0d1b29; --paper:#0f2032; --card:#122539;
+  --ink:#ece6d6; --ink2:#9fb0c0; --line:#27405a; --line2:#3a5a7a;
+  --acc:#ff6b50; --acc2:#45c9b6; --gold:#dfa648; --seal:#ff8a70;
+  --sky:#12283d; --sea:#0c2133; --land:#1d3a52; --landline:#4d7396;
+  --ok:#4ecb7a; --bad:#ff7a63; --shadow:0 12px 34px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--body);background:var(--bg);color:var(--ink);line-height:1.65;overflow-x:hidden;transition:background .4s,color .4s}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.45;
+  background:repeating-linear-gradient(0deg,transparent 0 79px,var(--line) 79px 80px),repeating-linear-gradient(90deg,transparent 0 79px,var(--line) 79px 80px);
+  -webkit-mask-image:radial-gradient(ellipse at 50% 20%,#000 0%,transparent 78%);mask-image:radial-gradient(ellipse at 50% 20%,#000 0%,transparent 78%)}
+::selection{background:var(--acc);color:#fff}
+h1,h2,h3,h4{font-family:var(--disp);line-height:1.08;font-weight:900;letter-spacing:-.01em}
+button{font-family:inherit;color:inherit}
+a{color:var(--acc2)}
+:focus-visible{outline:2px dashed var(--acc);outline-offset:3px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 clamp(1rem,4vw,2.5rem);position:relative;z-index:2}
+.mono{font-family:var(--mono)}
+
+#pbar{position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--acc),var(--gold));z-index:200;transition:width .15s linear}
+
+.compass{position:fixed;right:-90px;bottom:-90px;width:340px;height:340px;opacity:.13;z-index:1;pointer-events:none;animation:spin 140s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:800px){.compass{display:none}}
+
+#themeBtn{position:fixed;top:14px;right:14px;z-index:190;width:46px;height:46px;border-radius:50%;
+  border:2px solid var(--line2);background:var(--paper);cursor:pointer;display:grid;place-items:center;
+  box-shadow:var(--shadow);transition:transform .3s,border-color .3s}
+#themeBtn:hover{transform:rotate(20deg) scale(1.08);border-color:var(--gold)}
+#themeBtn svg{width:22px;height:22px;stroke:var(--ink);fill:none;stroke-width:1.8}
+[data-theme="dark"] .ic-sun{display:none}
+[data-theme="light"] .ic-moon{display:none}
+
+/* ---------- header deck with REAL earth view ---------- */
+.deck{position:relative;min-height:92vh;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+#earthView{position:absolute;inset:0;z-index:0}
+.deck-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--bg) 62%,transparent) 0%,transparent 26%,transparent 55%,color-mix(in srgb,var(--bg) 88%,transparent) 100%)}
+.deck-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:2rem;align-items:end;padding-top:6.5rem;padding-bottom:2.5rem}
+@media(max-width:900px){.deck-grid{grid-template-columns:1fr;align-items:start}}
+.title-panel{position:relative;background:color-mix(in srgb,var(--bg) 90%,transparent);border:2px solid var(--line2);padding:clamp(1.4rem,3vw,2.2rem);box-shadow:var(--shadow)}
+.title-panel::before,.title-panel::after{content:"+";position:absolute;font-family:var(--mono);color:var(--gold);font-size:.9rem}
+.title-panel::before{top:-2px;left:8px;transform:translateY(-50%)}
+.title-panel::after{bottom:-2px;right:8px;transform:translateY(50%)}
+.kicker{font-family:var(--mono);font-size:.72rem;letter-spacing:.28em;text-transform:uppercase;color:var(--acc);display:flex;align-items:center;gap:.8rem}
+.kicker::before{content:"";width:44px;height:2px;background:var(--acc)}
+.deck h1{font-size:clamp(2.7rem,6.5vw,5rem);margin:1rem 0 .6rem;text-transform:uppercase}
+.deck h1 em{font-style:italic;font-weight:400;color:var(--gold);text-transform:none}
+.deck-sub{max-width:34rem;color:var(--ink2);font-size:1.02rem}
+.deck-meta{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1.3rem}
+.meta-chip{font-family:var(--mono);font-size:.66rem;letter-spacing:.14em;border:1px dashed var(--line2);padding:.32rem .65rem;color:var(--ink2);text-transform:uppercase}
+.stamps{display:flex;gap:.8rem;margin-top:1.5rem;flex-wrap:wrap}
+.pstamp{font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;
+  border:2px solid var(--seal);color:var(--seal);padding:.45rem .75rem;border-radius:6px;transform:rotate(-4deg)}
+.pstamp:nth-child(2){transform:rotate(3deg);border-radius:50%;padding:.65rem .55rem;border-style:dashed}
+.pstamp:nth-child(3){transform:rotate(-1deg);border-color:var(--acc2);color:var(--acc2)}
+/* live orbit card */
+.orbit-card{background:var(--card);border:2px solid var(--line2);box-shadow:var(--shadow);padding:1.3rem 1.4rem;position:relative}
+.orbit-top{display:flex;align-items:center;gap:.6rem;font-family:var(--mono);font-size:.64rem;letter-spacing:.2em;color:var(--ink2);text-transform:uppercase}
+.orbit-idx{margin-left:auto;color:var(--gold)}
+.live-dot{width:9px;height:9px;border-radius:50%;background:var(--acc);flex:none;animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1;box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 60%,transparent)}50%{opacity:.5;box-shadow:0 0 0 7px transparent}}
+#orbitName{font-size:clamp(1.7rem,3vw,2.4rem);margin:.5rem 0 .3rem;color:var(--gold)}
+#orbitFact{font-size:.95rem;color:var(--ink2);min-height:3.2em}
+.orbit-cc{font-size:.68rem;letter-spacing:.14em;color:var(--acc2);margin-top:.6rem}
+.orbit-hint{font-size:.72rem;color:var(--ink2);margin-top:.8rem;border-top:1px dashed var(--line2);padding-top:.7rem;font-family:var(--mono)}
+/* ticker */
+.ticker{border-top:2px solid var(--line);border-bottom:2px solid var(--line);background:var(--bg2);overflow:hidden;position:relative;z-index:2}
+.ticker-track{display:flex;gap:3rem;width:max-content;padding:.7rem 0;animation:tick 55s linear infinite;font-family:var(--mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);white-space:nowrap}
+.ticker:hover .ticker-track{animation-play-state:paused}
+.ticker-track b{color:var(--gold);font-weight:700}
+@keyframes tick{to{transform:translateX(-50%)}}
+
+/* leaflet theming */
+.leaflet-container{font-family:var(--body);background:var(--sea)}
+.leaflet-popup-content-wrapper{background:var(--card);color:var(--ink);border:1.5px solid var(--line2);border-radius:4px;box-shadow:var(--shadow)}
+.leaflet-popup-content{margin:12px 14px;font-size:.85rem;line-height:1.55}
+.leaflet-popup-tip{background:var(--card)}
+.leaflet-control-attribution{background:color-mix(in srgb,var(--bg) 82%,transparent)!important;color:var(--ink2)!important;font-size:9px!important}
+.leaflet-control-attribution a{color:var(--acc2)!important}
+.leaflet-bar a{background:var(--card)!important;color:var(--ink)!important;border-color:var(--line)!important}
+.modmark{width:34px;height:34px;border-radius:50%;background:var(--card);border:2.5px solid var(--mc);color:var(--mc);
+  display:grid;place-items:center;font-family:var(--disp);font-weight:900;font-size:15px;box-shadow:0 2px 10px rgba(0,0,0,.4);transition:transform .25s}
+.modmark:hover{transform:scale(1.2)}
+.leaflet-tooltip.modtip{background:var(--card);color:var(--ink);border:1px solid var(--line2);font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;border-radius:3px}
+.route-live{animation:dashmove 3s linear infinite}
+@keyframes dashmove{to{stroke-dashoffset:-56}}
+.ring-pulse{animation:ringp 2.2s ease-in-out infinite}
+@keyframes ringp{0%,100%{opacity:.85}50%{opacity:.2}}
+
+/* ---------- route nav ---------- */
+.routenav{position:sticky;top:0;z-index:150;background:color-mix(in srgb,var(--bg) 93%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.routenav .wrap{display:flex;align-items:center;gap:1rem;padding-top:.55rem;padding-bottom:.55rem}
+.rn-links{display:flex;gap:.2rem;overflow-x:auto;scrollbar-width:none}
+.rn-links::-webkit-scrollbar{display:none}
+.rn-links a{font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--ink2);padding:.4rem .6rem;border:1px solid transparent;white-space:nowrap;transition:.25s}
+.rn-links a:hover{color:var(--acc);border-color:var(--acc)}
+#progChip{margin-left:auto;font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;border:1.5px solid var(--gold);color:var(--gold);padding:.35rem .7rem;white-space:nowrap}
+
+/* ---------- sections ---------- */
+section{padding:clamp(3.2rem,7vh,5.5rem) 0;position:relative;z-index:2}
+.sec-head{margin-bottom:2.2rem}
+.sec-head .plate-tag{font-family:var(--mono);font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:var(--acc2)}
+.sec-head h2{font-size:clamp(1.9rem,4.4vw,3rem);margin:.4rem 0 .5rem}
+.sec-head p{color:var(--ink2);max-width:46rem}
+
+.rv{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s ease}
+.rv.on{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){.rv{opacity:1;transform:none}.ticker-track,.compass,.route-live,.live-dot{animation:none}html{scroll-behavior:auto}}
+
+/* briefing */
+.brief-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}
+@media(max-width:760px){.brief-grid{grid-template-columns:1fr}}
+.brief-item{display:flex;gap:1rem;align-items:flex-start;border:1px solid var(--line);background:var(--card);padding:1.1rem 1.2rem;transition:transform .3s,border-color .3s}
+.brief-item:hover{transform:translateX(6px);border-color:var(--acc2)}
+.brief-item .bn{font-family:var(--mono);font-weight:700;color:var(--acc);font-size:1rem;border:2px solid var(--acc);width:38px;height:38px;display:grid;place-items:center;flex:none;transform:rotate(-4deg)}
+.brief-item h3{font-size:1.05rem;margin-bottom:.15rem}
+.brief-item p{font-size:.9rem;color:var(--ink2)}
+
+/* real world map */
+.filter-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem}
+.fchip{font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;padding:.42rem .8rem;border:1.5px solid var(--line2);background:transparent;color:var(--ink2);cursor:pointer;transition:.25s}
+.fchip:hover{transform:translateY(-2px);border-color:var(--mc,var(--acc))}
+.fchip.act{background:var(--mc,var(--acc));border-color:var(--mc,var(--acc));color:#08131c;font-weight:700}
+.map-shell{position:relative;border:2px solid var(--line2);box-shadow:var(--shadow)}
+#worldMap{height:600px;width:100%;z-index:1}
+@media(max-width:760px){#worldMap{height:430px}}
+.map-legend{position:absolute;right:10px;bottom:26px;z-index:500;background:color-mix(in srgb,var(--card) 94%,transparent);border:1.5px solid var(--line2);padding:.7rem .9rem;font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);max-width:210px}
+.map-legend .lg-row{display:flex;align-items:center;gap:.5rem;margin-top:.3rem}
+.lg-dot{width:10px;height:10px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.4)}
+.map-stats{display:flex;flex-wrap:wrap;gap:.6rem 1.6rem;margin-top:1rem;font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2)}
+.map-stats b{color:var(--gold)}
+
+/* modules */
+.module{border-top:2px dashed var(--line2)}
+.mod-head{position:relative;padding-top:1rem}
+.ghost-num{position:absolute;top:-1.4rem;right:-.5rem;font-family:var(--disp);font-weight:900;font-size:clamp(6rem,16vw,11rem);line-height:1;color:transparent;-webkit-text-stroke:1.5px var(--line2);opacity:.5;pointer-events:none;user-select:none}
+.mod-kicker{font-family:var(--mono);font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:var(--acc);display:flex;gap:1rem;flex-wrap:wrap}
+.mod-kicker .coord{color:var(--ink2)}
+.mod-head h2{font-size:clamp(2rem,5vw,3.3rem);margin:.5rem 0 .3rem}
+.mod-head .mod-sub{font-family:var(--disp);font-style:italic;font-weight:400;font-size:1.2rem;color:var(--gold)}
+.sub-h{font-family:var(--mono);font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--acc2);margin:2.6rem 0 1rem;display:flex;align-items:center;gap:.8rem}
+.sub-h::after{content:"";flex:1;height:1px;background:var(--line)}
+.core{font-size:1.05rem;max-width:52rem}
+.core strong{color:var(--gold)}
+.core .drop::first-letter{font-family:var(--disp);font-weight:900;font-size:3.4em;float:left;line-height:.82;padding:.06em .12em 0 0;color:var(--acc)}
+
+.ex-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+@media(max-width:860px){.ex-grid{grid-template-columns:1fr}}
+.ex-card{border:1px solid var(--line);background:var(--card);padding:1.2rem;position:relative;transition:transform .3s,box-shadow .3s}
+.ex-card:hover{transform:translateY(-6px);box-shadow:var(--shadow)}
+.ex-tag{font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;padding:.25rem .55rem;display:inline-block;margin-bottom:.7rem}
+.tag-obv{background:var(--acc2);color:#04211d}
+.tag-ci{background:var(--acc);color:#fff}
+.tag-edge{background:var(--gold);color:#241a02}
+.ex-card h4{font-size:1.15rem;margin-bottom:.35rem;display:inline-block}
+.ex-card .cc{font-family:var(--mono);font-size:.64rem;letter-spacing:.14em;color:var(--ink2);border:1px dashed var(--line2);padding:.15rem .45rem;float:right;transform:rotate(3deg)}
+.ex-card p{font-size:.92rem;color:var(--ink2)}
+.locate{margin-top:.8rem;font-family:var(--mono);font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;border:1.5px dashed var(--acc2);background:transparent;color:var(--acc2);padding:.4rem .7rem;cursor:pointer;transition:.25s}
+.locate:hover{background:var(--acc2);color:#04211d;border-style:solid;transform:translateY(-2px)}
+.more-stamps{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:1rem}
+.mini-stamp{font-family:var(--mono);font-size:.66rem;border:1.5px dashed var(--line2);padding:.4rem .65rem;color:var(--ink2);transition:.3s;cursor:default}
+.mini-stamp:hover{border-color:var(--gold);color:var(--gold);transform:rotate(-2deg)}
+.mini-stamp b{color:var(--ink)}
+
+.dia{border:2px solid var(--line2);background:var(--paper);padding:1.1rem;box-shadow:var(--shadow)}
+.dia svg{width:100%;height:auto;display:block}
+.dia-cap{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-top:.7rem;display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.info-panel{margin-top:.9rem;border-left:4px solid var(--acc);background:var(--card);padding:.9rem 1.1rem;font-size:.94rem;min-height:4.2em;transition:border-color .3s}
+.info-panel b{color:var(--gold)}
+svg .clickable{cursor:pointer}
+svg text{font-family:var(--mono)}
+
+.analogy{display:grid;grid-template-columns:auto 1fr;gap:1.2rem;align-items:center;border:2px solid var(--gold);background:var(--card);padding:1.3rem 1.5rem}
+.analogy .an-ic{font-size:2.4rem;transform:rotate(-6deg)}
+.analogy .an-label{font-family:var(--mono);font-size:.64rem;letter-spacing:.24em;text-transform:uppercase;color:var(--gold)}
+.analogy p{font-family:var(--disp);font-style:italic;font-size:1.15rem;line-height:1.5}
+@media(max-width:600px){.analogy{grid-template-columns:1fr}}
+
+.mis{border:1px solid var(--line);background:var(--card)}
+.mis-btn{width:100%;background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:.9rem;padding:1rem 1.2rem;text-align:left;font-size:1rem;font-weight:700}
+.mis-btn .warn{font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;background:var(--bad);color:#fff;padding:.25rem .5rem;flex:none}
+.mis-btn .chev{margin-left:auto;transition:transform .35s;font-family:var(--mono)}
+.mis.open .chev{transform:rotate(90deg)}
+.mis-panel{max-height:0;overflow:hidden;transition:max-height .45s ease}
+.mis.open .mis-panel{max-height:420px}
+.mis-panel div{padding:0 1.2rem 1.2rem;color:var(--ink2);font-size:.95rem}
+.mis-panel b{color:var(--ok)}
+
+.why{border-left:4px solid var(--acc2);background:var(--card);padding:1rem 1.3rem;font-size:.98rem}
+.why b{color:var(--acc2)}
+
+.fieldex{border:2px solid var(--line2);background:var(--bg2);padding:1.4rem}
+.fieldex .fx-tag{font-family:var(--mono);font-size:.64rem;letter-spacing:.24em;text-transform:uppercase;color:var(--acc)}
+.fieldex h4{font-size:1.25rem;margin:.3rem 0 .4rem}
+.fieldex .fx-intro{color:var(--ink2);font-size:.95rem;margin-bottom:1rem}
+.dp{border-top:1px dashed var(--line2);padding:1rem 0}
+.dp-p{font-weight:700;margin-bottom:.6rem}
+.dp-p .dpn{font-family:var(--mono);color:var(--acc);margin-right:.5rem}
+.dp-opts{display:flex;gap:.7rem;flex-wrap:wrap}
+.dp-choice{border:1.5px solid var(--line2);background:var(--card);padding:.6rem 1rem;cursor:pointer;font-size:.9rem;transition:.25s;text-align:left}
+.dp-choice:hover{border-color:var(--acc);transform:translateY(-2px)}
+.dp.done .dp-choice{opacity:.45;cursor:default}
+.dp.done .dp-choice.chosen{opacity:1;border-color:var(--gold);background:color-mix(in srgb,var(--gold) 12%,var(--card))}
+.dp-cons{display:none;margin-top:.7rem;font-size:.92rem;color:var(--ink2);border-left:3px solid var(--gold);padding-left:.9rem}
+.dp.done .dp-cons{display:block;animation:fadein .5s}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+
+.qq{border:1px solid var(--line);background:var(--card);padding:1.1rem 1.2rem;margin-bottom:1rem}
+.qq-t{font-weight:700;margin-bottom:.8rem}
+.qq-n{font-family:var(--mono);color:var(--acc2);margin-right:.5rem;font-size:.8rem}
+.qq-opts{display:grid;gap:.5rem}
+.qopt{display:flex;gap:.8rem;align-items:baseline;border:1.5px solid var(--line);background:transparent;padding:.6rem .9rem;cursor:pointer;font-size:.92rem;text-align:left;transition:.2s}
+.qopt:hover:not(:disabled){border-color:var(--acc2);transform:translateX(4px)}
+.qopt-key{font-family:var(--mono);font-size:.7rem;border:1px solid var(--line2);padding:.1rem .4rem;flex:none}
+.qopt.correct{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.qopt.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.qopt:disabled{cursor:default}
+.qq-fb{margin-top:.7rem;font-size:.9rem;color:var(--ink2)}
+.qq-fb:not(:empty){border-left:3px solid var(--gold);padding-left:.9rem}
+
+.xlink{display:inline-flex;align-items:center;gap:.6rem;margin-top:1.6rem;font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;text-decoration:none;color:var(--acc2);border:1.5px dashed var(--acc2);padding:.55rem .9rem;transition:.3s}
+.xlink:hover{background:var(--acc2);color:var(--bg);transform:translateX(6px)}
+
+.play-grid{display:grid;gap:2.5rem}
+.flash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem}
+.fcard{perspective:900px;height:190px;background:none;border:none;cursor:pointer;padding:0}
+.fcard-in{position:relative;width:100%;height:100%;transition:transform .6s;transform-style:preserve-3d}
+.fcard.flip .fcard-in{transform:rotateY(180deg)}
+.fcard-f,.fcard-b{position:absolute;inset:0;backface-visibility:hidden;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:1rem;text-align:center;border:2px solid var(--line2)}
+.fcard-f{background:var(--card)}
+.fcard-b{background:var(--acc2);color:#04211d;transform:rotateY(180deg);font-size:.85rem;font-weight:500}
+.fcard-f .cc-big{font-family:var(--disp);font-weight:900;font-size:2.2rem;color:var(--acc)}
+.fcard-f .cname{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;margin-top:.4rem}
+.fcard-f .hint{font-size:.68rem;color:var(--ink2);margin-top:.8rem;font-family:var(--mono)}
+.fcard.flip .fcard-b{border-color:var(--acc2)}
+
+.sort-area{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem}
+@media(max-width:760px){.sort-area{grid-template-columns:1fr}}
+.sort-col h4{font-family:var(--mono);font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--ink2);margin-bottom:.8rem}
+.fact-chip{display:block;width:100%;text-align:left;border:1.5px dashed var(--line2);background:var(--card);padding:.7rem .9rem;margin-bottom:.6rem;cursor:grab;font-size:.88rem;transition:.25s}
+.fact-chip:hover{border-color:var(--acc)}
+.fact-chip.sel{border-color:var(--acc);border-style:solid;background:color-mix(in srgb,var(--acc) 12%,var(--card));transform:translateX(6px)}
+.fact-chip.used{display:none}
+.slot{display:block;width:100%;text-align:left;border:2px solid var(--line2);background:var(--bg2);padding:.7rem .9rem;margin-bottom:.6rem;cursor:pointer;min-height:3.2em;font-size:.88rem;transition:.25s}
+.slot .slot-c{font-family:var(--mono);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+.slot:hover{border-color:var(--gold)}
+.slot.filled{border-color:var(--ok);cursor:default}
+.slot.filled .slot-f{display:block;color:var(--ink2);font-size:.82rem;margin-top:.2rem}
+.slot.shake{animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.sort-msg{font-family:var(--mono);font-size:.8rem;color:var(--ok);margin-top:.8rem;min-height:1.4em}
+
+.ff-item{border:1px solid var(--line);background:var(--card);padding:1rem 1.2rem;margin-bottom:.8rem}
+.ff-s{font-weight:700;margin-bottom:.7rem}
+.ff-btns{display:flex;gap:.6rem}
+.ff-btn{font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;padding:.5rem 1.1rem;border:1.5px solid var(--line2);background:transparent;cursor:pointer;transition:.25s}
+.ff-btn:hover{border-color:var(--acc)}
+.ff-item.done .ff-btn{opacity:.4;cursor:default}
+.ff-item.done .ff-btn.picked{opacity:1}
+.ff-btn.picked.right{background:var(--ok);border-color:var(--ok);color:#04211d}
+.ff-btn.picked.wrongp{background:var(--bad);border-color:var(--bad);color:#fff}
+.ff-why{display:none;margin-top:.7rem;font-size:.9rem;color:var(--ink2);border-left:3px solid var(--acc2);padding-left:.9rem}
+.ff-item.done .ff-why{display:block;animation:fadein .5s}
+
+.mem-grid{display:grid;gap:.8rem;max-width:52rem}
+.mem-item{border:1.5px dashed var(--line2);background:var(--card);transition:border-color .3s}
+.mem-item.open{border-color:var(--gold);border-style:solid}
+.mem-btn{width:100%;background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:1rem;padding:1rem 1.2rem;text-align:left}
+.mem-btn .mn{font-family:var(--disp);font-weight:900;font-size:1.5rem;color:var(--acc);flex:none;width:2rem}
+.mem-btn h4{font-size:1.05rem}
+.mem-btn .chev{margin-left:auto;font-family:var(--mono);transition:transform .35s}
+.mem-item.open .chev{transform:rotate(90deg)}
+.mem-panel{max-height:0;overflow:hidden;transition:max-height .45s}
+.mem-item.open .mem-panel{max-height:320px}
+.mem-panel p{padding:0 1.2rem 1.1rem;color:var(--ink2);font-size:.94rem}
+.mem-panel b{color:var(--gold)}
+
+.cheat{width:100%;border-collapse:collapse;background:var(--card);border:2px solid var(--line2);box-shadow:var(--shadow)}
+.cheat th{font-family:var(--mono);font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;text-align:left;background:var(--bg2);padding:.8rem 1rem;border-bottom:2px solid var(--line2);color:var(--acc)}
+.cheat td{padding:.85rem 1rem;border-bottom:1px solid var(--line);font-size:.9rem;vertical-align:top}
+.cheat tr:last-child td{border-bottom:none}
+.cheat td:first-child{font-family:var(--mono);font-size:.72rem;color:var(--acc2);white-space:nowrap}
+.cheat .take{font-family:var(--disp);font-style:italic;color:var(--gold)}
+.tbl-scroll{overflow-x:auto}
+
+.faq-item{border:1px solid var(--line);background:var(--card);margin-bottom:.7rem}
+.faq-q{width:100%;background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:1rem;padding:1rem 1.2rem;text-align:left;font-weight:700;font-size:1rem}
+.faq-q .chev{margin-left:auto;font-family:var(--mono);transition:transform .35s;color:var(--acc)}
+.faq-item.open .chev{transform:rotate(90deg)}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .5s}
+.faq-item.open .faq-a{max-height:520px}
+.faq-a p{padding:0 1.2rem 1.2rem;color:var(--ink2);font-size:.95rem}
+
+.next-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}
+@media(max-width:760px){.next-grid{grid-template-columns:1fr}}
+.next-card{border:1px solid var(--line);border-left:5px solid var(--acc2);background:var(--card);padding:1.2rem 1.4rem;transition:transform .3s,box-shadow .3s}
+.next-card:hover{transform:translateY(-5px);box-shadow:var(--shadow)}
+.next-card .nt{font-family:var(--mono);font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--acc2)}
+.next-card h4{font-size:1.15rem;margin:.3rem 0}
+.next-card p{font-size:.9rem;color:var(--ink2)}
+
+footer{border-top:2px dashed var(--line2);padding:2.5rem 0 3.5rem;text-align:center;color:var(--ink2);font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;position:relative;z-index:2}
+</style>
+</head>
+<body>
+
+<div id="pbar" aria-hidden="true"></div>
+
+<button id="themeBtn" aria-label="Toggle dark / light theme">
+  <svg class="ic-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
+  <svg class="ic-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.5 4.5l2 2M17.5 17.5l2 2M19.5 4.5l-2 2M6.5 17.5l-2 2"/></svg>
+</button>
+
+<svg class="compass" viewBox="0 0 200 200" aria-hidden="true">
+  <circle cx="100" cy="100" r="96" fill="none" stroke="var(--ink)" stroke-width="1.5"/>
+  <circle cx="100" cy="100" r="70" fill="none" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3 5"/>
+  <path d="M100 8 L112 100 L100 192 L88 100 Z" fill="var(--acc)"/>
+  <path d="M8 100 L100 112 L192 100 L100 88 Z" fill="var(--ink)"/>
+  <circle cx="100" cy="100" r="7" fill="var(--gold)"/>
+</svg>
+
+<!-- ============ HEADER: REAL EARTH VIEW ============ -->
+<header class="deck">
+  <div id="earthView" aria-label="Live interactive map of Earth"></div>
+  <div class="deck-scrim" aria-hidden="true"></div>
+  <div class="wrap deck-grid">
+    <div class="title-panel">
+      <p class="kicker">Field Guide · 195 Sovereign States · UN Count</p>
+      <h1>The Atlas of <em>everything</em></h1>
+      <p class="deck-sub">A whirlwind tour of every country on Earth — from Afghanistan's 25 flags to Zimbabwe's 8 currencies — distilled into <strong>six big ideas</strong>, pinned to the real planet behind this text.</p>
+      <div class="deck-meta">
+        <span class="meta-chip">6 Plates</span>
+        <span class="meta-chip">193 Map Pins</span>
+        <span class="meta-chip">17 Checkpoints</span>
+        <span class="meta-chip">Self-Guided</span>
+      </div>
+      <div class="stamps" aria-hidden="true">
+        <span class="pstamp">Admitted: Free</span>
+        <span class="pstamp">Planet Earth</span>
+        <span class="pstamp">No visa required</span>
+      </div>
+    </div>
+    <div class="orbit-card">
+      <div class="orbit-top"><span class="live-dot"></span><span>Live orbit · auto-touring</span><span class="orbit-idx" id="orbitIdx">01/16</span></div>
+      <h3 id="orbitName">Kiribati</h3>
+      <p id="orbitFact">The first country on Earth to see each new day.</p>
+      <p class="mono orbit-cc" id="orbitCC">01.45° N · 173.00° E</p>
+      <p class="orbit-hint">✋ Drag the map to take control — the tour resumes when you rest.</p>
+    </div>
+  </div>
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track" id="tickTrack">
+      <span><b>Afghanistan</b> · 25+ flags since 1919</span><span><b>Maldives</b> · highest point 2.4 m</span><span><b>Iceland</b> · 54% believe in elves</span><span><b>Sudan</b> · 2× more pyramids than Egypt</span><span><b>Nauru</b> · richest → strip-mined → bust</span><span><b>South Korea</b> · half the population shares 3 surnames</span><span><b>Mozambique</b> · an AK-47 on the flag</span><span><b>Tuvalu</b> · “.tv” = 1/12 of national income</span><span><b>Papua New Guinea</b> · 800+ languages</span><span><b>Spain</b> · in the wrong time zone since 1940</span><span><b>Madagascar</b> · 70% of species found nowhere else</span><span><b>Vatican City</b> · birth rate: zero</span>
+    </div>
+  </div>
+</header>
+
+<nav class="routenav" aria-label="Lesson sections">
+  <div class="wrap">
+    <div class="rn-links">
+      <a href="#briefing">Briefing</a><a href="#map">World Map</a>
+      <a href="#m1">I · Geography</a><a href="#m2">II · History</a><a href="#m3">III · Culture</a>
+      <a href="#m4">IV · Resources</a><a href="#m5">V · Isolation</a><a href="#m6">VI · Records</a>
+      <a href="#playground">Playground</a><a href="#cheatsheet">Cheat Sheet</a>
+    </div>
+    <span id="progChip">0 / 17 stamped</span>
+  </div>
+</nav>
+
+<main>
+<section id="briefing">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <p class="plate-tag">Pre-Departure Briefing</p>
+      <h2>What you'll learn</h2>
+      <p>195 countries is too much trivia for any brain. Six lenses is exactly enough. By the end of this expedition you will be able to:</p>
+    </div>
+    <div class="brief-grid">
+      <div class="brief-item rv"><span class="bn">I</span><div><h3>Read a landscape like a script</h3><p>Explain how elevation, climate and position shape a nation's fears and industries — from the Maldives' 2.4 m to the Atacama's telescopes.</p></div></div>
+      <div class="brief-item rv"><span class="bn">II</span><div><h3>See history in everyday objects</h3><p>Decode flags, time zones and currencies as living fossils — Afghanistan's 25 flags, Spain's wrong clock, Mozambique's AK-47.</p></div></div>
+      <div class="brief-item rv"><span class="bn">III</span><div><h3>Decode cultural "weirdness"</h3><p>Understand rituals — Fijian hat rules, Icelandic elves, Samoan genders — as logical operating systems, not oddities.</p></div></div>
+      <div class="brief-item rv"><span class="bn">IV</span><div><h3>Explain the resource paradox</h3><p>Predict why Nauru collapsed while Kuwait compounded — and why Saudi Arabia imports sand.</p></div></div>
+      <div class="brief-item rv"><span class="bn">V</span><div><h3>Connect isolation to uniqueness</h3><p>Link Madagascar's lemurs, Papua New Guinea's 800 languages and Yap's stone money with one rule.</p></div></div>
+      <div class="brief-item rv"><span class="bn">VI</span><div><h3>Read world records as data</h3><p>Treat superlatives — first votes for women, 405 Olympic medals, zero births — as signals of values, policy and accident.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ REAL WORLD MAP ============ -->
+<section id="map">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <p class="plate-tag">Navigation Chart · Real Basemap</p>
+      <h2>The world, with receipts</h2>
+      <p>Every pin below is a real country from the tour, sitting at its real coordinates. Colors match the six plates; click any pin for its fact. The large stamped markers jump you into the lesson. Filter by plate, or use the <strong>⌖ locate</strong> buttons on example cards throughout.</p>
+    </div>
+    <div class="filter-row rv" id="filterRow" role="group" aria-label="Filter map pins by plate"></div>
+    <div class="map-shell rv">
+      <div id="worldMap" role="application" aria-label="Interactive world map with a pin for every country in the lesson"></div>
+      <div class="map-legend" id="mapLegend"></div>
+    </div>
+    <div class="map-stats rv">
+      <span><b id="pinCount">193</b> country pins</span>
+      <span><b>6</b> plate markers</span>
+      <span>Scroll-zoom activates after you click the map</span>
+      <span>Basemap © OpenStreetMap · CARTO</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE I ============ -->
+<section class="module" id="m1">
+  <div class="wrap">
+    <div class="mod-head rv">
+      <span class="ghost-num" aria-hidden="true">I</span>
+      <p class="mod-kicker">Plate I <span class="coord">· 23.5°S / 62.5°W · Atacama Sector</span></p>
+      <h2>Geography is destiny</h2>
+      <p class="mod-sub">The stage set every country is born onto</p>
+    </div>
+    <h3 class="sub-h">A · Core Explanation</h3>
+    <p class="core rv"><span class="drop">B</span>efore any election, any invention, any war, every country is dealt a physical hand of cards: altitude, rainfall, coastline, neighbors, and a fixed address on the globe. That hand quietly writes most of the script. The <strong>Maldives</strong> tops out at 2.4 meters above sea level, so for its citizens climate change is not a debate — it's an eviction notice, which is why the president held an underwater cabinet meeting in 2009. <strong>Chile</strong> drew the Atacama, the driest non-polar desert on Earth, and parlayed 300+ cloudless nights a year into becoming the astronomical capital of the world, home to telescopes literally named "Very Large" and "Extremely Large." <strong>Venezuela</strong> sits where cold Andean air traps warm Caribbean moisture, igniting the Catatumbo lightning — 1.6 million strikes a year, roughly 300 nights of permanent storm. <strong>Finland</strong> is still rebounding from an ice age, rising 8–9 mm annually and gaining about 200 football fields of new land every year. And <strong>Kiribati</strong> straddles both the equator and the International Date Line: the first nation to see each sunrise, and the only one sitting in all four hemispheres. Meanwhile <strong>China</strong> — which physically spans five time zones — forces the entire country onto Beijing time, so in the west the sun may not rise until 10 a.m. Geography is not fate; it is the stage set. The actors improvise, but the set decides which scenes are even possible.</p>
+
+    <h3 class="sub-h">B · Three Field Notes</h3>
+    <div class="ex-grid rv">
+      <div class="ex-card"><span class="cc">MV</span><span class="ex-tag tag-obv">The Obvious</span><h4>Maldives</h4><p>Highest natural point: 2.4 m. The entire country is a sandbar argument with the ocean — rising seas are an existential, not theoretical, threat.</p><button class="locate" data-name="Maldives">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">VE</span><span class="ex-tag tag-ci">The Counter-Intuitive</span><h4>Venezuela</h4><p>The "Everlasting Storm": where mountain cold air collides with Caribbean warmth over Lake Maracaibo, lightning fires ~300 nights a year — 1.6 million strikes annually.</p><button class="locate" data-name="Venezuela">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">KI</span><span class="ex-tag tag-edge">The Edge Case</span><h4>Kiribati</h4><p>Astride the Date Line and the equator: first country into every new day, and the only contiguous nation in all four hemispheres.</p><button class="locate" data-name="Kiribati">⌖ Locate on map</button></div>
+    </div>
+    <div class="more-stamps rv">
+      <span class="mini-stamp"><b>Lesotho</b> · entirely above 975 m</span>
+      <span class="mini-stamp"><b>Finland</b> · rising 8–9 mm/yr</span>
+      <span class="mini-stamp"><b>Jordan</b> · Dead Sea, −420 m</span>
+      <span class="mini-stamp"><b>Namibia</b> · 1,000+ wrecks on the Skeleton Coast</span>
+      <span class="mini-stamp"><b>China</b> · 5 time zones, 1 clock</span>
+    </div>
+
+    <h3 class="sub-h">C · Diagram — The Elevation Ledger</h3>
+    <div class="dia rv">
+      <svg viewBox="0 0 900 400" role="img" aria-label="Cross-section comparing Dead Sea, Maldives, Lesotho and Finland elevations">
+        <defs><linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sky)"/><stop offset="1" stop-color="var(--paper)"/></linearGradient></defs>
+        <rect x="0" y="0" width="900" height="240" fill="url(#skyg)"/>
+        <rect x="0" y="240" width="900" height="160" fill="var(--sea)" opacity=".8"/>
+        <path d="M0 240 Q60 234 120 240 T240 240 T360 240 T480 240 T600 240 T720 240 T840 240 T960 240" fill="none" stroke="var(--acc2)" stroke-width="2" opacity=".7"/>
+        <line x1="0" y1="240" x2="900" y2="240" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="8 6"/>
+        <text x="12" y="232" font-size="12" fill="var(--ink2)">SEA LEVEL · 0 m</text>
+        <text x="12" y="392" font-size="11" fill="var(--ink2)">−420 m</text>
+        <line x1="60" y1="378" x2="840" y2="378" stroke="var(--line2)" stroke-dasharray="3 6"/>
+        <path d="M60 240 L90 300 Q125 378 160 378 Q195 378 225 300 L250 240 L330 238 Q360 236 380 237 L420 240 L470 240 L500 160 L560 118 L640 112 L700 150 L740 240 L900 240" fill="var(--land)" stroke="var(--landline)" stroke-width="2.5"/>
+        <g font-size="12" fill="var(--ink)">
+          <text x="105" y="210" text-anchor="middle">DEAD SEA</text><text x="105" y="224" text-anchor="middle" fill="var(--acc)" font-weight="700">−420 m</text>
+          <text x="375" y="205" text-anchor="middle">MALDIVES</text><text x="375" y="219" text-anchor="middle" fill="var(--acc)" font-weight="700">+2.4 m</text>
+          <text x="600" y="95" text-anchor="middle">LESOTHO FLOOR</text><text x="600" y="81" text-anchor="middle" fill="var(--acc)" font-weight="700">nothing below +975 m</text>
+          <text x="800" y="205" text-anchor="middle">FINLAND COAST</text><text x="800" y="219" text-anchor="middle" fill="var(--acc2)" font-weight="700">+8 mm every year ↑</text>
+        </g>
+        <path d="M800 236 l0 -14 m0 0 l-5 7 m5 -7 l5 7" stroke="var(--acc2)" stroke-width="2.5" fill="none"/>
+        <g stroke="var(--line2)" stroke-dasharray="4 6"><line x1="250" y1="60" x2="250" y2="380"/><line x1="470" y1="60" x2="470" y2="380"/><line x1="740" y1="60" x2="740" y2="380"/></g>
+        <rect class="clickable ez" data-i="0" x="60" y="60" width="190" height="320" fill="transparent"><title>Dead Sea — click for details</title></rect>
+        <rect class="clickable ez" data-i="1" x="250" y="60" width="220" height="320" fill="transparent"><title>Maldives — click for details</title></rect>
+        <rect class="clickable ez" data-i="2" x="470" y="60" width="270" height="320" fill="transparent"><title>Lesotho — click for details</title></rect>
+        <rect class="clickable ez" data-i="3" x="740" y="60" width="160" height="320" fill="transparent"><title>Finland — click for details</title></rect>
+      </svg>
+      <p class="dia-cap"><span>Fig. 1 — Composite cross-section · click any zone</span><span>Scale stylized, not surveyed</span></p>
+      <div class="info-panel" id="elevInfo" role="status">☝ Click a zone on the cross-section to read its field note.</div>
+    </div>
+
+    <h3 class="sub-h">D · Visual Analogy</h3>
+    <div class="analogy rv"><span class="an-ic" aria-hidden="true">🎭</span><div><p class="an-label">The Stage Set</p><p>"A country's geography is the stage set for a play. The actors — people, leaders, markets — improvise brilliantly, but the set decides which scenes are even possible. You can't perform a beach scene on a glacier, and you can't ignore sea level when your highest hill is 2.4 m."</p></div></div>
+
+    <h3 class="sub-h">E · Misconception Check</h3>
+    <div class="mis rv">
+      <button class="mis-btn" aria-expanded="false"><span class="warn">⚠ Misconception</span>"Geography determines everything — countries can't escape it."<span class="chev">▶</span></button>
+      <div class="mis-panel"><div><b>The truth:</b> geography deals the cards; institutions play the hand. The Netherlands sits largely below sea level and is wealthy beyond measure; Singapore is a resource-less island that became a global hub; Nauru sat on a fortune and squandered it. And China's one-time-zone choice shows politics can even overrule physical reality — at the cost of 10 a.m. sunrises. Geography sets constraints and opportunities, never outcomes.</div></div>
+    </div>
+
+    <h3 class="sub-h">F · Why It Matters</h3>
+    <div class="why rv"><b>Because:</b> you cannot understand climate negotiations, migration, agriculture or geopolitics without first reading the terrain. When a Maldivian diplomat speaks at a climate summit, they are not discussing policy preferences — they are negotiating for the stage their play is performed on.</div>
+
+    <h3 class="sub-h">G · Field Exercise — The Rising Tide Briefing</h3>
+    <div class="fieldex rv">
+      <p class="fx-tag">Scenario · 3 Decision Points</p>
+      <h4>You are the climate advisor to a low-lying island nation (highest point: 3 m).</h4>
+      <p class="fx-intro">Sea levels are rising, your freshwater lens is salinating, and your budget is tiny. Each decision has consequences — make all three.</p>
+      <div class="dp"><p class="dp-p"><span class="dpn">D1</span>A foreign developer offers to build a sea wall in exchange for 99-year rights to your fishing waters.</p>
+        <div class="dp-opts"><button class="dp-choice">Accept the deal</button><button class="dp-choice">Decline and seek multilateral climate finance</button></div>
+        <p class="dp-cons"><b>Accepting</b> buys immediate protection but trades a renewable asset (fish) for concrete — a classic resource-for-infrastructure trap. <b>Declining</b> is slower and uncertain, but keeps sovereignty; Maldives has pursued both paths, even staging that underwater cabinet meeting to pressure donors.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D2</span>Your engineers propose elevating the main island vs. buying land abroad as a "backup homeland."</p>
+        <div class="dp-opts"><button class="dp-choice">Elevate the island</button><button class="dp-choice">Buy land overseas</button></div>
+        <p class="dp-cons"><b>Elevating</b> preserves community and culture in place — expensive but coherent. <b>Buying abroad</b> hedges survival but fractures identity; Kiribati actually purchased Fijian land as a fallback. Most advisors now say: do both, in sequence.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D3</span>Tourism investors want your pristine reefs dredged for a cruise terminal.</p>
+        <div class="dp-opts"><button class="dp-choice">Approve the terminal</button><button class="dp-choice">Protect the reef, cap tourism</button></div>
+        <p class="dp-cons"><b>Approving</b> spikes short-term revenue but destroys the very asset tourists pay to see. <b>Protecting</b> trades quick cash for a durable brand — the Costa Rica play (Plate IV). The reef is your sea wall, your menu, and your marketing.</p></div>
+    </div>
+    <a class="xlink" href="#m4">Route onward → Plate IV: who profits from the terrain? <span>⟶</span></a>
+    <h3 class="sub-h">Checkpoint Quiz — Plate I</h3>
+    <div id="quiz-m1"></div>
+  </div>
+</section>
+
+<!-- ============ MODULE II ============ -->
+<section class="module" id="m2">
+  <div class="wrap">
+    <div class="mod-head rv">
+      <span class="ghost-num" aria-hidden="true">II</span>
+      <p class="mod-kicker">Plate II <span class="coord">· 33.5°N / 36.3°E · Damascus Sector</span></p>
+      <h2>History leaves fingerprints</h2>
+      <p class="mod-sub">Every country is a palimpsest — older ink always shows through</p>
+    </div>
+    <h3 class="sub-h">A · Core Explanation</h3>
+    <p class="core rv"><span class="drop">N</span>ations don't have pasts; they have <strong>sediment</strong>. Each era deposits a layer — a war, a colony, a revolution, an accident — and modern countries are the exposed cliff face. <strong>Afghanistan</strong> has changed its flag more than 25 times since 1919, each coup, king and regime repainting the national symbol; the flag is a seismograph of a century of upheaval. <strong>Spain</strong> still lives in the wrong time zone because Franco shifted the clocks to GMT+1 in 1940 to synchronize with Hitler — a dead dictator's flattery still shaping lunch hours eight decades later. <strong>Mozambique</strong> flies the only national flag bearing a modern weapon: an AK-47, alongside a book and a hoe — a liberation war fossilized in cloth. <strong>Haiti</strong> exists because of the only successful large-scale slave revolt in history (1791–1804), becoming the first nation founded by formerly enslaved people. <strong>Liberia</strong> was established in 1821 by the American Colonization Society for freed slaves and elected an African-American president decades before the U.S. could imagine one. In 1969, a World Cup qualifying match helped tip <strong>Honduras</strong> and <strong>El Salvador</strong> into the four-day "Football War." <strong>Laos</strong> absorbed more bombs per capita than anywhere on Earth — two million tons between 1964 and 1973. <strong>Sudan</strong> quietly holds about 200 pyramids, twice Egypt's, built by the Kingdom of Kush. <strong>Damascus</strong>, founded around 3000 BC, may be the oldest continuously inhabited city; <strong>San Marino</strong> has run a republic since 301 AD; <strong>South Sudan</strong> is the newest country, born in 2011. History isn't behind these places. It's under their feet.</p>
+
+    <h3 class="sub-h">B · Three Field Notes</h3>
+    <div class="ex-grid rv">
+      <div class="ex-card"><span class="cc">AF</span><span class="ex-tag tag-obv">The Obvious</span><h4>Afghanistan</h4><p>25+ flags since independence in 1919 — every regime repainting the nation's symbol. Instability, made visible in cloth.</p><button class="locate" data-name="Afghanistan">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">ES</span><span class="ex-tag tag-ci">The Counter-Intuitive</span><h4>Spain</h4><p>Geographically belongs on GMT, but has run on GMT+1 since 1940 — Franco moved the clocks to align with Nazi Germany. Lunch is late because of a dead alliance.</p><button class="locate" data-name="Spain">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">MZ</span><span class="ex-tag tag-edge">The Edge Case</span><h4>Mozambique</h4><p>The only flag with a modern weapon: an AK-47, flanked by an open book and a hoe — defense, education, agriculture, and a war that never quite left the design.</p><button class="locate" data-name="Mozambique">⌖ Locate on map</button></div>
+    </div>
+    <div class="more-stamps rv">
+      <span class="mini-stamp"><b>Haiti</b> · only successful slave revolt</span>
+      <span class="mini-stamp"><b>Honduras</b> · Football War, 1969</span>
+      <span class="mini-stamp"><b>Sudan</b> · 200 pyramids</span>
+      <span class="mini-stamp"><b>Syria</b> · Damascus, ~5,000 yrs of habitation</span>
+      <span class="mini-stamp"><b>South Sudan</b> · newest country, 2011</span>
+    </div>
+
+    <h3 class="sub-h">C · Diagram — The Sediment Timeline</h3>
+    <div class="dia rv">
+      <svg viewBox="0 0 900 250" role="img" aria-label="Timeline of historical events from 3000 BC to 2011">
+        <line x1="40" y1="130" x2="860" y2="130" stroke="var(--ink)" stroke-width="2"/>
+        <text x="40" y="160" font-size="11" fill="var(--ink2)">3000 BC</text>
+        <text x="830" y="160" font-size="11" fill="var(--ink2)">2011 AD</text>
+        <g class="clickable tldot" data-i="0"><circle cx="70" cy="130" r="9" fill="var(--acc)"/><text x="70" y="100" text-anchor="middle" font-size="11" fill="var(--ink)">Damascus</text></g>
+        <g class="clickable tldot" data-i="1"><circle cx="160" cy="130" r="9" fill="var(--acc)"/><text x="160" y="172" text-anchor="middle" font-size="11" fill="var(--ink)">Kush pyramids</text></g>
+        <g class="clickable tldot" data-i="2"><circle cx="250" cy="130" r="9" fill="var(--acc)"/><text x="250" y="100" text-anchor="middle" font-size="11" fill="var(--ink)">San Marino</text></g>
+        <g class="clickable tldot" data-i="3"><circle cx="330" cy="130" r="9" fill="var(--acc)"/><text x="330" y="172" text-anchor="middle" font-size="11" fill="var(--ink)">al-Qarawiyyin</text></g>
+        <g class="clickable tldot" data-i="4"><circle cx="420" cy="130" r="9" fill="var(--acc)"/><text x="420" y="100" text-anchor="middle" font-size="11" fill="var(--ink)">Haiti</text></g>
+        <g class="clickable tldot" data-i="5"><circle cx="500" cy="130" r="9" fill="var(--acc)"/><text x="500" y="172" text-anchor="middle" font-size="11" fill="var(--ink)">Liberia</text></g>
+        <g class="clickable tldot" data-i="6"><circle cx="580" cy="130" r="9" fill="var(--acc)"/><text x="580" y="100" text-anchor="middle" font-size="11" fill="var(--ink)">Spain GMT+1</text></g>
+        <g class="clickable tldot" data-i="7"><circle cx="655" cy="130" r="9" fill="var(--acc)"/><text x="655" y="172" text-anchor="middle" font-size="11" fill="var(--ink)">Football War</text></g>
+        <g class="clickable tldot" data-i="8"><circle cx="730" cy="130" r="9" fill="var(--acc)"/><text x="730" y="100" text-anchor="middle" font-size="11" fill="var(--ink)">Laos bombing ends</text></g>
+        <g class="clickable tldot" data-i="9"><circle cx="820" cy="130" r="9" fill="var(--acc)"/><text x="820" y="172" text-anchor="middle" font-size="11" fill="var(--ink)">South Sudan</text></g>
+      </svg>
+      <p class="dia-cap"><span>Fig. 2 — Five millennia in one line · click a dot</span><span>Spacing stylized for legibility</span></p>
+      <div class="info-panel" id="tlInfo" role="status">☝ Click any dot on the timeline to open its field note.</div>
+    </div>
+
+    <h3 class="sub-h">D · Visual Analogy</h3>
+    <div class="analogy rv"><span class="an-ic" aria-hidden="true">🪨</span><div><p class="an-label">Sedimentary Rock</p><p>"History is sedimentary rock. Each era deposits a layer — a war here, a colony there — and a modern country is the exposed cliff face. You can build on top of the rock, but you cannot un-stack it. Cut any nation open and the strata show."</p></div></div>
+
+    <h3 class="sub-h">E · Misconception Check</h3>
+    <div class="mis rv">
+      <button class="mis-btn" aria-expanded="false"><span class="warn">⚠ Misconception</span>"All the famous pyramids are in Egypt."<span class="chev">▶</span></button>
+      <div class="mis-panel"><div><b>The truth:</b> Sudan holds roughly 200 pyramids — about twice Egypt's count — built along the Nile by the ancient Kingdom of Kush as tombs for kings, queens and the wealthy. Egypt's are larger and more photographed, but the density record sits south of the border. The "obvious" version of history is usually just the best-marketed one.</div></div>
+    </div>
+
+    <h3 class="sub-h">F · Why It Matters</h3>
+    <div class="why rv"><b>Because:</b> flags, time zones, borders and currencies are not neutral settings — they are arguments that happened decades or centuries ago and never fully concluded. Reading them lets you predict a country's alliances, grudges and sensitivities before you read a single news headline.</div>
+
+    <h3 class="sub-h">G · Field Exercise — Reading a Flag</h3>
+    <div class="fieldex rv">
+      <p class="fx-tag">Scenario · 3 Decision Points</p>
+      <h4>You are a junior diplomat briefing your ambassador before a state visit to a country whose flag just changed for the third time in ten years.</h4>
+      <div class="dp"><p class="dp-p"><span class="dpn">D1</span>How do you frame the flag instability in your briefing?</p>
+        <div class="dp-opts"><button class="dp-choice">As evidence the country is "chaotic and unreliable"</button><button class="dp-choice">As a seismograph — each redesign marks a real shift in power</button></div>
+        <p class="dp-cons"><b>The framing matters.</b> Dismissing it as chaos blinds you to the pattern; Afghanistan's 25+ flags since 1919 each encode a precise political rupture. Reading the sequence tells you who holds power <em>now</em> and how fragile it is.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D2</span>The host proposes a joint stamp commemorating "50 years of stable friendship." Accurate?</p>
+        <div class="dp-opts"><button class="dp-choice">Run it — diplomacy is about the future</button><button class="dp-choice">Check the archive first</button></div>
+        <p class="dp-cons"><b>Checking wins.</b> If relations froze for a decade during a regime change, the stamp becomes an insult to historians on both sides. Spain's 1940 clock-shift teaches the lesson: symbolic gestures outlive their authors.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D3</span>Your ambassador asks why the host country's flag includes a weapon. Your answer?</p>
+        <div class="dp-opts"><button class="dp-choice">"Provocative — we should raise it as a concern"</button><button class="dp-choice">"It memorializes a liberation struggle — alongside a book and a hoe"</button></div>
+        <p class="dp-cons"><b>Context defuses.</b> Mozambique's AK-47 symbolizes defense, the book education, the hoe agriculture. Treating a founding myth as a threat guarantees a cold room; treating it as history earns trust.</p></div>
+    </div>
+    <a class="xlink" href="#m3">Route onward → Plate III: how history becomes culture <span>⟶</span></a>
+    <h3 class="sub-h">Checkpoint Quiz — Plate II</h3>
+    <div id="quiz-m2"></div>
+  </div>
+</section>
+
+<!-- ============ MODULE III ============ -->
+<section class="module" id="m3">
+  <div class="wrap">
+    <div class="mod-head rv">
+      <span class="ghost-num" aria-hidden="true">III</span>
+      <p class="mod-kicker">Plate III <span class="coord">· 13.8°S / 171.8°W · Pacific Sector</span></p>
+      <h2>Culture adapts to everything</h2>
+      <p class="mod-sub">The invisible operating system running every society</p>
+    </div>
+    <h3 class="sub-h">A · Core Explanation</h3>
+    <p class="core rv"><span class="drop">C</span>ulture is a society's <strong>operating system</strong>: mostly invisible, running in the background, deciding which behaviors can even launch. In <strong>Fiji</strong>, wearing a hat in a village is an insult — hats belong to chiefs alone. In <strong>Thailand</strong>, many young men ordain as Buddhist monks for weeks or months, shaving their heads to "make merit" for their families, a rite so normalized it functions like a gap year. In <strong>Rwanda</strong>, the last Saturday of every month is Umuganda: from 8 to 11 a.m. the country stops and does community work — skip it and you may be fined — which is a large reason Rwanda is called the cleanest country in Africa. <strong>Ghana</strong> buries its dead in "fantasy coffins" — fish, shoes, cocoa pods — carved to capture a life's essence, while <strong>Romania</strong>'s Merry Cemetery marks graves with bright paintings and jokes instead of solemn stone. In <strong>Iceland</strong>, 54% of people believe in the huldufólk, the hidden people — and since the 1930s that belief has genuinely blocked construction projects and protected landscapes. A superstition with zoning power. <strong>Samoa</strong> recognizes four genders: fa'afafine and fa'afatama, people who fulfill social roles "in the manner of" another gender — categories centuries older than Western debates. <strong>Argentina</strong> normalizes therapy with 222 psychologists per 100,000 people, the world's highest rate; <strong>Armenia</strong> mandates chess in public schools; <strong>Estonia</strong> averages 218 books per person. None of this is "weird" from the inside. Each practice is an answer to a human question — how to grieve, how to show respect, how to belong. The traveler's classic error is running other people's OS on their own hardware.</p>
+
+    <h3 class="sub-h">B · Three Field Notes</h3>
+    <div class="ex-grid rv">
+      <div class="ex-card"><span class="cc">FJ</span><span class="ex-tag tag-obv">The Obvious</span><h4>Fiji</h4><p>In villages, only chiefs may wear hats. A tourist in a backwards cap isn't being casual — they're committing a small act of lese-majesty.</p><button class="locate" data-name="Fiji">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">IS</span><span class="ex-tag tag-ci">The Counter-Intuitive</span><h4>Iceland</h4><p>54% believe in elves — and that belief has real civic power: since the 1930s, activists have rerouted roads and blocked projects to protect huldufólk habitats.</p><button class="locate" data-name="Iceland">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">WS</span><span class="ex-tag tag-edge">The Edge Case</span><h4>Samoa</h4><p>Four recognized genders: fa'afafine and fa'afatama — people fulfilling roles "in the manner of" another gender. Gender as social function, centuries old.</p><button class="locate" data-name="Samoa">⌖ Locate on map</button></div>
+    </div>
+    <div class="more-stamps rv">
+      <span class="mini-stamp"><b>Ghana</b> · fantasy coffins</span>
+      <span class="mini-stamp"><b>Romania</b> · Merry Cemetery</span>
+      <span class="mini-stamp"><b>Thailand</b> · temporary monkhood</span>
+      <span class="mini-stamp"><b>Rwanda</b> · Umuganda, last Saturday monthly</span>
+      <span class="mini-stamp"><b>Argentina</b> · 222 psychologists / 100k</span>
+    </div>
+
+    <h3 class="sub-h">C · Diagram — The Cultural Iceberg</h3>
+    <div class="dia rv">
+      <svg viewBox="0 0 560 470" role="img" aria-label="Cultural iceberg diagram with visible and invisible layers">
+        <rect x="0" y="0" width="560" height="165" fill="var(--sky)"/>
+        <rect x="0" y="165" width="560" height="305" fill="var(--sea)" opacity=".85"/>
+        <line x1="0" y1="165" x2="560" y2="165" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="8 6"/>
+        <text x="14" y="156" font-size="11" fill="var(--ink2)">WATERLINE — what a visitor notices</text>
+        <path d="M210 30 L350 30 L380 165 L180 165 Z" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/>
+        <path d="M180 165 L380 165 L430 300 L360 440 L200 445 L130 300 Z" fill="var(--land)" stroke="var(--ink)" stroke-width="2"/>
+        <g class="clickable icez" data-i="0"><rect x="205" y="55" width="150" height="90" fill="transparent"/><text x="280" y="95" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">FOOD · DRESS</text><text x="280" y="113" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">FLAGS · MUSIC</text><title>Visible culture — click</title></g>
+        <g class="clickable icez" data-i="1"><rect x="185" y="175" width="190" height="60" fill="transparent"/><text x="280" y="205" text-anchor="middle" font-size="12" fill="var(--paper)">RULES OF RESPECT</text><title>Respect layer — click</title></g>
+        <g class="clickable icez" data-i="2"><rect x="170" y="250" width="220" height="60" fill="transparent"/><text x="280" y="280" text-anchor="middle" font-size="12" fill="var(--paper)">ROLES · GENDER · TIME</text><title>Roles layer — click</title></g>
+        <g class="clickable icez" data-i="3"><rect x="160" y="330" width="240" height="80" fill="transparent"/><text x="280" y="365" text-anchor="middle" font-size="12" fill="var(--paper)">DEATH · BELIEF · BELONGING</text><title>Belief layer — click</title></g>
+      </svg>
+      <p class="dia-cap"><span>Fig. 3 — Click each layer of the iceberg</span><span>~90% of culture is below the waterline</span></p>
+      <div class="info-panel" id="iceInfo" role="status">☝ Click a layer of the iceberg to see what lives there.</div>
+    </div>
+
+    <h3 class="sub-h">D · Visual Analogy</h3>
+    <div class="analogy rv"><span class="an-ic" aria-hidden="true">💻</span><div><p class="an-label">The Operating System</p><p>"Culture is an operating system. You never see the kernel — you only notice it when something 'crashes': a hat in a Fijian village, a cemetery joke in Romania, an elf-habitat roadblock in Iceland. It's not a bug. It's a feature running exactly as designed."</p></div></div>
+
+    <h3 class="sub-h">E · Misconception Check</h3>
+    <div class="mis rv">
+      <button class="mis-btn" aria-expanded="false"><span class="warn">⚠ Misconception</span>"Beliefs like Icelandic elves are just ignorance with no real effects."<span class="chev">▶</span></button>
+      <div class="mis-panel"><div><b>The truth:</b> the huldufólk belief has measurable civic consequences — construction projects blocked, roads rerouted, natural landscapes preserved since the 1930s. Whether the elves exist is almost beside the point: the <em>belief</em> functions as an environmental protection agency with a 54% approval rating. Ideas shape terrain whether or not they're literally true.</div></div>
+    </div>
+
+    <h3 class="sub-h">F · Why It Matters</h3>
+    <div class="why rv"><b>Because:</b> every failed product launch, botched negotiation and diplomatic gaffe is usually an OS mismatch, not a logic failure. Learning to ask "what question does this practice answer?" is the single most portable skill in a globalized world.</div>
+
+    <h3 class="sub-h">G · Field Exercise — The Village Visit</h3>
+    <div class="fieldex rv">
+      <p class="fx-tag">Scenario · 3 Decision Points</p>
+      <h4>You lead a small tourism team preparing visitors for a Fijian village, a Rwandan city Saturday, and an Icelandic lava field.</h4>
+      <div class="dp"><p class="dp-p"><span class="dpn">D1</span>A tourist insists on wearing their lucky hat into the Fijian village.</p>
+        <div class="dp-opts"><button class="dp-choice">"It's your hat, your choice"</button><button class="dp-choice">Brief them: hats are reserved for chiefs — it reads as disrespect</button></div>
+        <p class="dp-cons"><b>Briefing wins.</b> The hat isn't fashion; it's a rank symbol. One sentence of context converts an accidental insult into a sign of respect — and the chief's welcome is the whole trip.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D2</span>Your group is in Kigali on the last Saturday of the month, 8 a.m. Streets are filling with people cleaning.</p>
+        <div class="dp-opts"><button class="dp-choice">Keep the tour running as scheduled</button><button class="dp-choice">Pause and let the group join Umuganda</button></div>
+        <p class="dp-cons"><b>Joining is the masterstroke.</b> Umuganda is how Rwanda became Africa's cleanest country — and participation is the fastest cultural bridge available. Skipping it treats the country's civic heart as an inconvenience.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D3</span>In Iceland, a planned shortcut crosses a rock formation locals call an elf church.</p>
+        <div class="dp-opts"><button class="dp-choice">Take the shortcut — it's just rocks</button><button class="dp-choice">Reroute, and tell the story</button></div>
+        <p class="dp-cons"><b>Rerouting pays.</b> Icelandic road planners genuinely do this. The detour costs minutes; the story — "a democracy that votes around its hidden citizens" — becomes the trip's most retold memory.</p></div>
+      </div>
+    <a class="xlink" href="#m5">Route onward → Plate V: where these cultures came from <span>⟶</span></a>
+    <h3 class="sub-h">Checkpoint Quiz — Plate III</h3>
+    <div id="quiz-m3"></div>
+  </div>
+</section>
+
+<!-- ============ MODULE IV ============ -->
+<section class="module" id="m4">
+  <div class="wrap">
+    <div class="mod-head rv">
+      <span class="ghost-num" aria-hidden="true">IV</span>
+      <p class="mod-kicker">Plate IV <span class="coord">· 0.5°S / 166.9°E · Nauru Sector</span></p>
+      <h2>The resource paradox</h2>
+      <p class="mod-sub">Why the ground under your feet can be a curse</p>
+    </div>
+    <h3 class="sub-h">A · Core Explanation</h3>
+    <p class="core rv"><span class="drop">N</span>atural wealth is an <strong>inheritance</strong>, and like any inheritance, the money matters less than the heir's financial literacy. <strong>Nauru</strong> was, for a glittering stretch in the 1970s, the richest country per capita on Earth — sitting on a mountain of phosphate. The reserves were strip-mined without restraint, ran out, and income collapsed; the island's interior is now a moonscape of limestone pinnacles. <strong>Sierra Leone</strong>'s diamonds financed the RUF's decade-long civil war — "blood diamonds" — while the country stayed poor. <strong>Guinea</strong> holds two-thirds of the world's bauxite plus iron, gold and diamonds, yet its GDP per capita hovers near $1,500. Now look at the same resource dealt to different hands: <strong>Kuwait</strong> converted oil into the world's strongest currency — one dinar buys $3.25 — with no national debt and budget surpluses. The paradox gets stranger at the edges. <strong>Saudi Arabia</strong>, 95% desert, imports construction sand from Australia because desert grains are wind-polished, round and useless for binding concrete. <strong>Tuvalu</strong>'s most valuable resource is four letters — the ".tv" internet domain — licensing it for roughly one-twelfth of national income. <strong>Zimbabwe</strong>'s mismanagement ended with citizens transacting in eight foreign currencies at once. And <strong>Mansa Musa</strong> of Mali, perhaps the richest human ever (~$400 billion adjusted), gave away so much gold on his pilgrimage to Mecca that he crashed Egypt's economy — proof that even <em>spending</em> wealth is a skill. Resources load the gun. Institutions pull the trigger.</p>
+
+    <h3 class="sub-h">B · Three Field Notes</h3>
+    <div class="ex-grid rv">
+      <div class="ex-card"><span class="cc">NR</span><span class="ex-tag tag-obv">The Obvious</span><h4>Nauru</h4><p>Richest per capita on phosphate in the 1970s. Strip-mined to exhaustion, income collapsed, interior turned to a moonscape. The textbook resource curse, in miniature — literally, it's one island.</p><button class="locate" data-name="Nauru">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">SA</span><span class="ex-tag tag-ci">The Counter-Intuitive</span><h4>Saudi Arabia</h4><p>95% desert, yet it imports construction sand from Australia. Desert sand is too smooth and round to bind concrete — abundance of the wrong kind is still scarcity.</p><button class="locate" data-name="Saudi Arabia">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">TV</span><span class="ex-tag tag-edge">The Edge Case</span><h4>Tuvalu</h4><p>Its crown resource is a string of letters: the ".tv" domain, licensed to media companies for about 1/12 of national income. A resource you can't even touch.</p><button class="locate" data-name="Tuvalu">⌖ Locate on map</button></div>
+    </div>
+    <div class="more-stamps rv">
+      <span class="mini-stamp"><b>Guinea</b> · ⅔ of world bauxite, ~$1,500 GDP/cap</span>
+      <span class="mini-stamp"><b>Kuwait</b> · dinar = $3.25</span>
+      <span class="mini-stamp"><b>Zimbabwe</b> · 8 currencies at once</span>
+      <span class="mini-stamp"><b>Mali</b> · Mansa Musa, ~$400B</span>
+      <span class="mini-stamp"><b>Sierra Leone</b> · blood diamonds</span>
+    </div>
+
+    <h3 class="sub-h">C · Diagram — The Fork in the Road</h3>
+    <div class="dia rv">
+      <svg viewBox="0 0 900 360" role="img" aria-label="Flow diagram: resource discovery forks into strong and weak institution outcomes">
+        <g fill="none" stroke="var(--ink2)" stroke-width="2">
+          <path d="M215 180 C 300 180 300 90 380 90"/><path d="M215 180 C 300 180 300 270 380 270"/>
+          <path d="M600 90 C 660 90 660 90 700 90"/><path d="M600 270 C 660 270 660 270 700 270"/>
+        </g>
+        <g class="clickable fnode" data-i="0"><rect x="30" y="140" width="185" height="80" fill="var(--card)" stroke="var(--gold)" stroke-width="2.5"/><text x="122" y="172" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">RESOURCE</text><text x="122" y="192" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">DISCOVERED</text><title>Click: the starting hand</title></g>
+        <g class="clickable fnode" data-i="1"><rect x="380" y="55" width="220" height="70" fill="var(--card)" stroke="var(--ok)" stroke-width="2.5"/><text x="490" y="85" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ok)">STRONG INSTITUTIONS</text><text x="490" y="103" text-anchor="middle" font-size="11" fill="var(--ink2)">funds · rules · diversification</text><title>Click: the strong path</title></g>
+        <g class="clickable fnode" data-i="2"><rect x="380" y="235" width="220" height="70" fill="var(--card)" stroke="var(--bad)" stroke-width="2.5"/><text x="490" y="265" text-anchor="middle" font-size="12" font-weight="700" fill="var(--bad)">WEAK INSTITUTIONS</text><text x="490" y="283" text-anchor="middle" font-size="11" fill="var(--ink2)">elite capture · no plan</text><title>Click: the weak path</title></g>
+        <g class="clickable fnode" data-i="3"><rect x="700" y="50" width="180" height="80" fill="var(--card)" stroke="var(--line2)" stroke-width="2"/><text x="790" y="80" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">KUWAIT · NORWAY</text><text x="790" y="98" text-anchor="middle" font-size="11" fill="var(--ink2)">strong currency,</text><text x="790" y="113" text-anchor="middle" font-size="11" fill="var(--ink2)">sovereign funds</text><title>Click: the blessing outcome</title></g>
+        <g class="clickable fnode" data-i="4"><rect x="700" y="230" width="180" height="80" fill="var(--card)" stroke="var(--line2)" stroke-width="2"/><text x="790" y="260" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">NAURU · ZIMBABWE</text><text x="790" y="278" text-anchor="middle" font-size="11" fill="var(--ink2)">collapse, moonscapes,</text><text x="790" y="293" text-anchor="middle" font-size="11" fill="var(--ink2)">8 currencies</text><title>Click: the curse outcome</title></g>
+      </svg>
+      <p class="dia-cap"><span>Fig. 4 — Same input, two futures · click any node</span><span>The fork is institutions, not geology</span></p>
+      <div class="info-panel" id="flowInfo" role="status">☝ Click a node in the flow to see the evidence behind it.</div>
+    </div>
+
+    <h3 class="sub-h">D · Visual Analogy</h3>
+    <div class="analogy rv"><span class="an-ic" aria-hidden="true">💸</span><div><p class="an-label">The Inheritance</p><p>"Resources are an inheritance. The size of the check matters far less than the financial literacy of the heir. Norway and Nauru both won the lottery — one bought a future, the other bought a moonscape."</p></div></div>
+
+    <h3 class="sub-h">E · Misconception Check</h3>
+    <div class="mis rv">
+      <button class="mis-btn" aria-expanded="false"><span class="warn">⚠ Misconception</span>"Finding valuable resources makes a country rich."<span class="chev">▶</span></button>
+      <div class="mis-panel"><div><b>The truth:</b> the correlation is close to inverted for many countries — economists call it the "resource curse" or paradox of plenty. Guinea sits on two-thirds of the world's bauxite and remains poor; resource-less Switzerland tops innovation rankings 14 years running. Resources concentrate wealth and power; only institutions — funds, courts, diversification — convert them into broad prosperity.</div></div>
+    </div>
+
+    <h3 class="sub-h">F · Why It Matters</h3>
+    <div class="why rv"><b>Because:</b> the same logic runs through personal windfalls, startup funding rounds and lottery winners. The Nauru story is a cautionary tale at any scale: sudden wealth without systems doesn't elevate you — it exposes you.</div>
+
+    <h3 class="sub-h">G · Field Exercise — The Phosphate Memo</h3>
+    <div class="fieldex rv">
+      <p class="fx-tag">Scenario · 3 Decision Points</p>
+      <h4>It's 1972. You are finance minister of a small island that just discovered a massive phosphate deposit.</h4>
+      <div class="dp"><p class="dp-p"><span class="dpn">D1</span>Mining companies offer a huge immediate payout for exclusive rights.</p>
+        <div class="dp-opts"><button class="dp-choice">Take the lump sum</button><button class="dp-choice">Negotiate royalties + a sovereign trust fund</button></div>
+        <p class="dp-cons"><b>The trust fund is the Norway move.</b> Nauru took the fast path and briefly had the world's highest income per capita — then nothing. A fund converts a finite rock into a perpetual income stream.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D2</span>Mining will scar 80% of the island's interior. The company promises to rehabilitate "later."</p>
+        <div class="dp-opts"><button class="dp-choice">Accept the promise</button><button class="dp-choice">Escrow rehabilitation money up front</button></div>
+        <p class="dp-cons"><b>Escrow or it doesn't happen.</b> "Later" never came for Nauru — the interior is still a limestone moonscape, and a 1990s rehabilitation deal largely fell through. Unfunded promises are how landscapes die.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D3</span>Revenue arrives. Pressure builds to fund visible projects: a palace, an airline, a musical.</p>
+        <div class="dp-opts"><button class="dp-choice">Fund the prestige projects</button><button class="dp-choice">Diversify: education, fisheries, foreign assets</button></div>
+        <p class="dp-cons"><b>Diversify.</b> Nauru famously did all three vanity things — including financing a doomed West End musical — while the phosphate ran out. Kuwait invested abroad instead; its fund now dwarfs its oil income.</p></div>
+    </div>
+    <a class="xlink" href="#m6">Route onward → Plate VI: what countries do with the scoreboard <span>⟶</span></a>
+    <h3 class="sub-h">Checkpoint Quiz — Plate IV</h3>
+    <div id="quiz-m4"></div>
+  </div>
+</section>
+
+<!-- ============ MODULE V ============ -->
+<section class="module" id="m5">
+  <div class="wrap">
+    <div class="mod-head rv">
+      <span class="ghost-num" aria-hidden="true">V</span>
+      <p class="mod-kicker">Plate V <span class="coord">· 18.9°S / 47.5°E · Madagascar Sector</span></p>
+      <h2>Isolation breeds uniqueness</h2>
+      <p class="mod-sub">Evolution's laboratory — for genes, tongues and stone money</p>
+    </div>
+    <h3 class="sub-h">A · Core Explanation</h3>
+    <p class="core rv"><span class="drop">I</span>solation is evolution's <strong>laboratory</strong> — and it runs experiments on languages and currencies just as eagerly as on genes. <strong>Madagascar</strong> broke away from Africa around 165 million years ago, and in all that solitude, 70% of its 250,000 species evolved into forms found nowhere else on Earth. <strong>Lake Malawi</strong> holds hundreds of endemic cichlid fish; the waters off <strong>Timor-Leste</strong> averaged 253 reef-fish species per survey site — the most biodiverse marine habitat ever measured. But laboratories cut both ways: <strong>Mauritius</strong> had no predators, so the dodo grew large, flightless and unafraid — and within roughly a century of sailors arriving, it was gone. Isolation sculpts human cultures by the same rule. <strong>Papua New Guinea</strong>'s mountains and forests sealed villages off from one another for centuries, producing 800+ distinct languages — the most linguistically diverse country on Earth, where only 1–2% of citizens speak the official English fluently. On <strong>Yap</strong>, isolation produced the strangest currency ever invented: Rai stones — limestone discs quarried 300 miles away in Palau, too heavy to move, that never physically change hands. Ownership is simply communal memory. And in <strong>Vietnam</strong>, Son Doong cave — only found in 1991 — is so vast it contains its own rainforest, its own river, its own weather system. The rule is consistent: the longer a system runs alone, the stranger and more irreplaceable it becomes — and the more fragile. Connectivity is both nutrient and solvent.</p>
+
+    <h3 class="sub-h">B · Three Field Notes</h3>
+    <div class="ex-grid rv">
+      <div class="ex-card"><span class="cc">MG</span><span class="ex-tag tag-obv">The Obvious</span><h4>Madagascar</h4><p>Adrift for 165 million years. Result: 70% of a quarter-million species exist nowhere else. Isolation, given enough time, becomes speciation.</p><button class="locate" data-name="Madagascar">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">PG</span><span class="ex-tag tag-ci">The Counter-Intuitive</span><h4>Papua New Guinea</h4><p>800+ languages in one country — terrain did it. Mountains and jungle isolated villages for centuries, and each valley grew its own tongue. Only 1–2% speak the official English.</p><button class="locate" data-name="Papua New Guinea">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">FM</span><span class="ex-tag tag-edge">The Edge Case</span><h4>Yap, Micronesia</h4><p>Rai stones: currency quarried 300 miles away in Palau that never changes hands. A sale just updates everyone's memory of who owns which rock. Money as a public ledger — centuries before blockchain.</p><button class="locate" data-name="Micronesia">⌖ Locate on map</button></div>
+    </div>
+    <div class="more-stamps rv">
+      <span class="mini-stamp"><b>Mauritius</b> · dodo extinct in ~100 yrs</span>
+      <span class="mini-stamp"><b>Vietnam</b> · Son Doong, cave with weather</span>
+      <span class="mini-stamp"><b>Timor-Leste</b> · 253 fish species per site</span>
+      <span class="mini-stamp"><b>Dominica</b> · year-round sperm whales</span>
+      <span class="mini-stamp"><b>Malawi</b> · endemic cichlids</span>
+    </div>
+
+    <h3 class="sub-h">C · Diagram — The Isolation Meter</h3>
+    <div class="dia rv">
+      <svg viewBox="0 0 900 330" role="img" aria-label="Bar chart of isolation-driven uniqueness across five places">
+        <line x1="230" y1="20" x2="230" y2="310" stroke="var(--ink)" stroke-width="2"/>
+        <g font-size="12" fill="var(--ink)">
+          <g class="clickable isorow" data-i="0"><text x="220" y="52" text-anchor="end">MADAGASCAR · endemism</text><rect x="232" y="38" width="490" height="22" fill="var(--acc)"/><text x="732" y="54" fill="var(--acc)" font-weight="700">70%</text><title>Click for details</title></g>
+          <g class="clickable isorow" data-i="1"><text x="220" y="106" text-anchor="end">PAPUA NEW GUINEA · languages</text><rect x="232" y="92" width="420" height="22" fill="var(--gold)"/><text x="662" y="108" fill="var(--gold)" font-weight="700">800+</text><title>Click for details</title></g>
+          <g class="clickable isorow" data-i="2"><text x="220" y="160" text-anchor="end">TIMOR-LESTE · reef fish / site</text><rect x="232" y="146" width="300" height="22" fill="var(--acc2)"/><text x="542" y="162" fill="var(--acc2)" font-weight="700">253</text><title>Click for details</title></g>
+          <g class="clickable isorow" data-i="3"><text x="220" y="214" text-anchor="end">YAP · stone money distance</text><rect x="232" y="200" width="340" height="22" fill="var(--acc)"/><text x="582" y="216" fill="var(--acc)" font-weight="700">300 mi</text><title>Click for details</title></g>
+          <g class="clickable isorow" data-i="4"><text x="220" y="268" text-anchor="end">SON DOONG · vs old record</text><rect x="232" y="254" width="250" height="22" fill="var(--gold)"/><text x="492" y="270" fill="var(--gold)" font-weight="700">5×</text><title>Click for details</title></g>
+        </g>
+      </svg>
+      <p class="dia-cap"><span>Fig. 5 — Five isolation experiments · click or hover a bar</span><span>Bars normalized for comparison</span></p>
+      <div class="info-panel" id="isoInfo" role="status">☝ Click a bar to read the experiment behind it.</div>
+    </div>
+
+    <h3 class="sub-h">D · Visual Analogy</h3>
+    <div class="analogy rv"><span class="an-ic" aria-hidden="true">🧪</span><div><p class="an-label">The Sealed Flask</p><p>"Isolation is a sealed flask left on the lab bench for a million years. Whatever brews inside becomes one-of-a-kind — a lemur, a language, a stone currency. Open the flask and the brew meets air: it can enrich the world, or it can spoil. The dodo met air."</p></div></div>
+
+    <h3 class="sub-h">E · Misconception Check</h3>
+    <div class="mis rv">
+      <button class="mis-btn" aria-expanded="false"><span class="warn">⚠ Misconception</span>"Extinction is always a slow, ancient process."<span class="chev">▶</span></button>
+      <div class="mis-panel"><div><b>The truth:</b> the dodo had survived millions of years — then vanished within about a century of humans landing, hunted for meat and outcompeted by introduced animals. "Defenseless" is only a flaw once predators arrive. Extinction can be shockingly fast, which is precisely why isolated ecosystems — islands, caves, uncontacted communities — demand such care.</div></div>
+    </div>
+
+    <h3 class="sub-h">F · Why It Matters</h3>
+    <div class="why rv"><b>Because:</b> the same dynamic runs through the modern world — endangered languages, isolated communities facing contact, even niche internet subcultures. Understanding the isolation rule tells you what is irreplaceable, what is fragile, and what the true cost of "connection" can be.</div>
+
+    <h3 class="sub-h">G · Field Exercise — First Contact Protocol</h3>
+    <div class="fieldex rv">
+      <p class="fx-tag">Scenario · 3 Decision Points</p>
+      <h4>You advise a conservation agency managing a remote island with an endemic bird, an uncontacted community rumor, and a viral travel video.</h4>
+      <div class="dp"><p class="dp-p"><span class="dpn">D1</span>A tour operator wants daily flights after the video got 40M views.</p>
+        <div class="dp-opts"><button class="dp-choice">Open full access — revenue funds conservation</button><button class="dp-choice">Cap permits, fund rangers with the fees</button></div>
+        <p class="dp-cons"><b>Caps work.</b> Uncapped traffic repeats Mauritius: the very uniqueness that draws visitors dies on arrival. Rwanda's gorilla permits show the model — expensive, limited, and the population recovered.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D2</span>A documentary crew offers big money to film the rumored uncontacted group.</p>
+        <div class="dp-opts"><button class="dp-choice">Allow it with a medical team present</button><button class="dp-choice">Refuse all contact</button></div>
+        <p class="dp-cons"><b>Refuse.</b> Brazil's FUNAI estimates 100+ uncontacted tribes in the Amazon and treats contact as near-lethal — disease and exploitation have devastated groups before. The dodo rule applies to people too: isolation is protection.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D3</span>Locals propose selling naming rights to the endemic bird's habitat.</p>
+        <div class="dp-opts"><button class="dp-choice">Sell — money is protection</button><button class="dp-choice">Build a local-owned ecotourism brand instead</button></div>
+        <p class="dp-cons"><b>Local ownership endures.</b> Selling the asset repeats the resource curse at ecosystem scale (Plate IV). Community-owned branding — like Dominica's whale-watching economy — keeps both the money and the habitat alive.</p></div>
+    </div>
+    <a class="xlink" href="#m1">Route onward → back to Plate I: the terrain that isolates <span>⟶</span></a>
+    <h3 class="sub-h">Checkpoint Quiz — Plate V</h3>
+    <div id="quiz-m5"></div>
+  </div>
+</section>
+
+<!-- ============ MODULE VI ============ -->
+<section class="module" id="m6">
+  <div class="wrap">
+    <div class="mod-head rv">
+      <span class="ghost-num" aria-hidden="true">VI</span>
+      <p class="mod-kicker">Plate VI <span class="coord">· 45.9°N / 10.5°E · Podium Sector</span></p>
+      <h2>The superlative game</h2>
+      <p class="mod-sub">World records are a planet's leaderboard — read the categories</p>
+    </div>
+    <h3 class="sub-h">A · Core Explanation</h3>
+    <p class="core rv"><span class="drop">E</span>very "world's most, first, or only" is a country's <strong>values — or accidents — made visible</strong>. <strong>New Zealand</strong> gave all women the vote in 1893, 27 years before the United States; that wasn't luck, it was decades of organizing. <strong>Norway</strong> has won 405 Winter Olympic medals — more than any nation, ahead of the U.S.'s 330 — because in a country half-buried in snow, skiing is transportation before it is sport. <strong>Nigeria</strong>'s Nollywood releases around 2,500 films a year, second only to Bollywood, outproducing Hollywood's 300–900 on budgets that would barely cover a trailer. <strong>Czechs</strong> drink 184 liters of beer per person a year — roughly double Germany's 88. <strong>South Korea</strong>: half of 51.3 million people share just three surnames — Kim, Lee and Park. <strong>Vatican City</strong>, 0.17 square miles, has a birth rate of zero. Some superlatives encode deliberate policy: <strong>Luxembourg</strong> made all public transport free; <strong>El Salvador</strong> made Bitcoin legal tender in 2021; <strong>Ecuador</strong> wrote rights for nature into its constitution in 2008; <strong>Switzerland</strong> has topped global innovation rankings 14 years straight. Others encode hard histories — <strong>Niger</strong>'s median age of 15 travels with 6.6 births per woman — and some are pure glorious oddity: <strong>Slovakia</strong>'s clock in Stará Bystrica is the only horologe showing true solar time; in <strong>Slovenia</strong>, one person in 200 keeps bees. Read a nation's records and you are reading its browser history: embarrassing, revealing, and more honest than the brochure. Trivia is just data wearing a party hat.</p>
+
+    <h3 class="sub-h">B · Three Field Notes</h3>
+    <div class="ex-grid rv">
+      <div class="ex-card"><span class="cc">NZ</span><span class="ex-tag tag-obv">The Obvious</span><h4>New Zealand</h4><p>First country to give all women the vote — 1893, 27 years before the U.S. A superlative built by organizers, not weather.</p><button class="locate" data-name="New Zealand">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">KR</span><span class="ex-tag tag-ci">The Counter-Intuitive</span><h4>South Korea</h4><p>Half of 51.3 million people share three surnames: Kim, Lee, Park. Hollywood wasn't being lazy — the phone book really is like that.</p><button class="locate" data-name="South Korea">⌖ Locate on map</button></div>
+      <div class="ex-card"><span class="cc">VA</span><span class="ex-tag tag-edge">The Edge Case</span><h4>Vatican City</h4><p>Smallest country on Earth (0.17 sq mi) — and the only one with a birth rate of zero. Citizenship is a job appointment, not a birthright.</p><button class="locate" data-name="Vatican City">⌖ Locate on map</button></div>
+    </div>
+    <div class="more-stamps rv">
+      <span class="mini-stamp"><b>Norway</b> · 405 Winter medals</span>
+      <span class="mini-stamp"><b>Nigeria</b> · ~2,500 films/yr</span>
+      <span class="mini-stamp"><b>Czechia</b> · 184 L beer/capita</span>
+      <span class="mini-stamp"><b>Luxembourg</b> · free transit for all</span>
+      <span class="mini-stamp"><b>Ecuador</b> · nature has rights, 2008</span>
+    </div>
+
+    <h3 class="sub-h">C · Diagram — The Leaderboard</h3>
+    <div class="dia rv">
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem" role="tablist" aria-label="Leaderboard categories">
+        <button class="lb-tab" data-k="beer" style="font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;padding:.45rem .8rem;border:1.5px solid var(--acc);background:var(--acc);color:#fff;cursor:pointer;text-transform:uppercase">🍺 Beer</button>
+        <button class="lb-tab" data-k="medals" style="font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;padding:.45rem .8rem;border:1.5px solid var(--line2);background:transparent;color:var(--ink2);cursor:pointer;text-transform:uppercase">🎿 Winter Medals</button>
+        <button class="lb-tab" data-k="films" style="font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;padding:.45rem .8rem;border:1.5px solid var(--line2);background:transparent;color:var(--ink2);cursor:pointer;text-transform:uppercase">🎬 Films / Year</button>
+        <button class="lb-tab" data-k="names" style="font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;padding:.45rem .8rem;border:1.5px solid var(--line2);background:transparent;color:var(--ink2);cursor:pointer;text-transform:uppercase">👥 Surnames</button>
+      </div>
+      <svg viewBox="0 0 900 240" role="img" aria-label="Comparison bars for selected world record category">
+        <line x1="200" y1="20" x2="200" y2="220" stroke="var(--ink)" stroke-width="2"/>
+        <text id="lbAn" x="190" y="72" text-anchor="end" font-size="14" font-weight="700" fill="var(--ink)">CZECHIA</text>
+        <rect id="lbA" x="202" y="52" width="560" height="34" fill="var(--acc)" style="transition:width .9s cubic-bezier(.2,.8,.2,1)"/>
+        <text id="lbAv" x="772" y="75" font-size="14" font-weight="700" fill="var(--acc)">184 L</text>
+        <text id="lbBn" x="190" y="162" text-anchor="end" font-size="14" font-weight="700" fill="var(--ink)">GERMANY</text>
+        <rect id="lbB" x="202" y="142" width="268" height="34" fill="var(--acc2)" style="transition:width .9s cubic-bezier(.2,.8,.2,1)"/>
+        <text id="lbBv" x="480" y="165" font-size="14" font-weight="700" fill="var(--acc2)">88 L</text>
+      </svg>
+      <p class="dia-cap"><span id="lbNote">Fig. 6 — Beer consumed per capita, 2021 · the Oktoberfest country drinks less than half as much</span><span>Switch categories above</span></p>
+    </div>
+
+    <h3 class="sub-h">D · Visual Analogy</h3>
+    <div class="analogy rv"><span class="an-ic" aria-hidden="true">🌐</span><div><p class="an-label">Browser History</p><p>"A nation's world records are its browser history: embarrassing, revealing, and far more honest than the profile it shows you. Norway's medal count says 'skiing is how we commute.' Niger's median age says everything else."</p></div></div>
+
+    <h3 class="sub-h">E · Misconception Check</h3>
+    <div class="mis rv">
+      <button class="mis-btn" aria-expanded="false"><span class="warn">⚠ Misconception</span>"The United States dominates the Winter Olympics medal table."<span class="chev">▶</span></button>
+      <div class="mis-panel"><div><b>The truth:</b> Norway holds the all-time record with 405 Winter Olympic medals to America's 330 — despite a population about 70 times smaller. The explanation isn't money; it's that in Norway, cross-country skiing is how you get to the bus stop. Superlatives usually reward systems and culture, not raw size.</div></div>
+    </div>
+
+    <h3 class="sub-h">F · Why It Matters</h3>
+    <div class="why rv"><b>Because:</b> rankings shape policy, investment and national identity. Knowing which leaderboards are real signals (innovation, suffrage, transit) and which are noise — or tragedy statistics wearing a costume, like Niger's fertility numbers — is a defense against being misled by any top-ten list, including this lesson's.</div>
+
+    <h3 class="sub-h">G · Field Exercise — The Record Pitch</h3>
+    <div class="fieldex rv">
+      <p class="fx-tag">Scenario · 3 Decision Points</p>
+      <h4>You run the tourism board of a mid-sized country with no famous landmarks. The ministry wants a "world's most" campaign.</h4>
+      <div class="dp"><p class="dp-p"><span class="dpn">D1</span>Which record do you chase?</p>
+        <div class="dp-opts"><button class="dp-choice">Buy a giant object and claim "world's largest"</button><button class="dp-choice">Audit what you genuinely lead in — even something odd</button></div>
+        <p class="dp-cons"><b>Audit first.</b> Slovenia didn't chase landmarks — it leaned into bees (1 in 200 citizens keeps them). Slovakia's true-solar-time clock is a real "only in the world." Authentic oddities outperform purchased ones because they can't be outbid.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D2</span>A data firm offers to "adjust" statistics so you rank #1 in livability.</p>
+        <div class="dp-opts"><button class="dp-choice">Take the adjusted ranking</button><button class="dp-choice">Publish the honest #23 and the plan to improve</button></div>
+        <p class="dp-cons"><b>Honesty compounds.</b> Switzerland's 14-year innovation lead rests on credible institutions, not marketing. A fake #1 collapses the moment a journalist checks; an honest #23 with a roadmap is a story people retell.</p></div>
+      <div class="dp"><p class="dp-p"><span class="dpn">D3</span>Your real superlative turns out to be uncomfortable — e.g., "most something bad."</p>
+        <div class="dp-opts"><button class="dp-choice">Bury it and market beaches instead</button><button class="dp-choice">Own it and convert it: memorial, research hub, reform</button></div>
+        <p class="dp-cons"><b>Own it.</b> Rwanda turned the legacy of tragedy into Umuganda and "cleanest country in Africa." Laos is converting UXO fields into documented history that visitors fund. Uncomfortable records, handled honestly, become credibility — the rarest superlative of all.</p></div>
+    </div>
+    <a class="xlink" href="#playground">Route onward → the Training Ground <span>⟶</span></a>
+    <h3 class="sub-h">Checkpoint Quiz — Plate VI</h3>
+    <div id="quiz-m6"></div>
+  </div>
+</section>
+
+<!-- ============ PLAYGROUND ============ -->
+<section id="playground">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <p class="plate-tag">The Training Ground</p>
+      <h2>Prove you were paying attention</h2>
+      <p>Three games, zero stakes, full bragging rights. Completing all three stamps three more checkpoints on your expedition.</p>
+    </div>
+    <div class="play-grid">
+      <div class="rv">
+        <h3 class="sub-h">Game 1 · Passport Flashcards <span style="letter-spacing:.05em;text-transform:none;color:var(--ink2);font-size:.8rem">(flip all 10)</span></h3>
+        <div class="flash-grid" id="flashGrid"></div>
+      </div>
+      <div class="rv">
+        <h3 class="sub-h">Game 2 · Stamp Sorting — match the record to the country</h3>
+        <p style="color:var(--ink2);font-size:.9rem;margin-bottom:1rem">Drag a fact onto its country — or click a fact, then click a destination.</p>
+        <div class="sort-area">
+          <div class="sort-col"><h4>Unsorted Facts</h4><div id="factCol"></div></div>
+          <div class="sort-col"><h4>Destinations</h4><div id="slotCol"></div></div>
+        </div>
+        <p class="sort-msg" id="sortMsg" role="status"></p>
+      </div>
+      <div class="rv">
+        <h3 class="sub-h">Game 3 · Fact or Fiction?</h3>
+        <div id="ffList"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MEMORY ============ -->
+<section id="memory">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <p class="plate-tag">The Cartographer's Memory Palace</p>
+      <h2>Five stamps that make it stick</h2>
+      <p>Open all five to stamp your final checkpoint.</p>
+    </div>
+    <div class="mem-grid">
+      <div class="mem-item rv"><button class="mem-btn" aria-expanded="false"><span class="mn">1</span><h4>GHOSTS — the six plates</h4><span class="chev">▶</span></button><div class="mem-panel"><p><b>G</b>eography · <b>H</b>istory · <b>O</b>perating system (culture) · <b>R</b>esources · <b>T</b>erritory apart (isolation) · <b>S</b>uperlatives. Six ghosts haunt every map — if you can name the ghosts, you can place any fact in this lesson.</p></div></div>
+      <div class="mem-item rv"><button class="mem-btn" aria-expanded="false"><span class="mn">2</span><h4>The elevation ladder: −420 → +2.4 → +975</h4><span class="chev">▶</span></button><div class="mem-panel"><p>Dead Sea shoreline <b>−420 m</b> (lowest land), Maldives' peak <b>+2.4 m</b> (lowest country), Lesotho's floor <b>+975 m</b> (the only country entirely above its own lowest point). One ladder holds three world records.</p></div></div>
+      <div class="mem-item rv"><button class="mem-btn" aria-expanded="false"><span class="mn">3</span><h4>Flags are seismographs</h4><span class="chev">▶</span></button><div class="mem-panel"><p>Afghanistan: <b>25+ flags since 1919</b>. Whenever you see a flag, currency or time zone, ask: <b>"what earthquake made this?"</b> Spain's clock says 1940; Mozambique's flag says liberation war; El Salvador's wallet says Bitcoin, 2021.</p></div></div>
+      <div class="mem-item rv"><button class="mem-btn" aria-expanded="false"><span class="mn">4</span><h4>The 3 S's of resources</h4><span class="chev">▶</span></button><div class="mem-panel"><p><b>S</b>tuff (the resource) · <b>S</b>ystems (the institutions) · <b>S</b>tewardship (the long-term plan). Nauru had Stuff. Kuwait added Systems. Norway added Stewardship. The more S's you keep, the less the curse bites.</p></div></div>
+      <div class="mem-item rv"><button class="mem-btn" aria-expanded="false"><span class="mn">5</span><h4>The isolation equation</h4><span class="chev">▶</span></button><div class="mem-panel"><p><b>Longer alone = stranger + rarer + more fragile.</b> One equation explains Madagascar's lemurs (165M years), Papua New Guinea's 800 languages, Yap's stone money, and the dodo's century-long extinction. Connectivity is nutrient and solvent at once.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHEAT SHEET ============ -->
+<section id="cheatsheet">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <p class="plate-tag">Customs Declaration</p>
+      <h2>Summary &amp; cheat sheet</h2>
+      <p>Everything you're allowed to smuggle out of this lesson, in one table.</p>
+    </div>
+    <div class="tbl-scroll rv">
+      <table class="cheat">
+        <thead><tr><th>Plate</th><th>Big Idea</th><th>Unforgettable Example</th><th>One-Line Takeaway</th></tr></thead>
+        <tbody>
+          <tr><td>I · Geography</td><td>Physical terrain constrains and enables; politics can overrule it but pays a price.</td><td>Maldives' highest point: 2.4 m</td><td class="take">"Geography is the stage set, not the script."</td></tr>
+          <tr><td>II · History</td><td>Nations are sediment — every era leaves a layer that still shapes the present.</td><td>Afghanistan's 25+ flags since 1919</td><td class="take">"Flags are seismographs."</td></tr>
+          <tr><td>III · Culture</td><td>Practices are answers to human questions; "weird" is only visible from outside.</td><td>Icelandic elves with zoning power</td><td class="take">"Don't run other people's OS on your hardware."</td></tr>
+          <tr><td>IV · Resources</td><td>Wealth without institutions is exposure, not advantage.</td><td>Nauru: richest → moonscape</td><td class="take">"Resources load the gun; institutions pull the trigger."</td></tr>
+          <tr><td>V · Isolation</td><td>Solitude breeds uniqueness in genes, languages and money — and fragility.</td><td>Yap's stones that never move</td><td class="take">"Longer alone = stranger, rarer, more fragile."</td></tr>
+          <tr><td>VI · Superlatives</td><td>Records encode values, policy, accident or tragedy — read the category, not just the number.</td><td>Norway's 405 Winter medals</td><td class="take">"Trivia is data wearing a party hat."</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <p class="plate-tag">Still Confused?</p>
+      <h2>Ask the guide</h2>
+    </div>
+    <div class="faq-item rv"><button class="faq-q" aria-expanded="false">Why should I care about trivia in the first place?<span class="chev">▶</span></button><div class="faq-a"><p>Because trivia is the hook that memory hangs heavy ideas on. Nobody retains "institutions mediate resource endowments" — but everyone remembers that Saudi Arabia imports sand, and once you remember that, the resource-paradox framework has a place to live in your head. Facts are the addresses where concepts reside; this lesson uses 195 of them so the six ideas never become abstract.</p></div></div>
+    <div class="faq-item rv"><button class="faq-q" aria-expanded="false">Aren't some of these facts already outdated?<span class="chev">▶</span></button><div class="faq-a"><p>Some, inevitably — flags change, records fall, currencies wobble. That's actually the lesson in miniature: Afghanistan's flag count proves symbols are unstable, and South Sudan didn't exist before 2011. Treat specific numbers as snapshots of their moment, and treat the underlying patterns (geography, history, culture, resources, isolation, signaling) as the durable part. When a record breaks, ask which plate explains the new record-holder.</p></div></div>
+    <div class="faq-item rv"><button class="faq-q" aria-expanded="false">How do I actually remember 195 countries?<span class="chev">▶</span></button><div class="faq-a"><p>Don't — that's the wrong goal. Remember six lenses and a handful of anchor countries per lens. The anchors (Maldives, Afghanistan, Iceland, Nauru, Madagascar, Norway) act as coat hooks; every new fact you encounter about any country can be hung on the right hook. Memory works by structure, not by volume — which is exactly what the Memory Palace section encodes with GHOSTS. The world map helps too: spatial memory is far stronger than list memory.</p></div></div>
+    <div class="faq-item rv"><button class="faq-q" aria-expanded="false">Isn't "geography is destiny" just determinism?<span class="chev">▶</span></button><div class="faq-a"><p>The word "destiny" is deliberately provocative — the module's own misconception check dismantles it. The accurate claim is that geography sets the range of easy options: it's cheaper to farm a delta than a tundra, easier to trade with a harbor than a cliff. Within that range, institutions and choices produce wildly different outcomes — the Netherlands below sea level and wealthy, Nauru atop a fortune and ruined. Think "probability," not "prophecy."</p></div></div>
+    <div class="faq-item rv"><button class="faq-q" aria-expanded="false">What's the resource curse in one sentence?<span class="chev">▶</span></button><div class="faq-a"><p>Sudden, concentrated resource wealth tends to enrich whoever controls the spigot rather than the population, unless strong institutions — sovereign funds, courts, diversification, free press — convert the windfall into broad, lasting prosperity. Nauru is the cautionary tale; Kuwait and Norway are the proof the curse is optional.</p></div></div>
+  </div>
+</section>
+
+<!-- ============ NEXT STEPS ============ -->
+<section id="nextsteps">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <p class="plate-tag">Onward Tickets</p>
+      <h2>Next steps</h2>
+      <p>Five routes out of this atlas, each deepening one of the six lenses.</p>
+    </div>
+    <div class="next-grid">
+      <div class="next-card rv"><p class="nt">Route A · Deepens Plates I & IV</p><h4>Economic geography</h4><p>Why are rich countries where they are? Start with ports, coal seams and grain belts — then watch how Singapore and Switzerland broke every rule.</p></div>
+      <div class="next-card rv"><p class="nt">Route B · Deepens Plate II</p><h4>How borders are drawn (and unravel)</h4><p>From colonial lines to South Sudan's 2011 birth, study how borders get made, contested and occasionally unmade — and who inherits the fingerprints.</p></div>
+      <div class="next-card rv"><p class="nt">Route C · Deepens Plates III & V</p><h4>Language extinction & revival</h4><p>One language dies roughly every two weeks. Explore why Papua New Guinea grew 800, and what Welsh, Māori and Hawaiian revival movements teach about reversing the trend.</p></div>
+      <div class="next-card rv"><p class="nt">Route D · Deepens Plate V</p><h4>Island biogeography & conservation</h4><p>The dodo's century is the fastest case study in extinction science. Follow it into modern island restoration — rats removed, birds returning, ecosystems reassembled.</p></div>
+      <div class="next-card rv"><p class="nt">Route E · Weekly Practice</p><h4>The five-country habit</h4><p>Each week, pick five countries you rarely think about. Find one fact per plate for each, and pin them in your head to the map. In a year: 1,300 anchored facts.</p></div>
+      <div class="next-card rv"><p class="nt">Route F · Test Yourself</p><h4>The Knowledge Check</h4><p>This lesson ships without a final exam — on purpose. If you want the full 15-question "Test Your Knowledge" assessment with detailed feedback on every option, just ask and it will be added.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    The Atlas of Everything · compiled from the "Map Pack" transcript · 195 countries, six ideas<br>
+    Basemap tiles © OpenStreetMap contributors · © CARTO · progress saved locally in your browser
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+"use strict";
+/* ================= DATA ================= */
+var MODULES={
+  G:{n:"I",name:"Geography",c:"#4f9dde"},
+  H:{n:"II",name:"History",c:"#e2593f"},
+  C:{n:"III",name:"Culture",c:"#e0a63f"},
+  R:{n:"IV",name:"Resources",c:"#3fbfa8"},
+  I:{n:"V",name:"Isolation",c:"#8fbf5f"},
+  S:{n:"VI",name:"Superlatives",c:"#d67fb8"}
+};
+/* [name, lat, lng, module, fact] */
+var COUNTRIES=[
+["Afghanistan",33.9,67.7,"H","Changed its flag 25+ times since 1919 — a seismograph of upheaval."],
+["Albania",41.15,20.17,"H","Declared the world's first atheist state in 1967; churches and mosques seized or repurposed."],
+["Algeria",28,2.6,"C","Iced coffee was invented here in 1840 — French soldiers called it Mazagran."],
+["Andorra",42.5,1.52,"S","Only half of residents are Andorran; the national language is Catalan."],
+["Angola",-11.2,17.9,"S","Post-civil-war gender ratio of 0.93 men to women aged 15–64."],
+["Antigua & Barbuda",17.06,-61.8,"G","The 'Land of 365 Beaches' — one for every day of the year."],
+["Argentina",-38.4,-63.6,"C","Highest number of psychologists per capita: 222 per 100,000."],
+["Armenia",40.07,45.04,"C","Chess has been a mandatory school subject since 2011."],
+["Australia",-25.3,133.8,"H","Lost the 1932 Emu War — machine guns vs. birds; the birds won."],
+["Austria",47.5,14.55,"S","Red Bull launched here on April 1, 1987; HQ still in Fuschl am See."],
+["Azerbaijan",40.15,47.58,"G","Neft Daslari: a full city built on stilts in the Caspian Sea."],
+["Bahamas",25.03,-77.4,"C","The only marching band featured on money — on the back of the $1 note."],
+["Bahrain",26.07,50.56,"G","Dive Bahrain: the world's largest underwater park, 25 acres of seabed."],
+["Bangladesh",23.68,90.36,"G","Experiences six distinct seasons — winter to monsoon, all in one year."],
+["Barbados",13.19,-59.54,"H","Rum was first produced here — originally called 'Kill-Devil'."],
+["Belarus",53.7,27.95,"G","The 'Lungs of Europe': marshes remove 900,000 tons of CO₂ a year."],
+["Belgium",50.5,4.47,"C","Comic-book superpower: the Smurfs, Tintin, Lucky Luke, Asterix."],
+["Belize",17.19,-88.5,"H","Tallest structure is a 1,000-year-old Mayan palace: Caana, 43 m."],
+["Benin",9.31,2.32,"C","Birthplace of Voodoo (Vodun) — over 6,000 years old."],
+["Bhutan",27.51,90.43,"S","The only country that measures Gross National Happiness."],
+["Bolivia",-16.29,-63.59,"G","Yungas 'Death Road': 3 m wide beside 600 m cliff drops."],
+["Bosnia & Herzegovina",43.92,17.68,"H","Three presidents rule at once, rotating chairmanship every 8 months."],
+["Botswana",-22.33,24.68,"I","~130,000 elephants — more than any other country."],
+["Brazil",-14.24,-51.93,"I","Over 100 uncontacted tribes deep in the Amazon."],
+["Brunei",4.54,114.73,"S","Istana Nurul Iman: world's largest palace — 1,782 rooms."],
+["Bulgaria",42.73,25.49,"H","The world's oldest gold treasure, found at Varna (4600–4200 BC)."],
+["Burkina Faso",12.24,-1.56,"H","The Mossi Kingdoms resisted slave raids for three centuries."],
+["Burundi",-3.37,29.92,"C","Banana beer: 40% alcohol, $0.30 a shot — more vodka than beer."],
+["Cambodia",12.57,104.99,"C","New Year is celebrated for three straight days in mid-April."],
+["Cameroon",7.37,12.35,"G","'Africa in miniature': all five climate zones in one country."],
+["Canada",56.13,-106.35,"I","Churchill, Manitoba: polar bear capital of the world."],
+["Cabo Verde",16,-24,"H","The most recently inhabited country — first settled in 1456."],
+["Central African Republic",6.61,20.94,"I","Home of the Aka people, averaging 1.5 m tall."],
+["Chad",15.45,18.73,"S","Lowest average lifespan in the world: 53 years."],
+["Chile",-35.68,-71.54,"G","The Atacama: driest non-polar desert → astronomy capital of Earth."],
+["China",35.86,104.2,"G","Spans five time zones but runs on one — Beijing time."],
+["Colombia",4.57,-74.3,"C","Kids drink café con leche from elementary school onward."],
+["Comoros",-11.88,43.87,"I","The Perfume Isles: 80% of the world's ylang-ylang."],
+["Costa Rica",9.75,-83.75,"R","99% renewable electricity; first tropical nation to reverse deforestation."],
+["Côte d'Ivoire",7.54,-5.55,"R","Biggest cocoa producer — 2.25M tons in peak year 2021."],
+["Croatia",45.1,15.2,"H","Smiljan: birthplace of Nikola Tesla."],
+["Cuba",21.52,-77.78,"S","Highest doctor-to-patient ratio: 9 per 1,000 citizens."],
+["Cyprus",35.13,33.43,"C","More cats than people: 1.5 million vs 1.2 million."],
+["Czechia",49.82,15.47,"S","Record 184 liters of beer per capita (2021) — ~2× Germany."],
+["DR Congo",-4.04,21.76,"G","Only 5% of 58,000 km of national roads are paved."],
+["Denmark",56.26,9.5,"S","Lego started in a Billund workshop in 1932."],
+["Djibouti",11.83,42.59,"G","Lake Assal: 155 m below sea level, 10× saltier than the ocean."],
+["Dominica",15.41,-61.37,"I","The only country sperm whales call home year-round."],
+["Dominican Republic",18.74,-70.16,"C","The only national flag featuring a Bible."],
+["Ecuador",-1.83,-78.18,"S","First country to give nature constitutional rights (2008)."],
+["Egypt",26.82,30.8,"H","Ancient Egypt invented deodorant, the toothbrush and toothpaste."],
+["El Salvador",13.79,-88.9,"S","First country to make Bitcoin legal tender (2021)."],
+["Equatorial Guinea",1.65,10.27,"H","Ruled by the same president since 1979 — world's longest (non-royal)."],
+["Eritrea",15.18,39.78,"H","Women made up 30% of fighters in the independence war."],
+["Estonia",58.6,25.01,"S","Most books per capita: 218 per person."],
+["Eswatini",-26.52,31.47,"H","King Sobhuza II ruled 82 years — history's longest-reigning monarch."],
+["Ethiopia",9.15,40.49,"C","Thirteen months a year, and clocks start at dawn."],
+["Fiji",-16.58,178,"C","In villages, only chiefs may wear hats."],
+["Finland",61.92,25.75,"G","Rising 8–9 mm a year — ~200 football fields of new land annually."],
+["France",46.23,2.21,"S","First country to ban supermarkets from discarding edible food (2016)."],
+["Gabon",-0.8,11.61,"H","Libreville ('free town') was founded by freed slaves in 1848."],
+["Gambia",13.44,-15.31,"C","The Katchikaly Sacred Crocodile Pool — a fertility rite."],
+["Georgia",42.32,43.36,"H","Oldest evidence of wine production: 6,000 BC, stored in qvevri."],
+["Germany",51.17,10.45,"S","Parts of the Autobahn have no speed limit at all."],
+["Ghana",7.95,-1.02,"C","Fantasy coffins — fish, shoes, cocoa pods — honor the dead."],
+["Greece",39.07,21.82,"H","The Antikythera Mechanism: a 2,000-year-old 'computer'."],
+["Grenada",12.26,-61.6,"R","The Island of Spice: 20% of the world's nutmeg — it's on the flag."],
+["Guatemala",15.78,-90.23,"C","Chicken buses: retired US school buses, reborn in color."],
+["Guinea",9.95,-9.7,"R","Two-thirds of the world's bauxite — yet GDP/capita ~$1,500."],
+["Guinea-Bissau",11.8,-15.18,"C","The Bissagos islands run matriarchally — women propose."],
+["Guyana",4.86,-58.93,"I","Land of Giants: jaguars, arapaima and the world's largest lily."],
+["Haiti",18.97,-72.29,"H","The only successful slave revolt founded a nation (1804)."],
+["Honduras",15.2,-86.24,"H","The 1969 'Football War' followed a World Cup qualifier."],
+["Hungary",47.16,19.5,"C","A 44-letter alphabet with several kinds of Ö and Ü."],
+["Iceland",64.96,-19.02,"C","54% believe in elves — and elf habitats block construction."],
+["India",20.59,78.96,"S","The Maha Kumbh Mela: largest gathering on Earth (~400M pilgrims)."],
+["Indonesia",-0.79,113.92,"G","130 active volcanoes — the volcano capital of the world."],
+["Iran",32.43,53.69,"C","The Solar Hijri calendar: it's currently the year 1403."],
+["Iraq",33.22,43.68,"H","Cuneiform, the oldest writing system (3200 BC)."],
+["Ireland",53.41,-8.24,"H","Halloween began here — the Gaelic festival Samhain."],
+["Israel",31.05,34.85,"S","Most museums per capita in the world."],
+["Italy",42.83,12.83,"S","60 UNESCO World Heritage Sites — more than any country."],
+["Jamaica",18.11,-77.3,"S","The fastest nation: Bolt plus 19 medals from three sprinters."],
+["Japan",36.2,138.25,"S","Kongo Gumi: world's oldest company, founded 578 AD."],
+["Jordan",30.59,36.24,"G","The Dead Sea: lowest point on Earth at −420 m."],
+["Kazakhstan",48.02,66.92,"S","Baikonur: first and largest operational space launch facility."],
+["Kenya",-0.02,37.91,"S","The Kalenjin: <0.1% of humanity, 40% of running titles since 1980."],
+["Kiribati",1.45,173,"G","First country to see each day; sits in all four hemispheres."],
+["Kuwait",29.31,47.48,"R","Strongest currency: 1 dinar = $3.25."],
+["Kyrgyzstan",41.2,74.77,"C","Kumis: fermented mare's milk, 0.7–2.5% alcohol."],
+["Laos",19.86,102.5,"H","Most heavily bombed country ever: 2M tons, 1964–73."],
+["Latvia",56.88,24.6,"H","Riga, 1510: the first decorated Christmas tree (then burned)."],
+["Lebanon",33.85,35.86,"S","Most refugees per capita: ~25% of the population."],
+["Lesotho",-29.61,28.23,"G","The only country entirely above 975 m elevation."],
+["Liberia",6.43,-9.43,"H","Founded in 1821 for freed slaves; independent 1847."],
+["Libya",26.34,17.23,"G","Over 90% Sahara — some parts rainless for 25+ years."],
+["Liechtenstein",47.17,9.56,"C","The prince invites all 39,800 residents to his garden party."],
+["Lithuania",55.17,23.88,"C","Užupis: a joke republic with its own constitution and navy."],
+["Luxembourg",49.82,6.13,"S","First country with free public transport for everyone."],
+["Madagascar",-18.77,46.87,"I","70% of 250,000 species found nowhere else on Earth."],
+["Malawi",-13.25,34.3,"I","Lake Malawi: hundreds of endemic cichlid fish."],
+["Malaysia",4.21,101.98,"I","Rafflesia: the world's largest (and smelliest) flower."],
+["Maldives",3.2,73.22,"G","Lowest country: highest point just 2.4 m."],
+["Mali",17.57,-4,"R","Mansa Musa, ~$400B — gave away so much gold he crashed Egypt."],
+["Malta",35.94,14.38,"H","Megalithic temples older than the pyramids; a lost civilization."],
+["Marshall Islands",7.13,171.18,"H","US nuclear testing: the equivalent of 7,000 Hiroshimas, 1946–58."],
+["Mauritania",21.01,-10.94,"S","The 3-km-long iron-ore train tourists ride — in the ore cars."],
+["Mauritius",-20.35,57.55,"I","Home of the dodo — extinct within a century of sailors."],
+["Micronesia",9.5,138.1,"I","Yap's Rai stones: money that never changes hands."],
+["Moldova",47.41,28.37,"S","Milestii Mici: world's largest wine collection — 2M bottles."],
+["Monaco",43.73,7.42,"C","Casinos everywhere — except for citizens, who may not gamble."],
+["Mongolia",46.86,103.85,"C","40% of the population is still nomadic."],
+["Montenegro",42.71,19.37,"S","First constitutional ecological state (1991/92)."],
+["Morocco",31.79,-7.09,"H","al-Qarawiyyin, founded 859 AD: the world's oldest university."],
+["Mozambique",-18.67,35.53,"H","The only flag with a modern weapon: an AK-47."],
+["Myanmar",21.91,95.96,"C","Thanaka: bark-paste skincare worn on cheeks and foreheads."],
+["Namibia",-22.96,18.49,"G","The Skeleton Coast: 1,000+ shipwrecks in the desert."],
+["Nauru",-0.52,166.93,"R","Phosphate made it richest per capita — then strip-mined to bust."],
+["Nepal",28.39,84.12,"S","39 public holidays a year — the world's most."],
+["Netherlands",52.13,5.29,"S","Invented shares: the Dutch East India Company, 1602."],
+["New Zealand",-40.9,174.89,"S","First country to give all women the vote (1893)."],
+["Nicaragua",12.87,-85.21,"H","La Prensa's last print headline: 'The dictatorship can't hide the truth.'"],
+["Niger",17.61,8.08,"S","Youngest population: median age 15."],
+["Nigeria",9.08,8.68,"S","Nollywood: ~2,500 films a year, second only to Bollywood."],
+["North Korea",40.34,127.51,"H","Watching South Korean TV can be punishable by death."],
+["North Macedonia",41.61,21.75,"H","Skopje: birthplace of Mother Teresa."],
+["Norway",60.47,8.47,"S","405 Winter Olympic medals — the all-time record."],
+["Oman",21.47,56.1,"R","The world's finest frankincense."],
+["Pakistan",30.38,69.35,"C","A shocking number of official birthdays: January 1."],
+["Palau",7.51,134.58,"I","Jellyfish Lake: millions of stingless jellyfish."],
+["Panama",8.54,-80.78,"G","From Volcán Barú: sunrise over the Pacific, sunset over the Atlantic."],
+["Papua New Guinea",-6.31,143.96,"I","800+ languages — the most linguistically diverse place on Earth."],
+["Paraguay",-23.44,-58.44,"S","Biggest navy of any landlocked country."],
+["Peru",-9.19,-75.02,"I","Potatoes began here 10,000 years ago — 4,000 varieties today."],
+["Philippines",12.88,121.77,"S","Supplies the most nurses to the world."],
+["Poland",51.92,19.15,"S","Marie Curie and Copernicus were both Polish."],
+["Portugal",39.4,-8.22,"S","Livraria Bertrand, 1732: world's oldest bookstore."],
+["Qatar",25.35,51.18,"S","99.2% urban — the most urbanized country."],
+["Republic of Congo",-0.72,15.64,"C","The sapeurs of Brazzaville: elegance as a way of life."],
+["Romania",45.94,24.97,"C","The Merry Cemetery: tombstones painted with jokes."],
+["Russia",61.52,105.32,"G","Oymyakon: coldest town, record −67.7°C."],
+["Rwanda",-1.94,29.87,"C","Umuganda: mandatory community cleanup, last Saturday monthly."],
+["St Kitts & Nevis",17.36,-62.78,"H","Nevis nearly seceded in 1998 — short by a few hundred votes."],
+["St Lucia",13.91,-60.98,"H","The only country named after a historic woman."],
+["St Vincent & Grenadines",12.98,-61.29,"G","La Soufrière volcano last erupted in April 2021."],
+["Samoa",-13.76,-172.1,"C","Four recognized genders, including fa'afafine and fa'afatama."],
+["San Marino",43.94,12.46,"H","Oldest republic (301 AD) and oldest active constitution (1600)."],
+["São Tomé & Príncipe",0.19,6.61,"R","Cocoa = 95% of exports — a chocolate-dependent economy."],
+["Saudi Arabia",23.89,45.08,"R","95% desert — yet imports construction sand from Australia."],
+["Senegal",14.5,-14.45,"C","Le Grand Magal: ~3M pilgrims to Touba each year."],
+["Serbia",44.02,21.01,"C","One language, two alphabets: Cyrillic and Latin."],
+["Seychelles",-4.68,55.49,"G","The only mid-ocean granite islands — evidence for continental drift."],
+["Sierra Leone",8.46,-11.78,"R","Blood diamonds funded a civil war; the country stayed poor."],
+["Singapore",1.35,103.82,"C","The 'fine city': fines for gum, kites and unflushed toilets."],
+["Slovakia",48.67,19.7,"S","Stará Bystrica's clock: the only one showing true solar time."],
+["Slovenia",46.15,14.99,"C","One in 200 Slovenes keeps bees."],
+["Solomon Islands",-9.65,160.16,"I","Only 1–2% speak official English; 70+ other languages."],
+["Somalia",5.15,46.2,"H","Somaliland: self-declared, unrecognized, relatively stable."],
+["South Africa",-30.56,22.94,"S","Three capitals: Pretoria, Bloemfontein, Cape Town."],
+["South Korea",36.5,127.95,"S","Half the population shares three surnames: Kim, Lee, Park."],
+["South Sudan",6.88,31.31,"H","The newest country — independence July 9, 2011."],
+["Spain",40.46,-3.75,"H","In the wrong time zone since 1940 — Franco aligned with Hitler."],
+["Sri Lanka",7.87,80.77,"H","The Jaya Sri Maha Bodhi: oldest human-planted tree (288 BC)."],
+["Sudan",12.86,30.22,"H","~200 pyramids — twice as many as Egypt."],
+["Suriname",3.92,-56.03,"G","93% forest — a carbon-negative country."],
+["Sweden",60.13,18.64,"C","Stockholm's metro: the world's longest art exhibition."],
+["Switzerland",46.82,8.23,"S","Most innovative country — 14 years running."],
+["Syria",34.8,38.99,"H","Damascus: oldest continuously inhabited city (~3000 BC)."],
+["Tajikistan",38.86,71.28,"G","Fedchenko: longest glacier outside the polar caps (77 km)."],
+["Tanzania",-6.37,34.89,"G","Ngorongoro: the world's largest caldera."],
+["Thailand",15.87,100.99,"C","Many young men ordain as monks for weeks — 'temporary ordination'."],
+["Timor-Leste",-8.87,125.73,"I","Most biodiverse waters: 253 reef-fish species per site."],
+["Togo",8.62,0.82,"C","A third of the population practices indigenous religions."],
+["Tonga",-21.18,-175.2,"S","Highest obesity rate: 71% of adults."],
+["Trinidad & Tobago",10.69,-61.22,"G","Home of the Moruga Scorpion pepper: 2M+ Scoville."],
+["Tunisia",33.89,9.54,"H","Carthage: the superpower Rome had to destroy."],
+["Türkiye",38.96,35.24,"H","The first coin was minted in Lydia, ~600 BC."],
+["Turkmenistan",38.97,59.56,"C","Black cars banned in the capital — white or silver only."],
+["Tuvalu",-7.11,177.65,"R","The '.tv' domain earns ~1/12 of national income."],
+["Uganda",1.37,32.29,"G","The White Nile begins at Jinja, on Lake Victoria."],
+["Ukraine",48.38,31.17,"C","Most folk songs in the world — up to 200,000 claimed."],
+["UAE",23.42,53.85,"S","88.5% of residents are expats from 200+ nationalities."],
+["United Kingdom",55.38,-3.44,"S","The Mousetrap: running in London since 1952."],
+["United States",37.09,-95.71,"S","The only country to have walked on the Moon."],
+["Uruguay",-32.52,-55.77,"S","Plan Ceibal: one free laptop per schoolchild, from 2007."],
+["Uzbekistan",41.38,64.59,"H","The heart of the Silk Road: Samarkand and Bukhara."],
+["Vanuatu",-15.38,166.96,"C","Land diving on Pentecost Island — bungee's ancestor."],
+["Vatican City",41.9,12.35,"S","Smallest country — and a birth rate of zero."],
+["Venezuela",6.42,-66.59,"G","Catatumbo lightning: 1.6M strikes a year, ~300 nights."],
+["Vietnam",14.06,108.28,"I","Son Doong: largest cave, with its own weather."],
+["Yemen",15.55,48.52,"H","Shibam: 500 mud-brick towers — the oldest skyscraper city."],
+["Zambia",-13.13,27.85,"G","Victoria Falls: largest by volume — 1,706 m wide."],
+["Zimbabwe",-19.02,29.15,"R","Hyperinflation led to 8 currencies at once."]
+];
+var ATTR='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+var DARK_URL="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+var LIGHT_URL="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+var reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ================= state ================= */
+var STORE="atlasLessonV1", THEMEKEY="atlasThemeV1";
+var done={};try{done=JSON.parse(localStorage.getItem(STORE))||{};}catch(e){done={};}
+var TOTAL=17;
+function save(){try{localStorage.setItem(STORE,JSON.stringify(done));}catch(e){}}
+function markDone(id){if(done[id])return;done[id]=true;save();refreshProg();}
+function refreshProg(){
+  var n=Object.keys(done).length;
+  var chip=document.getElementById("progChip");
+  if(chip)chip.textContent=n+" / "+TOTAL+" stamped";
+  for(var i=1;i<=6;i++){var mk=document.getElementById("mk"+i);if(mk&&done["v"+i])mk.classList.add("done");}
+}
+refreshProg();
+
+/* ================= maps ================= */
+function mkTiles(url){return L.tileLayer(url,{attribution:ATTR,subdomains:"abcd",maxZoom:19});}
+var headerMap=L.map("earthView",{zoomControl:false,attributionControl:true,scrollWheelZoom:false,doubleClickZoom:false,worldCopyJump:true,minZoom:2,maxZoom:11});
+headerMap.setView([16,20],3);
+var bigMap=L.map("worldMap",{zoomControl:true,scrollWheelZoom:false,worldCopyJump:true,minZoom:2,maxZoom:11});
+bigMap.setView([22,12],2);
+bigMap.once("click",function(){bigMap.scrollWheelZoom.enable();});
+L.control.scale({imperial:false}).addTo(bigMap);
+
+var layers={header:{dark:mkTiles(DARK_URL),light:mkTiles(LIGHT_URL)},big:{dark:mkTiles(DARK_URL),light:mkTiles(LIGHT_URL)}};
+function applyTiles(theme){
+  ["header","big"].forEach(function(k){
+    var m=(k==="header")?headerMap:bigMap;
+    var on=layers[k][theme],off=layers[k][theme==="dark"?"light":"dark"];
+    if(m.hasLayer(off))m.removeLayer(off);
+    if(!m.hasLayer(on))on.addTo(m);
+  });
+}
+var rootEl=document.documentElement;
+var savedTheme=null;try{savedTheme=localStorage.getItem(THEMEKEY);}catch(e){}
+rootEl.dataset.theme=savedTheme||"dark";
+applyTiles(rootEl.dataset.theme);
+document.getElementById("themeBtn").addEventListener("click",function(){
+  rootEl.dataset.theme=rootEl.dataset.theme==="dark"?"light":"dark";
+  try{localStorage.setItem(THEMEKEY,rootEl.dataset.theme);}catch(e){}
+  applyTiles(rootEl.dataset.theme);
+});
+
+/* ---------- header live tour ---------- */
+var TOUR=[
+["Kiribati",1.45,173,"The first country on Earth to see each new day.","01.45° N · 173.00° E"],
+["Maldives",3.2,73.22,"Highest point: 2.4 m — an entire nation on a sandbar.","03.20° N · 073.22° E"],
+["Iceland",64.96,-19.02,"54% believe in elves — and elf habitats block construction.","64.96° N · 019.02° W"],
+["Afghanistan",33.9,67.7,"25+ flags since 1919 — a seismograph of upheaval.","33.90° N · 067.70° E"],
+["Mozambique",-18.67,35.53,"The only flag bearing a modern weapon: an AK-47.","18.67° S · 035.53° E"],
+["Nauru",-0.52,166.93,"Richest per capita, then strip-mined to a moonscape.","00.52° S · 166.93° E"],
+["Madagascar",-18.77,46.87,"70% of 250,000 species found nowhere else.","18.77° S · 046.87° E"],
+["Papua New Guinea",-6.31,143.96,"800+ languages — the most diverse place on Earth.","06.31° S · 143.96° E"],
+["Spain",40.46,-3.75,"In the wrong time zone since 1940 — Franco's doing.","40.46° N · 003.75° W"],
+["Sudan",12.86,30.22,"~200 pyramids — twice as many as Egypt.","12.86° N · 030.22° E"],
+["Venezuela",6.42,-66.59,"The Everlasting Storm: 1.6M lightning strikes a year.","06.42° N · 066.59° W"],
+["Micronesia",9.5,138.1,"Yap's stone money never physically changes hands.","09.50° N · 138.10° E"],
+["Norway",60.47,8.47,"405 Winter Olympic medals — the all-time record.","60.47° N · 008.47° E"],
+["Tuvalu",-7.11,177.65,"The '.tv' domain earns ~1/12 of national income.","07.11° S · 177.65° E"],
+["Samoa",-13.76,-172.1,"Four recognized genders, centuries before the debate.","13.76° S · 172.10° W"],
+["Chile",-24.5,-69.25,"The Atacama: astronomy capital of the world.","24.50° S · 069.25° W"]
+];
+var tourIdx=0,tourTimer=null,idleTimer=null,tourPaused=false;
+var ring=L.circleMarker([TOUR[0][1],TOUR[0][2]],{radius:22,color:"#dfa648",weight:2,fill:false,className:"ring-pulse",interactive:false}).addTo(headerMap);
+L.polyline(TOUR.map(function(t){return [t[1],t[2]];}),{color:"#dfa648",weight:1.6,opacity:.55,dashArray:"5 9",className:"route-live",interactive:false}).addTo(headerMap);
+function fmtIdx(i){return (i<9?"0":"")+(i+1)+"/"+TOUR.length;}
+function showStop(i,instant){
+  var t=TOUR[i];
+  document.getElementById("orbitName").textContent=t[0];
+  document.getElementById("orbitFact").textContent=t[3];
+  document.getElementById("orbitCC").textContent=t[4];
+  document.getElementById("orbitIdx").textContent=fmtIdx(i);
+  ring.setLatLng([t[1],t[2]]);
+  if(instant||reduced){headerMap.setView([t[1],t[2]],5);}
+  else{headerMap.flyTo([t[1],t[2]],5,{duration:3.6});}
+}
+function nextStop(){tourIdx=(tourIdx+1)%TOUR.length;showStop(tourIdx,false);}
+function startTour(){if(reduced)return;stopTour();tourTimer=setInterval(function(){if(!tourPaused&&!document.hidden)nextStop();},7200);}
+function stopTour(){if(tourTimer){clearInterval(tourTimer);tourTimer=null;}}
+["dragstart","mousedown","touchstart","wheel"].forEach(function(ev){
+  headerMap.on(ev,function(){
+    tourPaused=true;
+    if(idleTimer)clearTimeout(idleTimer);
+    idleTimer=setTimeout(function(){tourPaused=false;},12000);
+  });
+});
+showStop(0,true);
+startTour();
+
+/* ---------- big world map: pins + plate markers ---------- */
+var groups={};
+Object.keys(MODULES).forEach(function(k){groups[k]=L.layerGroup().addTo(bigMap);});
+var markerByName={};
+COUNTRIES.forEach(function(c){
+  var m=L.circleMarker([c[1],c[2]],{radius:4.5,color:"#ffffff",weight:1,opacity:.85,fillColor:MODULES[c[3]].c,fillOpacity:.95});
+  m.bindPopup('<div style="font-family:var(--mono);font-size:.6rem;letter-spacing:.16em;color:'+MODULES[c[3]].c+';text-transform:uppercase">Plate '+MODULES[c[3]].n+" · "+MODULES[c[3]].name+'</div><strong style="font-family:var(--disp);font-size:1.05rem">'+c[0]+"</strong><p style='margin:.3rem 0 0'>"+c[4]+"</p>");
+  m.addTo(groups[c[3]]);
+  markerByName[c[0]]=m;
+});
+document.getElementById("pinCount").textContent=COUNTRIES.length;
+
+var MOD_MARKS=[
+ {k:"G",lat:-23.5,lng:-68.5,target:"m1"},
+ {k:"H",lat:33.5,lng:36.3,target:"m2"},
+ {k:"C",lat:-16,lng:-173,target:"m3"},
+ {k:"R",lat:-0.52,lng:166.93,target:"m4"},
+ {k:"I",lat:-18.77,lng:46.87,target:"m5"},
+ {k:"S",lat:60.47,lng:8.47,target:"m6"}
+];
+var plateLayer=L.layerGroup().addTo(bigMap);
+MOD_MARKS.forEach(function(mm){
+  var meta=MODULES[mm.k];
+  var ic=L.divIcon({className:"",html:'<div class="modmark" style="--mc:'+meta.c+'">'+meta.n+"</div>",iconSize:[34,34],iconAnchor:[17,17]});
+  var mk=L.marker([mm.lat,mm.lng],{icon:ic,title:"Plate "+meta.n+" — "+meta.name});
+  mk.bindTooltip("Plate "+meta.n+" · "+meta.name,{className:"modtip",direction:"top",offset:[0,-14]});
+  mk.on("click",function(){document.getElementById(mm.target).scrollIntoView({behavior:reduced?"auto":"smooth"});});
+  mk.addTo(plateLayer);
+});
+
+/* legend + filters */
+var legendHtml='<strong style="color:var(--ink)">Plates</strong>';
+Object.keys(MODULES).forEach(function(k){
+  legendHtml+='<div class="lg-row"><span class="lg-dot" style="background:'+MODULES[k].c+'"></span>'+MODULES[k].n+" · "+MODULES[k].name+"</div>";
+});
+document.getElementById("mapLegend").innerHTML=legendHtml;
+
+var counts={};COUNTRIES.forEach(function(c){counts[c[3]]=(counts[c[3]]||0)+1;});
+var activeFilter="ALL";
+function buildFilters(){
+  var row=document.getElementById("filterRow");
+  var html='<button class="fchip act" data-f="ALL" style="--mc:var(--acc)">All · '+COUNTRIES.length+"</button>";
+  Object.keys(MODULES).forEach(function(k){
+    html+='<button class="fchip" data-f="'+k+'" style="--mc:'+MODULES[k].c+'">'+MODULES[k].n+" "+MODULES[k].name+" · "+(counts[k]||0)+"</button>";
+  });
+  row.innerHTML=html;
+}
+buildFilters();
+document.getElementById("filterRow").addEventListener("click",function(e){
+  var b=e.target.closest(".fchip");if(!b)return;
+  activeFilter=b.dataset.f;
+  document.querySelectorAll(".fchip").forEach(function(c){c.classList.remove("act");});
+  b.classList.add("act");
+  Object.keys(groups).forEach(function(k){
+    if(activeFilter==="ALL"||activeFilter===k){if(!bigMap.hasLayer(groups[k]))bigMap.addLayer(groups[k]);}
+    else if(bigMap.hasLayer(groups[k])){bigMap.removeLayer(groups[k]);}
+  });
+});
+
+/* locate buttons */
+document.addEventListener("click",function(e){
+  var btn=e.target.closest(".locate");if(!btn)return;
+  var name=btn.dataset.name;
+  var rec=null;
+  for(var i=0;i<COUNTRIES.length;i++){if(COUNTRIES[i][0]===name){rec=COUNTRIES[i];break;}}
+  if(!rec)return;
+  document.getElementById("map").scrollIntoView({behavior:reduced?"auto":"smooth"});
+  setTimeout(function(){
+    activeFilter="ALL";
+    document.querySelectorAll(".fchip").forEach(function(c){c.classList.toggle("act",c.dataset.f==="ALL");});
+    Object.keys(groups).forEach(function(k){if(!bigMap.hasLayer(groups[k]))bigMap.addLayer(groups[k]);});
+    bigMap.flyTo([rec[1],rec[2]],6,{duration:reduced?0:2.2});
+    bigMap.once("moveend",function(){
+      var m=markerByName[name];
+      m.openPopup();
+      m.setStyle({radius:10,weight:2.5});
+      setTimeout(function(){m.setStyle({radius:4.5,weight:1});},1600);
+    });
+  },reduced?50:650);
+});
+
+window.addEventListener("load",function(){headerMap.invalidateSize();bigMap.invalidateSize();});
+setTimeout(function(){headerMap.invalidateSize();bigMap.invalidateSize();},400);
+
+/* ================= page mechanics ================= */
+var pbar=document.getElementById("pbar");
+window.addEventListener("scroll",function(){
+  var h=document.documentElement;
+  var max=h.scrollHeight-h.clientHeight;
+  pbar.style.width=(max>0?(h.scrollTop/max)*100:0)+"%";
+},{passive:true});
+
+var tt=document.getElementById("tickTrack");
+tt.innerHTML+=tt.innerHTML;
+
+var io=new IntersectionObserver(function(es){
+  es.forEach(function(e){if(e.isIntersecting){e.target.classList.add("on");io.unobserve(e.target);}});
+},{threshold:.12});
+document.querySelectorAll(".rv").forEach(function(el){io.observe(el);});
+
+var vio=new IntersectionObserver(function(es){
+  es.forEach(function(e){if(e.isIntersecting){markDone("v"+e.target.id.replace("m",""));}});
+},{threshold:.18});
+for(var mi=1;mi<=6;mi++){var mm=document.getElementById("m"+mi);if(mm)vio.observe(mm);}
+
+/* quizzes */
+var QUIZ={
+ m1:[
+  {q:"Which country is the lowest-lying on Earth, with its highest point only about 2.4 m above sea level?",
+   o:["The Netherlands","Maldives","Bangladesh","Jordan"],a:1,
+   fb:["The Netherlands is famously low, but it climbs to 322 m. The lowest country is an Indian Ocean archipelago.","Correct — the Maldives tops out near 2.4 m, which is why sea-level rise is existential there.","Bangladesh floods terribly, but its hills rise past 1,000 m.","Jordan touches the Dead Sea — the lowest point on land — but the country itself is mountainous."]},
+  {q:"Why has Chile become the 'astronomical capital of the world'?",
+   o:["It funds the most telescopes per capita","It sits closest to the galactic core","The Atacama Desert gives it 300+ clear, dry nights a year"],a:2,
+   fb:["Funding follows the sky, not the other way around.","Every southern-hemisphere country shares that sky — location alone isn't enough.","Correct — the driest non-polar desert on Earth means near-perfect observing, home to the Very Large and Extremely Large Telescopes."]}
+ ],
+ m2:[
+  {q:"Why does Spain run on GMT+1, an hour ahead of its natural solar time?",
+   o:["Franco shifted the clocks in 1940 to align with Hitler's Germany","Spain's solar day is naturally an hour longer","An EU regulation standardized it in 1992"],a:0,
+   fb:["Correct — a wartime flattery that never got reversed; lunch is late because of a dead alliance.","Solar days don't vary that much by country — this was a political choice.","The EU harmonized many things, but Spain's offset predates it by decades."]},
+  {q:"Which country's flag is the only one to feature a modern weapon?",
+   o:["Mexico","Cambodia","Mozambique"],a:2,
+   fb:["Mexico's eagle-and-serpent is ancient symbolism, not a modern weapon.","Cambodia's flag shows Angkor Wat — a temple, not a weapon.","Correct — an AK-47 beside a book and a hoe: defense, education, agriculture."]}
+ ],
+ m3:[
+  {q:"In a Fijian village, wearing a hat as a visitor is…",
+   o:["A compliment to your hosts","Disrespectful — hats are reserved for chiefs","Mandatory sun protection everyone appreciates"],a:1,
+   fb:["Quite the opposite — it reads as a claim to rank you don't hold.","Correct — only chiefs wear hats; a visitor's cap is a small act of lese-majesty.","Locals will be too polite to say so, but the offense registers."]},
+  {q:"What real-world effect has Iceland's belief in the huldufólk (elves) had?",
+   o:["It has blocked construction projects and protected natural sites","It banned tourism in the highlands","It requires all churches to face east"],a:0,
+   fb:["Correct — since the 1930s, elf-habitat claims have rerouted roads and stopped developments. A superstition with zoning power.","No such ban exists; tourists are welcome, elves allegedly included.","Church orientation has nothing to do with the hidden people."]}
+ ],
+ m4:[
+  {q:"What happened to Nauru after its phosphate boom?",
+   o:["It diversified into banking and stayed wealthy","It was invaded for its oil reserves","The reserves were strip-mined to exhaustion and income collapsed"],a:2,
+   fb:["Nauru's offshore ventures mostly failed; the core problem was at home.","Nauru's wealth was phosphate, not oil — and no invasion occurred.","Correct — the richest country per capita became a moonscape of limestone pinnacles when the rock ran out."]},
+  {q:"Why does Saudi Arabia — 95% desert — import construction sand from Australia?",
+   o:["Desert sand grains are too smooth and round to bind concrete","Australian sand is cheaper to ship than domestic transport","Quarrying is forbidden near its cities"],a:0,
+   fb:["Correct — wind-polished desert grains won't lock together; angular Australian grains make concrete that holds.","Shipping sand across an ocean is rarely cheaper than digging next door.","There's no such prohibition — the problem is physics, not law."]}
+ ],
+ m5:[
+  {q:"Why are 70% of Madagascar's species found nowhere else?",
+   o:["It has the world's largest rainforest","It broke from Africa ~165 million years ago and evolved in isolation","Its soil is uniquely mineral-rich"],a:1,
+   fb:["Madagascar has actually lost most of its original forest — the uniqueness predates the loss.","Correct — 165 million years of solitude is evolution's longest sealed flask.","Soil varies, but isolation time is the real engine of endemism."]},
+  {q:"On Yap, Rai stone money is unusual because the stones…",
+   o:["Are recarved for every new owner","Are made from local volcanic rock each generation","Never physically change hands — ownership is communal knowledge"],a:2,
+   fb:["The stones are far too heavy and valuable to recarve; they stay put for centuries.","They were quarried 300 miles away in Palau — the journey itself was part of their value.","Correct — a sale just updates everyone's memory. A ledger of stone, centuries before blockchain."]}
+ ],
+ m6:[
+  {q:"Which country was the first to give all women the vote?",
+   o:["New Zealand, in 1893","The United States, in 1920","Switzerland, in 1971"],a:0,
+   fb:["Correct — 27 years before the U.S., after a petition signed by nearly a quarter of the adult population.","The U.S. ratified women's suffrage in 1920 — 27 years later.","Switzerland was a notable latecomer at the federal level in 1971."]},
+  {q:"Half of South Korea's 51.3 million people share how many surnames?",
+   o:["30","3","12"],a:1,
+   fb:["Thirty would be unremarkable — the real number is astonishingly small.","Correct — Kim, Lee and Park cover roughly half the population. Hollywood wasn't being lazy.","Twelve is still far too many; the concentration is extreme."]}
+ ]
+};
+var answered={};
+function renderQuiz(mk){
+  var box=document.getElementById("quiz-"+mk);
+  box.innerHTML=QUIZ[mk].map(function(q,qi){
+    return '<div class="qq" data-m="'+mk+'" data-q="'+qi+'"><p class="qq-t"><span class="qq-n">Q'+(qi+1)+"</span>"+q.q+'</p><div class="qq-opts">'+
+      q.o.map(function(o,oi){return '<button class="qopt" data-oi="'+oi+'"><span class="qopt-key">'+"ABCD"[oi]+"</span><span>"+o+"</span></button>";}).join("")+
+      '</div><div class="qq-fb" role="status" aria-live="polite"></div></div>';
+  }).join("");
+}
+["m1","m2","m3","m4","m5","m6"].forEach(renderQuiz);
+document.addEventListener("click",function(e){
+  var btn=e.target.closest(".qopt");if(!btn)return;
+  var qq=btn.closest(".qq");if(qq.dataset.done)return;
+  var mk=qq.dataset.m,qi=+qq.dataset.q,oi=+btn.dataset.oi;
+  var q=QUIZ[mk][qi];
+  qq.dataset.done="1";
+  var opts=qq.querySelectorAll(".qopt");
+  opts.forEach(function(o){o.disabled=true;});
+  opts[q.a].classList.add("correct");
+  var fb=qq.querySelector(".qq-fb");
+  if(oi===q.a){fb.innerHTML="✔ "+q.fb[oi];}
+  else{btn.classList.add("wrong");fb.innerHTML="✘ "+q.fb[oi];}
+  answered[mk+"-"+qi]=true;
+  var all=true;
+  for(var i=0;i<QUIZ[mk].length;i++){if(!answered[mk+"-"+i])all=false;}
+  if(all)markDone("q"+mk.replace("m",""));
+});
+
+/* flashcards */
+var FLASH=[
+ {cc:"AF",c:"Afghanistan",f:"Has changed its flag more than 25 times since 1919 — a seismograph of a century of upheaval."},
+ {cc:"MV",c:"Maldives",f:"Highest natural point: about 2.4 m. In 2009 its cabinet met underwater to dramatize sea-level rise."},
+ {cc:"IS",c:"Iceland",f:"54% believe in the huldufólk — and elf habitats have blocked construction projects since the 1930s."},
+ {cc:"NR",c:"Nauru",f:"Richest country per capita on phosphate, then strip-mined to collapse. The resource curse in miniature."},
+ {cc:"MG",c:"Madagascar",f:"Adrift 165 million years: 70% of its 250,000 species exist nowhere else on Earth."},
+ {cc:"KR",c:"South Korea",f:"Half of 51.3 million people share three surnames: Kim, Lee and Park."},
+ {cc:"MZ",c:"Mozambique",f:"The only national flag bearing a modern weapon — an AK-47, with a book and a hoe."},
+ {cc:"TV",c:"Tuvalu",f:'Its most valuable resource is four letters: the ".tv" domain, worth ~1/12 of national income.'},
+ {cc:"PG",c:"Papua New Guinea",f:"800+ languages — the most linguistically diverse country; only 1–2% speak official English."},
+ {cc:"ES",c:"Spain",f:"In the wrong time zone since 1940, when Franco moved the clocks to match Hitler's Germany."}
+];
+var flipped={};
+document.getElementById("flashGrid").innerHTML=FLASH.map(function(f,i){
+  return '<button class="fcard" data-i="'+i+'" aria-label="Flashcard '+f.c+'. Activate to flip."><span class="fcard-in"><span class="fcard-f"><span class="cc-big">'+f.cc+'</span><span class="cname">'+f.c+'</span><span class="hint">tap to flip</span></span><span class="fcard-b">'+f.f+"</span></span></button>";
+}).join("");
+document.getElementById("flashGrid").addEventListener("click",function(e){
+  var card=e.target.closest(".fcard");if(!card)return;
+  card.classList.toggle("flip");
+  if(card.classList.contains("flip")){
+    flipped[card.dataset.i]=true;
+    if(Object.keys(flipped).length>=FLASH.length)markDone("flash");
+  }
+});
+
+/* sorting */
+var PAIRS=[
+ {f:"Most heavily bombed country in history — 2 million tons of ordnance, 1964–73",c:"Laos"},
+ {f:"First country to give all women the vote (1893)",c:"New Zealand"},
+ {f:"The only country with three capital cities",c:"South Africa"},
+ {f:"Holds twice as many pyramids as Egypt",c:"Sudan"},
+ {f:"The world's oldest active republic (founded 301 AD)",c:"San Marino"},
+ {f:"The only flag featuring a modern weapon (an AK-47)",c:"Mozambique"}
+];
+var slotOrder=[3,5,1,4,0,2];
+var selFact=null,dragFact=null,solved=0;
+document.getElementById("factCol").innerHTML=PAIRS.map(function(p,i){
+  return '<button class="fact-chip" draggable="true" data-p="'+i+'">'+p.f+"</button>";
+}).join("");
+document.getElementById("slotCol").innerHTML=slotOrder.map(function(i){
+  return '<button class="slot" data-p="'+i+'"><span class="slot-c">'+PAIRS[i].c+'</span><span class="slot-f" style="display:none"></span></button>';
+}).join("");
+function attemptSlot(slot,idx){
+  if(slot.classList.contains("filled"))return;
+  if(+slot.dataset.p===idx){
+    slot.classList.add("filled");
+    var sf=slot.querySelector(".slot-f");
+    sf.style.display="block";sf.textContent="✔ "+PAIRS[idx].f;
+    var chip=document.querySelector('.fact-chip[data-p="'+idx+'"]');
+    if(chip)chip.classList.add("used");
+    solved++;
+    if(solved>=PAIRS.length){
+      document.getElementById("sortMsg").textContent="✔ All six stamps sorted — checkpoint earned!";
+      markDone("sort");
+    }
+  }else{
+    slot.classList.add("shake");
+    setTimeout(function(){slot.classList.remove("shake");},450);
+  }
+  selFact=null;
+  document.querySelectorAll(".fact-chip").forEach(function(c){c.classList.remove("sel");});
+}
+document.getElementById("factCol").addEventListener("click",function(e){
+  var chip=e.target.closest(".fact-chip");if(!chip)return;
+  document.querySelectorAll(".fact-chip").forEach(function(c){c.classList.remove("sel");});
+  chip.classList.add("sel");selFact=+chip.dataset.p;
+});
+document.getElementById("factCol").addEventListener("dragstart",function(e){
+  var chip=e.target.closest(".fact-chip");if(!chip)return;
+  dragFact=+chip.dataset.p;
+  e.dataTransfer.setData("text/plain",String(dragFact));
+});
+document.getElementById("slotCol").addEventListener("dragover",function(e){e.preventDefault();});
+document.getElementById("slotCol").addEventListener("drop",function(e){
+  e.preventDefault();
+  var slot=e.target.closest(".slot");if(!slot)return;
+  var idx=dragFact!==null?dragFact:parseInt(e.dataTransfer.getData("text/plain"),10);
+  if(!isNaN(idx))attemptSlot(slot,idx);
+  dragFact=null;
+});
+document.getElementById("slotCol").addEventListener("click",function(e){
+  var slot=e.target.closest(".slot");if(!slot)return;
+  if(selFact!==null)attemptSlot(slot,selFact);
+});
+
+/* fact or fiction */
+var FF=[
+ {s:"Sudan has more pyramids than Egypt.",t:"fact",w:"Fact. Sudan holds about 200 pyramids built by the Kingdom of Kush — roughly twice Egypt's count."},
+ {s:"Saudi Arabia exports sand to Australia.",t:"fiction",w:"Fiction — it's the reverse. Desert sand is too smooth for concrete, so Saudi Arabia imports the angular Australian kind."},
+ {s:"The United States has won the most Winter Olympic medals of all time.",t:"fiction",w:"Fiction. Norway leads with 405 medals to America's 330 — with a population about 70 times smaller."},
+ {s:"Cyprus has more cats than people.",t:"fact",w:"Fact. Roughly 1.5 million cats versus about 1.2 million people, many of them stray."},
+ {s:"Kiribati is the first country to see each new day.",t:"fact",w:"Fact. Sitting just west of the International Date Line, it greets every sunrise first — and spans all four hemispheres."},
+ {s:"Hollywood releases more films per year than Nigeria's Nollywood.",t:"fiction",w:"Fiction. Nollywood produces around 2,500 films a year; Hollywood manages roughly 300–900. Only Bollywood is bigger."}
+];
+var ffDone=0;
+document.getElementById("ffList").innerHTML=FF.map(function(it,i){
+  return '<div class="ff-item" data-i="'+i+'"><p class="ff-s">'+(i+1)+". "+it.s+'</p><div class="ff-btns"><button class="ff-btn" data-v="fact">FACT</button><button class="ff-btn" data-v="fiction">FICTION</button></div><p class="ff-why">'+it.w+"</p></div>";
+}).join("");
+document.getElementById("ffList").addEventListener("click",function(e){
+  var btn=e.target.closest(".ff-btn");if(!btn)return;
+  var item=btn.closest(".ff-item");if(item.classList.contains("done"))return;
+  item.classList.add("done");
+  var i=+item.dataset.i,guess=btn.dataset.v;
+  var right=guess===FF[i].t;
+  btn.classList.add("picked",right?"right":"wrongp");
+  if(!right){item.querySelector('.ff-btn[data-v="'+FF[i].t+'"]').classList.add("right");}
+  ffDone++;
+  if(ffDone>=FF.length)markDone("fiction");
+});
+
+/* scenarios */
+var decisions=0;
+document.addEventListener("click",function(e){
+  var btn=e.target.closest(".dp-choice");if(!btn)return;
+  var dp=btn.closest(".dp");if(dp.classList.contains("done"))return;
+  dp.classList.add("done");
+  btn.classList.add("chosen");
+  decisions++;
+  if(decisions>=3)markDone("scene");
+});
+
+/* toggles: misconception / faq / memory */
+document.addEventListener("click",function(e){
+  var mb=e.target.closest(".mis-btn");
+  if(mb){var mis=mb.closest(".mis");mis.classList.toggle("open");mb.setAttribute("aria-expanded",mis.classList.contains("open"));return;}
+  var fq=e.target.closest(".faq-q");
+  if(fq){var fi=fq.closest(".faq-item");fi.classList.toggle("open");fq.setAttribute("aria-expanded",fi.classList.contains("open"));return;}
+  var mm=e.target.closest(".mem-btn");
+  if(mm){
+    var mitem=mm.closest(".mem-item");
+    mitem.classList.toggle("open");
+    mm.setAttribute("aria-expanded",mitem.classList.contains("open"));
+    if(mitem.classList.contains("open")){
+      mitem.dataset.opened="1";
+      if(document.querySelectorAll(".mem-item[data-opened]").length>=5)markDone("mem");
+    }
+  }
+});
+
+/* diagram interactions */
+var ELEV=[
+ "<b>Dead Sea (Jordan/Israel border)</b> — the lowest land on Earth at −420 m, with 30% salinity: you float whether you can swim or not. Avoid swimming with open cuts.",
+ "<b>Maldives</b> — highest point ~2.4 m. In 2009 President Nasheed held an underwater cabinet meeting to spotlight the sea-level crisis. If it isn't addressed, he joked darkly, that will be all future cabinet meetings.",
+ "<b>Lesotho</b> — the 'Kingdom in the Sky': the only country whose entire territory sits above 975 m. Its cliffside airport takeoff was once described as 'a bird pushed out of the nest.'",
+ "<b>Finland</b> — still rebounding from the last ice age at 8–9 mm per year (fingernail speed), gaining about 200 football fields of new land annually. The country is literally rising."
+];
+document.querySelectorAll(".ez").forEach(function(z){
+  z.addEventListener("click",function(){document.getElementById("elevInfo").innerHTML=ELEV[+z.dataset.i];});
+});
+var TL=[
+ "<b>~3000 BC · Damascus, Syria</b> — widely considered the oldest continuously inhabited city on Earth, founded around 3000 BC.",
+ "<b>~700 BC · Kingdom of Kush</b> — Nubian rulers built ~200 pyramids along the Nile in what is now Sudan — twice as many as Egypt.",
+ "<b>301 AD · San Marino</b> — founded as a representative republic; its core constitutional documents date to 1600, the oldest active written constitution.",
+ "<b>859 AD · Fez, Morocco</b> — Fatima al-Fihri founded al-Qarawiyyin, recognized as the world's oldest university. Morocco folded it into its state system in… 1963.",
+ "<b>1804 · Haiti</b> — the only successful large-scale slave revolt in history (1791–1804) produced the first nation founded by formerly enslaved people.",
+ "<b>1847 · Liberia</b> — founded by the American Colonization Society from 1821 for freed slaves; independent in 1847 with an African-American president.",
+ "<b>1940 · Spain</b> — Franco moved the clocks to GMT+1 to align with Nazi Germany. The 'temporary' change never ended.",
+ "<b>1969 · Honduras vs. El Salvador</b> — a World Cup qualifier helped ignite the four-day 'Football War'; thousands died, though land and immigration disputes were the true fuel.",
+ "<b>1973 · Laos</b> — the end of nine years as the most heavily bombed country per capita: over 2 million tons dropped between 1964 and 1973 — more than all of WWII Europe.",
+ "<b>2011 · South Sudan</b> — the world's newest country, born July 9, 2011 after 98.8% voted for independence following decades of civil war."
+];
+document.querySelectorAll(".tldot").forEach(function(d){
+  d.addEventListener("click",function(){
+    document.querySelectorAll(".tldot circle").forEach(function(c){c.setAttribute("fill","var(--acc)");});
+    d.querySelector("circle").setAttribute("fill","var(--gold)");
+    document.getElementById("tlInfo").innerHTML=TL[+d.dataset.i];
+  });
+});
+var ICE=[
+ "<b>Above the waterline:</b> food, dress, flags, music — the 10% a tourist sees in an afternoon. Ghana's fantasy coffins and Guatemala's chicken buses live here: spectacular, photogenic, easy to misunderstand.",
+ "<b>Rules of respect:</b> who may wear a hat in Fiji, how to greet a chief, how loudly to speak. Invisible until you break one — then everyone notices at once.",
+ "<b>Roles, gender and time:</b> Samoa's four genders, Thailand's temporary monkhood, Ethiopia's 13-month calendar with clocks starting at dawn. Whole operating systems for 'how a person works' that differ from yours.",
+ "<b>Death, belief and belonging:</b> Romania's joke-filled tombstones, Iceland's elves with zoning power, Rwanda's mandatory Umuganda. The deepest layer — where a culture answers what life is for."
+];
+document.querySelectorAll(".icez").forEach(function(z){
+  z.addEventListener("click",function(){document.getElementById("iceInfo").innerHTML=ICE[+z.dataset.i];});
+});
+var FLOW=[
+ "<b>Resource discovered.</b> Phosphate on Nauru, diamonds in Sierra Leone, bauxite in Guinea (two-thirds of world reserves), oil in Kuwait. The discovery itself is morally neutral — and economically explosive.",
+ "<b>Strong institutions:</b> sovereign funds, transparent courts, diversification plans. Kuwait converted oil into the world's strongest currency ($3.25 per dinar), zero debt and budget surpluses. Norway's oil fund is the textbook.",
+ "<b>Weak institutions:</b> elite capture, no plan, no audit. Guinea sits on a geological miracle and averages ~$1,500 GDP per capita. Sierra Leone's diamonds funded the RUF's civil war instead of schools.",
+ "<b>The blessing outcome:</b> wealth that outlives the resource. Tuvalu even shows the pattern with a non-physical resource — its '.tv' domain earns about 1/12 of national income, managed as a licensed asset.",
+ "<b>The curse outcome:</b> Nauru's moonscape interior, Zimbabwe's eight-currency chaos, and Mansa Musa's cautionary pilgrimage — he gave away so much gold he crashed Egypt's economy. Even spending wealth is a skill."
+];
+document.querySelectorAll(".fnode").forEach(function(n){
+  n.addEventListener("click",function(){document.getElementById("flowInfo").innerHTML=FLOW[+n.dataset.i];});
+});
+var ISO=[
+ "<b>Madagascar · 70% endemism.</b> Adrift since splitting from Africa ~165 million years ago, 70% of its 250,000 species evolved in total solitude. The sealed flask, left longest.",
+ "<b>Papua New Guinea · 800+ languages.</b> Mountains and dense forest cut villages off for centuries; each valley grew its own tongue. Only 1–2% of citizens speak the official English fluently.",
+ "<b>Timor-Leste · 253 fish species per site.</b> Conservation International surveys around Atauro Island found the most biodiverse marine waters ever measured — beating the previous record of 216.",
+ "<b>Yap · 300 miles of trust.</b> Rai stones were quarried in Palau, 300 miles away, and hauled home by canoe. They never change hands again — a transaction just updates communal memory.",
+ "<b>Son Doong · 5× the old record.</b> Vietnam's giant cave, only found in 1991, is five times larger than the previous 'largest cave' — with its own rainforest, underground river and weather patterns."
+];
+document.querySelectorAll(".isorow").forEach(function(r){
+  ["click","mouseenter","focus"].forEach(function(ev){
+    r.addEventListener(ev,function(){document.getElementById("isoInfo").innerHTML=ISO[+r.dataset.i];});
+  });
+});
+
+/* leaderboard */
+var LB={
+ beer:{a:["CZECHIA",184,"184 L"],b:["GERMANY",88,"88 L"],note:"Fig. 6 — Beer consumed per capita (2021) · the Oktoberfest country drinks less than half as much"},
+ medals:{a:["NORWAY",405,"405"],b:["UNITED STATES",330,"330"],note:"Fig. 6 — All-time Winter Olympic medals · Norway leads with a population ~70× smaller"},
+ films:{a:["NOLLYWOOD",2500,"~2,500"],b:["HOLLYWOOD",600,"~600"],note:"Fig. 6 — Films produced per year · Nigeria out-shoots Hollywood on shoestring budgets"},
+ names:{a:["KIM · LEE · PARK",50,"50% of population"],b:["EVERYONE ELSE",50,"50% of population"],note:"Fig. 6 — South Korean surnames · half of 51.3 million people share just three"}
+};
+var LBMAX={beer:184,medals:405,films:2500,names:50};
+document.querySelectorAll(".lb-tab").forEach(function(tab){
+  tab.addEventListener("click",function(){
+    document.querySelectorAll(".lb-tab").forEach(function(t){
+      t.style.background="transparent";t.style.color="var(--ink2)";t.style.borderColor="var(--line2)";
+    });
+    tab.style.background="var(--acc)";tab.style.color="#fff";tab.style.borderColor="var(--acc)";
+    var k=tab.dataset.k,d=LB[k],max=LBMAX[k];
+    var wa=Math.round(560*d.a[1]/max),wb=Math.round(560*d.b[1]/max);
+    document.getElementById("lbA").setAttribute("width",wa);
+    document.getElementById("lbB").setAttribute("width",wb);
+    document.getElementById("lbAn").textContent=d.a[0];
+    document.getElementById("lbBn").textContent=d.b[0];
+    document.getElementById("lbAv").textContent=d.a[2];
+    document.getElementById("lbBv").textContent=d.b[2];
+    document.getElementById("lbAv").setAttribute("x",212+wa);
+    document.getElementById("lbBv").setAttribute("x",212+wb);
+    document.getElementById("lbNote").textContent=d.note;
+  });
+});
+})();
+</script>
+</body>
+</html>

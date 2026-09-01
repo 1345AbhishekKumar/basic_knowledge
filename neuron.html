@@ -1,0 +1,2309 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Neural Networks Learn — Interactive Lesson</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:16px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;line-height:1.6;transition:background .3s,color .3s;overflow-x:hidden}
+
+:root{
+  --primary:#2563eb;--primary-light:#3b82f6;--primary-dark:#1d4ed8;
+  --supporting:#10b981;--supporting-light:#34d399;
+  --warning:#f59e0b;--warning-light:#fbbf24;
+  --danger:#ef4444;
+  --bg:#f8fafc;--surface:#ffffff;--surface-alt:#f1f5f9;
+  --text:#1e293b;--text-secondary:#64748b;--text-muted:#94a3b8;
+  --border:#e2e8f0;--connection:#94a3b8;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-lg:0 10px 30px rgba(0,0,0,.12);
+  --radius:12px;--radius-sm:8px;
+}
+[data-theme="dark"]{
+  --primary:#3b82f6;--primary-light:#60a5fa;--primary-dark:#2563eb;
+  --supporting:#34d399;--supporting-light:#6ee7b7;
+  --warning:#fbbf24;--warning-light:#fcd34d;
+  --danger:#f87171;
+  --bg:#0f172a;--surface:#1e293b;--surface-alt:#334155;
+  --text:#f1f5f9;--text-secondary:#94a3b8;--text-muted:#64748b;
+  --border:#334155;--connection:#475569;
+  --shadow:0 1px 3px rgba(0,0,0,.3),0 1px 2px rgba(0,0,0,.2);
+  --shadow-lg:0 10px 30px rgba(0,0,0,.4);
+}
+
+#loading-overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s}
+#loading-overlay.hidden{opacity:0;pointer-events:none}
+#loading-overlay.gone{display:none}
+.loader-spinner{width:50px;height:50px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite}
+#loading-overlay p{margin-top:16px;color:var(--text-secondary);font-size:.9rem}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+header{position:sticky;top:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;transition:background .3s,border .3s}
+.header-title{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.1rem;color:var(--text)}
+.header-title span{color:var(--primary)}
+.header-controls{display:flex;align-items:center;gap:12px}
+.theme-toggle{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--radius-sm);width:40px;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.2rem;transition:all .2s;color:var(--text)}
+.theme-toggle:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+.progress-container{position:sticky;top:65px;z-index:99;background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;transition:background .3s,border .3s}
+.progress-bar-wrapper{display:flex;align-items:center;gap:16px}
+.progress-bar-bg{flex:1;height:10px;background:var(--surface-alt);border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--supporting));border-radius:10px;width:0;transition:width .5s ease}
+.progress-text{font-size:.85rem;color:var(--text-secondary);white-space:nowrap;font-weight:600}
+.badges{display:flex;gap:6px;margin-left:8px}
+.badge{width:28px;height:28px;border-radius:50%;background:var(--surface-alt);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--text-muted);transition:all .3s;cursor:default;position:relative}
+.badge.earned{background:var(--supporting);border-color:var(--supporting);color:#fff}
+.badge.earned[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:35px;font-size:.7rem;background:var(--text);color:var(--bg);padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:10}
+
+main{max-width:1100px;margin:0 auto;padding:0 20px 60px}
+section{margin-bottom:48px;scroll-margin-top:130px}
+
+.overview-hero{text-align:center;padding:48px 20px 32px}
+.overview-hero h1{font-size:2.4rem;font-weight:800;color:var(--text);margin-bottom:12px;line-height:1.2}
+.overview-hero h1 span{color:var(--primary)}
+.overview-hero p{font-size:1.15rem;color:var(--text-secondary);max-width:680px;margin:0 auto 28px}
+.overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:24px}
+.overview-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;transition:all .2s;cursor:pointer}
+.overview-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--primary)}
+.overview-card .icon{font-size:2rem;margin-bottom:8px}
+.overview-card h3{font-size:.9rem;color:var(--text);font-weight:600}
+.overview-card .num{font-size:.7rem;color:var(--primary);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+
+.knowledge-map-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
+.knowledge-map-section h2{font-size:1.4rem;color:var(--text);margin-bottom:4px}
+.knowledge-map-section .subtitle{color:var(--text-secondary);font-size:.9rem;margin-bottom:16px}
+.km-svg{width:100%;height:auto;display:block}
+.km-node{cursor:pointer;transition:all .2s}
+.km-node:hover .km-node-circle{fill:var(--primary);stroke:var(--primary-dark)}
+.km-node:hover .km-node-text{fill:#fff}
+.km-node.active .km-node-circle{fill:var(--supporting);stroke:var(--supporting)}
+.km-node.active .km-node-text{fill:#fff}
+.km-node-circle{fill:var(--surface);stroke:var(--primary);stroke-width:2;transition:all .2s}
+.km-node-text{font-size:12px;font-weight:600;fill:var(--text);transition:all .2s;text-anchor:middle;dominant-baseline:central}
+.km-edge{stroke:var(--connection);stroke-width:2;fill:none;transition:all .2s}
+.km-edge.highlight{stroke:var(--primary);stroke-width:3}
+.km-edge-label{font-size:10px;fill:var(--text-muted);text-anchor:middle}
+
+.module{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;box-shadow:var(--shadow);transition:opacity .3s,transform .3s}
+.module.visited{border-left:4px solid var(--supporting)}
+.module-header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.module-badge{width:40px;height:40px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0}
+.module-title{font-size:1.6rem;font-weight:700;color:var(--text)}
+.module-subtitle{font-size:.9rem;color:var(--text-secondary);font-weight:400}
+
+.subsection{margin-top:28px}
+.subsection-label{display:inline-flex;align-items:center;gap:6px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--primary);margin-bottom:8px}
+.subsection h3{font-size:1.2rem;color:var(--text);margin-bottom:12px}
+.subsection p{color:var(--text-secondary);margin-bottom:12px;line-height:1.7}
+.subsection strong{color:var(--text);font-weight:600}
+
+.steps{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.step-item{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:var(--surface-alt);border-radius:var(--radius-sm);border-left:3px solid var(--primary);transition:all .2s}
+.step-item:hover{transform:translateX(4px)}
+.step-num{width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0}
+.step-content{font-size:.95rem;color:var(--text)}
+.step-content strong{color:var(--primary)}
+
+.examples-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.example-card{padding:16px;border-radius:var(--radius-sm);border:1px solid var(--border)}
+.example-card.obvious{background:rgba(16,185,129,.08);border-color:var(--supporting)}
+.example-card.counter{background:rgba(245,158,11,.08);border-color:var(--warning)}
+.example-card .label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.example-card.obvious .label{color:var(--supporting)}
+.example-card.counter .label{color:var(--warning)}
+.example-card p{font-size:.9rem;color:var(--text);line-height:1.5}
+
+.analogy-card{display:grid;grid-template-columns:1fr auto 1fr;gap:0;margin-top:12px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.analogy-side{padding:20px}
+.analogy-side.concept{background:rgba(37,99,235,.06)}
+.analogy-side.analogy{background:rgba(16,185,129,.06)}
+.analogy-divider{background:var(--border);width:1px;position:relative}
+.analogy-divider::after{content:'⇌';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);padding:8px;border-radius:50%;font-size:1rem;color:var(--text-secondary)}
+.analogy-side h4{font-size:.85rem;font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.analogy-side.concept h4{color:var(--primary)}
+.analogy-side.analogy h4{color:var(--supporting)}
+.analogy-side p{font-size:.85rem;color:var(--text);line-height:1.5}
+.analogy-explanation{padding:12px 20px;background:var(--surface-alt);font-size:.85rem;color:var(--text-secondary);border-top:1px solid var(--border)}
+.analogy-explanation strong{color:var(--text)}
+
+.misconception{margin-top:12px;border:1px solid var(--warning);border-radius:var(--radius-sm);overflow:hidden}
+.misconception-header{padding:12px 16px;background:rgba(245,158,11,.1);cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:background .2s}
+.misconception-header:hover{background:rgba(245,158,11,.15)}
+.misconception-header span{font-weight:600;color:var(--warning);font-size:.95rem}
+.misconception-toggle{font-size:1.2rem;color:var(--warning);transition:transform .2s}
+.misconception.open .misconception-toggle{transform:rotate(180deg)}
+.misconception-body{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.misconception.open .misconception-body{max-height:400px}
+.misconception-content{padding:16px}
+.misconception-content .myth{color:var(--danger);font-weight:600;margin-bottom:6px;font-size:.9rem}
+.misconception-content .truth{color:var(--supporting);font-weight:600;margin-bottom:6px;font-size:.9rem}
+.misconception-content .reasoning{color:var(--text-secondary);font-size:.85rem;line-height:1.6}
+
+.why-matters{margin-top:12px;padding:16px 20px;background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(16,185,129,.08));border-radius:var(--radius-sm);border-left:4px solid var(--primary)}
+.why-matters p{color:var(--text);font-size:.95rem;font-weight:500;line-height:1.6;margin:0}
+
+.inter-link{margin-top:12px;padding:12px 16px;background:var(--surface-alt);border-radius:var(--radius-sm);font-size:.85rem;color:var(--text-secondary)}
+.inter-link strong{color:var(--primary)}
+
+.diagram-container{margin-top:16px;background:var(--surface-alt);border-radius:var(--radius-sm);padding:20px;text-align:center;border:1px solid var(--border)}
+.diagram-container svg{max-width:100%;height:auto}
+.diagram-caption{margin-top:8px;font-size:.8rem;color:var(--text-muted);font-style:italic}
+
+.hotspot{cursor:pointer;transition:all .2s}
+.hotspot:hover{filter:brightness(1.1)}
+.hotspot-pulse{animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.elaborative{margin-top:8px;padding:10px 14px;background:var(--surface-alt);border-radius:var(--radius-sm);border-left:3px solid var(--supporting);cursor:pointer;transition:all .2s}
+.elaborative:hover{background:rgba(16,185,129,.1)}
+.elaborative .question{font-size:.9rem;color:var(--text);font-weight:500;display:flex;align-items:center;gap:6px}
+.elaborative .answer{max-height:0;overflow:hidden;transition:max-height .3s;font-size:.85rem;color:var(--text-secondary);padding-top:0}
+.elaborative.open .answer{max-height:200px;padding-top:8px}
+
+.mini-challenge{margin-top:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.mc-scenario{padding:16px 20px;background:var(--surface-alt);border-bottom:1px solid var(--border)}
+.mc-scenario h4{font-size:.95rem;color:var(--text);margin-bottom:6px}
+.mc-scenario p{font-size:.9rem;color:var(--text-secondary)}
+.mc-options{padding:12px}
+.mc-option{display:block;width:100%;text-align:left;padding:12px 16px;margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:.9rem;color:var(--text);transition:all .2s}
+.mc-option:hover{border-color:var(--primary);background:var(--surface-alt)}
+.mc-option.correct{background:rgba(16,185,129,.1);border-color:var(--supporting);color:var(--supporting)}
+.mc-option.incorrect{background:rgba(239,68,68,.1);border-color:var(--danger);color:var(--danger)}
+.mc-feedback{padding:12px 16px;font-size:.85rem;color:var(--text-secondary);border-top:1px solid var(--border);display:none}
+.mc-feedback.show{display:block}
+.mc-feedback strong{color:var(--text)}
+
+.flashcard-deck{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;justify-content:center}
+.flashcard{width:240px;height:160px;perspective:1000px;cursor:pointer}
+.flashcard-inner{position:relative;width:100%;height:100%;transition:transform .6s;transform-style:preserve-3d}
+.flashcard.flipped .flashcard-inner{transform:rotateY(180deg)}
+.flashcard-face{position:absolute;width:100%;height:100%;backface-visibility:hidden;border-radius:var(--radius-sm);padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border:1px solid var(--border)}
+.flashcard-front{background:var(--primary);color:#fff}
+.flashcard-back{background:var(--surface);color:var(--text);transform:rotateY(180deg);border-color:var(--border)}
+.flashcard-face h4{font-size:.95rem;margin-bottom:6px}
+.flashcard-face p{font-size:.8rem;opacity:.9}
+.flashcard-controls{display:flex;gap:6px;margin-top:8px}
+.flashcard-btn{font-size:.7rem;padding:3px 8px;border:1px solid rgba(255,255,255,.4);background:transparent;color:inherit;border-radius:4px;cursor:pointer}
+.flashcard-back .flashcard-btn{border-color:var(--border);color:var(--text-secondary)}
+.flashcard-btn:hover{background:rgba(255,255,255,.15)}
+.flashcard-back .flashcard-btn:hover{background:var(--surface-alt)}
+.flashcard.mastered{opacity:.5}
+.flashcard.mastered .flashcard-front{background:var(--supporting)}
+
+.dnd-container{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:16px}
+.dnd-column h4{font-size:.9rem;color:var(--text);margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--primary)}
+.dnd-items{display:flex;flex-direction:column;gap:8px;min-height:200px}
+.dnd-item{padding:10px 14px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:grab;font-size:.85rem;color:var(--text);transition:all .15s;user-select:none}
+.dnd-item:hover{border-color:var(--primary);transform:translateY(-1px)}
+.dnd-item.dragging{opacity:.5;cursor:grabbing}
+.dnd-slot{padding:10px 14px;border:2px dashed var(--border);border-radius:var(--radius-sm);min-height:50px;display:flex;align-items:center;font-size:.85rem;color:var(--text-muted);transition:all .2s;margin-bottom:8px}
+.dnd-slot.drag-over{border-color:var(--primary);background:rgba(37,99,235,.05)}
+.dnd-slot.filled{border-style:solid}
+.dnd-slot.correct{border-color:var(--supporting);background:rgba(16,185,129,.08)}
+.dnd-slot.incorrect{border-color:var(--danger);background:rgba(239,68,68,.08)}
+.dnd-slot .dnd-item{width:100%;cursor:default}
+.dnd-reset{margin-top:12px;padding:8px 16px;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:.85rem;color:var(--text);transition:all .2s}
+.dnd-reset:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+.quiz-container{margin-top:16px}
+.quiz-question{background:var(--surface-alt);border-radius:var(--radius-sm);padding:16px 20px;margin-bottom:12px;border:1px solid var(--border)}
+.quiz-question h4{font-size:.95rem;color:var(--text);margin-bottom:12px}
+.quiz-option{display:block;width:100%;text-align:left;padding:10px 14px;margin-bottom:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:.88rem;color:var(--text);transition:all .15s}
+.quiz-option:hover:not(.disabled){border-color:var(--primary)}
+.quiz-option.disabled{cursor:default;opacity:.7}
+.quiz-option.correct{background:rgba(16,185,129,.12);border-color:var(--supporting);color:var(--supporting);font-weight:600}
+.quiz-option.incorrect{background:rgba(239,68,68,.1);border-color:var(--danger)}
+.quiz-option.selected{background:rgba(37,99,235,.1);border-color:var(--primary)}
+.quiz-feedback{margin-top:8px;padding:10px 14px;border-radius:var(--radius-sm);font-size:.83rem;display:none}
+.quiz-feedback.show{display:block}
+.quiz-feedback.correct{background:rgba(16,185,129,.1);color:var(--supporting)}
+.quiz-feedback.incorrect{background:rgba(239,68,68,.1);color:var(--danger)}
+.quiz-feedback strong{display:block;margin-bottom:4px}
+
+.fill-blank{margin-top:16px;background:var(--surface-alt);border-radius:var(--radius-sm);padding:16px 20px;border:1px solid var(--border)}
+.fill-blank p{font-size:.95rem;color:var(--text);line-height:2;margin-bottom:12px}
+.fb-input{display:inline-block;padding:4px 12px;border:2px solid var(--border);border-radius:6px;font-size:.9rem;background:var(--surface);color:var(--text);min-width:120px;text-align:center;outline:none;transition:border .2s}
+.fb-input:focus{border-color:var(--primary)}
+.fb-input.correct{border-color:var(--supporting);background:rgba(16,185,129,.1);color:var(--supporting)}
+.fb-input.incorrect{border-color:var(--danger);background:rgba(239,68,68,.1);color:var(--danger)}
+.fb-hints{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+.fb-hint-btn{padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer;font-size:.8rem;color:var(--text-secondary);transition:all .2s}
+.fb-hint-btn:hover{border-color:var(--warning);color:var(--warning)}
+.fb-hint-btn.used{opacity:.4;cursor:default}
+.fb-hint-text{margin-top:8px;font-size:.83rem;color:var(--text-secondary);display:none}
+.fb-hint-text.show{display:block}
+.fb-reveal{margin-top:8px;font-size:.83rem;color:var(--danger);display:none}
+.fb-reveal.show{display:block}
+
+.teach-back{margin-top:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.tb-input-area{padding:16px 20px}
+.tb-input-area h4{font-size:.95rem;color:var(--text);margin-bottom:8px}
+.tb-input-area p{font-size:.83rem;color:var(--text-secondary);margin-bottom:10px}
+.tb-textarea{width:100%;min-height:120px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:.9rem;font-family:inherit;resize:vertical;outline:none;transition:border .2s}
+.tb-textarea:focus{border-color:var(--primary)}
+.tb-submit{margin-top:10px;padding:8px 20px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:.88rem;font-weight:600;transition:all .2s}
+.tb-submit:hover{background:var(--primary-dark)}
+.tb-result{display:none;padding:16px 20px;border-top:1px solid var(--border)}
+.tb-result.show{display:block}
+.tb-score{font-size:1rem;font-weight:700;margin-bottom:10px}
+.tb-keywords{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.tb-keyword{padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600}
+.tb-keyword.found{background:rgba(16,185,129,.15);color:var(--supporting)}
+.tb-keyword.missed{background:rgba(239,68,68,.1);color:var(--danger)}
+.tb-expert{padding:12px 16px;background:var(--surface-alt);border-radius:var(--radius-sm);font-size:.85rem;color:var(--text);line-height:1.6}
+.tb-expert h5{font-size:.8rem;text-transform:uppercase;color:var(--primary);margin-bottom:6px;letter-spacing:.5px}
+
+.quick-recall{background:linear-gradient(135deg,rgba(37,99,235,.06),rgba(16,185,129,.06));border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin:32px 0}
+.quick-recall h3{font-size:1.2rem;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.quick-recall .subtitle{font-size:.85rem;color:var(--text-secondary);margin-bottom:16px}
+
+.spaced-rep{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-top:32px}
+.sr-schedule{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.sr-interval{flex:1;min-width:130px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);text-align:center;transition:all .2s;cursor:pointer}
+.sr-interval:hover{border-color:var(--primary)}
+.sr-interval.completed{background:rgba(16,185,129,.08);border-color:var(--supporting)}
+.sr-time{font-size:1.1rem;font-weight:700;color:var(--primary)}
+.sr-interval.completed .sr-time{color:var(--supporting)}
+.sr-label{font-size:.75rem;color:var(--text-secondary);margin-top:4px}
+.sr-prompt{font-size:.8rem;color:var(--text-muted);margin-top:6px;font-style:italic}
+
+.cheat-sheet{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-top:32px}
+.cheat-sheet h2{font-size:1.5rem;color:var(--text);margin-bottom:16px}
+.cheat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.cheat-card{padding:16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-alt)}
+.cheat-card h4{font-size:.9rem;color:var(--primary);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.cheat-card ul{list-style:none;padding:0}
+.cheat-card li{font-size:.83rem;color:var(--text-secondary);padding:4px 0;padding-left:16px;position:relative;line-height:1.5}
+.cheat-card li::before{content:'▸';position:absolute;left:0;color:var(--primary)}
+.cheat-card li strong{color:var(--text)}
+.cheat-formula{font-family:'SF Mono',Monaco,Consolas,monospace;background:var(--surface);padding:6px 10px;border-radius:4px;font-size:.8rem;color:var(--primary);display:inline-block;margin:4px 0;border:1px solid var(--border)}
+
+.faq-section{margin-top:32px}
+.faq-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;overflow:hidden}
+.faq-question{padding:14px 20px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:.95rem;font-weight:600;color:var(--text);transition:background .2s}
+.faq-question:hover{background:var(--surface-alt)}
+.faq-toggle{font-size:1.3rem;color:var(--primary);transition:transform .2s}
+.faq-item.open .faq-toggle{transform:rotate(45deg)}
+.faq-answer{max-height:0;overflow:hidden;transition:max-height .3s}
+.faq-item.open .faq-answer{max-height:300px}
+.faq-answer p{padding:0 20px 16px;font-size:.88rem;color:var(--text-secondary);line-height:1.7}
+
+.next-steps{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-top:32px}
+.next-steps h2{font-size:1.4rem;color:var(--text);margin-bottom:12px}
+.ns-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:16px}
+.ns-item{padding:14px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-alt);transition:all .2s}
+.ns-item:hover{border-color:var(--primary);transform:translateY(-2px)}
+.ns-item h4{font-size:.9rem;color:var(--text);margin-bottom:4px}
+.ns-item p{font-size:.8rem;color:var(--text-secondary)}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .3s}
+.modal-overlay.show{opacity:1;pointer-events:auto}
+.modal{background:var(--surface);border-radius:var(--radius);padding:28px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:var(--shadow-lg);transform:scale(.9);transition:transform .3s}
+.modal-overlay.show .modal{transform:scale(1)}
+.modal h3{font-size:1.2rem;color:var(--text);margin-bottom:12px}
+.modal p{font-size:.9rem;color:var(--text-secondary);line-height:1.7;margin-bottom:8px}
+.modal-close{margin-top:16px;padding:8px 24px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:.9rem;font-weight:600;transition:background .2s}
+.modal-close:hover{background:var(--primary-dark)}
+
+.assessment-section{background:var(--surface);border:2px solid var(--primary);border-radius:var(--radius);padding:28px;margin-top:32px}
+.assessment-header{text-align:center;margin-bottom:20px}
+.assessment-header h2{font-size:1.6rem;color:var(--text);margin-bottom:4px}
+.assessment-header p{font-size:.9rem;color:var(--text-secondary)}
+.assessment-results{display:none;text-align:center;padding:20px;background:var(--surface-alt);border-radius:var(--radius-sm);margin-top:16px}
+.assessment-results.show{display:block}
+.assessment-results .score{font-size:2rem;font-weight:800;color:var(--primary)}
+.assessment-results .grade{font-size:1.1rem;font-weight:600;margin-top:4px}
+.assessment-results .message{font-size:.9rem;color:var(--text-secondary);margin-top:8px}
+
+@keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes drawLine{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
+.module{animation:fadeInUp .5s ease}
+.draw-animation{stroke-dasharray:1000;animation:drawLine 1.5s ease forwards}
+
+@media(max-width:768px){
+  .overview-hero h1{font-size:1.8rem}
+  .module{padding:20px}
+  .examples-grid{grid-template-columns:1fr}
+  .analogy-card{grid-template-columns:1fr}
+  .analogy-divider{display:none}
+  .dnd-container{grid-template-columns:1fr}
+  .flashcard{width:100%;max-width:280px}
+  .progress-bar-wrapper{flex-wrap:wrap}
+  .badges{order:3;width:100%;justify-content:center;margin-top:4px}
+  header{padding:10px 16px}
+  .header-title{font-size:.95rem}
+  main{padding:0 12px 40px}
+}
+
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+</style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="loader-spinner"></div>
+  <p>Preparing your interactive lesson…</p>
+</div>
+
+<header>
+  <div class="header-title">
+    🧠 How <span>Neural Networks</span> Learn
+  </div>
+  <div class="header-controls">
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle theme">🌙</button>
+  </div>
+</header>
+
+<div class="progress-container">
+  <div class="progress-bar-wrapper">
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <span class="progress-text" id="progressText">0% Complete</span>
+    <div class="badges">
+      <div class="badge" data-tip="Started" id="badge1">1</div>
+      <div class="badge" data-tip="Halfway" id="badge2">2</div>
+      <div class="badge" data-tip="Almost there" id="badge3">3</div>
+      <div class="badge" data-tip="Complete" id="badge4">4</div>
+    </div>
+  </div>
+</div>
+
+<main>
+
+<section id="overview" class="overview-hero">
+  <h1>How Neural Networks <span>Actually Learn</span></h1>
+  <p>From a single neuron to the training dynamics of deep networks — understand the complete pipeline through interactive diagrams, real-world analogies, and hands-on challenges.</p>
+  <div class="overview-grid">
+    <div class="overview-card" onclick="scrollToModule('module-1')"><div class="icon">🔵</div><div class="num">Module 1</div><h3>The Neuron</h3></div>
+    <div class="overview-card" onclick="scrollToModule('module-2')"><div class="icon">➡️</div><div class="num">Module 2</div><h3>Forward Pass</h3></div>
+    <div class="overview-card" onclick="scrollToModule('module-3')"><div class="icon">📉</div><div class="num">Module 3</div><h3>Loss Functions</h3></div>
+    <div class="overview-card" onclick="scrollToModule('module-4')"><div class="icon">⬅️</div><div class="num">Module 4</div><h3>Backpropagation</h3></div>
+    <div class="overview-card" onclick="scrollToModule('module-5')"><div class="icon">🏔️</div><div class="num">Module 5</div><h3>Gradient Descent</h3></div>
+    <div class="overview-card" onclick="scrollToModule('module-6')"><div class="icon">⚖️</div><div class="num">Module 6</div><h3>Overfitting</h3></div>
+  </div>
+</section>
+
+<section id="knowledge-map" class="knowledge-map-section">
+  <h2>🗺️ Knowledge Map</h2>
+  <p class="subtitle">Click any node to jump to that module. Hover to see connections between concepts.</p>
+  <svg class="km-svg" viewBox="0 0 800 280" aria-label="Knowledge map showing connections between 6 modules">
+    <path class="km-edge" id="edge-1-2" d="M 120 140 Q 200 100 280 140" />
+    <path class="km-edge" id="edge-2-3" d="M 280 140 Q 360 100 440 140" />
+    <path class="km-edge" id="edge-3-4" d="M 440 140 Q 520 100 600 140" />
+    <path class="km-edge" id="edge-4-5" d="M 600 140 Q 660 200 700 220" />
+    <path class="km-edge" id="edge-5-6" d="M 700 220 Q 600 250 200 250 Q 100 240 120 140" />
+    <path class="km-edge" id="edge-1-4" d="M 120 140 Q 350 40 600 140" stroke-dasharray="5,4" />
+    <path class="km-edge" id="edge-3-6" d="M 440 140 Q 500 200 700 220" stroke-dasharray="5,4" />
+    <text class="km-edge-label" x="200" y="105">feeds</text>
+    <text class="km-edge-label" x="360" y="105">measures</text>
+    <text class="km-edge-label" x="520" y="105">computes</text>
+    <text class="km-edge-label" x="660" y="185">updates</text>
+    <text class="km-edge-label" x="400" y="270">loops back</text>
+    <g class="km-node" data-module="module-1" onclick="scrollToModule('module-1')" onmouseenter="highlightConnections('1')" onmouseleave="clearHighlights()">
+      <circle class="km-node-circle" cx="120" cy="140" r="35" />
+      <text class="km-node-text" x="120" y="135">Module 1</text>
+      <text class="km-node-text" x="120" y="150" style="font-size:10px">Neuron</text>
+    </g>
+    <g class="km-node" data-module="module-2" onclick="scrollToModule('module-2')" onmouseenter="highlightConnections('2')" onmouseleave="clearHighlights()">
+      <circle class="km-node-circle" cx="280" cy="140" r="35" />
+      <text class="km-node-text" x="280" y="135">Module 2</text>
+      <text class="km-node-text" x="280" y="150" style="font-size:10px">Forward</text>
+    </g>
+    <g class="km-node" data-module="module-3" onclick="scrollToModule('module-3')" onmouseenter="highlightConnections('3')" onmouseleave="clearHighlights()">
+      <circle class="km-node-circle" cx="440" cy="140" r="35" />
+      <text class="km-node-text" x="440" y="135">Module 3</text>
+      <text class="km-node-text" x="440" y="150" style="font-size:10px">Loss</text>
+    </g>
+    <g class="km-node" data-module="module-4" onclick="scrollToModule('module-4')" onmouseenter="highlightConnections('4')" onmouseleave="clearHighlights()">
+      <circle class="km-node-circle" cx="600" cy="140" r="35" />
+      <text class="km-node-text" x="600" y="135">Module 4</text>
+      <text class="km-node-text" x="600" y="150" style="font-size:10px">Backprop</text>
+    </g>
+    <g class="km-node" data-module="module-5" onclick="scrollToModule('module-5')" onmouseenter="highlightConnections('5')" onmouseleave="clearHighlights()">
+      <circle class="km-node-circle" cx="700" cy="220" r="35" />
+      <text class="km-node-text" x="700" y="215">Module 5</text>
+      <text class="km-node-text" x="700" y="230" style="font-size:10px">Gradient</text>
+    </g>
+    <g class="km-node" data-module="module-6" onclick="scrollToModule('module-6')" onmouseenter="highlightConnections('6')" onmouseleave="clearHighlights()">
+      <circle class="km-node-circle" cx="200" cy="250" r="35" />
+      <text class="km-node-text" x="200" y="245">Module 6</text>
+      <text class="km-node-text" x="200" y="260" style="font-size:10px">Overfit</text>
+    </g>
+  </svg>
+</section>
+
+<section id="module-1" class="module" data-module="1">
+  <div class="module-header">
+    <div class="module-badge">1</div>
+    <div>
+      <h2 class="module-title">The Neuron: Building Block of Intelligence</h2>
+      <p class="module-subtitle">How a single mathematical unit processes information</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">📖 Core Explanation</span>
+    <p>A <strong>neuron</strong> (or "node") is the smallest computational unit in a neural network. It receives one or more numerical inputs, multiplies each by a <strong>weight</strong> (representing that input's importance), sums everything up along with a <strong>bias</strong> term, and then passes the result through an <strong>activation function</strong> to produce an output.</p>
+    <p>Think of weights as "how much to trust this input" and the bias as "the baseline tendency to fire." The activation function introduces <strong>non-linearity</strong> — without it, no matter how many layers you stack, the entire network would collapse into a single linear equation, unable to learn complex patterns.</p>
+    <p>Modern deep learning models contain millions or billions of these neurons arranged in layers. But every single one performs the same fundamental operation: <em>weighted sum → bias → activation → output</em>. Master this, and you've mastered the atom of deep learning.</p>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔧 Step-by-Step Breakdown</span>
+    <div class="steps">
+      <div class="step-item"><div class="step-num">1</div><div class="step-content"><strong>Receive inputs:</strong> One or more numerical values arrive (e.g., pixel intensities, word embeddings, sensor readings).</div></div>
+      <div class="step-item"><div class="step-num">2</div><div class="step-content"><strong>Multiply by weights:</strong> Each input xᵢ is multiplied by its corresponding weight wᵢ. Weights are the parameters the network <em>learns</em>.</div></div>
+      <div class="step-item"><div class="step-num">3</div><div class="step-content"><strong>Sum and add bias:</strong> All weighted inputs are summed: z = Σ(wᵢ·xᵢ) + b. The bias shifts the activation threshold.</div></div>
+      <div class="step-item"><div class="step-num">4</div><div class="step-content"><strong>Apply activation function:</strong> The sum z passes through a non-linear function (e.g., ReLU, sigmoid, tanh) to produce the output a = f(z).</div></div>
+      <div class="step-item"><div class="step-num">5</div><div class="step-content"><strong>Forward the output:</strong> The result becomes input to neurons in the next layer, or the final prediction if this is an output neuron.</div></div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">💡 Real-World Examples</span>
+    <div class="examples-grid">
+      <div class="example-card obvious">
+        <div class="label">✅ Obvious Example</div>
+        <p><strong>House price prediction:</strong> Inputs = square footage, bedrooms, age. Weights = how much each feature matters. Output = predicted price. A single neuron can capture a simple linear relationship.</p>
+      </div>
+      <div class="example-card counter">
+        <div class="label">🤔 Counter-Intuitive</div>
+        <p><strong>Cat recognition:</strong> A <em>single</em> neuron looking at raw pixels cannot recognize a cat — the pattern is too complex. It takes millions of neurons in layers, each detecting progressively more abstract features (edges → textures → ears → faces → cats).</p>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🧩 Visual Analogy</span>
+    <div class="analogy-card">
+      <div class="analogy-side concept">
+        <h4>🔬 The Concept: Artificial Neuron</h4>
+        <svg viewBox="0 0 180 120" style="width:100%;max-width:180px;margin:0 auto;display:block">
+          <circle cx="20" cy="30" r="12" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="20" y="34" text-anchor="middle" font-size="9" fill="#fff">x₁</text>
+          <circle cx="20" cy="60" r="12" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="20" y="64" text-anchor="middle" font-size="9" fill="#fff">x₂</text>
+          <circle cx="20" cy="90" r="12" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="20" y="94" text-anchor="middle" font-size="9" fill="#fff">x₃</text>
+          <line x1="32" y1="30" x2="85" y2="60" stroke="var(--connection)" stroke-width="1.5"/>
+          <line x1="32" y1="60" x2="85" y2="60" stroke="var(--connection)" stroke-width="1.5"/>
+          <line x1="32" y1="90" x2="85" y2="60" stroke="var(--connection)" stroke-width="1.5"/>
+          <text x="55" y="42" font-size="8" fill="var(--text-secondary)">w₁</text>
+          <text x="55" y="56" font-size="8" fill="var(--text-secondary)">w₂</text>
+          <text x="55" y="78" font-size="8" fill="var(--text-secondary)">w₃</text>
+          <circle cx="95" cy="60" r="14" fill="var(--primary)" stroke="var(--primary-dark)" stroke-width="2"/>
+          <text x="95" y="64" text-anchor="middle" font-size="11" fill="#fff" font-weight="bold">Σ</text>
+          <rect x="120" y="48" width="30" height="24" rx="4" fill="var(--supporting)" stroke="var(--supporting)" stroke-width="2"/>
+          <text x="135" y="64" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">f(z)</text>
+          <line x1="109" y1="60" x2="120" y2="60" stroke="var(--connection)" stroke-width="1.5"/>
+          <line x1="150" y1="60" x2="165" y2="60" stroke="var(--connection)" stroke-width="1.5"/>
+          <circle cx="172" cy="60" r="8" fill="var(--warning)" stroke="var(--warning)" stroke-width="2"/>
+          <text x="172" y="64" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">y</text>
+        </svg>
+        <p style="margin-top:8px">Inputs → weights → sum → activation → output</p>
+      </div>
+      <div class="analogy-divider"></div>
+      <div class="analogy-side analogy">
+        <h4>🗳️ The Analogy: Voting Committee</h4>
+        <svg viewBox="0 0 180 120" style="width:100%;max-width:180px;margin:0 auto;display:block">
+          <circle cx="25" cy="25" r="12" fill="var(--supporting-light)" stroke="var(--supporting)" stroke-width="2"/>
+          <text x="25" y="29" text-anchor="middle" font-size="9" fill="#fff">👩</text>
+          <circle cx="25" cy="60" r="12" fill="var(--supporting-light)" stroke="var(--supporting)" stroke-width="2"/>
+          <text x="25" y="64" text-anchor="middle" font-size="9" fill="#fff">👨</text>
+          <circle cx="25" cy="95" r="12" fill="var(--supporting-light)" stroke="var(--supporting)" stroke-width="2"/>
+          <text x="25" y="99" text-anchor="middle" font-size="9" fill="#fff">👵</text>
+          <line x1="37" y1="25" x2="80" y2="60" stroke="var(--connection)" stroke-width="1.5"/>
+          <line x1="37" y1="60" x2="80" y2="60" stroke="var(--connection)" stroke-width="1.5"/>
+          <line x1="37" y1="95" x2="80" y2="60" stroke="var(--connection)" stroke-width="1.5"/>
+          <text x="55" y="40" font-size="7" fill="var(--text-secondary)">trust</text>
+          <text x="55" y="56" font-size="7" fill="var(--text-secondary)">trust</text>
+          <text x="55" y="80" font-size="7" fill="var(--text-secondary)">trust</text>
+          <circle cx="90" cy="60" r="16" fill="var(--supporting)" stroke="var(--supporting)" stroke-width="2"/>
+          <text x="90" y="64" text-anchor="middle" font-size="14" fill="#fff">🧑‍⚖️</text>
+          <rect x="120" y="48" width="35" height="24" rx="4" fill="var(--warning)" stroke="var(--warning)" stroke-width="2"/>
+          <text x="137" y="64" text-anchor="middle" font-size="7" fill="#fff" font-weight="bold">decide!</text>
+          <line x1="106" y1="60" x2="120" y2="60" stroke="var(--connection)" stroke-width="1.5"/>
+          <text x="155" y="64" font-size="14">✅</text>
+        </svg>
+        <p style="margin-top:8px">Voters → trust levels → tally → threshold → decision</p>
+      </div>
+    </div>
+    <div class="analogy-explanation">
+      <strong>Why it works:</strong> Each voter (input) has a different trust level (weight). The judge sums all weighted votes plus their own leaning (bias). They only decide "yes" if the total crosses a threshold (activation function). This mirrors exactly how a neuron computes its output.
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔍 Interactive: Click Each Part of the Neuron</span>
+    <div class="diagram-container">
+      <svg viewBox="0 0 600 250" aria-label="Interactive neuron diagram with clickable hotspots">
+        <g class="hotspot" onclick="showHotspot('input')" role="button" tabindex="0" aria-label="Inputs">
+          <circle cx="50" cy="60" r="18" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="50" y="64" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">x₁</text>
+          <circle cx="50" cy="125" r="18" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="50" y="129" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">x₂</text>
+          <circle cx="50" cy="190" r="18" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="50" y="194" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">x₃</text>
+          <circle cx="50" cy="15" r="8" fill="var(--warning)" class="hotspot-pulse"/>
+        </g>
+        <g class="hotspot" onclick="showHotspot('weight')" role="button" tabindex="0" aria-label="Weights">
+          <line x1="68" y1="60" x2="240" y2="125" stroke="var(--connection)" stroke-width="2"/>
+          <line x1="68" y1="125" x2="240" y2="125" stroke="var(--connection)" stroke-width="2"/>
+          <line x1="68" y1="190" x2="240" y2="125" stroke="var(--connection)" stroke-width="2"/>
+          <text x="150" y="80" font-size="11" fill="var(--text-secondary)" font-weight="600">w₁</text>
+          <text x="150" y="120" font-size="11" fill="var(--text-secondary)" font-weight="600">w₂</text>
+          <text x="150" y="170" font-size="11" fill="var(--text-secondary)" font-weight="600">w₃</text>
+          <circle cx="155" cy="95" r="8" fill="var(--warning)" class="hotspot-pulse"/>
+        </g>
+        <g class="hotspot" onclick="showHotspot('sum')" role="button" tabindex="0" aria-label="Summation">
+          <circle cx="250" cy="125" r="22" fill="var(--primary)" stroke="var(--primary-dark)" stroke-width="2"/>
+          <text x="250" y="130" text-anchor="middle" fill="#fff" font-size="16" font-weight="bold">Σ</text>
+        </g>
+        <g class="hotspot" onclick="showHotspot('bias')" role="button" tabindex="0" aria-label="Bias">
+          <circle cx="250" cy="215" r="16" fill="var(--supporting)" stroke="var(--supporting)" stroke-width="2"/>
+          <text x="250" y="219" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">+b</text>
+          <line x1="250" y1="199" x2="250" y2="147" stroke="var(--supporting)" stroke-width="2" stroke-dasharray="4,3"/>
+        </g>
+        <g class="hotspot" onclick="showHotspot('activation')" role="button" tabindex="0" aria-label="Activation function">
+          <rect x="310" y="100" width="90" height="50" rx="8" fill="var(--supporting)" stroke="var(--supporting)" stroke-width="2"/>
+          <text x="355" y="122" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">Activation</text>
+          <text x="355" y="138" text-anchor="middle" fill="#fff" font-size="9">f(z)</text>
+          <line x1="272" y1="125" x2="310" y2="125" stroke="var(--connection)" stroke-width="2"/>
+          <circle cx="355" cy="85" r="8" fill="var(--warning)" class="hotspot-pulse"/>
+        </g>
+        <g class="hotspot" onclick="showHotspot('output')" role="button" tabindex="0" aria-label="Output">
+          <line x1="400" y1="125" x2="470" y2="125" stroke="var(--connection)" stroke-width="2"/>
+          <circle cx="490" cy="125" r="20" fill="var(--warning)" stroke="var(--warning)" stroke-width="2"/>
+          <text x="490" y="129" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">y</text>
+        </g>
+        <text x="300" y="240" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-style="italic">Click any glowing part to learn more</text>
+      </svg>
+      <p class="diagram-caption">A single artificial neuron. Click the pulsing hotspots to explore each component.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">❌ What People Get Wrong</span>
+    <div class="misconception" onclick="toggleMisconception(this)">
+      <div class="misconception-header">
+        <span>🤔 "Neural network neurons work just like brain neurons"</span>
+        <span class="misconception-toggle">▼</span>
+      </div>
+      <div class="misconception-body">
+        <div class="misconception-content">
+          <div class="myth">❌ Myth: Artificial neurons faithfully model biological neurons.</div>
+          <div class="truth">✅ Truth: They are loosely inspired by biology but vastly simpler. A real neuron has dendrites, axons, synapses, firing rates, chemical signaling, and temporal dynamics. An artificial neuron is just: multiply, add, apply function.</div>
+          <div class="reasoning">💡 The name "neural network" is historical branding. The brain has ~86 billion neurons with thousands of connections each, operating in ways we don't fully understand. Artificial neurons are mathematical functions that happen to be useful — the connection to biology is mostly metaphorical at this point.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">⭐ Why This Matters</span>
+    <div class="why-matters">
+      <p>Every deep learning architecture — from a 3-layer MLP to GPT-4 with its 1.7 trillion parameters — is built from this same atomic unit. If you understand how one neuron works, you understand the fundamental operation happening billions of times per second in every AI model. The complexity comes from scale and arrangement, not from the unit itself.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔗 Connection</span>
+    <div class="inter-link">
+      <strong>🔗 This connects to Module 2</strong> because neurons don't work alone — they're arranged in layers. In the next module, you'll see how data flows through hundreds of neurons in sequence during <em>forward propagation</em>, transforming raw input into a final prediction.
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🎮 Mini-Challenge: Build a Neuron</span>
+    <div class="mini-challenge">
+      <div class="mc-scenario">
+        <h4>Scenario: You're designing a neuron for a spam filter</h4>
+        <p>Inputs: x₁ = contains "FREE" (0 or 1), x₂ = sender reputation (0–1), x₃ = has attachment (0 or 1). Which configuration makes the most sense?</p>
+      </div>
+      <div class="mc-options" data-challenge="mc1">
+        <button class="mc-option" onclick="checkMiniChallenge(this,'mc1','correct')">High weight for x₁ (spam keyword), low weight for x₂, ignore x₃, ReLU activation</button>
+        <button class="mc-option" onclick="checkMiniChallenge(this,'mc1','incorrect1')">Equal weights for all inputs, no bias, linear activation (no non-linearity)</button>
+        <button class="mc-option" onclick="checkMiniChallenge(this,'mc1','incorrect2')">High weight for x₃ (attachment), negative weight for x₁, sigmoid activation</button>
+      </div>
+      <div class="mc-feedback" id="mc1-feedback"></div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🤔 But Why?</span>
+    <div class="elaborative" onclick="toggleElaborative(this)">
+      <div class="question">❓ But why does the activation function need to be non-linear?</div>
+      <div class="answer">If every neuron uses a linear activation, then composing layers just produces another linear function: f(f(f(x))) = linear(x). No matter how deep the network, it can only learn linear relationships — a straight line through data. Non-linear activations (like ReLU) let the network bend and fold the input space, enabling it to approximate any continuous function. This is the Universal Approximation Theorem in action.</div>
+    </div>
+  </div>
+</section>
+
+<section id="module-2" class="module" data-module="2">
+  <div class="module-header">
+    <div class="module-badge">2</div>
+    <div>
+      <h2 class="module-title">Forward Propagation: The Signal Flow</h2>
+      <p class="module-subtitle">How data travels from input to prediction through layers</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">📖 Core Explanation</span>
+    <p><strong>Forward propagation</strong> (or the "forward pass") is the process of feeding input data through every layer of a neural network to produce an output. Each layer's neurons receive the previous layer's outputs, compute their weighted sums plus bias, apply their activation functions, and pass the results forward.</p>
+    <p>The input layer receives raw data (pixel values, text embeddings, etc.). <strong>Hidden layers</strong> transform this data progressively — early layers might detect edges, middle layers detect shapes, and later layers detect objects. The <strong>output layer</strong> produces the final prediction: a class label, a number, or a probability distribution.</p>
+    <p>Forward propagation is purely computational — no learning happens here. It's the "prediction phase." The magic of learning comes later (Modules 3–5) when we compare the prediction to reality and adjust weights. But without understanding the forward pass, nothing else makes sense.</p>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔧 Step-by-Step Breakdown</span>
+    <div class="steps">
+      <div class="step-item"><div class="step-num">1</div><div class="step-content"><strong>Input layer receives data:</strong> Raw features are loaded into the first layer. For a 28×28 image, that's 784 input neurons.</div></div>
+      <div class="step-item"><div class="step-num">2</div><div class="step-content"><strong>First hidden layer computes:</strong> Each neuron in layer 1 computes its weighted sum and activation based on all inputs.</div></div>
+      <div class="step-item"><div class="step-num">3</div><div class="step-content"><strong>Signal propagates forward:</strong> Layer 1's outputs become layer 2's inputs. This continues through all hidden layers.</div></div>
+      <div class="step-item"><div class="step-num">4</div><div class="step-content"><strong>Output layer produces prediction:</strong> The final layer applies its activation (e.g., softmax for classification) and outputs the result.</div></div>
+      <div class="step-item"><div class="step-num">5</div><div class="step-content"><strong>Store intermediate values:</strong> All activations are cached — they'll be needed during backpropagation to compute gradients.</div></div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">💡 Real-World Examples</span>
+    <div class="examples-grid">
+      <div class="example-card obvious">
+        <div class="label">✅ Obvious Example</div>
+        <p><strong>MNIST digit classification:</strong> 784 input neurons (pixels) → 128 hidden neurons → 10 output neurons (digits 0–9). The forward pass transforms raw pixels into a probability distribution over digits.</p>
+      </div>
+      <div class="example-card counter">
+        <div class="label">🤔 Counter-Intuitive</div>
+        <p><strong>Deep networks can be slower to forward-propagate than shallow ones with the same parameter count.</strong> A wide single hidden layer might have the same parameters as a deep narrow one, but the deep one requires more sequential matrix multiplications. Depth trades compute for representational power.</p>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🧩 Visual Analogy</span>
+    <div class="analogy-card">
+      <div class="analogy-side concept">
+        <h4>🔬 The Concept: Layered Computation</h4>
+        <svg viewBox="0 0 200 150" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <circle cx="25" cy="30" r="8" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="1.5"/>
+          <circle cx="25" cy="60" r="8" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="1.5"/>
+          <circle cx="25" cy="90" r="8" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="1.5"/>
+          <circle cx="25" cy="120" r="8" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="1.5"/>
+          <circle cx="100" cy="40" r="8" fill="var(--supporting)" stroke="var(--supporting)" stroke-width="1.5"/>
+          <circle cx="100" cy="75" r="8" fill="var(--supporting)" stroke="var(--supporting)" stroke-width="1.5"/>
+          <circle cx="100" cy="110" r="8" fill="var(--supporting)" stroke="var(--supporting)" stroke-width="1.5"/>
+          <circle cx="175" cy="55" r="8" fill="var(--warning)" stroke="var(--warning)" stroke-width="1.5"/>
+          <circle cx="175" cy="95" r="8" fill="var(--warning)" stroke="var(--warning)" stroke-width="1.5"/>
+          <g stroke="var(--connection)" stroke-width="0.5" opacity="0.5">
+            <line x1="33" y1="30" x2="92" y2="40"/><line x1="33" y1="30" x2="92" y2="75"/><line x1="33" y1="30" x2="92" y2="110"/>
+            <line x1="33" y1="60" x2="92" y2="40"/><line x1="33" y1="60" x2="92" y2="75"/><line x1="33" y1="60" x2="92" y2="110"/>
+            <line x1="33" y1="90" x2="92" y2="40"/><line x1="33" y1="90" x2="92" y2="75"/><line x1="33" y1="90" x2="92" y2="110"/>
+            <line x1="33" y1="120" x2="92" y2="40"/><line x1="33" y1="120" x2="92" y2="75"/><line x1="33" y1="120" x2="92" y2="110"/>
+            <line x1="108" y1="40" x2="167" y2="55"/><line x1="108" y1="40" x2="167" y2="95"/>
+            <line x1="108" y1="75" x2="167" y2="55"/><line x1="108" y1="75" x2="167" y2="95"/>
+            <line x1="108" y1="110" x2="167" y2="55"/><line x1="108" y1="110" x2="167" y2="95"/>
+          </g>
+          <text x="25" y="145" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Input</text>
+          <text x="100" y="145" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Hidden</text>
+          <text x="175" y="145" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Output</text>
+        </svg>
+        <p style="margin-top:8px">Data flows left → right through layers</p>
+      </div>
+      <div class="analogy-divider"></div>
+      <div class="analogy-side analogy">
+        <h4>🏭 The Analogy: Factory Assembly Line</h4>
+        <svg viewBox="0 0 200 150" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <rect x="10" y="55" width="35" height="40" rx="4" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="1.5"/>
+          <text x="27" y="80" text-anchor="middle" font-size="14">📦</text>
+          <text x="27" y="110" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Raw materials</text>
+          <rect x="75" y="45" width="40" height="60" rx="4" fill="var(--supporting)" stroke="var(--supporting)" stroke-width="1.5"/>
+          <text x="95" y="80" text-anchor="middle" font-size="14">🔧</text>
+          <text x="95" y="115" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Assembly</text>
+          <rect x="145" y="55" width="35" height="40" rx="4" fill="var(--warning)" stroke="var(--warning)" stroke-width="1.5"/>
+          <text x="162" y="80" text-anchor="middle" font-size="14">🚗</text>
+          <text x="162" y="110" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Final product</text>
+          <line x1="45" y1="75" x2="75" y2="75" stroke="var(--connection)" stroke-width="1.5"/>
+          <polygon points="73,72 73,78 78,75" fill="var(--connection)"/>
+          <line x1="115" y1="75" x2="145" y2="75" stroke="var(--connection)" stroke-width="1.5"/>
+          <polygon points="143,72 143,78 148,75" fill="var(--connection)"/>
+        </svg>
+        <p style="margin-top:8px">Raw materials → assembly → finished product</p>
+      </div>
+    </div>
+    <div class="analogy-explanation">
+      <strong>Why it works:</strong> Raw materials (inputs) enter the assembly line. Each station (hidden layer) transforms them — adding parts, adjusting, refining. The final station (output layer) produces the finished product (prediction). Each station can only work with what the previous station produced, just like each layer processes the previous layer's activations.
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">📊 Interactive: Click Each Layer to Deep-Dive</span>
+    <div class="diagram-container">
+      <svg viewBox="0 0 600 220" aria-label="Interactive forward propagation flowchart">
+        <g class="hotspot" onclick="showLayerInfo('input')" role="button" tabindex="0" aria-label="Input layer">
+          <rect x="20" y="40" width="100" height="140" rx="8" fill="rgba(37,99,235,0.1)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="70" y="30" text-anchor="middle" font-size="11" fill="var(--primary)" font-weight="bold">Input Layer</text>
+          <circle cx="70" cy="70" r="10" fill="var(--primary)" /><text x="70" y="74" text-anchor="middle" font-size="8" fill="#fff">x₁</text>
+          <circle cx="70" cy="100" r="10" fill="var(--primary)" /><text x="70" y="104" text-anchor="middle" font-size="8" fill="#fff">x₂</text>
+          <circle cx="70" cy="130" r="10" fill="var(--primary)" /><text x="70" y="134" text-anchor="middle" font-size="8" fill="#fff">x₃</text>
+          <circle cx="70" cy="160" r="10" fill="var(--primary)" /><text x="70" y="164" text-anchor="middle" font-size="8" fill="#fff">x₄</text>
+        </g>
+        <line x1="120" y1="110" x2="170" y2="110" stroke="var(--connection)" stroke-width="2" class="draw-animation"/>
+        <polygon points="168,107 168,113 175,110" fill="var(--connection)"/>
+        <text x="145" y="100" text-anchor="middle" font-size="9" fill="var(--text-muted)">W₁·x + b₁</text>
+        <g class="hotspot" onclick="showLayerInfo('hidden1')" role="button" tabindex="0" aria-label="Hidden layer 1">
+          <rect x="175" y="40" width="100" height="140" rx="8" fill="rgba(16,185,129,0.1)" stroke="var(--supporting)" stroke-width="2"/>
+          <text x="225" y="30" text-anchor="middle" font-size="11" fill="var(--supporting)" font-weight="bold">Hidden Layer 1</text>
+          <circle cx="225" cy="65" r="10" fill="var(--supporting)" /><text x="225" y="69" text-anchor="middle" font-size="8" fill="#fff">a₁</text>
+          <circle cx="225" cy="95" r="10" fill="var(--supporting)" /><text x="225" y="99" text-anchor="middle" font-size="8" fill="#fff">a₂</text>
+          <circle cx="225" cy="125" r="10" fill="var(--supporting)" /><text x="225" y="129" text-anchor="middle" font-size="8" fill="#fff">a₃</text>
+          <circle cx="225" cy="155" r="10" fill="var(--supporting)" /><text x="225" y="159" text-anchor="middle" font-size="8" fill="#fff">a₄</text>
+        </g>
+        <line x1="275" y1="110" x2="325" y2="110" stroke="var(--connection)" stroke-width="2" class="draw-animation"/>
+        <polygon points="323,107 323,113 330,110" fill="var(--connection)"/>
+        <text x="300" y="100" text-anchor="middle" font-size="9" fill="var(--text-muted)">W₂·a + b₂</text>
+        <g class="hotspot" onclick="showLayerInfo('hidden2')" role="button" tabindex="0" aria-label="Hidden layer 2">
+          <rect x="330" y="50" width="100" height="120" rx="8" fill="rgba(16,185,129,0.1)" stroke="var(--supporting)" stroke-width="2"/>
+          <text x="380" y="40" text-anchor="middle" font-size="11" fill="var(--supporting)" font-weight="bold">Hidden Layer 2</text>
+          <circle cx="380" cy="80" r="10" fill="var(--supporting)" /><text x="380" y="84" text-anchor="middle" font-size="8" fill="#fff">a₁</text>
+          <circle cx="380" cy="110" r="10" fill="var(--supporting)" /><text x="380" y="114" text-anchor="middle" font-size="8" fill="#fff">a₂</text>
+          <circle cx="380" cy="140" r="10" fill="var(--supporting)" /><text x="380" y="144" text-anchor="middle" font-size="8" fill="#fff">a₃</text>
+        </g>
+        <line x1="430" y1="110" x2="480" y2="110" stroke="var(--connection)" stroke-width="2" class="draw-animation"/>
+        <polygon points="478,107 478,113 485,110" fill="var(--connection)"/>
+        <text x="455" y="100" text-anchor="middle" font-size="9" fill="var(--text-muted)">softmax</text>
+        <g class="hotspot" onclick="showLayerInfo('output')" role="button" tabindex="0" aria-label="Output layer">
+          <rect x="485" y="60" width="100" height="100" rx="8" fill="rgba(245,158,11,0.1)" stroke="var(--warning)" stroke-width="2"/>
+          <text x="535" y="50" text-anchor="middle" font-size="11" fill="var(--warning)" font-weight="bold">Output</text>
+          <circle cx="535" cy="90" r="10" fill="var(--warning)" /><text x="535" y="94" text-anchor="middle" font-size="8" fill="#fff">ŷ₁</text>
+          <circle cx="535" cy="130" r="10" fill="var(--warning)" /><text x="535" y="134" text-anchor="middle" font-size="8" fill="#fff">ŷ₂</text>
+        </g>
+      </svg>
+      <p class="diagram-caption">Click any layer (box) to see what happens there. Arrows show the forward flow of data.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">❌ What People Get Wrong</span>
+    <div class="misconception" onclick="toggleMisconception(this)">
+      <div class="misconception-header">
+        <span>🤔 "More layers always means better predictions"</span>
+        <span class="misconception-toggle">▼</span>
+      </div>
+      <div class="misconception-body">
+        <div class="misconception-content">
+          <div class="myth">❌ Myth: Adding more hidden layers will always improve the network's predictions.</div>
+          <div class="truth">✅ Truth: Beyond a certain depth, adding layers can <em>hurt</em> performance due to vanishing gradients, overfitting, and training instability.</div>
+          <div class="reasoning">💡 In very deep networks, gradient signals shrink as they propagate backward (the "vanishing gradient" problem), making early layers nearly impossible to train. Techniques like residual connections (ResNets), batch normalization, and better activation functions (ReLU) help, but blindly adding depth is not a silver bullet. Architecture design is about finding the right balance for your specific problem.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">⭐ Why This Matters</span>
+    <div class="why-matters">
+      <p>Forward propagation is the <em>inference engine</em> — it's what runs every time you use any AI product. When ChatGPT generates text, when your phone unlocks with Face ID, when a self-driving car detects a stop sign — forward propagation is happening. Understanding this flow is prerequisite to understanding how models make decisions and how we can improve them.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔗 Connection</span>
+    <div class="inter-link">
+      <strong>🔗 This connects to Module 3</strong> because forward propagation only produces a <em>prediction</em>. But how do we know if that prediction is any good? We need to measure its error — and that's exactly what <em>loss functions</em> do in the next module.
+    </div>
+  </div>
+</section>
+
+<section class="quick-recall" id="recall-1">
+  <h3>⚡ Quick Recall: Modules 1–2</h3>
+  <p class="subtitle">Test your understanding before moving on. Cumulative retrieval practice strengthens memory.</p>
+  <div class="quiz-container" id="recall-quiz-1"></div>
+</section>
+
+<section id="module-3" class="module" data-module="3">
+  <div class="module-header">
+    <div class="module-badge">3</div>
+    <div>
+      <h2 class="module-title">Loss Functions: Measuring Mistakes</h2>
+      <p class="module-subtitle">How we quantify how wrong a prediction is</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">📖 Core Explanation</span>
+    <p>A <strong>loss function</strong> (also called a cost function or objective function) measures the difference between a model's prediction and the actual correct answer. It takes the prediction <em>ŷ</em> and the true label <em>y</em>, and outputs a single number: the <strong>loss</strong>. A loss of zero means a perfect prediction; higher loss means a worse prediction.</p>
+    <p>Different tasks require different loss functions. For <strong>regression</strong> (predicting a continuous number like price), we typically use Mean Squared Error (MSE) — the average of squared differences between predictions and targets. For <strong>classification</strong> (predicting a category like "cat" vs "dog"), we use Cross-Entropy Loss, which heavily penalizes confident wrong predictions.</p>
+    <p>The loss function is the <strong>compass</strong> for learning. Every weight update in the network is aimed at reducing this number. Without a loss function, there's no objective to optimize — the network would have no way to know if it's improving or getting worse. Choose the wrong loss function, and your model will optimize for the wrong thing entirely.</p>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔧 Step-by-Step Breakdown</span>
+    <div class="steps">
+      <div class="step-item"><div class="step-num">1</div><div class="step-content"><strong>Forward pass produces prediction ŷ:</strong> The network outputs its best guess for the current input.</div></div>
+      <div class="step-item"><div class="step-num">2</div><div class="step-content"><strong>Compare to ground truth y:</strong> The true label (from labeled training data) is retrieved.</div></div>
+      <div class="step-item"><div class="step-num">3</div><div class="step-content"><strong>Compute element-wise error:</strong> The per-sample difference between ŷ and y is calculated according to the chosen loss formula.</div></div>
+      <div class="step-item"><div class="step-num">4</div><div class="step-content"><strong>Aggregate over batch:</strong> Individual losses are averaged across all samples in the mini-batch to get a stable estimate.</div></div>
+      <div class="step-item"><div class="step-num">5</div><div class="step-content"><strong>Return scalar loss value:</strong> This single number drives all subsequent weight updates.</div></div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">💡 Real-World Examples</span>
+    <div class="examples-grid">
+      <div class="example-card obvious">
+        <div class="label">✅ Obvious Example</div>
+        <p><strong>House price prediction (MSE):</strong> If the model predicts $300K for a house that actually sold for $350K, the error is $50K. MSE squares this: 2,500 (in millions²). The model is penalized proportionally to the square of its error.</p>
+      </div>
+      <div class="example-card counter">
+        <div class="label">🤔 Counter-Intuitive</div>
+        <p><strong>A model with 95% accuracy can have higher loss than one with 90% accuracy.</strong> If the 95%-accuracy model is extremely confident in its 5% wrong answers (cross-entropy heavily penalizes confident wrong predictions), while the 90% model is appropriately uncertain on its errors, the "worse" model actually has better loss.</p>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🧩 Visual Analogy</span>
+    <div class="analogy-card">
+      <div class="analogy-side concept">
+        <h4>🔬 The Concept: MSE Loss Landscape</h4>
+        <svg viewBox="0 0 200 140" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <defs>
+            <marker id="arrow1" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><polygon points="0,0 6,3 0,6" fill="var(--text-secondary)"/></marker>
+          </defs>
+          <line x1="20" y1="120" x2="180" y2="120" stroke="var(--text-secondary)" stroke-width="1" marker-end="url(#arrow1)"/>
+          <line x1="20" y1="120" x2="20" y2="20" stroke="var(--text-secondary)" stroke-width="1" marker-end="url(#arrow1)"/>
+          <path d="M 20 110 Q 100 10 180 110" fill="none" stroke="var(--primary)" stroke-width="2.5"/>
+          <text x="100" y="135" text-anchor="middle" font-size="8" fill="var(--text-secondary)">prediction ŷ</text>
+          <text x="10" y="65" text-anchor="middle" font-size="8" fill="var(--text-secondary)" transform="rotate(-90 10 65)">loss</text>
+          <circle cx="60" cy="70" r="5" fill="var(--danger)"/>
+          <text x="60" y="62" text-anchor="middle" font-size="7" fill="var(--danger)">wrong</text>
+          <circle cx="100" cy="20" r="5" fill="var(--supporting)"/>
+          <text x="100" y="14" text-anchor="middle" font-size="7" fill="var(--supporting)">correct</text>
+        </svg>
+        <p style="margin-top:8px">Loss is a parabola — lowest at the correct prediction</p>
+      </div>
+      <div class="analogy-divider"></div>
+      <div class="analogy-side analogy">
+        <h4>⛳ The Analogy: Golf Score</h4>
+        <svg viewBox="0 0 200 140" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <rect x="0" y="100" width="200" height="40" fill="rgba(16,185,129,0.2)"/>
+          <ellipse cx="160" cy="105" rx="15" ry="6" fill="var(--supporting)"/>
+          <circle cx="50" cy="90" r="4" fill="#fff" stroke="var(--text)" stroke-width="1"/>
+          <line x1="50" y1="86" x2="55" y2="78" stroke="var(--text)" stroke-width="1"/>
+          <text x="50" y="75" text-anchor="middle" font-size="7" fill="var(--danger)">off-target</text>
+          <circle cx="158" cy="103" r="4" fill="#fff" stroke="var(--text)" stroke-width="1"/>
+          <text x="160" y="125" text-anchor="middle" font-size="7" fill="var(--supporting)">in the hole!</text>
+          <text x="100" y="135" text-anchor="middle" font-size="8" fill="var(--text-secondary)">distance from hole = your score</text>
+        </svg>
+        <p style="margin-top:8px">The further from the hole, the higher your score</p>
+      </div>
+    </div>
+    <div class="analogy-explanation">
+      <strong>Why it works:</strong> In golf, your score measures how far the ball landed from the hole. Lower is better. A perfect shot = 0 penalty. The loss function works the same way: it measures the "distance" between your prediction and the correct answer. The goal of training is to get the ball in the hole — to drive loss to zero.
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">📊 MSE vs. MAE: How Different Loss Functions Penalize Errors</span>
+    <div class="diagram-container">
+      <svg viewBox="0 0 560 240" aria-label="Bar chart comparing MSE and MAE loss at different error magnitudes">
+        <line x1="60" y1="200" x2="540" y2="200" stroke="var(--text-secondary)" stroke-width="1.5"/>
+        <line x1="60" y1="200" x2="60" y2="30" stroke="var(--text-secondary)" stroke-width="1.5"/>
+        <text x="30" y="115" text-anchor="middle" font-size="11" fill="var(--text-secondary)" transform="rotate(-90 30 115)">Loss Value</text>
+        <text x="300" y="230" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Prediction Error (|ŷ - y|)</text>
+        <rect x="80" y="186" width="20" height="14" fill="var(--primary)" opacity="0.8"/>
+        <rect x="160" y="152" width="20" height="48" fill="var(--primary)" opacity="0.8"/>
+        <rect x="240" y="100" width="20" height="100" fill="var(--primary)" opacity="0.8"/>
+        <rect x="320" y="32" width="20" height="168" fill="var(--primary)" opacity="0.8"/>
+        <rect x="400" y="10" width="20" height="190" fill="var(--primary)" opacity="0.7"/>
+        <rect x="105" y="186" width="20" height="14" fill="var(--supporting)" opacity="0.8"/>
+        <rect x="185" y="172" width="20" height="28" fill="var(--supporting)" opacity="0.8"/>
+        <rect x="265" y="158" width="20" height="42" fill="var(--supporting)" opacity="0.8"/>
+        <rect x="345" y="144" width="20" height="56" fill="var(--supporting)" opacity="0.8"/>
+        <rect x="425" y="130" width="20" height="70" fill="var(--supporting)" opacity="0.8"/>
+        <text x="100" y="215" text-anchor="middle" font-size="9" fill="var(--text-secondary)">1</text>
+        <text x="180" y="215" text-anchor="middle" font-size="9" fill="var(--text-secondary)">2</text>
+        <text x="260" y="215" text-anchor="middle" font-size="9" fill="var(--text-secondary)">3</text>
+        <text x="340" y="215" text-anchor="middle" font-size="9" fill="var(--text-secondary)">4</text>
+        <text x="420" y="215" text-anchor="middle" font-size="9" fill="var(--text-secondary)">5</text>
+        <rect x="460" y="35" width="12" height="12" fill="var(--primary)" opacity="0.8"/>
+        <text x="478" y="45" font-size="10" fill="var(--text)">MSE (squared)</text>
+        <rect x="460" y="55" width="12" height="12" fill="var(--supporting)" opacity="0.8"/>
+        <text x="478" y="65" font-size="10" fill="var(--text)">MAE (linear)</text>
+      </svg>
+      <p class="diagram-caption">MSE (blue) grows quadratically — large errors are punished much more harshly than small ones. MAE (green) grows linearly — proportional to error size.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">❌ What People Get Wrong</span>
+    <div class="misconception" onclick="toggleMisconception(this)">
+      <div class="misconception-header">
+        <span>🤔 "Lower loss always means a better model"</span>
+        <span class="misconception-toggle">▼</span>
+      </div>
+      <div class="misconception-body">
+        <div class="misconception-content">
+          <div class="myth">❌ Myth: If training loss keeps going down, the model is getting better.</div>
+          <div class="truth">✅ Truth: Training loss can approach zero while the model becomes <em>worse</em> at generalizing to new data — this is called overfitting.</div>
+          <div class="reasoning">💡 A model can memorize the training set (achieving near-zero loss) without learning the underlying patterns. This is why we always track <em>validation loss</em> on a separate dataset. If training loss decreases but validation loss increases, your model is memorizing, not learning. We'll explore this deeply in Module 6.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">⭐ Why This Matters</span>
+    <div class="why-matters">
+      <p>The loss function defines what "good" means for your model. Change the loss function, and you change the model's entire behavior. A self-driving car optimized for "minimize lane departures" will behave very differently from one optimized for "minimize collision probability." The loss function is where human intent gets translated into mathematical optimization — it's the most consequential design choice in all of machine learning.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔗 Connection</span>
+    <div class="inter-link">
+      <strong>🔗 This connects to Module 4</strong> because knowing <em>how wrong</em> we are isn't enough — we need to know <em>which weights to blame</em> and <em>how to fix them</em>. Backpropagation uses the loss value to compute gradients for every weight, telling each neuron exactly how it should change.
+    </div>
+  </div>
+</section>
+
+<section id="module-4" class="module" data-module="4">
+  <div class="module-header">
+    <div class="module-badge">4</div>
+    <div>
+      <h2 class="module-title">Backpropagation: Learning from Errors</h2>
+      <p class="module-subtitle">The chain rule that powers all deep learning</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">📖 Core Explanation</span>
+    <p><strong>Backpropagation</strong> (short for "backward propagation of errors") is the algorithm that computes the <strong>gradient</strong> — the partial derivative of the loss with respect to every single weight and bias in the network. In plain terms, it figures out: "For each parameter, if I nudged it slightly, how much would the loss change?"</p>
+    <p>The magic ingredient is the <strong>chain rule</strong> from calculus. Since a neural network is a composition of functions (layer 1 feeds layer 2, which feeds layer 3, etc.), we can't directly compute how an early weight affects the final loss. But the chain rule lets us multiply the local derivatives together, layer by layer, working backward from the output.</p>
+    <p>Backpropagation itself doesn't change any weights — it only <em>computes gradients</em>. The actual weight updates happen in the optimization step (Module 5). But without backpropagation, we'd have no efficient way to know <em>which direction</em> to adjust each of millions of parameters. It's the computational engine that makes deep learning feasible.</p>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔧 Step-by-Step Breakdown</span>
+    <div class="steps">
+      <div class="step-item"><div class="step-num">1</div><div class="step-content"><strong>Forward pass (already done):</strong> Compute and cache all layer activations. These intermediate values are needed for gradient computation.</div></div>
+      <div class="step-item"><div class="step-num">2</div><div class="step-content"><strong>Compute output error:</strong> Calculate the derivative of loss w.r.t. the output layer's pre-activation: δ_output = ∂L/∂z_output.</div></div>
+      <div class="step-item"><div class="step-num">3</div><div class="step-content"><strong>Propagate error backward:</strong> Using the chain rule, compute δ for each preceding layer: δ_l = (Wₗ₊₁ᵀ · δₗ₊₁) ⊙ f'(zₗ).</div></div>
+      <div class="step-item"><div class="step-num">4</div><div class="step-content"><strong>Compute weight gradients:</strong> For each weight: ∂L/∂w = δ · a_prev (the local input that flowed through this weight).</div></div>
+      <div class="step-item"><div class="step-num">5</div><div class="step-content"><strong>Store all gradients:</strong> These are passed to the optimizer (e.g., gradient descent) which will use them to update weights.</div></div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">💡 Real-World Examples</span>
+    <div class="examples-grid">
+      <div class="example-card obvious">
+        <div class="label">✅ Obvious Example</div>
+        <p><strong>Adjusting a recipe:</strong> If your soup is too salty, you trace backward: which ingredient caused the saltiness? If you added salt at step 3, that's where the gradient is largest — reduce salt there next time. Backpropagation does this for millions of "ingredients" (weights) simultaneously.</p>
+      </div>
+      <div class="example-card counter">
+        <div class="label">🤔 Counter-Intuitive</div>
+        <p><strong>A weight in layer 1 can receive a near-zero gradient even when the model is making huge errors.</strong> If the weights in later layers happen to be near zero, the chain rule multiplication shrinks the gradient to almost nothing — the "vanishing gradient" problem. The network can't learn even though it's clearly wrong.</p>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🧩 Visual Analogy</span>
+    <div class="analogy-card">
+      <div class="analogy-side concept">
+        <h4>🔬 The Concept: Gradient Flow</h4>
+        <svg viewBox="0 0 200 150" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <rect x="15" y="55" width="30" height="40" rx="4" fill="var(--primary)" opacity="0.7"/>
+          <text x="30" y="80" text-anchor="middle" font-size="9" fill="#fff">L1</text>
+          <rect x="75" y="55" width="30" height="40" rx="4" fill="var(--primary)" opacity="0.7"/>
+          <text x="90" y="80" text-anchor="middle" font-size="9" fill="#fff">L2</text>
+          <rect x="135" y="55" width="30" height="40" rx="4" fill="var(--primary)" opacity="0.7"/>
+          <text x="150" y="80" text-anchor="middle" font-size="9" fill="#fff">L3</text>
+          <line x1="45" y1="65" x2="75" y2="65" stroke="var(--supporting)" stroke-width="1.5"/>
+          <polygon points="73,62 73,68 78,65" fill="var(--supporting)"/>
+          <line x1="105" y1="65" x2="135" y2="65" stroke="var(--supporting)" stroke-width="1.5"/>
+          <polygon points="133,62 133,68 138,65" fill="var(--supporting)"/>
+          <text x="150" y="45" text-anchor="middle" font-size="7" fill="var(--supporting)">Loss</text>
+          <line x1="135" y1="90" x2="105" y2="90" stroke="var(--warning)" stroke-width="2"/>
+          <polygon points="107,87 107,93 102,90" fill="var(--warning)"/>
+          <line x1="75" y1="90" x2="45" y2="90" stroke="var(--warning)" stroke-width="2"/>
+          <polygon points="47,87 47,93 42,90" fill="var(--warning)"/>
+          <text x="90" y="110" text-anchor="middle" font-size="7" fill="var(--warning)">∇ backward</text>
+          <text x="60" y="65" text-anchor="middle" font-size="7" fill="var(--supporting)">forward</text>
+        </svg>
+        <p style="margin-top:8px">Forward (green) computes loss; backward (orange) computes gradients</p>
+      </div>
+      <div class="analogy-divider"></div>
+      <div class="analogy-side analogy">
+        <h4>🏢 The Analogy: Corporate Blame Assignment</h4>
+        <svg viewBox="0 0 200 150" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <rect x="15" y="55" width="30" height="40" rx="4" fill="var(--supporting)" opacity="0.7"/>
+          <text x="30" y="75" text-anchor="middle" font-size="9" fill="#fff">Worker</text>
+          <text x="30" y="87" text-anchor="middle" font-size="7" fill="#fff">A</text>
+          <rect x="75" y="55" width="30" height="40" rx="4" fill="var(--supporting)" opacity="0.7"/>
+          <text x="90" y="75" text-anchor="middle" font-size="9" fill="#fff">Manager</text>
+          <text x="90" y="87" text-anchor="middle" font-size="7" fill="#fff">B</text>
+          <rect x="135" y="55" width="30" height="40" rx="4" fill="var(--supporting)" opacity="0.7"/>
+          <text x="150" y="75" text-anchor="middle" font-size="9" fill="#fff">CEO</text>
+          <text x="150" y="87" text-anchor="middle" font-size="7" fill="#fff">C</text>
+          <line x1="45" y1="65" x2="75" y2="65" stroke="var(--text-secondary)" stroke-width="1"/>
+          <polygon points="73,62 73,68 78,65" fill="var(--text-secondary)"/>
+          <line x1="105" y1="65" x2="135" y2="65" stroke="var(--text-secondary)" stroke-width="1"/>
+          <polygon points="133,62 133,68 138,65" fill="var(--text-secondary)"/>
+          <text x="150" y="45" text-anchor="middle" font-size="7" fill="var(--danger)">Bad result!</text>
+          <line x1="135" y1="90" x2="105" y2="90" stroke="var(--warning)" stroke-width="2"/>
+          <polygon points="107,87 107,93 102,90" fill="var(--warning)"/>
+          <line x1="75" y1="90" x2="45" y2="90" stroke="var(--warning)" stroke-width="2"/>
+          <polygon points="47,87 47,93 42,90" fill="var(--warning)"/>
+          <text x="90" y="110" text-anchor="middle" font-size="7" fill="var(--warning)">"Who's to blame?"</text>
+        </svg>
+        <p style="margin-top:8px">CEO blames manager, manager blames worker — proportionally</p>
+      </div>
+    </div>
+    <div class="analogy-explanation">
+      <strong>Why it works:</strong> When a company delivers a bad product, the CEO (output layer) first sees the error. They assign blame to the manager (middle layer), who assigns blame to the worker (input layer). Each person's "blame" is proportional to how much their specific contribution affected the final outcome. Backpropagation assigns proportional "blame" (gradients) to each weight based on its contribution to the loss.
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">✍️ Fill in the Blanks: Backprop Steps</span>
+    <div class="fill-blank" id="fib-1">
+      <p>The chain rule allows us to compute how each weight affects the <input type="text" class="fb-input" data-answer="loss" data-fib="1" placeholder="type answer"> by multiplying <input type="text" class="fb-input" data-answer="local" data-fib="2" placeholder="type answer"> derivatives backward through the network. The error signal starts at the <input type="text" class="fb-input" data-answer="output" data-fib="3" placeholder="type answer"> layer and flows backward.</p>
+      <div class="fb-hints" id="fib1-hints">
+        <button class="fb-hint-btn" onclick="showHint('fib1',1)">💡 Hint 1</button>
+        <button class="fb-hint-btn" onclick="showHint('fib1',2)">💡 Hint 2</button>
+        <button class="fb-hint-btn" onclick="showHint('fib1',3)">💡 Reveal</button>
+      </div>
+      <p class="fb-hint-text" id="fib1-hint1">The thing we're trying to minimize is also called the "cost" or "objective."</p>
+      <p class="fb-hint-text" id="fib1-hint2">Each layer only knows its own immediate derivative — the chain rule combines these "___" derivatives.</p>
+      <p class="fb-reveal" id="fib1-reveal">Answers: 1) loss, 2) local, 3) output</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">❌ What People Get Wrong</span>
+    <div class="misconception" onclick="toggleMisconception(this)">
+      <div class="misconception-header">
+        <span>🤔 "Backpropagation is what makes the network learn"</span>
+        <span class="misconception-toggle">▼</span>
+      </div>
+      <div class="misconception-body">
+        <div class="misconception-content">
+          <div class="myth">❌ Myth: Backpropagation is the learning algorithm — it updates weights and trains the network.</div>
+          <div class="truth">✅ Truth: Backpropagation only <em>computes gradients</em>. The optimizer (e.g., gradient descent, Adam) uses those gradients to actually update the weights. Backprop is the measurement; optimization is the action.</div>
+          <div class="reasoning">💡 This distinction matters because you can swap out the optimizer while keeping backpropagation the same. Different optimizers (SGD, RMSprop, Adam) use the same gradients from backprop but apply them differently — some add momentum, some adapt learning rates per-parameter. Backpropagation is the shared foundation; the optimizer is a design choice.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">⭐ Why This Matters</span>
+    <div class="why-matters">
+      <p>Before backpropagation was popularized in 1986 (by Rumelhart, Hinton, and Williams), training multi-layer networks was essentially impossible — there was no efficient way to compute gradients for hidden layer weights. Backpropagation unlocked deep learning. Without it, every modern AI achievement — from image recognition to language models — would not exist. It is arguably the single most important algorithm in all of artificial intelligence.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔗 Connection</span>
+    <div class="inter-link">
+      <strong>🔗 This connects to Module 5</strong> because backpropagation gives us gradients — arrows pointing in the direction of steepest loss increase. But we want to go <em>down</em>, not up. Gradient descent uses these gradients to take steps toward the loss minimum, actually updating the weights and making the model better.
+    </div>
+  </div>
+</section>
+
+<section class="quick-recall" id="recall-2">
+  <h3>⚡ Quick Recall: Modules 3–4</h3>
+  <p class="subtitle">Cumulative retrieval practice — answering again strengthens long-term memory.</p>
+  <div class="quiz-container" id="recall-quiz-2"></div>
+</section>
+
+<section id="module-5" class="module" data-module="5">
+  <div class="module-header">
+    <div class="module-badge">5</div>
+    <div>
+      <h2 class="module-title">Gradient Descent: Finding the Valley</h2>
+      <p class="module-subtitle">How weights actually get updated to reduce loss</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">📖 Core Explanation</span>
+    <p><strong>Gradient descent</strong> is the optimization algorithm that uses the gradients computed by backpropagation to update weights. The rule is simple: move each weight in the <em>opposite</em> direction of its gradient, by an amount proportional to the gradient's magnitude and a tuning parameter called the <strong>learning rate</strong> (α).</p>
+    <p>The formula is: <code style="background:var(--surface-alt);padding:2px 6px;border-radius:4px;font-family:monospace;color:var(--primary)">w_new = w_old - α × ∂L/∂w</code>. The learning rate controls step size — too large and you overshoot the minimum, bouncing around; too small and you crawl toward the minimum, possibly never getting there in a reasonable time.</p>
+    <p>Imagine standing on a mountainside in dense fog. You can't see the valley below, but you can feel which direction is downhill. You take a step in the steepest downward direction, feel the slope again, take another step, and repeat. Eventually, you reach the bottom. That's gradient descent — and the "bottom" is the set of weights that minimizes loss.</p>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔧 Step-by-Step Breakdown</span>
+    <div class="steps">
+      <div class="step-item"><div class="step-num">1</div><div class="step-content"><strong>Receive gradients:</strong> Backpropagation has computed ∂L/∂w for every weight and bias in the network.</div></div>
+      <div class="step-item"><div class="step-num">2</div><div class="step-content"><strong>Scale by learning rate:</strong> Multiply each gradient by α (e.g., 0.001). This controls how big each step is.</div></div>
+      <div class="step-item"><div class="step-num">3</div><div class="step-content"><strong>Update weights:</strong> Subtract the scaled gradient from the current weight: w = w - α × ∂L/∂w.</div></div>
+      <div class="step-item"><div class="step-num">4</div><div class="step-content"><strong>Repeat over batches:</strong> This process repeats for each mini-batch of training data, gradually reducing loss.</div></div>
+      <div class="step-item"><div class="step-num">5</div><div class="step-content"><strong>Converge (hopefully):</strong> Over many epochs, the loss decreases and stabilizes near a minimum — either global or local.</div></div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">💡 Real-World Examples</span>
+    <div class="examples-grid">
+      <div class="example-card obvious">
+        <div class="label">✅ Obvious Example</div>
+        <p><strong>Training a digit classifier:</strong> Start with random weights. After each batch of images, compute gradients and nudge weights slightly. Over thousands of iterations, the network goes from random guessing (10% accuracy) to 99%+ accuracy on MNIST.</p>
+      </div>
+      <div class="example-card counter">
+        <div class="label">🤔 Counter-Intuitive</div>
+        <p><strong>Gradient descent can actually <em>increase</em> loss temporarily.</strong> With a high learning rate, you might overshoot the minimum and land at a higher loss point. The trajectory is noisy, not monotonic. This is why we plot loss curves — to see the trend through the noise.</p>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🧩 Visual Analogy</span>
+    <div class="analogy-card">
+      <div class="analogy-side concept">
+        <h4>🔬 The Concept: Loss Surface Descent</h4>
+        <svg viewBox="0 0 200 130" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <path d="M 10 100 Q 50 30 100 70 Q 150 110 190 40" fill="none" stroke="var(--primary)" stroke-width="2"/>
+          <path d="M 10 100 Q 50 30 100 70 Q 150 110 190 40 L 190 120 L 10 120 Z" fill="rgba(37,99,235,0.08)"/>
+          <circle cx="30" cy="80" r="5" fill="var(--danger)"/>
+          <text x="30" y="72" text-anchor="middle" font-size="7" fill="var(--danger)">start</text>
+          <circle cx="70" cy="42" r="4" fill="var(--warning)" opacity="0.7"/>
+          <circle cx="100" cy="70" r="4" fill="var(--warning)" opacity="0.7"/>
+          <circle cx="130" cy="95" r="4" fill="var(--warning)" opacity="0.7"/>
+          <circle cx="155" cy="80" r="5" fill="var(--supporting)"/>
+          <text x="155" y="72" text-anchor="middle" font-size="7" fill="var(--supporting)">minimum</text>
+          <text x="100" y="130" text-anchor="middle" font-size="8" fill="var(--text-secondary)">weight value →</text>
+        </svg>
+        <p style="margin-top:8px">Ball rolls downhill along the loss surface</p>
+      </div>
+      <div class="analogy-divider"></div>
+      <div class="analogy-side analogy">
+        <h4>⚽ The Analogy: Ball Rolling Down a Hill</h4>
+        <svg viewBox="0 0 200 130" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <path d="M 10 100 Q 50 30 100 70 Q 150 110 190 40" fill="none" stroke="var(--text-secondary)" stroke-width="2"/>
+          <path d="M 10 100 Q 50 30 100 70 Q 150 110 190 40 L 190 120 L 10 120 Z" fill="rgba(148,163,184,0.15)"/>
+          <circle cx="30" cy="85" r="7" fill="var(--danger)"/>
+          <text x="30" y="78" text-anchor="middle" font-size="7" fill="var(--danger)">⚽</text>
+          <circle cx="155" cy="82" r="7" fill="var(--supporting)"/>
+          <text x="155" y="78" text-anchor="middle" font-size="7" fill="var(--supporting)">🏁</text>
+          <text x="100" y="130" text-anchor="middle" font-size="8" fill="var(--text-secondary)">gravity pulls ball to valley →</text>
+        </svg>
+        <p style="margin-top:8px">Gravity = gradient; step size = learning rate</p>
+      </div>
+    </div>
+    <div class="analogy-explanation">
+      <strong>Why it works:</strong> A ball on a hillside rolls downhill due to gravity (the gradient). The steeper the slope, the faster it rolls (larger gradient = larger step). The "friction" or step size is controlled by the learning rate. Too much friction (small α) and the ball barely moves; too little (large α) and it overshoots the valley and bounces back up the other side.
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🎮 Mini-Challenge: Choose the Learning Rate</span>
+    <div class="mini-challenge">
+      <div class="mc-scenario">
+        <h4>Scenario: Your loss curve is behaving strangely</h4>
+        <p>You're training a network and notice the training loss bounces wildly between 0.8 and 2.5, never consistently decreasing. What's the most likely cause and fix?</p>
+      </div>
+      <div class="mc-options" data-challenge="mc2">
+        <button class="mc-option" onclick="checkMiniChallenge(this,'mc2','correct')">Learning rate is too high — reduce it so steps are smaller and more controlled</button>
+        <button class="mc-option" onclick="checkMiniChallenge(this,'mc2','incorrect1')">Learning rate is too low — increase it 100× so the model learns faster</button>
+        <button class="mc-option" onclick="checkMiniChallenge(this,'mc2','incorrect2')">The model is overfitting — add more layers immediately</button>
+      </div>
+      <div class="mc-feedback" id="mc2-feedback"></div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">❌ What People Get Wrong</span>
+    <div class="misconception" onclick="toggleMisconception(this)">
+      <div class="misconception-header">
+        <span>🤔 "Gradient descent always finds the global minimum"</span>
+        <span class="misconception-toggle">▼</span>
+      </div>
+      <div class="misconception-body">
+        <div class="misconception-content">
+          <div class="myth">❌ Myth: If you train long enough, gradient descent will find the best possible set of weights (global minimum loss).</div>
+          <div class="truth">✅ Truth: For non-convex loss surfaces (which all deep networks have), gradient descent typically finds a <em>local</em> minimum — a point that's better than nearby points but not necessarily the best possible.</div>
+          <div class="reasoning">💡 Deep network loss surfaces have millions of dimensions and countless local minima, saddle points, and flat regions. In practice, most local minima in high-dimensional spaces are "good enough" — they generalize similarly to the global minimum. The bigger challenge is often navigating saddle points and plateaus, not finding the exact global minimum. Optimizers like Adam and techniques like momentum help navigate this complex landscape.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">⭐ Why This Matters</span>
+    <div class="why-matters">
+      <p>Gradient descent is the <em>engine of learning</em>. Every time a neural network improves, it's because gradient descent took a step. The choice of learning rate, optimizer, and batch size determines whether training succeeds or fails. A well-tuned optimizer can make a mediocre architecture shine; a poorly tuned one can make a great architecture fail to converge. This is where the practical art of deep learning lives.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔗 Connection</span>
+    <div class="inter-link">
+      <strong>🔗 This connects to Module 6</strong> because even when gradient descent successfully minimizes training loss, the model might not be "good." If it minimizes training loss while validation loss rises, we've entered the danger zone of <em>overfitting</em> — the model has memorized rather than generalized.
+    </div>
+  </div>
+</section>
+
+<section id="module-6" class="module" data-module="6">
+  <div class="module-header">
+    <div class="module-badge">6</div>
+    <div>
+      <h2 class="module-title">Overfitting & Generalization</h2>
+      <p class="module-subtitle">The gap between memorizing and truly learning</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">📖 Core Explanation</span>
+    <p><strong>Overfitting</strong> occurs when a model learns the training data <em>too well</em> — including its noise, outliers, and idiosyncrasies — at the cost of failing to generalize to new, unseen data. An overfit model has memorized the answers rather than understanding the underlying patterns. It's the student who crams specific exam questions but can't apply concepts to new problems.</p>
+    <p>The opposite problem is <strong>underfitting</strong> — the model is too simple to capture the patterns in the data. It performs poorly on both training and validation data. The goal is the <strong>Goldilocks zone</strong>: a model complex enough to capture real patterns but constrained enough to ignore noise.</p>
+    <p>We detect overfitting by monitoring <strong>training loss vs. validation loss</strong>. If training loss keeps decreasing but validation loss starts increasing, the model has begun memorizing rather than generalizing. Techniques like <strong>early stopping</strong> (halt training when validation loss rises), <strong>regularization</strong> (penalize large weights), <strong>dropout</strong> (randomly disable neurons during training), and <strong>data augmentation</strong> (create more training data) all help combat overfitting.</p>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔧 Step-by-Step Breakdown</span>
+    <div class="steps">
+      <div class="step-item"><div class="step-num">1</div><div class="step-content"><strong>Split the data:</strong> Divide data into training, validation, and test sets (e.g., 70/15/15). Never train on validation or test data.</div></div>
+      <div class="step-item"><div class="step-num">2</div><div class="step-content"><strong>Train and monitor both losses:</strong> Track training loss and validation loss after every epoch. Both should decrease initially.</div></div>
+      <div class="step-item"><div class="step-num">3</div><div class="step-content"><strong>Detect the divergence:</strong> If validation loss starts rising while training loss keeps falling, overfitting has begun.</div></div>
+      <div class="step-item"><div class="step-num">4</div><div class="step-content"><strong>Apply countermeasures:</strong> Use early stopping, add dropout, apply L1/L2 regularization, augment data, or simplify the architecture.</div></div>
+      <div class="step-item"><div class="step-num">5</div><div class="step-content"><strong>Final evaluation:</strong> Once satisfied, evaluate on the held-out test set — this is your honest estimate of real-world performance.</div></div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">💡 Real-World Examples</span>
+    <div class="examples-grid">
+      <div class="example-card obvious">
+        <div class="label">✅ Obvious Example</div>
+        <p><strong>Spam filter that memorizes email addresses:</strong> A complex model might memorize that "emails from bob@company.com are not spam" — true in training data, but useless for new senders. It learned a specific pattern, not the general concept of spam.</p>
+      </div>
+      <div class="example-card counter">
+        <div class="label">🤔 Counter-Intuitive</div>
+        <p><strong>A smaller model can outperform a larger one.</strong> A 2-layer network with proper regularization might generalize better than a 10-layer network that overfits. Bigger isn't always better — the right capacity for your data size matters more than raw parameter count.</p>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🧩 Visual Analogy</span>
+    <div class="analogy-card">
+      <div class="analogy-side concept">
+        <h4>🔬 The Concept: Train vs. Validation Loss</h4>
+        <svg viewBox="0 0 200 130" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <line x1="15" y1="115" x2="190" y2="115" stroke="var(--text-secondary)" stroke-width="1"/>
+          <line x1="15" y1="115" x2="15" y2="15" stroke="var(--text-secondary)" stroke-width="1"/>
+          <text x="100" y="128" text-anchor="middle" font-size="7" fill="var(--text-secondary)">epochs</text>
+          <path d="M 15 30 Q 80 50 100 70 Q 140 85 190 95" fill="none" stroke="var(--primary)" stroke-width="2"/>
+          <path d="M 15 35 Q 60 60 90 70 Q 110 75 120 68 Q 150 45 190 30" fill="none" stroke="var(--warning)" stroke-width="2"/>
+          <circle cx="90" cy="70" r="4" fill="var(--supporting)"/>
+          <text x="90" y="62" text-anchor="middle" font-size="6" fill="var(--supporting)">sweet spot</text>
+          <text x="170" y="100" font-size="7" fill="var(--primary)">train</text>
+          <text x="170" y="28" font-size="7" fill="var(--warning)">val</text>
+        </svg>
+        <p style="margin-top:8px">Training keeps improving; validation diverges → overfitting</p>
+      </div>
+      <div class="analogy-divider"></div>
+      <div class="analogy-side analogy">
+        <h4>📝 The Analogy: Cramming vs. Learning</h4>
+        <svg viewBox="0 0 200 130" style="width:100%;max-width:200px;margin:0 auto;display:block">
+          <rect x="20" y="30" width="50" height="50" rx="6" fill="rgba(37,99,235,0.1)" stroke="var(--primary)" stroke-width="1.5"/>
+          <text x="45" y="58" text-anchor="middle" font-size="18">📚</text>
+          <text x="45" y="92" text-anchor="middle" font-size="7" fill="var(--primary)">Memorizing</text>
+          <text x="45" y="102" text-anchor="middle" font-size="7" fill="var(--primary)">past exams</text>
+          <rect x="130" y="30" width="50" height="50" rx="6" fill="rgba(16,185,129,0.1)" stroke="var(--supporting)" stroke-width="1.5"/>
+          <text x="155" y="58" text-anchor="middle" font-size="18">💡</text>
+          <text x="155" y="92" text-anchor="middle" font-size="7" fill="var(--supporting)">Understanding</text>
+          <text x="155" y="102" text-anchor="middle" font-size="7" fill="var(--supporting)">concepts</text>
+          <text x="100" y="120" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Which works on new questions?</text>
+        </svg>
+        <p style="margin-top:8px">Memorization fails on new problems; understanding generalizes</p>
+      </div>
+    </div>
+    <div class="analogy-explanation">
+      <strong>Why it works:</strong> A student who memorizes past exam answers aces the practice test (low training loss) but fails the real exam with new questions (high validation loss). A student who understands the concepts does well on both. Overfitting is the neural network equivalent of cramming — high performance on seen data, poor performance on unseen data.
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">📊 The Overfitting Diagnosis Chart</span>
+    <div class="diagram-container">
+      <svg viewBox="0 0 560 260" aria-label="Line chart showing training and validation loss over epochs">
+        <line x1="60" y1="220" x2="540" y2="220" stroke="var(--text-secondary)" stroke-width="1.5"/>
+        <line x1="60" y1="220" x2="60" y2="20" stroke="var(--text-secondary)" stroke-width="1.5"/>
+        <text x="300" y="250" text-anchor="middle" font-size="12" fill="var(--text-secondary)">Training Epochs →</text>
+        <text x="25" y="120" text-anchor="middle" font-size="12" fill="var(--text-secondary)" transform="rotate(-90 25 120)">Loss →</text>
+        <line x1="60" y1="50" x2="540" y2="50" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <line x1="60" y1="100" x2="540" y2="100" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <line x1="60" y1="150" x2="540" y2="150" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <path d="M 60 40 Q 120 80 180 120 Q 240 160 300 180 Q 360 195 420 200 Q 480 205 540 208" fill="none" stroke="var(--primary)" stroke-width="2.5"/>
+        <path d="M 60 50 Q 120 85 180 115 Q 240 140 280 145 Q 300 145 320 140 Q 360 125 400 100 Q 440 75 480 55 Q 520 40 540 35" fill="none" stroke="var(--warning)" stroke-width="2.5"/>
+        <circle cx="280" cy="145" r="6" fill="var(--supporting)" stroke="var(--surface)" stroke-width="2"/>
+        <line x1="280" y1="220" x2="280" y2="155" stroke="var(--supporting)" stroke-width="1" stroke-dasharray="3,3"/>
+        <text x="280" y="240" text-anchor="middle" font-size="10" fill="var(--supporting)" font-weight="bold">↓ Early Stop Here</text>
+        <rect x="280" y="20" width="260" height="200" fill="rgba(239,68,68,0.05)" stroke="none"/>
+        <text x="410" y="40" text-anchor="middle" font-size="10" fill="var(--danger)" font-weight="600">⚠️ Overfitting Zone</text>
+        <rect x="60" y="20" width="220" height="200" fill="rgba(16,185,129,0.05)" stroke="none"/>
+        <text x="170" y="40" text-anchor="middle" font-size="10" fill="var(--supporting)" font-weight="600">✓ Healthy Learning</text>
+        <rect x="380" y="215" width="10" height="3" fill="var(--primary)"/>
+        <text x="396" y="220" font-size="10" fill="var(--text)">Training Loss</text>
+        <rect x="470" y="215" width="10" height="3" fill="var(--warning)"/>
+        <text x="486" y="220" font-size="10" fill="var(--text)">Validation Loss</text>
+      </svg>
+      <p class="diagram-caption">The validation loss diverging from training loss is the classic overfitting signal. The green dot marks where early stopping should occur.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">❌ What People Get Wrong</span>
+    <div class="misconception" onclick="toggleMisconception(this)">
+      <div class="misconception-header">
+        <span>🤔 "99% training accuracy means my model is excellent"</span>
+        <span class="misconception-toggle">▼</span>
+      </div>
+      <div class="misconception-body">
+        <div class="misconception-content">
+          <div class="myth">❌ Myth: High training accuracy is a sign of a successful model.</div>
+          <div class="truth">✅ Truth: 99% training accuracy with 70% validation accuracy means your model is overfitting — it has memorized the training data without learning generalizable patterns.</div>
+          <div class="reasoning">💡 Training accuracy alone tells you nothing about real-world performance. A model that perfectly memorizes the training set is like a student who memorizes answer keys — useless when faced with new questions. Always evaluate on held-out data. The gap between training and validation performance is the key diagnostic: a small gap suggests good generalization; a large gap screams overfitting.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">⭐ Why This Matters</span>
+    <div class="why-matters">
+      <p>Generalization — performing well on <em>unseen</em> data — is the entire point of machine learning. A model that only works on its training data is worthless. Every real-world AI failure, from biased hiring algorithms to self-driving car accidents, traces back to a generalization gap. Understanding overfitting is understanding the difference between a model that works in the lab and one that works in the world. This is not a niche concern — it is the central challenge of all of machine learning.</p>
+    </div>
+  </div>
+  <div class="subsection">
+    <span class="subsection-label">🔗 Connection</span>
+    <div class="inter-link">
+      <strong>🔗 This connects back to Module 1</strong> because the fundamental unit — the neuron — is where overfitting starts. Too many neurons with too few training examples means too much capacity to memorize. The entire training loop (forward pass → loss → backprop → gradient descent → repeat) is a constant battle between fitting the data and generalizing beyond it. Understanding all six modules together gives you the complete picture of how neural networks learn.
+    </div>
+  </div>
+</section>
+
+<section class="quick-recall" id="recall-3">
+  <h3>⚡ Quick Recall: Modules 5–6</h3>
+  <p class="subtitle">Final cumulative check before the assessment.</p>
+  <div class="quiz-container" id="recall-quiz-3"></div>
+</section>
+
+<section class="module" id="flashcards-section">
+  <div class="module-header">
+    <div class="module-badge" style="background:var(--supporting)">🎴</div>
+    <div>
+      <h2 class="module-title">Interactive Flashcards</h2>
+      <p class="module-subtitle">Click to flip. Mark as mastered when you know it cold.</p>
+    </div>
+  </div>
+  <div class="flashcard-deck" id="flashcard-deck"></div>
+</section>
+
+<section class="module" id="dnd-section">
+  <div class="module-header">
+    <div class="module-badge" style="background:var(--supporting)">🧩</div>
+    <div>
+      <h2 class="module-title">Match Concepts to Definitions</h2>
+      <p class="module-subtitle">Drag each concept on the left to its correct definition on the right</p>
+    </div>
+  </div>
+  <div class="dnd-container" id="dnd-container">
+    <div class="dnd-column">
+      <h4>Concepts (drag these)</h4>
+      <div class="dnd-items" id="dnd-items"></div>
+    </div>
+    <div class="dnd-column">
+      <h4>Definitions (drop here)</h4>
+      <div class="dnd-items" id="dnd-slots"></div>
+    </div>
+  </div>
+  <button class="dnd-reset" onclick="resetDnD()">🔄 Reset Matching</button>
+</section>
+
+<section class="module" id="teach-back-section">
+  <div class="module-header">
+    <div class="module-badge" style="background:var(--warning)">✍️</div>
+    <div>
+      <h2 class="module-title">Explain It to a 5-Year-Old</h2>
+      <p class="module-subtitle">The Feynman Technique: if you can explain it simply, you truly understand it</p>
+    </div>
+  </div>
+  <div class="teach-back">
+    <div class="tb-input-area">
+      <h4>Explain "How a neural network learns" in your own words</h4>
+      <p>Write as if you're talking to a curious child. Use simple language, no jargon. Try to cover the key ideas: inputs, weights, making predictions, measuring mistakes, and improving.</p>
+      <textarea class="tb-textarea" id="tb-textarea" placeholder="A neural network is like..."></textarea>
+      <button class="tb-submit" onclick="checkTeachBack()">Check My Explanation</button>
+    </div>
+    <div class="tb-result" id="tb-result">
+      <div class="tb-score" id="tb-score"></div>
+      <div class="tb-keywords" id="tb-keywords"></div>
+      <div class="tb-expert">
+        <h5>📖 Expert Explanation</h5>
+        <p id="tb-expert-text"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="spaced-rep">
+  <h2 style="font-size:1.4rem;color:var(--text);margin-bottom:4px">📅 Spaced Repetition Schedule</h2>
+  <p style="font-size:.9rem;color:var(--text-secondary);margin-bottom:8px">Review at these intervals to move knowledge into long-term memory. Click each interval when you've completed the review.</p>
+  <div class="sr-schedule" id="sr-schedule">
+    <div class="sr-interval" onclick="toggleSR(this)" data-interval="1min">
+      <div class="sr-time">1 min</div>
+      <div class="sr-label">Immediate</div>
+      <div class="sr-prompt">Recall the 5 steps of a neuron</div>
+    </div>
+    <div class="sr-interval" onclick="toggleSR(this)" data-interval="10min">
+      <div class="sr-time">10 min</div>
+      <div class="sr-label">Short-term</div>
+      <div class="sr-prompt">Sketch forward propagation</div>
+    </div>
+    <div class="sr-interval" onclick="toggleSR(this)" data-interval="1hour">
+      <div class="sr-time">1 hour</div>
+      <div class="sr-label">Working memory</div>
+      <div class="sr-prompt">Explain loss in your own words</div>
+    </div>
+    <div class="sr-interval" onclick="toggleSR(this)" data-interval="1day">
+      <div class="sr-time">1 day</div>
+      <div class="sr-label">Consolidation</div>
+      <div class="sr-prompt">Why does backprop use chain rule?</div>
+    </div>
+    <div class="sr-interval" onclick="toggleSR(this)" data-interval="3days">
+      <div class="sr-time">3 days</div>
+      <div class="sr-label">Strengthening</div>
+      <div class="sr-prompt">What learning rate is too high?</div>
+    </div>
+    <div class="sr-interval" onclick="toggleSR(this)" data-interval="1week">
+      <div class="sr-time">1 week</div>
+      <div class="sr-label">Long-term</div>
+      <div class="sr-prompt">How do you detect overfitting?</div>
+    </div>
+  </div>
+</section>
+
+<section class="cheat-sheet" id="summary">
+  <h2>📋 Summary & Cheat Sheet</h2>
+  <div class="cheat-grid">
+    <div class="cheat-card">
+      <h4>🔵 Module 1: The Neuron</h4>
+      <ul>
+        <li><strong>Formula:</strong> <span class="cheat-formula">y = f(Σ(wᵢ·xᵢ) + b)</span></li>
+        <li><strong>Weights:</strong> learned importance of each input</li>
+        <li><strong>Bias:</strong> baseline tendency to fire</li>
+        <li><strong>Activation:</strong> introduces non-linearity (ReLU, sigmoid, tanh)</li>
+        <li><strong>Key insight:</strong> the atom of all neural networks</li>
+      </ul>
+    </div>
+    <div class="cheat-card">
+      <h4>➡️ Module 2: Forward Propagation</h4>
+      <ul>
+        <li><strong>Flow:</strong> input → hidden layers → output</li>
+        <li><strong>Each layer:</strong> matrix multiply + bias + activation</li>
+        <li><strong>Cache activations</strong> for backprop</li>
+        <li><strong>Output layer:</strong> softmax for classification, linear for regression</li>
+        <li><strong>Key insight:</strong> prediction only; no learning here</li>
+      </ul>
+    </div>
+    <div class="cheat-card">
+      <h4>📉 Module 3: Loss Functions</h4>
+      <ul>
+        <li><strong>MSE:</strong> <span class="cheat-formula">L = (1/n)Σ(ŷ - y)²</span></li>
+        <li><strong>Cross-Entropy:</strong> for classification</li>
+        <li><strong>Penalizes</strong> confident wrong predictions heavily</li>
+        <li><strong>Loss = 0</strong> means perfect prediction</li>
+        <li><strong>Key insight:</strong> defines what "good" means</li>
+      </ul>
+    </div>
+    <div class="cheat-card">
+      <h4>⬅️ Module 4: Backpropagation</h4>
+      <ul>
+        <li><strong>Computes:</strong> ∂L/∂w for every weight</li>
+        <li><strong>Uses:</strong> chain rule of calculus</li>
+        <li><strong>Direction:</strong> output layer → input layer</li>
+        <li><strong>Does NOT update weights</strong> — only computes gradients</li>
+        <li><strong>Key insight:</strong> the measurement, not the action</li>
+      </ul>
+    </div>
+    <div class="cheat-card">
+      <h4>🏔️ Module 5: Gradient Descent</h4>
+      <ul>
+        <li><strong>Update rule:</strong> <span class="cheat-formula">w = w - α × ∂L/∂w</span></li>
+        <li><strong>Learning rate (α):</strong> controls step size</li>
+        <li><strong>Too high:</strong> loss bounces, may diverge</li>
+        <li><strong>Too low:</strong> painfully slow convergence</li>
+        <li><strong>Key insight:</strong> the engine of learning</li>
+      </ul>
+    </div>
+    <div class="cheat-card">
+      <h4>⚖️ Module 6: Overfitting</h4>
+      <ul>
+        <li><strong>Signal:</strong> train loss ↓, val loss ↑</li>
+        <li><strong>Early stopping:</strong> halt at the divergence point</li>
+        <li><strong>Regularization:</strong> L1/L2 penalize large weights</li>
+        <li><strong>Dropout:</strong> randomly disable neurons during training</li>
+        <li><strong>Key insight:</strong> generalization > training accuracy</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="knowledge-map-section">
+  <h2>🗺️ Your Knowledge Map — Complete</h2>
+  <p class="subtitle">You've traveled through all six modules. Click any node to revisit.</p>
+  <svg class="km-svg" viewBox="0 0 800 280" aria-label="Completed knowledge map">
+    <path class="km-edge" d="M 120 140 Q 200 100 280 140" />
+    <path class="km-edge" d="M 280 140 Q 360 100 440 140" />
+    <path class="km-edge" d="M 440 140 Q 520 100 600 140" />
+    <path class="km-edge" d="M 600 140 Q 660 200 700 220" />
+    <path class="km-edge" d="M 700 220 Q 600 250 200 250 Q 100 240 120 140" />
+    <path class="km-edge" d="M 120 140 Q 350 40 600 140" stroke-dasharray="5,4" />
+    <path class="km-edge" d="M 440 140 Q 500 200 700 220" stroke-dasharray="5,4" />
+    <g class="km-node" onclick="scrollToModule('module-1')"><circle class="km-node-circle" cx="120" cy="140" r="35" fill="var(--supporting)" stroke="var(--supporting)"/><text class="km-node-text" x="120" y="135" fill="#fff">Module 1</text><text class="km-node-text" x="120" y="150" style="font-size:10px" fill="#fff">Neuron</text></g>
+    <g class="km-node" onclick="scrollToModule('module-2')"><circle class="km-node-circle" cx="280" cy="140" r="35" fill="var(--supporting)" stroke="var(--supporting)"/><text class="km-node-text" x="280" y="135" fill="#fff">Module 2</text><text class="km-node-text" x="280" y="150" style="font-size:10px" fill="#fff">Forward</text></g>
+    <g class="km-node" onclick="scrollToModule('module-3')"><circle class="km-node-circle" cx="440" cy="140" r="35" fill="var(--supporting)" stroke="var(--supporting)"/><text class="km-node-text" x="440" y="135" fill="#fff">Module 3</text><text class="km-node-text" x="440" y="150" style="font-size:10px" fill="#fff">Loss</text></g>
+    <g class="km-node" onclick="scrollToModule('module-4')"><circle class="km-node-circle" cx="600" cy="140" r="35" fill="var(--supporting)" stroke="var(--supporting)"/><text class="km-node-text" x="600" y="135" fill="#fff">Module 4</text><text class="km-node-text" x="600" y="150" style="font-size:10px" fill="#fff">Backprop</text></g>
+    <g class="km-node" onclick="scrollToModule('module-5')"><circle class="km-node-circle" cx="700" cy="220" r="35" fill="var(--supporting)" stroke="var(--supporting)"/><text class="km-node-text" x="700" y="215" fill="#fff">Module 5</text><text class="km-node-text" x="700" y="230" style="font-size:10px" fill="#fff">Gradient</text></g>
+    <g class="km-node" onclick="scrollToModule('module-6')"><circle class="km-node-circle" cx="200" cy="250" r="35" fill="var(--supporting)" stroke="var(--supporting)"/><text class="km-node-text" x="200" y="245" fill="#fff">Module 6</text><text class="km-node-text" x="200" y="260" style="font-size:10px" fill="#fff">Overfit</text></g>
+  </svg>
+</section>
+
+<section class="assessment-section" id="assessment">
+  <div class="assessment-header">
+    <h2>🎯 Test Your Knowledge</h2>
+    <p>15 questions covering all modules. Detailed feedback for every answer.</p>
+  </div>
+  <div class="quiz-container" id="final-assessment"></div>
+  <div class="assessment-results" id="assessment-results">
+    <div class="score" id="final-score">0/15</div>
+    <div class="grade" id="final-grade"></div>
+    <div class="message" id="final-message"></div>
+  </div>
+</section>
+
+<section class="faq-section" id="faq">
+  <h2 style="font-size:1.5rem;color:var(--text);margin-bottom:16px">🤔 Still Confused? FAQ</h2>
+  <div id="faq-container"></div>
+</section>
+
+<section class="next-steps" id="next-steps">
+  <h2>🚀 Next Steps: Where to Go From Here</h2>
+  <p style="font-size:.9rem;color:var(--text-secondary)">You now understand the fundamentals. Here's where to deepen your knowledge:</p>
+  <div class="ns-list">
+    <div class="ns-item"><h4>📊 Optimization Algorithms</h4><p>Explore Adam, RMSprop, SGD with momentum — how they improve on vanilla gradient descent.</p></div>
+    <div class="ns-item"><h4>🏗️ CNN Architectures</h4><p>How convolutional layers use the neuron concept to process images efficiently.</p></div>
+    <div class="ns-item"><h4>🔄 RNNs & Transformers</h4><p>How neurons are arranged to handle sequential data and language.</p></div>
+    <div class="ns-item"><h4>🎛️ Hyperparameter Tuning</h4><p>Learning rate schedules, batch size, architecture search — the practical art.</p></div>
+    <div class="ns-item"><h4>🧪 Regularization Deep Dive</h4><p>Batch normalization, data augmentation, label smoothing, and more.</p></div>
+    <div class="ns-item"><h4>💻 Build One From Scratch</h4><p>Implement a neural network in NumPy to solidify your understanding.</p></div>
+  </div>
+</section>
+
+</main>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modal-title"></h3>
+    <div id="modal-content"></div>
+    <button class="modal-close" onclick="closeModal()">Got it!</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// HOW NEURAL NETWORKS LEARN — INTERACTIVE LESSON JAVASCRIPT
+// ============================================================
+
+// ===== FAILSAFE: Hide loader immediately if anything fails =====
+function hideLoader() {
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+    setTimeout(function() {
+      overlay.classList.add('gone');
+    }, 600);
+  }
+}
+
+// Failsafe timer — will fire no matter what
+setTimeout(hideLoader, 2000);
+
+// ===== DATA =====
+var flashcardsData = [
+  {front:"What does a neuron compute?",back:"Weighted sum of inputs + bias, passed through an activation function: y = f(Σ(wᵢ·xᵢ) + b)"},
+  {front:"What is the role of the activation function?",back:"It introduces non-linearity, allowing the network to learn complex patterns. Without it, stacked layers collapse to a single linear function."},
+  {front:"What happens during forward propagation?",back:"Data flows from input through hidden layers to output. Each layer computes weighted sums + activations. No learning occurs — it's the prediction phase."},
+  {front:"What is a loss function?",back:"A mathematical measure of how wrong the prediction is. MSE for regression, cross-entropy for classification. It's the compass for learning."},
+  {front:"What does backpropagation compute?",back:"The gradient (partial derivative) of loss with respect to every weight, using the chain rule. It measures how each weight contributes to the error."},
+  {front:"Does backpropagation update weights?",back:"No! It only computes gradients. The optimizer (e.g., gradient descent) uses those gradients to actually update weights."},
+  {front:"What is the gradient descent update rule?",back:"w_new = w_old - α × (∂L/∂w), where α is the learning rate controlling step size."},
+  {front:"What happens if the learning rate is too high?",back:"The model overshoots the loss minimum — loss bounces wildly and may diverge instead of converging."},
+  {front:"How do you detect overfitting?",back:"Training loss keeps decreasing while validation loss starts increasing. The model is memorizing, not generalizing."},
+  {front:"Name three techniques to combat overfitting.",back:"Early stopping, dropout (randomly disabling neurons), L1/L2 regularization, data augmentation, or reducing model complexity."},
+  {front:"What is the chain rule's role in backpropagation?",back:"It allows computing how early-layer weights affect final loss by multiplying local derivatives backward through the network."},
+  {front:"Why do we cache activations during forward pass?",back:"They're needed during backpropagation to compute weight gradients efficiently: ∂L/∂w = δ × a_prev (the cached activation)."}
+];
+
+var recallQuiz1Data = [
+  {question:"What is the mathematical operation a single neuron performs?",options:["Multiplies inputs by weights, sums them, adds bias, applies activation","Adds all inputs together and divides by the number of inputs","Finds the maximum input and outputs that value","Applies a random transformation to the input data"],correct:0,explanations:["✅ Correct! The neuron computes y = f(Σ(wᵢ·xᵢ) + b) — weighted sum, plus bias, through an activation function.","❌ That's a simple average, not a neuron. A neuron applies weights (importance) and a non-linear activation.","❌ That describes a max-pooling operation, not a neuron. Neurons compute weighted sums.","❌ Neural networks are deterministic, not random. The weights are learned, but the computation is a fixed formula."]},
+  {question:"During forward propagation, what does each hidden layer do?",options:["Updates weights to reduce loss","Receives previous layer's outputs, computes new activations, passes them forward","Computes gradients using the chain rule","Compares predictions to ground truth"],correct:1,explanations:["❌ Weight updates happen during backpropagation + gradient descent, not forward propagation.","✅ Correct! Each hidden layer receives activations from the previous layer, computes its own weighted sum + activation, and passes results to the next layer.","❌ Gradients are computed during backpropagation (backward pass), not forward propagation.","❌ Comparing predictions to truth is the loss function's job, which happens after the forward pass completes."]}
+];
+
+var recallQuiz2Data = [
+  {question:"What does a loss function measure?",options:["The number of parameters in the model","The speed of training","The difference between predictions and actual values","The number of layers in the network"],correct:2,explanations:["❌ Parameter count is a model property, not a loss. Loss measures prediction error.","❌ Training speed relates to computation time, not prediction quality. Loss measures error.","✅ Correct! The loss function quantifies how far predictions are from ground truth. Lower loss = better predictions.","❌ Layer count is architecture, not loss. Loss is computed from predictions vs. actual values."]},
+  {question:"What is the chain rule used for in backpropagation?",options:["To speed up the forward pass","To compute how each weight affects the final loss by combining local derivatives","To initialize weights randomly","To choose the activation function"],correct:1,explanations:["❌ The chain rule doesn't affect forward pass speed. It's used in the backward pass.","✅ Correct! Since a network is a composition of functions, the chain rule lets us multiply local derivatives to find how early weights affect final loss.","❌ Weight initialization uses methods like Xavier or He initialization, not the chain rule.","❌ Activation function choice is a design decision, not computed by the chain rule."]}
+];
+
+var recallQuiz3Data = [
+  {question:"What does gradient descent do with the gradients from backpropagation?",options:["Stores them for later analysis","Uses them to update weights in the direction that reduces loss","Deletes them to save memory","Sends them to the next batch of data"],correct:1,explanations:["❌ Gradients aren't just stored — they're actively used to update weights. Storing alone wouldn't change the model.","✅ Correct! Gradient descent moves each weight opposite to its gradient: w = w - α × ∂L/∂w, reducing loss step by step.","❌ Gradients are immediately useful — deleting them would waste the computation. They drive weight updates.","❌ Gradients don't get sent to data. They're used to update the model's weights."]},
+  {question:"How do you detect overfitting during training?",options:["Training accuracy reaches 100%","Training loss decreases but validation loss starts increasing","The model trains very slowly","The learning rate is too high"],correct:1,explanations:["❌ 100% training accuracy alone doesn't indicate overfitting — it might indicate a good model. You need to compare to validation performance.","✅ Correct! The divergence — training loss decreasing while validation loss increases — is the classic overfitting signal. The model is memorizing, not generalizing.","❌ Slow training might indicate a low learning rate or complex model, not overfitting. Overfitting is about the train/val gap.","❌ A high learning rate causes loss bouncing, not overfitting. Overfitting is about generalization gap."]}
+];
+
+var finalAssessmentData = [
+  {question:"What is the fundamental computation performed by a single artificial neuron?",options:["y = f(Σ(wᵢ·xᵢ) + b)","y = max(x₁, x₂, ..., xₙ)","y = average of all inputs","y = random transformation of inputs"],correct:0,explanations:["✅ Correct! A neuron computes the weighted sum of inputs plus bias, passed through a non-linear activation function.","❌ This is max-pooling, not a neuron operation. Neurons compute weighted sums.","❌ This is a simple average. A neuron applies different weights to each input.","❌ Neural networks are deterministic. Weights are learned, but the computation follows a fixed formula."]},
+  {question:"Why is the activation function necessary in a neural network?",options:["To speed up computation","To introduce non-linearity, enabling the network to learn complex patterns","To initialize weights","To reduce the number of parameters"],correct:1,explanations:["❌ Activation functions don't speed up computation — they add computation. Their purpose is non-linearity.","✅ Correct! Without non-linear activations, stacking layers produces only a linear function, unable to learn complex patterns.","❌ Weight initialization uses methods like Xavier/He initialization, not activation functions.","❌ Activation functions don't reduce parameters. They transform the output of the weighted sum."]},
+  {question:"During forward propagation, what flows through the network?",options:["Gradients flowing backward","Activations (computed outputs) flowing forward from layer to layer","Weight updates flowing to the optimizer","Loss values flowing to the input"],correct:1,explanations:["❌ Gradients flow backward during backpropagation, not forward during forward propagation.","✅ Correct! Forward propagation sends activations (layer outputs) from input through hidden layers to the output.","❌ Weight updates happen after backpropagation, not during the forward pass.","❌ Loss is computed at the output, not flowing to the input during forward propagation."]},
+  {question:"Which loss function is typically used for classification tasks?",options:["Mean Squared Error (MSE)","Cross-Entropy Loss","Mean Absolute Error (MAE)","R² Score"],correct:1,explanations:["❌ MSE is typically used for regression (continuous values), not classification.","✅ Correct! Cross-entropy loss is standard for classification — it heavily penalizes confident wrong predictions.","❌ MAE is another regression loss, not typically used for classification.","❌ R² is a metric (not a loss function) used to evaluate regression models."]},
+  {question:"What does backpropagation compute?",options:["New weight values","Gradients (partial derivatives of loss w.r.t. each weight)","The forward pass activations","The learning rate"],correct:1,explanations:["❌ Backpropagation doesn't set new weights — the optimizer does. Backprop only computes gradients.","✅ Correct! Backpropagation computes ∂L/∂w for every weight using the chain rule.","❌ Forward pass activations are computed during forward propagation, not backpropagation.","❌ The learning rate is a hyperparameter set by the practitioner, not computed by backpropagation."]},
+  {question:"What is the gradient descent weight update rule?",options:["w = w + α × ∂L/∂w","w = w - α × ∂L/∂w","w = α × ∂L/∂w","w = w × α"],correct:1,explanations:["❌ This moves in the direction of increasing loss (uphill). We want to decrease loss, so we subtract.","✅ Correct! We subtract the scaled gradient: w = w - α × ∂L/∂w. This moves weights in the direction that reduces loss.","❌ This replaces the weight entirely with the scaled gradient, losing the current weight value.","❌ This simply scales the weight by the learning rate, ignoring gradient information entirely."]},
+  {question:"What happens if the learning rate is set too high?",options:["The model trains perfectly","The model converges slowly but surely","Loss bounces wildly and may diverge — overshooting the minimum","The model automatically adjusts the learning rate"],correct:2,explanations:["❌ A too-high learning rate rarely produces perfect training — it usually causes instability.","❌ Slow convergence is a sign of too LOW a learning rate, not too high.","✅ Correct! Too high a learning rate causes steps so large they overshoot the loss minimum.","❌ Standard gradient descent doesn't auto-adjust the learning rate."]},
+  {question:"What is the classic sign of overfitting?",options:["Both training and validation loss decrease steadily","Training loss decreases while validation loss increases","The model trains very quickly","Training accuracy is low"],correct:1,explanations:["❌ Both losses decreasing is healthy learning, not overfitting.","✅ Correct! When training loss keeps dropping but validation loss rises, the model is memorizing training data.","❌ Training speed is unrelated to overfitting.","❌ Low training accuracy suggests underfitting (model too simple), not overfitting."]},
+  {question:"Which technique helps combat overfitting by randomly disabling neurons during training?",options:["Batch Normalization","Dropout","Data Augmentation","Learning Rate Scheduling"],correct:1,explanations:["❌ Batch normalization normalizes layer inputs to stabilize training.","✅ Correct! Dropout randomly sets a fraction of neurons to zero during each training step.","❌ Data augmentation creates new training examples by transforming existing ones.","❌ Learning rate scheduling adjusts the learning rate over time."]},
+  {question:"In the analogy of a neuron as a voting committee, what do the weights represent?",options:["The number of voters","How much the judge trusts each voter","The final decision","The voting location"],correct:1,explanations:["❌ The number of voters corresponds to the number of inputs, not the weights.","✅ Correct! Weights represent how much each input (voter) is trusted.","❌ The final decision is the neuron's output, not the weights.","❌ There's no 'voting location' analog in a neuron."]},
+  {question:"What is the 'vanishing gradient' problem?",options:["Gradients become too large, causing instability","Gradients shrink to near-zero in early layers, preventing them from learning","The model runs out of memory for gradients","Gradients disappear because the learning rate is zero"],correct:1,explanations:["❌ Too-large gradients cause the 'exploding gradient' problem, not vanishing gradients.","✅ Correct! In deep networks, the chain rule multiplication can shrink gradients to near-zero as they propagate backward.","❌ Memory isn't the issue — it's the mathematical shrinking of gradient values.","❌ A zero learning rate would stop all training, but vanishing gradients occur even with proper learning rates."]},
+  {question:"Why do we cache (store) activations during the forward pass?",options:["To save memory","They're needed during backpropagation to compute weight gradients efficiently","To display them to users","To initialize the next training run"],correct:1,explanations:["❌ Caching actually USES more memory, not less. It's a speed-memory tradeoff.","✅ Correct! Computing ∂L/∂w requires the input that flowed through that weight (the previous layer's activation).","❌ Activations are intermediate computational values, not displayed to users.","❌ Cached activations are specific to the current batch and aren't used for future training runs."]},
+  {question:"What does MSE stand for and when is it used?",options:["Maximum Squared Error — used for classification","Mean Squared Error — used for regression tasks","Model Selection Error — used for architecture search","Multi-Stage Estimation — used for deep networks"],correct:1,explanations:["❌ MSE is not 'Maximum Squared Error.'","✅ Correct! Mean Squared Error averages the squared differences between predictions and targets. It's the standard loss for regression.","❌ MSE is a loss function, not a model selection metric.","❌ MSE isn't 'Multi-Stage Estimation.' It's a specific loss formula: L = (1/n)Σ(ŷ-y)²."]},
+  {question:"What is 'early stopping'?",options:["Stopping training when validation loss starts increasing, before overfitting worsens","Stopping training when the computer runs out of memory","Stopping training after exactly 100 epochs","Stopping training when training loss reaches zero"],correct:0,explanations:["✅ Correct! Early stopping monitors validation loss and halts training when it starts rising.","❌ Memory issues are a practical problem, not the definition of early stopping.","❌ There's no magic epoch number. Early stopping is based on validation loss behavior.","❌ Zero training loss might mean severe overfitting. Early stopping prevents reaching this point."]},
+  {question:"Which statement best captures the relationship between backpropagation and gradient descent?",options:["They are the same thing","Backpropagation computes gradients; gradient descent uses them to update weights","Gradient descent computes gradients; backpropagation updates weights","They operate independently and don't interact"],correct:1,explanations:["❌ They are distinct algorithms with different roles. Confusing them is a common misconception.","✅ Correct! Backpropagation = measurement (computes ∂L/∂w for all weights). Gradient descent = action (uses those gradients to update weights).","❌ This reverses the roles. Backprop computes gradients; the optimizer applies them.","❌ They must work together — backprop's gradients are meaningless without an optimizer to use them."]}
+];
+
+var faqData = [
+  {q:"What's the difference between a neuron and a perceptron?",a:"A perceptron is the simplest type of neuron — it uses a step function as activation and can only learn linearly separable patterns. Modern neurons use differentiable activation functions (ReLU, sigmoid, tanh) that allow gradient-based learning and non-linear pattern recognition. All perceptrons are neurons, but not all neurons are perceptrons."},
+  {q:"Why is ReLU the most popular activation function?",a:"ReLU (Rectified Linear Unit) outputs max(0, x). It's popular because: (1) it's computationally cheap — just a comparison, (2) it doesn't saturate for positive values, avoiding the vanishing gradient problem that plagues sigmoid/tanh, and (3) it induces sparsity — any negative input produces exactly zero, which can be beneficial. Its main drawback is the 'dying ReLU' problem where neurons can get stuck outputting zero permanently."},
+  {q:"What's the difference between batch, mini-batch, and stochastic gradient descent?",a:"Batch gradient descent computes gradients over the entire training set before each update — accurate but slow and memory-intensive. Stochastic gradient descent (SGD) updates after every single sample — fast but noisy. Mini-batch gradient descent (the standard approach) uses a small batch (32–512 samples) — a practical compromise that balances speed, stability, and memory efficiency."},
+  {q:"How do I choose the right learning rate?",a:"Start with a common default (0.001 for Adam, 0.01 for SGD). If loss decreases too slowly, increase it. If loss bounces or diverges, decrease it. Many practitioners use learning rate schedules (decreasing over time) or adaptive optimizers (Adam, which adjusts per-parameter). A learning rate finder — gradually increasing the rate and plotting loss — can identify a good range. When in doubt, go lower; slow progress is better than divergence."},
+  {q:"What's the difference between L1 and L2 regularization?",a:"Both add a penalty to the loss function to discourage large weights. L1 (Lasso) adds |w|, which tends to produce sparse weights (many exactly zero) — useful for feature selection. L2 (Ridge/Weight Decay) adds w², which shrinks all weights proportionally but rarely zeros them out. L2 is more common in deep learning; L1 is used when you want interpretability or feature selection. Elastic Net combines both."},
+  {q:"Why can't I just use a huge network for everything?",a:"A huge network has more capacity to memorize, which means higher overfitting risk on small datasets. It also requires more compute, memory, and training data. The right approach is matching model capacity to data complexity: small data → simple model; large data → can afford larger model. Techniques like transfer learning (starting from a pretrained model) let you use powerful architectures even with limited data."}
+];
+
+var dndData = [
+  {concept:"Weight",definition:"The learned importance multiplier for each input to a neuron"},
+  {concept:"Activation Function",definition:"Introduces non-linearity (e.g., ReLU, sigmoid) enabling complex pattern learning"},
+  {concept:"Loss Function",definition:"Measures the difference between predictions and true values (e.g., MSE, cross-entropy)"},
+  {concept:"Gradient",definition:"The partial derivative of loss w.r.t. a weight — tells direction and magnitude of update"},
+  {concept:"Learning Rate",definition:"Controls step size in gradient descent — too high overshoots, too low crawls"},
+  {concept:"Dropout",definition:"Randomly disables neurons during training to prevent overfitting and co-adaptation"}
+];
+
+var hotspotData = {
+  input:{title:"📥 Inputs (x₁, x₂, x₃)",content:"<p>Inputs are the numerical values fed into the neuron. They could be pixel intensities from an image, word embeddings from text, or outputs from neurons in the previous layer. Each input is a number — nothing more, nothing less.</p><p>In a layer, every neuron receives the <strong>same</strong> set of inputs but applies <strong>different</strong> weights, allowing each neuron to detect a different pattern.</p>"},
+  weight:{title:"⚖️ Weights (w₁, w₂, w₃)",content:"<p>Weights are the <strong>learned parameters</strong> of the network. Each input has its own weight, representing how important that input is to this particular neuron.</p><p>During training, weights are what actually change — that's what 'learning' means in neural networks. A high weight means the input strongly influences the output; a weight near zero means the input is largely ignored.</p>"},
+  sum:{title:"➕ Weighted Sum (Σ)",content:"<p>The summation node computes z = w₁·x₁ + w₂·x₂ + w₃·x₃ + b. This is a dot product of inputs and weights, plus the bias.</p><p>In matrix form, for an entire layer: <strong>z = W·x + b</strong>. This is why GPUs (optimized for matrix operations) are so efficient at running neural networks.</p>"},
+  bias:{title:"🎯 Bias (b)",content:"<p>The bias is a learnable parameter that shifts the activation threshold. Think of it as the neuron's 'baseline tendency to fire' regardless of inputs.</p><p>Without a bias, a neuron with all-zero inputs would always output zero (before activation). The bias allows the neuron to be active even when inputs are zero, giving the network more flexibility.</p>"},
+  activation:{title:"⚡ Activation Function f(z)",content:"<p>The activation function introduces <strong>non-linearity</strong>. Common choices:<br>• <strong>ReLU:</strong> f(x) = max(0, x) — simple, fast, most popular<br>• <strong>Sigmoid:</strong> f(x) = 1/(1+e⁻ˣ) — outputs 0 to 1<br>• <strong>Tanh:</strong> f(x) = tanh(x) — outputs -1 to 1</p><p>Without non-linear activation, stacking layers would produce only a linear function — useless for complex patterns.</p>"},
+  output:{title:"📤 Output (y)",content:"<p>The output is the neuron's final computed value. It gets passed to neurons in the next layer as one of their inputs.</p><p>If this is an <strong>output neuron</strong>, the value is the prediction — e.g., a probability for classification or a number for regression. If it's a <strong>hidden neuron</strong>, the output feeds forward to continue the computation.</p>"}
+};
+
+var layerInfoData = {
+  input:{title:"📥 Input Layer",content:"<p>The input layer receives raw data. Each neuron corresponds to one feature: a pixel value, a word embedding, a sensor reading, etc.</p><p><strong>No computation happens here</strong> — the input layer simply passes data to the first hidden layer. The number of input neurons is determined by your data format (e.g., 784 for a 28×28 image).</p>"},
+  hidden1:{title:"🔧 Hidden Layer 1",content:"<p>The first hidden layer learns to detect <strong>low-level features</strong> from the raw input. In image tasks, these might be simple edges and color gradients.</p><p>Each neuron applies its own set of weights to the full input, effectively learning to look for a specific pattern. Different neurons learn different patterns because they start with different random weights.</p>"},
+  hidden2:{title:"🔧 Hidden Layer 2",content:"<p>The second hidden layer receives the first layer's outputs and combines them into <strong>higher-level features</strong>. In image tasks, edges from layer 1 might combine into shapes, textures, or object parts.</p><p>This progressive abstraction — from pixels to edges to shapes to objects — is what gives deep learning its power. 'Deep' refers to having many such layers.</p>"},
+  output:{title:"📤 Output Layer",content:"<p>The output layer produces the final prediction. For classification, it typically uses <strong>softmax</strong> to produce a probability distribution (all outputs sum to 1).</p><p>For a 10-class problem (like digit recognition), there are 10 output neurons. The one with the highest probability is the predicted class. For regression, a single neuron with linear activation outputs a continuous value.</p>"}
+};
+
+var miniChallengeFeedback = {
+  mc1:{
+    correct:"<strong>✅ Correct!</strong> Spam keywords like 'FREE' should have high weight, sender reputation is useful but secondary, and ReLU is a solid default. The bias lets the neuron fire even when no spam signals are present but sender reputation is very low. This mirrors how real spam filters work — keyword presence is the strongest signal.",
+    incorrect1:"<strong>❌ Not quite.</strong> Equal weights mean no feature is prioritized, and a linear activation means the neuron can only learn a linear boundary. Spam detection requires non-linear decision boundaries (combinations of signals matter). You need different weights and a non-linear activation.",
+    incorrect2:"<strong>❌ Not quite.</strong> Attachments alone aren't a strong spam signal (legitimate emails have attachments too), and giving a negative weight to the spam keyword 'FREE' would make the neuron <em>less</em> likely to fire when it sees spam — the opposite of what you want. Sigmoid is fine, but the weights are wrong."
+  },
+  mc2:{
+    correct:"<strong>✅ Correct!</strong> Wildly bouncing loss (swinging between 0.8 and 2.5) is the textbook symptom of a learning rate that's too high. The optimizer is overshooting the minimum with every step. Reducing the learning rate (try dividing by 10) will give smaller, more controlled steps that converge steadily.",
+    incorrect1:"<strong>❌ Not quite.</strong> If the learning rate were too low, the loss would decrease very slowly but consistently — it wouldn't bounce wildly. The bouncing means steps are too large, not too small. Increasing the rate would make it worse.",
+    incorrect2:"<strong>❌ Not quite.</strong> Overfitting is diagnosed by a gap between training and validation loss, not by wild loss bouncing. Adding more layers would increase model capacity, which wouldn't fix the optimization instability. The problem is the learning rate, not the architecture."
+  }
+};
+
+var teachBackKeywords = ["input","weight","bias","activation","prediction","loss","error","gradient","update","learn","layer","adjust","improve","mistake"];
+var teachBackExpert = "A neural network is like a student learning to guess answers. It takes in information (inputs), and each piece of information has an importance dial (weight). The network combines all the important information, adds a baseline tendency (bias), and makes a guess (prediction) using a decision rule (activation). When the guess is wrong, the network measures how far off it was (loss/error). Then it figures out which importance dials caused the mistake (gradients) and nudges them slightly in the right direction (update). By repeating this process thousands of times — guess, measure mistake, adjust dials — the network gradually gets better and better. That's learning!";
+
+// ============================================================
+// INITIALIZATION — Run directly, no DOMContentLoaded needed
+// ============================================================
+(function init() {
+  // Hide loader after a brief delay
+  setTimeout(hideLoader, 600);
+  
+  try { initTheme(); } catch(e) { console.error('Theme init error:', e); }
+  try { initProgressTracking(); } catch(e) { console.error('Progress init error:', e); }
+  try { initFlashcards(); } catch(e) { console.error('Flashcards init error:', e); }
+  try { initDragAndDrop(); } catch(e) { console.error('DnD init error:', e); }
+  try { initQuiz('recall-quiz-1', recallQuiz1Data); } catch(e) { console.error('Quiz1 init error:', e); }
+  try { initQuiz('recall-quiz-2', recallQuiz2Data); } catch(e) { console.error('Quiz2 init error:', e); }
+  try { initQuiz('recall-quiz-3', recallQuiz3Data); } catch(e) { console.error('Quiz3 init error:', e); }
+  try { initFinalAssessment(); } catch(e) { console.error('Assessment init error:', e); }
+  try { initFAQ(); } catch(e) { console.error('FAQ init error:', e); }
+  try { initSpacedRepetition(); } catch(e) { console.error('SR init error:', e); }
+  try { initKeyboardNav(); } catch(e) { console.error('Keyboard init error:', e); }
+})();
+
+// ===== THEME =====
+function initTheme() {
+  var saved = localStorage.getItem('nn-lesson-theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+  updateThemeIcon(saved);
+}
+
+function toggleTheme() {
+  var current = document.documentElement.getAttribute('data-theme');
+  var next = current === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('nn-lesson-theme', next);
+  updateThemeIcon(next);
+}
+
+function updateThemeIcon(theme) {
+  var btn = document.querySelector('.theme-toggle');
+  if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+}
+
+// ===== PROGRESS =====
+function initProgressTracking() {
+  var modules = document.querySelectorAll('.module[data-module]');
+  var savedProgress = {};
+  try { savedProgress = JSON.parse(localStorage.getItem('nn-lesson-progress') || '{}'); } catch(e) {}
+  
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          var moduleId = entry.target.getAttribute('data-module');
+          entry.target.classList.add('visited');
+          savedProgress[moduleId] = true;
+          try { localStorage.setItem('nn-lesson-progress', JSON.stringify(savedProgress)); } catch(e) {}
+          updateProgressBar(savedProgress);
+        }
+      });
+    }, {threshold: 0.3});
+    
+    modules.forEach(function(m) {
+      if (savedProgress[m.getAttribute('data-module')]) {
+        m.classList.add('visited');
+      }
+      observer.observe(m);
+    });
+  }
+  
+  updateProgressBar(savedProgress);
+}
+
+function updateProgressBar(progress) {
+  var totalModules = 6;
+  var visitedCount = 0;
+  for (var k in progress) {
+    if (progress[k] && k.length <= 2) visitedCount++;
+  }
+  var percent = Math.round((visitedCount / totalModules) * 100);
+  
+  var fill = document.getElementById('progressFill');
+  var text = document.getElementById('progressText');
+  if (fill) fill.style.width = percent + '%';
+  if (text) text.textContent = percent + '% Complete';
+  
+  var badges = document.querySelectorAll('.badge');
+  if (percent > 0 && badges[0]) badges[0].classList.add('earned');
+  if (percent >= 33 && badges[1]) badges[1].classList.add('earned');
+  if (percent >= 67 && badges[2]) badges[2].classList.add('earned');
+  if (percent >= 100 && badges[3]) badges[3].classList.add('earned');
+}
+
+// ===== KNOWLEDGE MAP =====
+function scrollToModule(moduleId) {
+  var el = document.getElementById(moduleId);
+  if (el) {
+    el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    el.style.transition = 'box-shadow 0.3s';
+    el.style.boxShadow = '0 0 0 3px var(--primary)';
+    setTimeout(function() { el.style.boxShadow = ''; }, 1500);
+  }
+}
+
+function highlightConnections(moduleNum) {
+  var connections = {
+    '1': ['edge-1-2', 'edge-1-4'],
+    '2': ['edge-1-2', 'edge-2-3'],
+    '3': ['edge-2-3', 'edge-3-4', 'edge-3-6'],
+    '4': ['edge-3-4', 'edge-4-5', 'edge-1-4'],
+    '5': ['edge-4-5', 'edge-5-6'],
+    '6': ['edge-5-6', 'edge-3-6']
+  };
+  var edges = connections[moduleNum] || [];
+  edges.forEach(function(eid) {
+    var edge = document.getElementById(eid);
+    if (edge) edge.classList.add('highlight');
+  });
+}
+
+function clearHighlights() {
+  var edges = document.querySelectorAll('.km-edge.highlight');
+  edges.forEach(function(e) { e.classList.remove('highlight'); });
+}
+
+// ===== HOTSPOT =====
+function showHotspot(key) {
+  var data = hotspotData[key];
+  if (!data) return;
+  document.getElementById('modal-title').textContent = data.title;
+  document.getElementById('modal-content').innerHTML = data.content;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function showLayerInfo(key) {
+  var data = layerInfoData[key];
+  if (!data) return;
+  document.getElementById('modal-title').textContent = data.title;
+  document.getElementById('modal-content').innerHTML = data.content;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function closeModal(event) {
+  if (event && event.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('show');
+}
+
+// ===== MISCONCEPTION =====
+function toggleMisconception(el) {
+  el.classList.toggle('open');
+}
+
+// ===== ELABORATIVE =====
+function toggleElaborative(el) {
+  el.classList.toggle('open');
+}
+
+// ===== FLASHCARDS =====
+function initFlashcards() {
+  var deck = document.getElementById('flashcard-deck');
+  if (!deck) return;
+  var mastered = {};
+  try { mastered = JSON.parse(localStorage.getItem('nn-lesson-flashcards') || '{}'); } catch(e) {}
+  
+  flashcardsData.forEach(function(card, idx) {
+    var div = document.createElement('div');
+    div.className = 'flashcard';
+    if (mastered[idx]) div.classList.add('mastered');
+    div.innerHTML = 
+      '<div class="flashcard-inner">' +
+        '<div class="flashcard-face flashcard-front">' +
+          '<h4>Card ' + (idx + 1) + '</h4>' +
+          '<p>' + card.front + '</p>' +
+          '<div class="flashcard-controls">' +
+            '<button class="flashcard-btn" onclick="flipFlashcard(event, this)">Flip</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="flashcard-face flashcard-back">' +
+          '<h4>Answer</h4>' +
+          '<p>' + card.back + '</p>' +
+          '<div class="flashcard-controls">' +
+            '<button class="flashcard-btn" onclick="flipFlashcard(event, this)">Flip Back</button>' +
+            '<button class="flashcard-btn" onclick="masterFlashcard(event, ' + idx + ', this)">✓ Mastered</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    div.addEventListener('click', function(e) {
+      if (e.target.tagName !== 'BUTTON') {
+        this.classList.toggle('flipped');
+      }
+    });
+    deck.appendChild(div);
+  });
+}
+
+function flipFlashcard(event, btn) {
+  event.stopPropagation();
+  var card = btn.closest('.flashcard');
+  if (card) card.classList.toggle('flipped');
+}
+
+function masterFlashcard(event, idx, btn) {
+  event.stopPropagation();
+  var mastered = {};
+  try { mastered = JSON.parse(localStorage.getItem('nn-lesson-flashcards') || '{}'); } catch(e) {}
+  mastered[idx] = true;
+  try { localStorage.setItem('nn-lesson-flashcards', JSON.stringify(mastered)); } catch(e) {}
+  var card = btn.closest('.flashcard');
+  if (card) card.classList.add('mastered');
+  btn.textContent = '✓ Done!';
+}
+
+// ===== DRAG AND DROP =====
+function initDragAndDrop() {
+  var itemsContainer = document.getElementById('dnd-items');
+  var slotsContainer = document.getElementById('dnd-slots');
+  if (!itemsContainer || !slotsContainer) return;
+  
+  var shuffled = dndData.slice().sort(function() { return Math.random() - 0.5; });
+  
+  shuffled.forEach(function(item, idx) {
+    var div = document.createElement('div');
+    div.className = 'dnd-item';
+    div.draggable = true;
+    div.textContent = item.concept;
+    div.dataset.concept = item.concept;
+    div.id = 'dnd-item-' + idx;
+    
+    div.addEventListener('dragstart', function(e) {
+      this.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', this.dataset.concept);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    div.addEventListener('dragend', function() {
+      this.classList.remove('dragging');
+    });
+    
+    itemsContainer.appendChild(div);
+  });
+  
+  dndData.forEach(function(item, idx) {
+    var slot = document.createElement('div');
+    slot.className = 'dnd-slot';
+    slot.dataset.expected = item.concept;
+    slot.innerHTML = '<span style="color:var(--text-muted)">' + item.definition + '</span>';
+    
+    slot.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      this.classList.add('drag-over');
+    });
+    slot.addEventListener('dragleave', function() {
+      this.classList.remove('drag-over');
+    });
+    slot.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+      var concept = e.dataTransfer.getData('text/plain');
+      handleDrop(this, concept);
+    });
+    
+    slotsContainer.appendChild(slot);
+  });
+}
+
+function handleDrop(slot, concept) {
+  slot.innerHTML = '';
+  slot.classList.add('filled');
+  
+  var item = document.createElement('div');
+  item.className = 'dnd-item';
+  item.textContent = concept;
+  item.dataset.concept = concept;
+  slot.appendChild(item);
+  
+  var itemsContainer = document.getElementById('dnd-items');
+  if (itemsContainer) {
+    var children = itemsContainer.children;
+    for (var i = 0; i < children.length; i++) {
+      if (children[i].dataset.concept === concept) {
+        itemsContainer.removeChild(children[i]);
+        break;
+      }
+    }
+  }
+  
+  if (slot.dataset.expected === concept) {
+    slot.classList.add('correct');
+    slot.classList.remove('incorrect');
+  } else {
+    slot.classList.add('incorrect');
+    slot.classList.remove('correct');
+  }
+  
+  checkAllMatched();
+}
+
+function checkAllMatched() {
+  var slots = document.querySelectorAll('.dnd-slot');
+  var allCorrect = true;
+  var allFilled = true;
+  slots.forEach(function(s) {
+    if (!s.classList.contains('filled')) allFilled = false;
+    if (!s.classList.contains('correct')) allCorrect = false;
+  });
+  
+  if (allFilled && allCorrect) {
+    setTimeout(function() {
+      alert('🎉 Perfect! All concepts matched correctly!');
+    }, 300);
+  }
+}
+
+function resetDnD() {
+  var items = document.getElementById('dnd-items');
+  var slots = document.getElementById('dnd-slots');
+  if (items) items.innerHTML = '';
+  if (slots) slots.innerHTML = '';
+  initDragAndDrop();
+}
+
+// ===== QUIZZES =====
+function initQuiz(containerId, questions) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  
+  questions.forEach(function(q, qIdx) {
+    var qDiv = document.createElement('div');
+    qDiv.className = 'quiz-question';
+    qDiv.innerHTML = '<h4>Q' + (qIdx + 1) + '. ' + q.question + '</h4>';
+    
+    q.options.forEach(function(opt, optIdx) {
+      var btn = document.createElement('button');
+      btn.className = 'quiz-option';
+      btn.textContent = opt;
+      btn.onclick = function() { handleQuizAnswer(this, q, optIdx, containerId); };
+      qDiv.appendChild(btn);
+    });
+    
+    var feedback = document.createElement('div');
+    feedback.className = 'quiz-feedback';
+    qDiv.appendChild(feedback);
+    
+    container.appendChild(qDiv);
+  });
+}
+
+function handleQuizAnswer(btn, question, selectedIdx, containerId) {
+  var questionDiv = btn.closest('.quiz-question');
+  var options = questionDiv.querySelectorAll('.quiz-option');
+  var feedback = questionDiv.querySelector('.quiz-feedback');
+  
+  options.forEach(function(o) { o.classList.add('disabled'); o.disabled = true; });
+  btn.classList.add('selected');
+  
+  if (selectedIdx === question.correct) {
+    btn.classList.add('correct');
+    feedback.classList.add('correct', 'show');
+    feedback.innerHTML = '<strong>✅ Correct!</strong> ' + question.explanations[selectedIdx];
+  } else {
+    btn.classList.add('incorrect');
+    options[question.correct].classList.add('correct');
+    feedback.classList.add('incorrect', 'show');
+    feedback.innerHTML = '<strong>❌ Not quite.</strong> ' + question.explanations[selectedIdx] + '<br><br>The right answer is highlighted in green. Let\'s review: ' + question.options[question.correct];
+  }
+}
+
+// ===== FINAL ASSESSMENT =====
+function initFinalAssessment() {
+  var container = document.getElementById('final-assessment');
+  if (!container) return;
+  
+  var answeredCount = 0;
+  var correctCount = 0;
+  
+  finalAssessmentData.forEach(function(q, qIdx) {
+    var qDiv = document.createElement('div');
+    qDiv.className = 'quiz-question';
+    qDiv.innerHTML = '<h4>Q' + (qIdx + 1) + '. ' + q.question + '</h4>';
+    
+    q.options.forEach(function(opt, optIdx) {
+      var btn = document.createElement('button');
+      btn.className = 'quiz-option';
+      btn.textContent = opt;
+      btn.onclick = function() {
+        var wasCorrect = (optIdx === q.correct);
+        handleAssessmentAnswer(this, q, optIdx);
+        answeredCount++;
+        if (wasCorrect) correctCount++;
+        if (answeredCount === finalAssessmentData.length) {
+          showFinalResults(correctCount);
+        }
+      };
+      qDiv.appendChild(btn);
+    });
+    
+    var feedback = document.createElement('div');
+    feedback.className = 'quiz-feedback';
+    qDiv.appendChild(feedback);
+    
+    container.appendChild(qDiv);
+  });
+}
+
+function handleAssessmentAnswer(btn, question, selectedIdx) {
+  var questionDiv = btn.closest('.quiz-question');
+  var options = questionDiv.querySelectorAll('.quiz-option');
+  var feedback = questionDiv.querySelector('.quiz-feedback');
+  
+  options.forEach(function(o) { o.classList.add('disabled'); o.disabled = true; });
+  btn.classList.add('selected');
+  
+  if (selectedIdx === question.correct) {
+    btn.classList.add('correct');
+    feedback.classList.add('correct', 'show');
+    feedback.innerHTML = '<strong>✅ Correct!</strong> ' + question.explanations[selectedIdx];
+  } else {
+    btn.classList.add('incorrect');
+    options[question.correct].classList.add('correct');
+    feedback.classList.add('incorrect', 'show');
+    feedback.innerHTML = '<strong>❌ Not quite.</strong> The right answer is: <em>' + question.options[question.correct] + '</em><br><br>' + question.explanations[selectedIdx] + '<br><br><em>You might have confused this with a related concept. Let\'s review the relevant module above.</em>';
+  }
+}
+
+function showFinalResults(correctCount) {
+  var total = finalAssessmentData.length;
+  var percent = Math.round((correctCount / total) * 100);
+  
+  var scoreEl = document.getElementById('final-score');
+  var gradeEl = document.getElementById('final-grade');
+  var msgEl = document.getElementById('final-message');
+  var resultsEl = document.getElementById('assessment-results');
+  
+  if (scoreEl) scoreEl.textContent = correctCount + '/' + total;
+  
+  var grade, message;
+  if (percent >= 90) {
+    grade = '🏆 Outstanding!';
+    message = 'You have a strong grasp of how neural networks learn. You\'re ready to dive deeper into advanced topics.';
+  } else if (percent >= 70) {
+    grade = '👍 Great Job!';
+    message = 'Solid understanding! Review the questions you missed and revisit those modules for mastery.';
+  } else if (percent >= 50) {
+    grade = '📚 Good Start';
+    message = 'You\'re getting there. Revisit the modules related to the questions you missed, then try again.';
+  } else {
+    grade = '🔄 Keep Learning';
+    message = 'Don\'t worry — neural networks are a complex topic. Go through the modules again, focus on the analogies and diagrams, and retake the assessment.';
+  }
+  
+  if (gradeEl) gradeEl.textContent = grade;
+  if (msgEl) msgEl.textContent = message;
+  if (resultsEl) resultsEl.classList.add('show');
+  
+  try { localStorage.setItem('nn-lesson-assessment-score', JSON.stringify({score: correctCount, total: total, percent: percent})); } catch(e) {}
+  
+  if (resultsEl) resultsEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+// ===== FILL IN THE BLANK =====
+function showHint(prefix, level) {
+  if (level === 3) {
+    var reveal = document.getElementById(prefix + '-reveal');
+    if (reveal) reveal.classList.add('show');
+    var buttons = document.querySelectorAll('#' + prefix + '-hints .fb-hint-btn');
+    buttons.forEach(function(b) { b.classList.add('used'); });
+    return;
+  }
+  
+  var hint = document.getElementById(prefix + '-hint' + level);
+  if (hint) hint.classList.add('show');
+  var buttons = document.querySelectorAll('#' + prefix + '-hints .fb-hint-btn');
+  if (buttons[level - 1]) buttons[level - 1].classList.add('used');
+}
+
+// Auto-check fill-in-the-blank
+document.addEventListener('input', function(e) {
+  if (e.target.classList && e.target.classList.contains('fb-input')) {
+    var answer = (e.target.dataset.answer || '').toLowerCase().trim();
+    var value = (e.target.value || '').toLowerCase().trim();
+    if (value === answer) {
+      e.target.classList.add('correct');
+      e.target.classList.remove('incorrect');
+    } else if (value.length >= answer.length) {
+      e.target.classList.add('incorrect');
+    } else {
+      e.target.classList.remove('correct', 'incorrect');
+    }
+  }
+});
+
+// ===== MINI CHALLENGE =====
+function checkMiniChallenge(btn, challengeId, answer) {
+  var container = btn.closest('.mini-challenge');
+  if (!container) return;
+  var options = container.querySelectorAll('.mc-option');
+  var feedback = document.getElementById(challengeId + '-feedback');
+  
+  options.forEach(function(o) { o.disabled = true; });
+  
+  if (answer === 'correct') {
+    btn.classList.add('correct');
+    if (feedback) feedback.innerHTML = miniChallengeFeedback[challengeId].correct;
+  } else {
+    btn.classList.add('incorrect');
+    options.forEach(function(o) {
+      if (o.getAttribute('onclick').indexOf("'correct'") !== -1) {
+        o.classList.add('correct');
+      }
+    });
+    if (feedback) feedback.innerHTML = miniChallengeFeedback[challengeId][answer];
+  }
+  
+  if (feedback) feedback.classList.add('show');
+}
+
+// ===== TEACH BACK =====
+function checkTeachBack() {
+  var textarea = document.getElementById('tb-textarea');
+  if (!textarea) return;
+  var text = textarea.value.toLowerCase();
+  var result = document.getElementById('tb-result');
+  var scoreDiv = document.getElementById('tb-score');
+  var keywordsDiv = document.getElementById('tb-keywords');
+  
+  if (text.trim().length < 20) {
+    alert('Please write a longer explanation (at least a few sentences) to get meaningful feedback.');
+    return;
+  }
+  
+  var foundCount = 0;
+  var keywordElements = teachBackKeywords.map(function(kw) {
+    var found = text.indexOf(kw) !== -1;
+    if (found) foundCount++;
+    return '<span class="tb-keyword ' + (found ? 'found' : 'missed') + '">' + kw + '</span>';
+  });
+  
+  var percent = Math.round((foundCount / teachBackKeywords.length) * 100);
+  var scoreText, scoreColor;
+  if (percent >= 70) {
+    scoreText = '🎯 Excellent! ' + foundCount + '/' + teachBackKeywords.length + ' key concepts covered';
+    scoreColor = 'var(--supporting)';
+  } else if (percent >= 40) {
+    scoreText = '👍 Good start! ' + foundCount + '/' + teachBackKeywords.length + ' key concepts covered';
+    scoreColor = 'var(--warning)';
+  } else {
+    scoreText = '📚 Keep going! ' + foundCount + '/' + teachBackKeywords.length + ' key concepts covered';
+    scoreColor = 'var(--danger)';
+  }
+  
+  if (scoreDiv) scoreDiv.innerHTML = '<span style="color:' + scoreColor + '">' + scoreText + '</span>';
+  if (keywordsDiv) keywordsDiv.innerHTML = keywordElements.join('');
+  var expertEl = document.getElementById('tb-expert-text');
+  if (expertEl) expertEl.textContent = teachBackExpert;
+  
+  if (result) result.classList.add('show');
+  
+  try { localStorage.setItem('nn-lesson-teachback', textarea.value); } catch(e) {}
+}
+
+// ===== FAQ =====
+function initFAQ() {
+  var container = document.getElementById('faq-container');
+  if (!container) return;
+  
+  faqData.forEach(function(item) {
+    var faqItem = document.createElement('div');
+    faqItem.className = 'faq-item';
+    faqItem.innerHTML = 
+      '<div class="faq-question" onclick="this.parentElement.classList.toggle(\'open\')">' +
+        '<span>' + item.q + '</span>' +
+        '<span class="faq-toggle">+</span>' +
+      '</div>' +
+      '<div class="faq-answer"><p>' + item.a + '</p></div>';
+    container.appendChild(faqItem);
+  });
+}
+
+// ===== SPACED REPETITION =====
+function initSpacedRepetition() {
+  var completed = {};
+  try { completed = JSON.parse(localStorage.getItem('nn-lesson-spaced-rep') || '{}'); } catch(e) {}
+  var intervals = document.querySelectorAll('.sr-interval');
+  intervals.forEach(function(el) {
+    var interval = el.dataset.interval;
+    if (completed[interval]) {
+      el.classList.add('completed');
+    }
+  });
+}
+
+function toggleSR(el) {
+  el.classList.toggle('completed');
+  var completed = {};
+  try { completed = JSON.parse(localStorage.getItem('nn-lesson-spaced-rep') || '{}'); } catch(e) {}
+  completed[el.dataset.interval] = el.classList.contains('completed');
+  try { localStorage.setItem('nn-lesson-spaced-rep', JSON.stringify(completed)); } catch(e) {}
+}
+
+// ===== KEYBOARD NAV =====
+function initKeyboardNav() {
+  var hotspots = document.querySelectorAll('.hotspot');
+  hotspots.forEach(function(el) {
+    el.setAttribute('tabindex', '0');
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        el.click();
+      }
+    });
+  });
+  
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeModal();
+    }
+  });
+}
+</script>
+
+</body>
+</html>

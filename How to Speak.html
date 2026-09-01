@@ -1,0 +1,2242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How to Speak — An Interactive Lesson</title>
+<style>
+/* ============================================================
+   THEME TOKENS — monochrome core, one muted teal accent
+   ============================================================ */
+:root{
+  --bg:#f7f5f0; --bg2:#fcfbf8; --ink:#23211c; --soft:#6d675c;
+  --line:#e0dbd0; --line2:#c7c0b1;
+  --acc:#17666b; --acc-soft:rgba(23,102,107,.10);
+  --good:#3a7d52; --good-soft:rgba(58,125,82,.10);
+  --bad:#a24a3f; --bad-soft:rgba(162,74,63,.10);
+  --serif:Georgia,'Iowan Old Style','Palatino Linotype','Book Antiqua',serif;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-theme="dark"]{
+  --bg:#191b1f; --bg2:#1f2227; --ink:#e7e4dc; --soft:#9a958a;
+  --line:#2d3138; --line2:#40464f;
+  --acc:#63b3ad; --acc-soft:rgba(99,179,173,.13);
+  --good:#7fbf95; --good-soft:rgba(127,191,149,.13);
+  --bad:#d08a7f; --bad-soft:rgba(208,138,127,.13);
+}
+/* ============================================================
+   BASE
+   ============================================================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font:17px/1.72 var(--sans); background:var(--bg); color:var(--ink);
+  transition:background-color .3s ease,color .3s ease;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--acc-soft)}
+a{color:var(--acc)}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
+section,article{scroll-margin-top:28px}
+
+/* Loading state */
+#loader{
+  position:fixed;inset:0;background:var(--bg);z-index:100;
+  display:flex;align-items:center;justify-content:center;
+  font:600 12px var(--mono);letter-spacing:.2em;color:var(--soft);
+  transition:opacity .45s ease;
+}
+#loader.done{opacity:0;visibility:hidden}
+
+/* Thin quiet progress tracker */
+#pbar{position:fixed;top:0;left:0;height:3px;width:0;background:var(--acc);z-index:60}
+
+/* Theme toggle */
+#themeBtn{
+  position:fixed;top:14px;right:16px;z-index:70;width:36px;height:36px;
+  border:1px solid var(--line2);border-radius:50%;background:var(--bg2);
+  color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background-color .3s ease,border-color .2s ease;
+}
+#themeBtn:hover{border-color:var(--acc)}
+#themeBtn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+[data-theme="light"] .icon-sun{display:none}
+[data-theme="dark"] .icon-moon{display:none}
+
+/* ============================================================
+   LAYOUT — Sidebar Studio
+   ============================================================ */
+.layout{display:flex;max-width:1120px;margin:0 auto}
+.sidebar{width:242px;flex-shrink:0}
+.sidebar-inner{
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  padding:30px 22px;border-right:1px solid var(--line);
+  display:flex;flex-direction:column;gap:20px;
+}
+.side-title{font:600 10.5px var(--mono);letter-spacing:.18em;color:var(--soft);text-transform:uppercase}
+.side-title b{display:block;font:700 17px/1.25 var(--serif);letter-spacing:0;text-transform:none;color:var(--ink);margin-top:4px}
+.map-wrap svg{width:100%;height:auto;display:block}
+#modNav{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line);padding-top:14px}
+.navitem{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:none;border:none;cursor:pointer;padding:6px 4px;border-radius:6px;
+  font:500 13px/1.35 var(--sans);color:var(--soft);
+  transition:color .2s ease,background-color .2s ease;
+}
+.navitem:hover{color:var(--ink);background:var(--acc-soft)}
+.navitem .dot{width:8px;height:8px;border-radius:50%;border:1.25px solid var(--line2);flex-shrink:0;transition:background-color .3s ease,border-color .3s ease}
+.navitem.read{color:var(--ink)}
+.navitem.read .dot{background:var(--acc);border-color:var(--acc)}
+.side-count{font:500 11px var(--mono);color:var(--soft);letter-spacing:.06em}
+
+main{flex:1;min-width:0;padding:56px 58px 90px}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+h1{font:700 clamp(40px,5.6vw,58px)/1.04 var(--serif);letter-spacing:-.012em}
+h2{font:700 31px/1.22 var(--serif);letter-spacing:-.008em;margin-bottom:14px}
+h3{
+  font:600 11.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;
+  color:var(--soft);margin:2.6em 0 .95em;
+}
+p{margin:0 0 1.05em}
+.kicker{font:600 11px var(--mono);letter-spacing:.2em;color:var(--acc)}
+.dek{font:italic 400 20px/1.55 var(--serif);color:var(--soft);max-width:56ch;margin-top:20px}
+.meta-line{font:500 11.5px var(--mono);color:var(--soft);letter-spacing:.05em;margin-top:22px;display:flex;flex-wrap:wrap;gap:8px 18px}
+.masthead{margin-bottom:56px}
+.underline-svg{display:block;width:min(320px,60%);margin-top:14px}
+.underline-svg path{stroke:var(--acc);stroke-width:2;fill:none;stroke-linecap:round}
+
+blockquote.epigraph{
+  font:italic 400 18.5px/1.55 var(--serif);color:var(--soft);
+  border-left:2px solid var(--line2);padding:2px 0 2px 18px;margin:22px 0 26px;
+}
+
+/* Overview list */
+.overview ul{list-style:none;margin-top:6px}
+.overview li{padding:7px 0 7px 26px;position:relative;border-top:1px solid var(--line)}
+.overview li:first-child{border-top:none}
+.overview li::before{content:"—";position:absolute;left:0;color:var(--acc);font-weight:600}
+
+/* ============================================================
+   MODULES
+   ============================================================ */
+.module{margin-top:78px;padding-top:44px;border-top:1px solid var(--line)}
+.module .kicker{display:block;margin-bottom:10px}
+
+/* Examples */
+.ex{border-top:1px solid var(--line);padding:15px 0 6px;transition:border-color .25s ease}
+.ex:hover{border-color:var(--acc)}
+.ex-tag{font:700 10px var(--mono);letter-spacing:.16em;color:var(--acc);display:block;margin-bottom:6px}
+.ex p{margin:0;font-size:16px}
+.ex p b{font-weight:600}
+
+/* Figures & editorial SVG style */
+figure.diagram{margin:34px 0 8px}
+figure.diagram svg{width:100%;height:auto;display:block}
+figcaption{font:500 11.5px var(--mono);color:var(--soft);margin-top:10px;letter-spacing:.03em}
+svg .ln{stroke:var(--ink);fill:none;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round}
+svg .ln2{stroke:var(--soft);fill:none;stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round}
+svg .dash{stroke-dasharray:3 4}
+svg .acc{stroke:var(--acc)}
+svg .facc{fill:var(--acc-soft)}
+svg .fgray{fill:var(--line);stroke:none;opacity:.6}
+svg .fbg{fill:var(--bg2)}
+svg .sl{font:500 10px var(--mono);fill:var(--soft)}
+svg .slb{font:600 10.5px var(--mono);fill:var(--ink)}
+svg .sacc{font:600 10px var(--mono);fill:var(--acc)}
+svg .sq{font:italic 500 12.5px var(--serif);fill:var(--soft)}
+svg .sformula{font:italic 700 22px var(--serif);fill:var(--ink)}
+svg .sgood{fill:var(--good);font:700 12px var(--mono)}
+svg .sbad{fill:var(--bad);font:700 12px var(--mono)}
+/* draw-on-view animation (paths carry pathLength="1") */
+.draw{stroke-dasharray:1;stroke-dashoffset:1}
+figure.go .draw{stroke-dashoffset:0;transition:stroke-dashoffset 1.15s ease}
+/* hotspots */
+.hotspot{cursor:pointer}
+.hotspot circle{fill:var(--bg2);stroke:var(--acc);stroke-width:1.25;transition:fill .2s ease}
+.hotspot text{font:700 10px var(--mono);fill:var(--acc);text-anchor:middle;pointer-events:none;transition:fill .2s ease}
+.hotspot:hover circle,.hotspot:focus circle,.hotspot.on circle{fill:var(--acc)}
+.hotspot:hover text,.hotspot:focus text,.hotspot.on text{fill:var(--bg2)}
+.hs-note{
+  margin-top:12px;padding:12px 16px;border-left:2px solid var(--acc);
+  font-size:15.5px;color:var(--soft);min-height:3.2em;
+}
+.hs-note.show{animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+/* wheel step-through panels */
+.wpanel{opacity:.32;transition:opacity .35s ease}
+.wpanel.on{opacity:1}
+.wheel-cap{margin-top:12px;font-size:15.5px;color:var(--soft);min-height:3em}
+
+/* Analogy card — split view */
+.analogy{border:1px solid var(--line);border-radius:8px;padding:22px;margin:18px 0 8px;display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.analogy .half .half-tag{font:700 10px var(--mono);letter-spacing:.16em;color:var(--soft);display:block;margin-bottom:10px}
+.analogy svg{width:100%;height:auto;display:block}
+.analogy .bridge{grid-column:1/-1;border-top:1px dashed var(--line2);padding-top:14px;font-size:16px}
+.analogy .bridge b{font:600 10.5px var(--mono);letter-spacing:.14em;color:var(--acc);display:block;margin-bottom:6px}
+
+/* Misconception details */
+details.mis,details.elab{border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:26px 0;padding:4px 0}
+details.mis summary,details.elab summary{
+  cursor:pointer;list-style:none;font:600 15px var(--sans);padding:10px 2px;
+  display:flex;align-items:center;gap:10px;transition:color .2s ease;
+}
+details.mis summary:hover,details.elab summary:hover{color:var(--acc)}
+details.mis summary::before{content:"❌";font-size:14px}
+details.elab summary::before{content:"↳";color:var(--acc);font-weight:700}
+details summary::-webkit-details-marker{display:none}
+details[open] summary{color:var(--acc)}
+.mis-body{padding:4px 2px 16px;font-size:16px}
+.mis-body p{margin-bottom:.8em}
+.mis-body p:last-child{margin-bottom:0}
+.mis-body b.lbl{font:700 10px var(--mono);letter-spacing:.14em;color:var(--soft);display:block;margin-bottom:3px}
+.elab p{padding:2px 2px 16px;font-size:15.5px;color:var(--soft);margin:0}
+
+/* Why it matters + module link */
+.matters{
+  border-left:2px solid var(--acc);padding:4px 0 4px 18px;margin:28px 0 18px;
+  font:italic 400 19.5px/1.5 var(--serif);
+}
+.mlink{font-size:15.5px;color:var(--soft)}
+
+/* ============================================================
+   WIDGETS — paper-quiet interactivity
+   ============================================================ */
+.widget{
+  border:1px solid var(--line);border-radius:8px;padding:24px;margin:30px 0;
+  transition:box-shadow .25s ease,border-color .25s ease;
+}
+.widget:hover{box-shadow:0 1px 3px rgba(0,0,0,.06);border-color:var(--line2)}
+.widget-tag{font:700 10px var(--mono);letter-spacing:.18em;color:var(--acc);display:block;margin-bottom:12px}
+.widget h4{font:700 19px var(--serif);margin-bottom:10px}
+.widget .prompt{font-size:16px;color:var(--soft);margin-bottom:16px}
+.btn{
+  font:600 13px var(--sans);border:1px solid var(--ink);background:transparent;color:var(--ink);
+  padding:8px 16px;border-radius:6px;cursor:pointer;
+  transition:background-color .2s ease,color .2s ease,border-color .2s ease;
+}
+.btn:hover{background:var(--ink);color:var(--bg)}
+.btn.ghost{border-color:var(--line2);color:var(--soft)}
+.btn.ghost:hover{border-color:var(--acc);color:var(--acc);background:transparent}
+.btn[disabled]{opacity:.45;cursor:default;background:transparent;color:var(--soft)}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.fb{
+  margin-top:14px;padding:12px 16px;border-left:2px solid var(--acc);
+  font-size:15px;color:var(--soft);display:none;
+}
+.fb.show{display:block;animation:fadeIn .3s ease}
+.fb.good{border-color:var(--good);background:var(--good-soft);color:var(--ink)}
+.fb.bad{border-color:var(--bad);background:var(--bad-soft);color:var(--ink)}
+
+/* Quiz options */
+.q-opt{
+  display:block;width:100%;text-align:left;background:none;cursor:pointer;
+  border:1px solid var(--line);border-radius:6px;padding:11px 15px;margin-bottom:9px;
+  font:400 15.5px/1.5 var(--sans);color:var(--ink);
+  transition:border-color .2s ease,background-color .2s ease;
+}
+.q-opt:hover:not([disabled]){border-color:var(--acc);background:var(--acc-soft)}
+.q-opt.correct{border-color:var(--good);background:var(--good-soft)}
+.q-opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.q-opt[disabled]{cursor:default;opacity:.85}
+
+/* Simulator */
+.sim-row{display:grid;grid-template-columns:170px 1fr 34px;align-items:center;gap:14px;margin-bottom:12px}
+.sim-row label{font:600 12px var(--mono);letter-spacing:.06em;color:var(--soft)}
+.sim-row output{font:700 14px var(--mono);color:var(--ink);text-align:right}
+input[type=range]{width:100%;accent-color:var(--acc);height:22px;cursor:pointer}
+.sim-q{display:flex;align-items:baseline;gap:14px;margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+.sim-q .big{font:700 40px var(--serif);color:var(--acc)}
+.sim-meter{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.sim-meter i{display:block;height:100%;width:0;background:var(--acc);transition:width .35s ease}
+
+/* Drag & drop */
+.dnd-terms{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:18px}
+.chip{
+  font:600 12.5px var(--mono);letter-spacing:.04em;border:1px solid var(--line2);border-radius:6px;
+  padding:7px 13px;background:transparent;color:var(--ink);cursor:pointer;
+  transition:border-color .2s ease,background-color .2s ease,color .2s ease;
+}
+.chip:hover{border-color:var(--acc)}
+.chip.sel{border-color:var(--acc);background:var(--acc-soft);color:var(--acc)}
+.chip.used{display:none}
+.slot{
+  border:1px dashed var(--line2);border-radius:6px;padding:13px 15px;margin-bottom:10px;
+  cursor:pointer;transition:border-color .2s ease,background-color .2s ease;
+}
+.slot:hover{border-color:var(--acc)}
+.slot .sit{font-size:15px;color:var(--soft)}
+.slot .ans{font:700 12px var(--mono);letter-spacing:.1em;color:var(--acc);display:none;margin-bottom:5px}
+.slot.filled{border-style:solid;border-color:var(--good);background:var(--good-soft)}
+.slot.filled .ans{display:block}
+.slot.filled .sit{color:var(--ink)}
+.slot.err{border-color:var(--bad);background:var(--bad-soft)}
+
+/* Fill in the blank */
+.fib-line{font:400 18px/1.7 var(--serif)}
+.fib-line input{
+  font:600 16px var(--mono);width:150px;border:none;border-bottom:1.5px solid var(--line2);
+  background:transparent;color:var(--acc);padding:2px 6px;text-align:center;
+  transition:border-color .2s ease;
+}
+.fib-line input:focus{outline:none;border-color:var(--acc)}
+.hint-line{font-size:14px;color:var(--soft);font-style:italic;margin-top:10px;min-height:1.4em}
+
+/* Flashcards */
+.fcard-zone{perspective:900px;margin:6px 0 16px}
+.fcard{
+  position:relative;height:230px;cursor:pointer;
+  transform-style:preserve-3d;transition:transform .45s ease;
+}
+.fcard.flip{transform:rotateY(180deg)}
+.fface{
+  position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  border:1px solid var(--line);border-radius:8px;padding:24px;
+  display:flex;flex-direction:column;justify-content:center;
+}
+.fface.front{background:var(--bg2)}
+.fface.back{background:var(--bg2);transform:rotateY(180deg)}
+.fface .fterm{font:700 24px var(--serif)}
+.fface .fdef{font-size:16px;line-height:1.6}
+.fface .fextra{margin-top:12px;font-size:14px;color:var(--soft);border-top:1px dashed var(--line2);padding-top:10px;display:none}
+.fface .fextra.show{display:block}
+.fface .ftag{font:700 10px var(--mono);letter-spacing:.16em;color:var(--acc);margin-bottom:12px}
+.fmeta{font:500 11.5px var(--mono);color:var(--soft);display:flex;justify-content:space-between;margin-bottom:12px}
+
+/* Teach-back */
+.tb-grid{display:grid;grid-template-columns:1fr;gap:16px}
+.tb-grid textarea{
+  width:100%;min-height:110px;resize:vertical;border:1px solid var(--line);border-radius:6px;
+  background:var(--bg2);color:var(--ink);font:400 15.5px/1.6 var(--sans);padding:13px 15px;
+  transition:border-color .2s ease;
+}
+.tb-grid textarea:focus{outline:none;border-color:var(--acc)}
+.tb-model{border:1px solid var(--line);border-radius:6px;padding:16px 18px;font:italic 400 16.5px/1.65 var(--serif);display:none}
+.tb-model.show{display:block;animation:fadeIn .3s ease}
+.cov{font:500 13px var(--mono);color:var(--soft);margin-top:10px;line-height:2}
+.cov b.y{color:var(--good)} .cov b.n{color:var(--bad)}
+
+/* Scenario */
+.sc-step{font:600 16.5px var(--serif);margin-bottom:14px}
+.sc-choice{
+  display:block;width:100%;text-align:left;background:none;cursor:pointer;
+  border:1px solid var(--line);border-radius:6px;padding:11px 15px;margin-bottom:9px;
+  font:400 15.5px/1.5 var(--sans);color:var(--ink);
+  transition:border-color .2s ease,background-color .2s ease;
+}
+.sc-choice:hover{border-color:var(--acc);background:var(--acc-soft)}
+.sc-count{font:500 11px var(--mono);letter-spacing:.12em;color:var(--soft);margin-bottom:12px}
+
+/* Quick recall */
+.qr{border:1px solid var(--line);border-radius:8px;padding:26px;margin:44px 0;background:transparent}
+.qr .widget-tag{color:var(--soft)}
+.qr-q{margin-bottom:24px}
+.qr-q:last-of-type{margin-bottom:8px}
+.qr-q p.qprompt{font:600 16.5px var(--serif);margin-bottom:12px}
+
+/* Summary / cheat sheet */
+.cheat{margin:8px 0 0}
+.cheat-row{border-top:1px solid var(--line);padding:15px 0;display:grid;grid-template-columns:190px 1fr;gap:18px}
+.cheat-row:last-child{border-bottom:1px solid var(--line)}
+.cheat-row .ck{font:700 11px var(--mono);letter-spacing:.14em;color:var(--acc);padding-top:3px}
+.cheat-row .cv{font-size:15.5px}
+.cheat-row .cv code{font:600 13px var(--mono);color:var(--acc)}
+.sr-list{list-style:none}
+.sr-list li{padding:8px 0;border-top:1px solid var(--line);font-size:15.5px}
+.sr-list li:first-child{border-top:none}
+.sr-list b{font:700 12px var(--mono);letter-spacing:.08em;color:var(--acc);display:inline-block;min-width:86px}
+.more-btn{
+  background:none;border:none;cursor:pointer;color:var(--acc);
+  font:600 12px var(--mono);letter-spacing:.1em;padding:8px 0;
+  border-bottom:1px solid var(--acc-soft);transition:opacity .2s ease;
+}
+.more-btn:hover{opacity:.7}
+
+/* FAQ */
+details.faq{border-top:1px solid var(--line);padding:4px 0}
+details.faq:last-of-type{border-bottom:1px solid var(--line)}
+details.faq summary{cursor:pointer;font:600 17px var(--serif);padding:15px 2px;list-style:none;transition:color .2s ease}
+details.faq summary::-webkit-details-marker{display:none}
+details.faq summary::before{content:"Q · ";font:700 12px var(--mono);color:var(--acc)}
+details.faq summary:hover{color:var(--acc)}
+details.faq p{padding:0 2px 18px;font-size:16px;color:var(--soft);max-width:64ch}
+
+/* Next steps */
+.next ul{list-style:none}
+.next li{padding:9px 0 9px 26px;position:relative;border-top:1px solid var(--line);font-size:16px}
+.next li::before{content:"→";position:absolute;left:0;color:var(--acc)}
+
+/* Finish badge */
+#finishBadge{
+  display:inline-block;margin-top:56px;padding:10px 22px;border:1px solid var(--acc);
+  border-radius:6px;font:600 13px var(--mono);letter-spacing:.14em;color:var(--acc);
+  opacity:0;transform:translateY(6px);transition:opacity .6s ease,transform .6s ease;
+}
+#finishBadge.show{opacity:1;transform:none}
+
+footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);font:500 11.5px var(--mono);color:var(--soft);letter-spacing:.04em;line-height:2}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:960px){
+  .layout{display:block}
+  .sidebar-inner{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap;align-items:flex-start;gap:22px}
+  .map-wrap{display:none}
+  #modNav{flex-direction:row;flex-wrap:wrap;border-top:none;padding-top:0;gap:4px}
+  .navitem{width:auto;font-size:12px;padding:5px 9px}
+  main{padding:40px 24px 70px}
+  .analogy{grid-template-columns:1fr}
+  .cheat-row{grid-template-columns:1fr;gap:6px}
+  .sim-row{grid-template-columns:120px 1fr 34px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+  .draw{stroke-dasharray:none;stroke-dashoffset:0}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body data-theme="light">
+
+<!-- Loading state -->
+<div id="loader">PREPARING YOUR LESSON…</div>
+
+<!-- Thin progress tracker -->
+<div id="pbar" role="presentation"></div>
+
+<!-- Theme toggle -->
+<button id="themeBtn" aria-label="Toggle dark and light mode">
+  <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
+  <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3L19 19M19 5l-1.7 1.7M6.7 17.3L5 19"/></svg>
+</button>
+
+<div class="layout">
+
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+      <div class="side-title">Interactive lesson<b>How to Speak</b></div>
+
+      <!-- Knowledge map (start) -->
+      <div class="map-wrap" aria-label="Knowledge map of the six modules">
+        <svg id="mapStart" viewBox="0 0 224 400" role="img" aria-label="Knowledge map: six linked modules from the formula to the sendoff">
+          <line class="mline" data-nodes="1 2" x1="94" y1="44" x2="94" y2="72" stroke="var(--line2)" stroke-width="1.1"/>
+          <line class="mline" data-nodes="2 3" x1="94" y1="106" x2="94" y2="134" stroke="var(--line2)" stroke-width="1.1"/>
+          <line class="mline" data-nodes="3 4" x1="94" y1="168" x2="94" y2="196" stroke="var(--line2)" stroke-width="1.1"/>
+          <line class="mline" data-nodes="4 5" x1="94" y1="230" x2="94" y2="258" stroke="var(--line2)" stroke-width="1.1"/>
+          <line class="mline" data-nodes="5 6" x1="94" y1="292" x2="94" y2="320" stroke="var(--line2)" stroke-width="1.1"/>
+          <path class="mline dash" data-nodes="1 6" d="M180 27 C 212 90, 212 300, 180 337" stroke="var(--line2)" stroke-width="1.1" fill="none" stroke-dasharray="3 4"/>
+          <text x="206" y="186" class="sl" text-anchor="middle" transform="rotate(90 206 186)">packaging returns to the formula</text>
+          <g class="mnode" data-target="m1" data-n="1" tabindex="0" role="button" aria-label="Go to module 1: the formula">
+            <rect x="8" y="10" width="172" height="34" rx="6" fill="transparent" stroke="var(--line2)" stroke-width="1.1"/>
+            <text x="20" y="31" class="slb">1 · The Formula</text>
+          </g>
+          <g class="mnode" data-target="m2" data-n="2" tabindex="0" role="button" aria-label="Go to module 2: the opening">
+            <rect x="8" y="72" width="172" height="34" rx="6" fill="transparent" stroke="var(--line2)" stroke-width="1.1"/>
+            <text x="20" y="93" class="slb">2 · The Opening</text>
+          </g>
+          <g class="mnode" data-target="m3" data-n="3" tabindex="0" role="button" aria-label="Go to module 3: four heuristics">
+            <rect x="8" y="134" width="172" height="34" rx="6" fill="transparent" stroke="var(--line2)" stroke-width="1.1"/>
+            <text x="20" y="155" class="slb">3 · Four Heuristics</text>
+          </g>
+          <g class="mnode" data-target="m4" data-n="4" tabindex="0" role="button" aria-label="Go to module 4: time, place and tools">
+            <rect x="8" y="196" width="172" height="34" rx="6" fill="transparent" stroke="var(--line2)" stroke-width="1.1"/>
+            <text x="20" y="217" class="slb">4 · Time &amp; Place</text>
+          </g>
+          <g class="mnode" data-target="m5" data-n="5" tabindex="0" role="button" aria-label="Go to module 5: the slide crimes">
+            <rect x="8" y="258" width="172" height="34" rx="6" fill="transparent" stroke="var(--line2)" stroke-width="1.1"/>
+            <text x="20" y="279" class="slb">5 · The Slide Crimes</text>
+          </g>
+          <g class="mnode" data-target="m6" data-n="6" tabindex="0" role="button" aria-label="Go to module 6: fame and the sendoff">
+            <rect x="8" y="320" width="172" height="34" rx="6" fill="transparent" stroke="var(--line2)" stroke-width="1.1"/>
+            <text x="20" y="341" class="slb">6 · Fame &amp; Sendoff</text>
+          </g>
+        </svg>
+      </div>
+
+      <nav id="modNav" aria-label="Module navigation">
+        <button class="navitem" data-target="m1"><span class="dot"></span>The Formula</button>
+        <button class="navitem" data-target="m2"><span class="dot"></span>The Opening</button>
+        <button class="navitem" data-target="m3"><span class="dot"></span>Four Heuristics</button>
+        <button class="navitem" data-target="m4"><span class="dot"></span>Time, Place &amp; Tools</button>
+        <button class="navitem" data-target="m5"><span class="dot"></span>The Slide Crimes</button>
+        <button class="navitem" data-target="m6"><span class="dot"></span>Fame &amp; Sendoff</button>
+      </nav>
+      <div class="side-count" id="sideCount">0 of 6 modules read</div>
+    </div>
+  </aside>
+
+  <!-- ==================== MAIN ==================== -->
+  <main>
+
+    <!-- Masthead -->
+    <header class="masthead">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:20px;padding-right:52px">
+        <span class="kicker">AN INTERACTIVE LESSON · FROM THE FAMOUS MIT LECTURE</span>
+      </div>
+      <h1>How to Speak</h1>
+      <svg class="underline-svg" viewBox="0 0 320 14" aria-hidden="true">
+        <path class="draw" pathLength="1" d="M4 9 C 70 3, 150 12, 316 6" style="transition-delay:.3s"/>
+      </svg>
+      <p class="dek">Patrick Winston’s craft of communication, rebuilt as a lesson: why talent barely matters, how to open without a joke, how to keep a fogged-out room with you — and how to make sure your ideas get the credit they deserve.</p>
+      <div class="meta-line">
+        <span>SOURCE · “HOW TO SPEAK,” PATRICK WINSTON, MIT</span>
+        <span>6 MODULES</span>
+        <span>≈ 35 MINUTES</span>
+        <span>BUILT 30 JUL 2026</span>
+      </div>
+    </header>
+
+    <!-- ==================== OVERVIEW ==================== -->
+    <section class="overview" id="overview">
+      <h3>What you’ll learn</h3>
+      <p>In this lecture — which he gave for decades at MIT — Patrick Winston argues that your success in life is determined largely by your ability to speak, then to write, then by the quality of your ideas, <em>in that order</em>. And communication, he insists, is not a gift; it is a formula you can work and a repertoire of techniques you can steal. This lesson rebuilds his argument as six modules, each with diagrams, three worked examples, an analogy, and something for you to <em>do</em>. His promise becomes ours: at least one technique in here will be the one that gets you the job.</p>
+      <ul>
+        <li>Why communication quality is <strong>K × P × T</strong> — knowledge times practice times talent — and why the T is very small.</li>
+        <li>How to open with an <strong>empowerment promise</strong> instead of a joke, and why “no laptops” is a favor to the whole room.</li>
+        <li>Four heuristics that keep a drifting audience aboard: <strong>cycling, the fence, verbal punctuation, and the seven-second question</strong>.</li>
+        <li>How to choose the time and place — and why <strong>boards and props beat slides</strong> when the purpose is teaching.</li>
+        <li>The canonical <strong>slide crimes</strong> and their fixes, including the condiments rule and the hapax legomenon.</li>
+        <li>Special occasions: inspiring people, the <strong>five-minute job talk</strong>, <strong>Winston’s Star</strong> for getting remembered, and how to stop without saying “thank you.”</li>
+      </ul>
+    </section>
+
+    <!-- ==================== MODULE 1 ==================== -->
+    <article class="module" id="m1">
+      <span class="kicker">MODULE 1 · THE FOUNDATION</span>
+      <h2>The Formula: Q = K × P × T</h2>
+      <blockquote class="epigraph">“I was a better skier because I had the K, and I had the P, and all she had was the T.”</blockquote>
+
+      <h3>The core idea</h3>
+      <p>Winston opens with a provocation: the Uniform Code of Military Justice specifies court-martial for any officer who sends a soldier into battle without a weapon — and students deserve the same protection, because they are being sent out into life, where success will be determined largely by the ability to speak, then to write, then by the quality of ideas, in that order. The encouraging part is his formula for how good you will be at communicating: quality equals <strong>knowledge times practice times talent</strong> — Q = K × P × T — and the T, he notes, is very small.</p>
+      <p>He learned this on a ski slope at Sun Valley. Mary Lou Retton was there — the Olympic gymnast famous for perfect 10s on vault — and she was a novice skier. Winston spotted her on the beginner hill because when she lost her balance, her arms went up in a gymnast’s reflex. Then it struck him: he, an ordinary academic, was a <em>better skier</em> than an outstanding Olympic athlete. Why? He had the K — knowledge of how skiing works — and the P — years of practice. All she had was the T. Talent is real, but it is domain-specific and small; knowledge and practice are multiplicative and largely under your control.</p>
+      <p>That is the deal this lesson makes with you. Communication is a craft, not a gift. Winston promises that within one hour of lecture, at least one technique will “get you the job” — a non-linear payoff you cannot predict in advance. Your work is to build K and P: watch speakers you admire, ask <em>why</em> they are effective, and add what you find to your own armamentarium — his word for a personal toolkit of speaking techniques.</p>
+
+      <details class="elab">
+        <summary>But why is the formula multiplicative, not additive?</summary>
+        <p>Because the factors amplify each other rather than compensate for each other. Knowledge of what to say, multiplied by zero practice, is a talk no one hears properly — the product collapses. An additive model would let genius offset never rehearsing; the multiplicative one doesn’t, which is exactly why the brilliant professor who mumbles through unrehearsed slides is a familiar sight. The good news runs the same direction: small gains in K and P compound.</p>
+      </details>
+
+      <h3>Step by step</h3>
+      <ol style="padding-left:22px;margin-bottom:8px">
+        <li style="margin-bottom:9px"><b>Accept the ordering.</b> Speaking first, then writing, then ideas. The best idea, badly packaged, loses to a good idea well presented.</li>
+        <li style="margin-bottom:9px"><b>Bank the K.</b> Watch speakers you admire and interrogate them: why did that land? Collect the heuristics you notice.</li>
+        <li style="margin-bottom:9px"><b>Spend the P.</b> Practice out loud, in the real room, in front of people who don’t know your material.</li>
+        <li style="margin-bottom:9px"><b>Discount the T.</b> You can’t grow it much and you don’t need to. Nobody multiplies their way to a good talk with talent alone.</li>
+        <li style="margin-bottom:9px"><b>Collect one technique at a time.</b> The payoff is non-linear — you never know which heuristic will be the one that gets you the job.</li>
+      </ol>
+
+      <h3>Three ways it shows up</h3>
+      <div class="ex">
+        <span class="ex-tag">THE OBVIOUS CASE</span>
+        <p><b>The rehearsed colleague.</b> You know this person: not the flashiest mind in the lab, but they have given the same conference talk ten times, to ten different practice audiences. At the meeting they field questions calmly while the “natural” beside them mumbles through slides they have never once seen projected. K and P, compounding quietly for years.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE COUNTER-INTUITIVE CASE</span>
+        <p><b>The Olympic skier.</b> Mary Lou Retton had more raw athletic talent than almost anyone on that mountain — yet a middle-aged professor out-skied her. Talent does not transfer across domains. A gymnast’s perfect 10 buys nothing on a novice slope, and a brilliant researcher’s IQ buys nothing at a podium they have never practiced at.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE EDGE CASE</span>
+        <p><b>The brilliant zero.</b> Because the formula multiplies, it is unforgiving: a researcher with encyclopedic K and near-zero P gives a talk nobody can follow — Q collapses toward nothing. This is the curse of the brilliant mumbling professor. The mirror case, all P and no K, is the smooth speaker who says nothing at all. Both are fixed the same way: multiply by the missing factor.</p>
+      </div>
+
+      <!-- Module diagram: the formula as bars -->
+      <figure class="diagram" id="fig1">
+        <svg viewBox="0 0 660 250" role="img" aria-label="Bar diagram showing knowledge and practice as tall bars and talent as a very small bar in the formula Q equals K times P times T">
+          <text x="40" y="42" class="sformula">Q = K × P × T</text>
+          <line x1="40" y1="200" x2="380" y2="200" class="ln2"/>
+          <rect x="60" y="70" width="64" height="130" class="facc" stroke="var(--acc)" stroke-width="1.25"/>
+          <text x="92" y="60" class="slb" text-anchor="middle">K</text>
+          <text x="92" y="220" class="sl" text-anchor="middle">what you know</text>
+          <text x="137" y="140" class="slb" text-anchor="middle" font-size="14">×</text>
+          <rect x="152" y="70" width="64" height="130" class="facc" stroke="var(--acc)" stroke-width="1.25"/>
+          <text x="184" y="60" class="slb" text-anchor="middle">P</text>
+          <text x="184" y="220" class="sl" text-anchor="middle">what you’ve practiced</text>
+          <text x="229" y="140" class="slb" text-anchor="middle" font-size="14">×</text>
+          <rect x="244" y="176" width="64" height="24" class="fgray" stroke="var(--soft)" stroke-width="1.1"/>
+          <text x="276" y="166" class="slb" text-anchor="middle">T</text>
+          <text x="276" y="220" class="sl" text-anchor="middle">talent — very small</text>
+          <line x1="402" y1="60" x2="402" y2="220" class="ln2 dash"/>
+          <text x="424" y="96" class="sl">the product is</text>
+          <text x="424" y="114" class="sl">unforgiving:</text>
+          <text x="424" y="140" class="sacc">if K or P = 0,</text>
+          <text x="424" y="158" class="sacc">then Q = 0 —</text>
+          <text x="424" y="176" class="sl">talent can’t rescue it.</text>
+        </svg>
+        <figcaption>Fig. 1 — The whole theory in one picture. K and P are the tall, controllable dimensions; T barely registers — but multiplication means a zero anywhere zeroes everything.</figcaption>
+      </figure>
+
+      <h3>Visual analogy</h3>
+      <div class="analogy">
+        <div class="half">
+          <span class="half-tag">THE CONCEPT</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="Three bars for K, P and a tiny T above a baseline">
+            <text x="36" y="26" class="slb">Q = K × P × T</text>
+            <line x1="30" y1="112" x2="170" y2="112" class="ln2"/>
+            <rect x="40" y="42" width="26" height="70" class="facc" stroke="var(--acc)" stroke-width="1.2"/>
+            <text x="53" y="128" class="sl" text-anchor="middle">K</text>
+            <rect x="82" y="42" width="26" height="70" class="facc" stroke="var(--acc)" stroke-width="1.2"/>
+            <text x="95" y="128" class="sl" text-anchor="middle">P</text>
+            <rect x="124" y="98" width="26" height="14" class="fgray" stroke="var(--soft)" stroke-width="1"/>
+            <text x="137" y="128" class="sl" text-anchor="middle">T</text>
+          </svg>
+        </div>
+        <div class="half">
+          <span class="half-tag">THE ANALOGY — BUILDING A BOOKSHELF</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="A shelf made of two long side planks labeled K and P and a thin bottom spacer labeled T">
+            <rect x="60" y="28" width="12" height="82" class="facc" stroke="var(--acc)" stroke-width="1.2"/>
+            <rect x="170" y="28" width="12" height="82" class="facc" stroke="var(--acc)" stroke-width="1.2"/>
+            <rect x="72" y="98" width="98" height="8" class="fgray" stroke="var(--soft)" stroke-width="1"/>
+            <text x="66" y="22" class="slb" text-anchor="middle">K</text>
+            <text x="176" y="22" class="slb" text-anchor="middle">P</text>
+            <text x="121" y="124" class="sl" text-anchor="middle">T — the thin spacer</text>
+            <text x="121" y="142" class="sl" text-anchor="middle">volume = K × P × T</text>
+          </svg>
+        </div>
+        <div class="bridge">
+          <b>THE BRIDGE</b>
+          Talent is the thin spacer in the depth of the shelf: it is part of the volume, but you cannot stretch it much, and nobody builds a shelf around it. Knowledge and practice are the long planks — the dimensions you actually cut to size, and the ones that decide how much the shelf holds.
+        </div>
+      </div>
+
+      <details class="mis">
+        <summary>What people get wrong</summary>
+        <div class="mis-body">
+          <p><b class="lbl">THE MYTH</b>“Great speakers are born, not made — and if you aren’t one, no technique will help.”</p>
+          <p><b class="lbl">THE TRUTH</b>The formula makes talent the smallest factor. Winston — a famously compelling lecturer — frames his entire talk as transferable knowledge: techniques you can add to your armamentarium. People who “can’t speak” almost always have K or P at zero, not T.</p>
+          <p><b class="lbl">WHY THE MYTH STICKS</b>We mistake the end state for the starting point. We see a fluent speaker and assume a gift, because the thousands of hours of practice happened offstage — and the nervous beginner comparing themselves to that finished product is comparing their K×P to someone else’s decade of it.</p>
+        </div>
+      </details>
+
+      <p class="matters">If talent is a rounding error, then every talk you give is winnable by preparation — and nobody is naturally out of your league.</p>
+      <p class="mlink">🔗 This connects to Module 6 because “getting famous” (Winston’s Star) is this formula applied to your ideas: packaging is learned technique — K and P — not a charisma roll.</p>
+
+      <!-- Interactive: the formula lab -->
+      <div class="widget" id="simWidget">
+        <span class="widget-tag">PRACTICE · THE FORMULA LAB</span>
+        <h4>Feel the multiplication</h4>
+        <p class="prompt">Drag the sliders. Notice how much the product moves when K or P changes — and how little it moves when T does.</p>
+        <div class="sim-row"><label for="simK">K · knowledge</label><input type="range" id="simK" min="0" max="10" value="5"><output id="simKv">5</output></div>
+        <div class="sim-row"><label for="simP">P · practice</label><input type="range" id="simP" min="0" max="10" value="5"><output id="simPv">5</output></div>
+        <div class="sim-row"><label for="simT">T · talent <span style="opacity:.6">(small range)</span></label><input type="range" id="simT" min="1" max="5" value="3"><output id="simTv">3</output></div>
+        <div class="sim-q">
+          <span class="big" id="simQ">75</span>
+          <div class="sim-meter"><i id="simBar"></i></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn ghost" data-pre="5,1,1">The Retton — all T</button>
+          <button class="btn ghost" data-pre="8,0,5">The natural who never rehearses</button>
+          <button class="btn ghost" data-pre="9,9,2">The Winston — max K &amp; P</button>
+        </div>
+        <div class="fb" id="simFb"></div>
+      </div>
+
+      <!-- Interactive: scenario -->
+      <div class="widget" id="scen1">
+        <span class="widget-tag">SCENARIO · SIX WEEKS OUT</span>
+        <h4>The most important presentation of your year</h4>
+        <div class="sc-body"></div>
+      </div>
+    </article>
+
+    <!-- ==================== MODULE 2 ==================== -->
+    <article class="module" id="m2">
+      <span class="kicker">MODULE 2 · THE FIRST FIVE MINUTES</span>
+      <h2>The Opening: A Promise, Not a Joke</h2>
+      <blockquote class="epigraph">“At the end of the next 60 minutes, you will know things about speaking you don’t know now.”</blockquote>
+
+      <h3>The core idea</h3>
+      <p>Most speakers believe they must break the ice with a joke. Winston disagrees, and his reasoning is mechanical rather than stylistic: in the first minutes of a talk, the audience is still putting laptops away, finding the exits, and — above all — <strong>adjusting to your vocal parameters</strong>: your pitch, pace, accent, rhythm. They are literally not tuned to receive you yet, so a joke lands on a room that isn’t listening, and it falls flat. Instead, open with what he calls an <strong>empowerment promise</strong>: tell people what they will know at the end of the hour that they didn’t know at the beginning. His own is a model of the form — by the end of this talk, he tells the room, you will have been exposed to ideas you will incorporate into your own repertoire, and they will ensure your ideas get the maximum chance of being valued and accepted. Notice what the promise does: it gives the audience a destination and a reason to pay the cost of attention.</p>
+      <p>Then come the rules of engagement: no laptops, no phones. The justification is the <strong>single language processor</strong> — humans have one, and it can be reading or listening, but not both. If it is engaged on email, the owner is distracted; worse, studies show the open screen distracts everyone around; worse still, it rattles the speaker, who then gives a worse performance for everyone who <em>is</em> paying attention. The rule is a favor to the whole room, not a power trip.</p>
+
+      <h3>Step by step</h3>
+      <ol style="padding-left:22px;margin-bottom:8px">
+        <li style="margin-bottom:9px"><b>Write the promise first</b> — before the slides, before the outline: “At the end of this talk you will know / be able to ___.”</li>
+        <li style="margin-bottom:9px"><b>Make it a delta</b> — something they don’t know now, framed as useful: “one of these may be the one that gets you the job.”</li>
+        <li style="margin-bottom:9px"><b>Deliver it in the first sixty seconds,</b> in plain words, before anything else.</li>
+        <li style="margin-bottom:9px"><b>State the rules of engagement</b> — warmly but explicitly — and give the reason: one language processor.</li>
+        <li style="margin-bottom:9px"><b>Save the jokes for the end,</b> when the room has finished calibrating to your voice (see Module 6).</li>
+      </ol>
+
+      <h3>Three ways it shows up</h3>
+      <div class="ex">
+        <span class="ex-tag">THE OBVIOUS CASE</span>
+        <p><b>The lecture’s own opening.</b> Winston tells the room, almost verbatim: by the end of this hour you will know things about speaking you don’t know now, and one of them may make the difference in your life. That single sentence does all the work of the first five minutes — it is the reason the room keeps listening.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE COUNTER-INTUITIVE CASE</span>
+        <p><b>The comedian’s secret.</b> Even stand-up professionals don’t open with their best material — they open with a quick calibration bit, because the room needs a full minute to tune to the performer’s rhythm. If people whose living depends on timing skip the big laugh at minute one, your conference talk should too.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE EDGE CASE</span>
+        <p><b>The post-lunch, hostile room.</b> After lunch, in a dim hall, a vague promise (“I’ll talk about my research”) loses instantly to a concrete one (“you’ll leave with three fixes you can apply tomorrow”). The promise must name a benefit the audience can feel — because the foggiest 20 percent of the room are deciding, in the first minute, whether to stay.</p>
+      </div>
+
+      <figure class="diagram" id="fig2">
+        <svg viewBox="0 0 660 240" role="img" aria-label="Timeline of the first five minutes of a talk, showing a joke branch falling flat and a promise branch locking attention">
+          <line x1="40" y1="120" x2="612" y2="120" class="ln2"/>
+          <path d="M612 120 l-8 -4 M612 120 l-8 4" class="ln2"/>
+          <g>
+            <line x1="60" y1="115" x2="60" y2="125" class="ln2"/><text x="60" y="142" class="sl" text-anchor="middle">0:00</text>
+            <line x1="168" y1="115" x2="168" y2="125" class="ln2"/><text x="168" y="142" class="sl" text-anchor="middle">1:00</text>
+            <line x1="276" y1="115" x2="276" y2="125" class="ln2"/><text x="276" y="142" class="sl" text-anchor="middle">2:00</text>
+            <line x1="384" y1="115" x2="384" y2="125" class="ln2"/><text x="384" y="142" class="sl" text-anchor="middle">3:00</text>
+            <line x1="492" y1="115" x2="492" y2="125" class="ln2"/><text x="492" y="142" class="sl" text-anchor="middle">4:00</text>
+            <line x1="600" y1="115" x2="600" y2="125" class="ln2"/><text x="600" y="142" class="sl" text-anchor="middle">5:00</text>
+          </g>
+          <path d="M60 152 H160" class="ln2 dash"/>
+          <text x="60" y="170" class="sl">audience still calibrating — laptops, exits, your voice</text>
+          <path class="draw ln2 dash" pathLength="1" style="transition-delay:.2s" d="M168 120 C 220 74, 300 62, 420 62 L468 62" fill="none"/>
+          <text x="478" y="66" class="sbad">✗</text>
+          <text x="250" y="50" class="sl" text-anchor="middle">a joke — falls flat on an untuned room</text>
+          <path class="draw acc" pathLength="1" style="transition-delay:.7s;stroke-width:1.5" d="M168 120 C 220 172, 300 196, 420 196 L468 196" fill="none"/>
+          <text x="478" y="200" class="sgood">✓</text>
+          <text x="280" y="222" class="sacc" text-anchor="middle">the empowerment promise — a destination to listen toward</text>
+        </svg>
+        <figcaption>Fig. 2 — Minute one is calibration time. The joke branch lands on a room that hasn’t tuned in; the promise branch gives two hundred language processors a reason to point at you.</figcaption>
+      </figure>
+
+      <h3>Visual analogy</h3>
+      <div class="analogy">
+        <div class="half">
+          <span class="half-tag">THE CONCEPT</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="A timeline with a promise flag planted at minute one">
+            <line x1="30" y1="90" x2="228" y2="90" class="ln2"/>
+            <path d="M228 90 l-8 -4 M228 90 l-8 4" class="ln2"/>
+            <line x1="52" y1="90" x2="52" y2="56" class="ln"/>
+            <rect x="52" y="56" width="58" height="18" rx="3" class="facc" stroke="var(--acc)" stroke-width="1.2"/>
+            <text x="81" y="69" class="sacc" text-anchor="middle">promise</text>
+            <text x="52" y="110" class="sl" text-anchor="middle">minute one</text>
+            <text x="150" y="110" class="sl" text-anchor="middle">the talk</text>
+          </svg>
+        </div>
+        <div class="half">
+          <span class="half-tag">THE ANALOGY — THE PILOT’S ANNOUNCEMENT</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="A small airplane with a speech bubble announcing altitude and arrival time">
+            <ellipse cx="130" cy="66" rx="48" ry="12" class="fbg" stroke="var(--ink)" stroke-width="1.25"/>
+            <path d="M112 62 L92 42 L104 64 M148 62 L168 42 L156 64 M86 70 L74 78 L92 74" class="ln"/>
+            <path d="M130 80 L142 104" class="ln2"/>
+            <rect x="88" y="104" width="150" height="28" rx="6" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <text x="163" y="122" class="slb" text-anchor="middle">35,000 ft · arrive 3:40</text>
+          </svg>
+        </div>
+        <div class="bridge">
+          <b>THE BRIDGE</b>
+          A pilot doesn’t open with a joke about airline food; they announce altitude, route, and arrival time — and two hundred people settle into their seats at once. A stated destination is what lets a room full of language processors commit to listening. Your empowerment promise is your pre-flight announcement.
+        </div>
+      </div>
+
+      <details class="mis">
+        <summary>What people get wrong</summary>
+        <div class="mis-body">
+          <p><b class="lbl">THE MYTH</b>“A strong opening joke wins the room.”</p>
+          <p><b class="lbl">THE TRUTH</b>In minute one the audience is calibrating, not listening; jokes fall flat. The winning move is a promise that gives them a destination. Jokes work beautifully at the <em>end</em>, once the room is tuned to you — the asymmetry is the whole point.</p>
+          <p><b class="lbl">BONUS MYTH</b>“Laptops only hurt the person using them.” Studies say otherwise: open screens distract the neighbors and degrade the speaker’s performance for everyone. The no-laptop rule protects the room.</p>
+        </div>
+      </details>
+
+      <p class="matters">The first minute decides whether a hundred language processors point at you — or at their inboxes.</p>
+      <p class="mlink">🔗 This connects to Module 3 because the empowerment promise is the first piece of verbal punctuation: the landmark a fogged-out listener uses to get back on the bus.</p>
+
+      <div class="widget" id="quizOpen">
+        <span class="widget-tag">CHECK · PICK THE PROMISE</span>
+        <h4>Which opening line is an empowerment promise?</h4>
+        <div class="q-body"></div>
+      </div>
+
+      <div class="widget" id="scen2">
+        <span class="widget-tag">SCENARIO · THREE MINUTES TO SHOWTIME</span>
+        <h4>The room is filling. Decide.</h4>
+        <div class="sc-body"></div>
+      </div>
+    </article>
+
+    <!-- Quick recall 1 -->
+    <section class="qr" id="qr1">
+      <span class="widget-tag">RETRIEVAL PRACTICE · QUICK RECALL — MODULES 1–2</span>
+      <p class="prompt" style="margin-top:8px">Answer from memory before you scroll back. Retrieval is how the formula becomes yours.</p>
+      <div class="qr-mount"></div>
+    </section>
+
+    <!-- ==================== MODULE 3 ==================== -->
+    <article class="module" id="m3">
+      <span class="kicker">MODULE 3 · KEEPING THE ROOM</span>
+      <h2>Four Heuristics for a Fogged-Out Room</h2>
+      <blockquote class="epigraph">“Tell him what you want to tell him. Tell him again. And then tell him a third time.”</blockquote>
+
+      <h3>The core idea</h3>
+      <p>Here is the operating assumption behind everything in this module: at any given moment, roughly <strong>20 percent of your audience is fogged out</strong> — and it doesn’t matter how brilliant the lecture is. Attention is not a switch the audience flips once; it is a bus people keep falling off. So the craft lies in getting them back on, and Winston offers four heuristics for exactly that.</p>
+      <p>First, <strong>cycle on the subject</strong>: go around the idea three times — tell them what you’re going to tell them, tell them, then tell them what you told them. It sounds like an insult to the audience’s intelligence; it is actually statistical insurance. If one pass reaches about 80 percent, three passes reach nearly everyone.</p>
+      <p>Second, <strong>build a fence around your idea</strong> so it cannot be confused with somebody else’s. Teaching a Martian what an arch is, you would point at an arch, then at the near-misses: <em>this</em> is not an arch, and neither is <em>that</em>. In technical work, the fence is what separates you from Jones: “his algorithm seems similar, except his is exponential and mine is linear.”</p>
+      <p>Third, <strong>verbal punctuation</strong>: announce landmarks and seams — “that’s the second of four ideas; now the third” — so a returning listener can locate themselves in the talk. And fourth, <strong>ask a question</strong>, then stop talking: the standard wait is seven seconds, which feels like an eternity and is exactly right. The question must be tuned — too obvious and people are embarrassed to answer, too hard and nobody has anything to say.</p>
+
+      <details class="elab">
+        <summary>But why does seven seconds feel so long?</summary>
+        <p>Because you, the speaker, are inside the silence with nothing to do — while the audience is busy formulating answers. Seven seconds of dead air feels eternal on stage and reads as a genuine, confident invitation in the seats. Cut it to two seconds and the room reads the question as rhetorical; stretch it past fifteen and the silence curdles into awkwardness. Seven is the standard precisely because it is uncomfortable — the discomfort is the invitation working.</p>
+      </details>
+
+      <h3>Step by step</h3>
+      <ol style="padding-left:22px;margin-bottom:8px">
+        <li style="margin-bottom:9px"><b>Plan three passes.</b> Write your core claim into the outline three times, in three different framings — on purpose.</li>
+        <li style="margin-bottom:9px"><b>Fence every borrowed-looking idea.</b> Name its nearest neighbor and state the difference in one sentence.</li>
+        <li style="margin-bottom:9px"><b>Number your landmarks.</b> “First… second… now the third” — and restate the outline at every seam.</li>
+        <li style="margin-bottom:9px"><b>Ask one tuned question per section</b> — then count seven silent seconds. Not too easy, not impossible.</li>
+      </ol>
+
+      <h3>Three ways it shows up</h3>
+      <div class="ex">
+        <span class="ex-tag">THE OBVIOUS CASE</span>
+        <p><b>The lecture demonstrating itself.</b> Mid-talk, Winston says: “among these four samples, I’ve talked about the first idea — that’s cycling; the second idea, building a fence… and now, the third idea is verbal punctuation.” He is enumerating the seams out loud, live, so anyone who drifted thirty seconds ago can find their place again.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE COUNTER-INTUITIVE CASE</span>
+        <p><b>Repetition is not for dumb audiences — it is for human ones.</b> Even a room full of geniloses loses a fifth of its members to daydreams at any moment. Saying it three times isn’t condescension; it’s coverage. The people who complain that speakers “repeat themselves” have never been the ones who fogged out.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE EDGE CASE</span>
+        <p><b>The seven-second eternity.</b> Winston timed himself: seven seconds of dead air after a question felt endless — and it is the standard. Shorter, and the room reads the question as decoration; longer, and the silence spoils. And the question itself is a tuning problem: too obvious invites embarrassment, too hard invites silence.</p>
+      </div>
+
+      <figure class="diagram" id="fig3">
+        <svg viewBox="0 0 660 320" role="img" aria-label="Left: three orbital passes around a central idea with scattered fogged-out listeners. Right: an arch and a non-arch separated by a dashed fence">
+          <line x1="412" y1="40" x2="412" y2="292" class="ln2 dash"/>
+          <!-- cycling panel -->
+          <path class="draw ln2" pathLength="1" style="transition-delay:.2s" d="M112 160 a88 50 0 1 0 176 0 a88 50 0 1 0 -176 0"/>
+          <path class="draw ln2" pathLength="1" style="transition-delay:.7s" d="M82 160 a118 70 0 1 0 236 0 a118 70 0 1 0 -236 0"/>
+          <path class="draw acc" pathLength="1" style="transition-delay:1.2s;stroke-width:1.4" d="M52 160 a148 90 0 1 0 296 0 a148 90 0 1 0 -296 0"/>
+          <path d="M343 165 L348 157 L353 165" class="acc" fill="none" stroke-width="1.2"/>
+          <ellipse cx="200" cy="160" rx="52" ry="24" class="facc" stroke="var(--acc)" stroke-width="1.25"/>
+          <text x="200" y="164" class="slb" text-anchor="middle">your idea</text>
+          <text x="200" y="104" class="sl" text-anchor="middle">pass 1 · tell them</text>
+          <text x="200" y="84" class="sl" text-anchor="middle">pass 2 · tell them again</text>
+          <text x="200" y="64" class="sl" text-anchor="middle">pass 3 · tell them what you told them</text>
+          <circle cx="90" cy="92" r="3" class="fgray"/><circle cx="322" cy="84" r="3" class="fgray"/>
+          <circle cx="352" cy="222" r="3" class="fgray"/><circle cx="70" cy="232" r="3" class="fgray"/>
+          <circle cx="200" cy="272" r="3" class="fgray"/><circle cx="330" cy="150" r="3" fill="var(--acc)" opacity=".5"/>
+          <text x="60" y="302" class="sl">≈ 20% of the room is fogged out at any moment — on any pass</text>
+          <!-- fence panel -->
+          <path d="M440 230 L440 180 A30 30 0 0 1 500 180 L500 230 Z" class="facc" stroke="var(--acc)" stroke-width="1.25"/>
+          <text x="470" y="250" class="slb" text-anchor="middle">arch ✓</text>
+          <rect x="545" y="185" width="55" height="45" class="fgray" stroke="var(--soft)" stroke-width="1.1"/>
+          <text x="572" y="250" class="slb" text-anchor="middle">not an arch ✗</text>
+          <line x1="522" y1="158" x2="522" y2="240" class="ln2 dash"/>
+          <text x="522" y="150" class="sacc" text-anchor="middle">the fence</text>
+          <text x="525" y="286" class="sq" text-anchor="middle">“His is exponential — mine is linear.”</text>
+        </svg>
+        <figcaption>Fig. 3 — Left: three deliberate orbits guarantee coverage of a drifting room. Right: the fence turns “sounds like Jones” into “differs from Jones in one sentence.”</figcaption>
+      </figure>
+
+      <h3>Visual analogy</h3>
+      <div class="analogy">
+        <div class="half">
+          <span class="half-tag">THE CONCEPT</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="A small idea at the center of two orbital passes">
+            <path d="M70 75 a60 28 0 1 0 120 0 a60 28 0 1 0 -120 0" class="ln2" fill="none"/>
+            <path d="M40 75 a90 42 0 1 0 180 0 a90 42 0 1 0 -180 0" class="acc" fill="none" stroke-width="1.3"/>
+            <ellipse cx="130" cy="75" rx="26" ry="12" class="facc" stroke="var(--acc)" stroke-width="1.2"/>
+            <text x="130" y="132" class="sl" text-anchor="middle">× 3 passes</text>
+          </svg>
+        </div>
+        <div class="half">
+          <span class="half-tag">THE ANALOGY — THE TOUR GUIDE AND THE STATUE</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="A statue with three viewing positions around it connected by dashed sightlines">
+            <rect x="115" y="95" width="30" height="14" class="fgray" stroke="var(--soft)" stroke-width="1"/>
+            <circle cx="130" cy="58" r="8" class="ln" fill="none"/>
+            <line x1="130" y1="66" x2="130" y2="95" class="ln"/>
+            <circle cx="58" cy="80" r="4" class="fbg" stroke="var(--acc)" stroke-width="1.2"/>
+            <circle cx="202" cy="80" r="4" class="fbg" stroke="var(--acc)" stroke-width="1.2"/>
+            <circle cx="130" cy="132" r="4" class="fbg" stroke="var(--acc)" stroke-width="1.2"/>
+            <line x1="62" y1="80" x2="112" y2="72" class="ln2 dash"/>
+            <line x1="198" y1="80" x2="148" y2="72" class="ln2 dash"/>
+            <line x1="130" y1="128" x2="130" y2="110" class="ln2 dash"/>
+            <text x="130" y="22" class="sl" text-anchor="middle">three sightlines, same statue</text>
+          </svg>
+        </div>
+        <div class="bridge">
+          <b>THE BRIDGE</b>
+          A good guide never describes the statue once and moves on — they walk the group around it, so the people stuck behind the pillar get the front view, then the profile, then the back. Cycling is not saying the same thing three times; it is giving the same idea three sightlines.
+        </div>
+      </div>
+
+      <details class="mis">
+        <summary>What people get wrong</summary>
+        <div class="mis-body">
+          <p><b class="lbl">THE MYTH</b>“If I repeat myself, people will think I’m talking down to them.”</p>
+          <p><b class="lbl">THE TRUTH</b>At any moment about 20% of any audience is fogged out, regardless of IQ. Repetition is probabilistic coverage, not condescension — and the sharpest listeners barely notice the extra passes.</p>
+          <p><b class="lbl">BONUS MYTH</b>“A pause means I’ve lost them.” The opposite: a seven-second pause after a tuned question is the standard invitation. It is what turns a rhetorical flourish into a real question.</p>
+        </div>
+      </details>
+
+      <p class="matters">One pass reaches about eighty percent of the room; three passes, plus landmarks and one good question, reach nearly everyone.</p>
+      <p class="mlink">🔗 This connects to Module 5 because sparse slides force verbal punctuation: when the screen stops carrying the structure, your spoken landmarks become the audience’s only map.</p>
+
+      <div class="widget" id="dndWidget">
+        <span class="widget-tag">PRACTICE · MATCH THE HEURISTIC</span>
+        <h4>Which heuristic is at work in each situation?</h4>
+        <p class="prompt">Select a term, then select the situation it belongs to. A wrong match simply comes back.</p>
+        <div class="dnd-terms" id="dndTerms"></div>
+        <div id="dndSlots"></div>
+        <div class="fb" id="dndFb"></div>
+      </div>
+    </article>
+
+    <!-- ==================== MODULE 4 ==================== -->
+    <article class="module" id="m4">
+      <span class="kicker">MODULE 4 · THE PHYSICS OF THE ROOM</span>
+      <h2>Time, Place, and the Tools of the Trade</h2>
+      <blockquote class="epigraph">“It’s extremely hard to see slides through closed eyelids.”</blockquote>
+
+      <h3>The core idea</h3>
+      <p>Before a single word is spoken, the talk is already being shaped by the clock, the room, and the tools — and Winston treats all three as engineering variables. On <strong>time</strong>: 11 a.m. is his ideal, because by then most people are properly awake, nobody has just eaten, and nobody is yet fatigued. On <strong>place</strong>: the single most important property is light. Dim rooms tell the human brain it is time to sleep — so keep the lights full up, even when the AV person insists the slides will look better in the dark. His reply is perfect: it is extremely hard to see slides through closed eyelids. The room should also be <strong>cased</strong> — visited in advance, the way a bank robber cases a bank — so there are no surprises on the day; and it should be <strong>reasonably populated</strong>, more than half full, because a sparse room makes everyone wonder what more interesting thing is happening elsewhere.</p>
+      <p>Then, tools. For <em>informing</em> — teaching, explaining — Winston uses a <strong>blackboard</strong>, for three reasons: graphic quality; speed (your handwriting pace roughly matches the pace at which people can absorb ideas, which slide-flipping does not); and <strong>target</strong> — the board gives your hands somewhere to point, solving the novice speaker’s sudden, mortifying awareness of their own hands. Seymour Papert pointed at the board constantly, even at things unrelated to what he was saying — and it worked. <strong>Props</strong> work better still: Ibsen’s glowing stove in <em>Hedda Gabler</em>, Papert’s duct-taped bicycle wheel, Lazarus’s pendulum gently kissing his nose to prove conservation of energy. Why do chalk and props beat slides for teaching? Winston’s answer: <strong>empathetic mirroring</strong> — your mirror neurons fire as if <em>you</em> were writing on the board, or feeling the steel ball swing. You cannot mirror a static image.</p>
+
+      <h3>Step by step</h3>
+      <ol style="padding-left:22px;margin-bottom:8px">
+        <li style="margin-bottom:9px"><b>Pick the time</b> — late morning, clear of meals and fatigue.</li>
+        <li style="margin-bottom:9px"><b>Keep the lights full up.</b> Dim means sleep; negotiate with AV before, not during, the talk.</li>
+        <li style="margin-bottom:9px"><b>Case the room in advance.</b> Walk the space, find the weirdness, intervene or adapt. Worst case, imagine the seats filled with disinterested farm animals.</li>
+        <li style="margin-bottom:9px"><b>Size the room to the crowd</b> — more than half full, or the emptiness becomes the story.</li>
+        <li style="margin-bottom:9px"><b>Match the tool to the purpose:</b> board for informing, props for physical truth, slides only for exposing.</li>
+      </ol>
+
+      <h3>Three ways it shows up</h3>
+      <div class="ex">
+        <span class="ex-tag">THE OBVIOUS CASE</span>
+        <p><b>The lights negotiation.</b> Winston’s first instruction to any AV crew is “keep the lights full up.” When they counter that slides look better in the dark, he answers that it is extremely hard to see slides through closed eyelids. The room’s alertness is worth more than the projector’s contrast ratio.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE COUNTER-INTUITIVE CASE</span>
+        <p><b>Papert’s irrelevant pointing.</b> Winston watched Papert lecture twice — once for content, once for style — and realized Papert was constantly pointing at board material that had nothing to do with what he was saying. It still worked. The gesture itself, a live human hand directing attention, carries the signal; the content being pointed at barely matters.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE EDGE CASE</span>
+        <p><b>The duct-tape wheel.</b> Spin a bicycle wheel, torque the axle, and ask which way it goes: mechanical engineers applying the right-hand rule score about fifty percent — a coin flip with a fancy education. But tape a marker on one segment and ask what happens to <em>that piece</em> when you blow on it, and the answer becomes obvious piece by piece. The prop doesn’t just demonstrate — it forces the right framing.</p>
+      </div>
+
+      <figure class="diagram" id="fig4">
+        <svg viewBox="0 0 660 380" role="img" aria-label="Cross-section of a lecture hall with numbered hotspots on the clock, lights, seats, board and door">
+          <line x1="30" y1="50" x2="630" y2="50" class="ln2"/>
+          <line x1="30" y1="320" x2="630" y2="320" class="ln2"/>
+          <line x1="30" y1="50" x2="30" y2="320" class="ln2"/>
+          <line x1="630" y1="50" x2="630" y2="320" class="ln2"/>
+          <!-- lights -->
+          <g>
+            <rect x="152" y="50" width="36" height="8" class="fgray" stroke="var(--soft)" stroke-width="1"/>
+            <line x1="160" y1="62" x2="154" y2="84" class="acc" stroke-width="1" opacity=".7"/>
+            <line x1="170" y1="62" x2="170" y2="86" class="acc" stroke-width="1" opacity=".7"/>
+            <line x1="180" y1="62" x2="186" y2="84" class="acc" stroke-width="1" opacity=".7"/>
+            <rect x="322" y="50" width="36" height="8" class="fgray" stroke="var(--soft)" stroke-width="1"/>
+            <line x1="330" y1="62" x2="324" y2="84" class="acc" stroke-width="1" opacity=".7"/>
+            <line x1="340" y1="62" x2="340" y2="86" class="acc" stroke-width="1" opacity=".7"/>
+            <line x1="350" y1="62" x2="356" y2="84" class="acc" stroke-width="1" opacity=".7"/>
+            <rect x="492" y="50" width="36" height="8" class="fgray" stroke="var(--soft)" stroke-width="1"/>
+            <line x1="500" y1="62" x2="494" y2="84" class="acc" stroke-width="1" opacity=".7"/>
+            <line x1="510" y1="62" x2="510" y2="86" class="acc" stroke-width="1" opacity=".7"/>
+            <line x1="520" y1="62" x2="526" y2="84" class="acc" stroke-width="1" opacity=".7"/>
+          </g>
+          <!-- clock -->
+          <circle cx="585" cy="95" r="17" class="fbg" stroke="var(--ink)" stroke-width="1.25"/>
+          <line x1="585" y1="95" x2="578" y2="86" class="ln"/>
+          <line x1="585" y1="95" x2="585" y2="81" class="ln"/>
+          <text x="585" y="130" class="slb" text-anchor="middle">11:00</text>
+          <!-- board -->
+          <rect x="45" y="110" width="150" height="110" class="fbg" stroke="var(--ink)" stroke-width="1.25"/>
+          <text x="120" y="152" class="sformula" text-anchor="middle" font-size="17">K × P × T</text>
+          <path d="M78 162 H162" class="acc" stroke-width="1.1"/>
+          <line x1="62" y1="182" x2="152" y2="182" class="ln2"/>
+          <line x1="62" y1="196" x2="132" y2="196" class="ln2"/>
+          <!-- speaker -->
+          <circle cx="250" cy="196" r="9" class="ln" fill="none"/>
+          <line x1="250" y1="205" x2="250" y2="245" class="ln"/>
+          <line x1="250" y1="245" x2="240" y2="275" class="ln"/>
+          <line x1="250" y1="245" x2="260" y2="275" class="ln"/>
+          <line x1="250" y1="212" x2="208" y2="180" class="ln"/>
+          <path d="M208 180 l10 1 M208 180 l3 9" class="ln"/>
+          <line x1="250" y1="212" x2="258" y2="240" class="ln"/>
+          <text x="250" y="292" class="sl" text-anchor="middle">speaker — hands have a target</text>
+          <!-- audience -->
+          <line x1="340" y1="272" x2="630" y2="272" class="ln2"/>
+          <g>
+            <circle cx="355" cy="262" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="385" cy="262" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="415" cy="262" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="445" cy="262" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="475" cy="262" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="505" cy="262" r="8" fill="none" stroke="var(--soft)" stroke-width="1" stroke-dasharray="2.5 3"/>
+            <circle cx="535" cy="262" r="8" fill="none" stroke="var(--soft)" stroke-width="1" stroke-dasharray="2.5 3"/>
+            <circle cx="565" cy="262" r="8" fill="none" stroke="var(--soft)" stroke-width="1" stroke-dasharray="2.5 3"/>
+          </g>
+          <g>
+            <circle cx="340" cy="295" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="370" cy="295" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="400" cy="295" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="430" cy="295" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="460" cy="295" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="490" cy="295" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="520" cy="295" r="8" class="fbg" stroke="var(--ink)" stroke-width="1.1"/>
+            <circle cx="550" cy="295" r="8" fill="none" stroke="var(--soft)" stroke-width="1" stroke-dasharray="2.5 3"/>
+            <circle cx="580" cy="295" r="8" fill="none" stroke="var(--soft)" stroke-width="1" stroke-dasharray="2.5 3"/>
+            <circle cx="610" cy="295" r="8" fill="none" stroke="var(--soft)" stroke-width="1" stroke-dasharray="2.5 3"/>
+          </g>
+          <!-- door -->
+          <rect x="616" y="235" width="14" height="85" fill="none" stroke="var(--soft)" stroke-width="1.1"/>
+          <circle cx="620" cy="278" r="1.6" fill="var(--soft)"/>
+          <!-- hotspots -->
+          <g class="hotspot" tabindex="0" role="button" aria-label="Hotspot 1: choosing the time" data-note="Time — 11 a.m. Most people are properly awake by then; nobody has just eaten and nobody has given up on the day. Pick a slot where alertness comes free.">
+            <circle cx="545" cy="95" r="11"/><text x="545" y="98.5">1</text>
+          </g>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Hotspot 2: keeping the lights up" data-note="Light — keep it full up. Dim rooms tell the human brain it is time to sleep, and it is extremely hard to see slides through closed eyelids. The lights serve the audience’s alertness, not the projector.">
+            <circle cx="340" cy="30" r="11"/><text x="340" y="33.5">2</text>
+          </g>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Hotspot 3: room capacity" data-note="Capacity — more than half full. Ten people in a large hall makes everyone wonder what is so much more interesting elsewhere. Size the room to the crowd, never the crowd to the room.">
+            <circle cx="306" cy="300" r="11"/><text x="306" y="303.5">3</text>
+          </g>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Hotspot 4: the board as a target" data-note="The board as target — it gives novice hands somewhere to point (pockets and behind-the-back read as concealment), and your handwriting pace matches the audience’s absorption rate. Papert pointed constantly — even at irrelevant material — and it worked.">
+            <circle cx="120" cy="245" r="11"/><text x="120" y="248.5">4</text>
+          </g>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Hotspot 5: casing the room" data-note="Case the room — visit it beforehand, the way a bank robber cases a bank, so there are no surprises on the day. Sometimes you intervene; sometimes you just learn the weirdness. Winston’s fallback: imagine the seats filled with disinterested farm animals, and relax.">
+            <circle cx="592" cy="262" r="11"/><text x="592" y="265.5">5</text>
+          </g>
+        </svg>
+        <figcaption>Fig. 4 — The room is part of the talk. Tap the numbered points for Winston’s reasoning on time, light, capacity, the board, and casing the venue.</figcaption>
+        <div class="hs-note" id="note4">Tap a numbered point to see Winston’s reasoning.</div>
+      </figure>
+
+      <h3>The prop that beats the right-hand rule</h3>
+      <figure class="diagram" id="fig5">
+        <svg viewBox="0 0 660 210" role="img" aria-label="Three panels: a spinning bicycle wheel, blowing on a duct-taped segment, and the wheel tipping over">
+          <line x1="220" y1="20" x2="220" y2="190" class="ln2 dash"/>
+          <line x1="440" y1="20" x2="440" y2="190" class="ln2 dash"/>
+          <g class="wpanel on" data-step="1">
+            <circle cx="110" cy="100" r="52" class="ln" fill="none"/>
+            <circle cx="110" cy="100" r="5" class="fgray"/>
+            <path d="M74 62 A52 52 0 0 1 146 62" fill="none" stroke="var(--soft)" stroke-width="9" stroke-linecap="round" opacity=".5"/>
+            <path d="M150 52 Q172 62 168 86" class="acc" fill="none" stroke-width="1.3"/>
+            <path d="M168 86 l-6 -8 M168 86 l7 -6" class="acc" fill="none" stroke-width="1.3"/>
+            <text x="110" y="182" class="slb" text-anchor="middle">1 · spin the wheel</text>
+          </g>
+          <g class="wpanel" data-step="2">
+            <circle cx="330" cy="100" r="52" class="ln" fill="none"/>
+            <circle cx="330" cy="100" r="5" class="fgray"/>
+            <path d="M294 62 A52 52 0 0 1 366 62" fill="none" stroke="var(--acc)" stroke-width="9" stroke-linecap="round" opacity=".85"/>
+            <line x1="252" y1="48" x2="288" y2="56" class="acc" stroke-width="1.2"/>
+            <line x1="248" y1="62" x2="286" y2="66" class="acc" stroke-width="1.2"/>
+            <line x1="252" y1="76" x2="288" y2="74" class="acc" stroke-width="1.2"/>
+            <path d="M288 56 l-7 -2 M286 66 l-7 -3 M288 74 l-7 2" class="acc" fill="none" stroke-width="1.1"/>
+            <text x="330" y="182" class="slb" text-anchor="middle">2 · blow on the taped piece only</text>
+          </g>
+          <g class="wpanel" data-step="3">
+            <line x1="480" y1="160" x2="630" y2="160" class="ln2"/>
+            <circle cx="548" cy="108" r="44" class="ln" fill="none"/>
+            <circle cx="548" cy="108" r="4" class="fgray"/>
+            <path d="M520 74 A44 44 0 0 1 576 74" fill="none" stroke="var(--acc)" stroke-width="8" stroke-linecap="round" opacity=".85"/>
+            <path d="M592 62 Q614 100 592 138" class="acc" fill="none" stroke-width="1.4"/>
+            <path d="M592 138 l-2 -9 M592 138 l8 -5" class="acc" fill="none" stroke-width="1.4"/>
+            <text x="552" y="182" class="slb" text-anchor="middle">3 · piece by piece, it must go this way</text>
+          </g>
+        </svg>
+        <figcaption>Fig. 5 — Papert’s bicycle wheel, in three panels. Step through the reasoning below.</figcaption>
+        <div class="btn-row" style="margin-top:4px">
+          <button class="btn ghost wbtn" data-step="1">Panel 1</button>
+          <button class="btn ghost wbtn" data-step="2">Panel 2</button>
+          <button class="btn ghost wbtn" data-step="3">Panel 3</button>
+        </div>
+        <div class="wheel-cap" id="wheelCap">Spin a bicycle wheel and ask which way it precesses when you torque the axle — most engineers, right-hand rule in hand, flip a coin.</div>
+      </figure>
+
+      <h3>Visual analogy</h3>
+      <div class="analogy">
+        <div class="half">
+          <span class="half-tag">THE CONCEPT</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="A hand pointing at a chalkboard with small spark lines">
+            <rect x="36" y="28" width="96" height="64" class="fbg" stroke="var(--ink)" stroke-width="1.2"/>
+            <line x1="48" y1="48" x2="118" y2="48" class="ln2"/>
+            <line x1="48" y1="62" x2="100" y2="62" class="ln2"/>
+            <path d="M176 74 L138 62" class="ln"/>
+            <path d="M138 62 l10 -1 M138 62 l4 9" class="ln"/>
+            <circle cx="186" cy="82" r="8" class="ln" fill="none"/>
+            <path d="M128 34 l6 6 M140 30 l2 8 M118 40 l8 3" class="acc" stroke-width="1.2" fill="none"/>
+            <text x="120" y="122" class="sl" text-anchor="middle">live writing, live pointing</text>
+          </svg>
+        </div>
+        <div class="half">
+          <span class="half-tag">THE ANALOGY — WATCHING A POTTER WORK</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="Hands shaping clay on a wheel while an observer's head shows small mirror sparks">
+            <ellipse cx="92" cy="98" rx="42" ry="10" class="ln2" fill="none"/>
+            <path d="M62 82 Q92 108 122 82" class="ln" fill="none"/>
+            <path d="M54 68 q12 16 6 28 M130 68 q-12 16 -6 28" class="ln" fill="none"/>
+            <circle cx="196" cy="58" r="13" class="ln" fill="none"/>
+            <path d="M216 40 l5 5 M222 58 l7 0 M214 74 l5 6" class="acc" stroke-width="1.3" fill="none"/>
+            <path d="M150 80 L182 66" class="ln2 dash"/>
+            <text x="150" y="122" class="sl" text-anchor="middle">mirror neurons rehearse the motion</text>
+          </svg>
+        </div>
+        <div class="bridge">
+          <b>THE BRIDGE</b>
+          Reading a recipe photo is information; watching someone knead dough, your own hands tense in sympathy — your mirror neurons rehearse the motion. A blackboard and a swinging steel ball give the audience’s motor system something to imitate. A static slide gives it nothing to do. That is empathetic mirroring, and it is why surveys always say: more chalk, less PowerPoint.
+        </div>
+      </div>
+
+      <details class="mis">
+        <summary>What people get wrong</summary>
+        <div class="mis-body">
+          <p><b class="lbl">THE MYTH</b>“Dim the lights so the slides show better.”</p>
+          <p><b class="lbl">THE TRUTH</b>Dim light is a sleep signal; the audience’s eyelids close, and no contrast ratio fixes that. Light the room for the audience’s alertness, not the projector’s.</p>
+          <p><b class="lbl">BONUS MYTH</b>“Slides can teach.” Slides <em>expose</em> ideas; boards <em>inform</em>. Teaching needs the audience’s mirror system engaged — live writing, live motion, physical props — and a deck of slides provides none of it.</p>
+        </div>
+      </details>
+
+      <p class="matters">You cannot compete with closed eyelids — the room is either your ally or your opponent, and that is decided before you say a word.</p>
+      <p class="mlink">🔗 This connects to Module 2 because lights, laptops, and room size are all the same problem: protecting the audience’s single language processor from everything the environment throws at it.</p>
+    </article>
+
+    <!-- Quick recall 2 -->
+    <section class="qr" id="qr2">
+      <span class="widget-tag">RETRIEVAL PRACTICE · QUICK RECALL — MODULES 3–4</span>
+      <p class="prompt" style="margin-top:8px">Close your eyes first. Retrieve, then check — that effort is the learning.</p>
+      <div class="qr-mount"></div>
+    </section>
+
+    <!-- ==================== MODULE 5 ==================== -->
+    <article class="module" id="m5">
+      <span class="kicker">MODULE 5 · CRIME SCENE</span>
+      <h2>The Slide Crimes — and the Fixes</h2>
+      <blockquote class="epigraph">“You have too many, and they have too many words. — How did you know? — Because it’s always true.”</blockquote>
+
+      <h3>The core idea</h3>
+      <p>Winston’s view of slides is precise and unforgiving: slides are for <em>exposing</em> ideas — job talks, conference talks — not for <em>teaching</em> them. And the diagnosis is always the same. When a stranger at Logan Airport asked him to critique a job-talk deck, Winston answered without ever having seen it: you have too many slides, and they have too many words. How did he know? Because it is always true.</p>
+      <p>The crimes are enumerable. <strong>Reading your transparencies</strong> — the audience knows how to read, and watching you recite annoys them. <strong>Too many words</strong> — and here is the mechanism: you have one language processor, and it can read the screen or listen to the speaker, not both. A student’s experiment proved the stakes: subjects remembered what they <em>read</em> on the slides, not what the speaker <em>said</em> — and one wrote in the after-action report, “I wish you hadn’t talked so much. It was distracting.” <strong>Standing far from the screen</strong>, creating a tennis match of attention; slides should be <strong>condiments</strong> to what you say, not the main event. <strong>The laser pointer</strong>, which forces you to turn your back — you lose eye contact, and “we could all leave, and he wouldn’t know”; the fix is a baked-in arrow: “look at the guy at the end of arrow number one.” <strong>The too-heavy deck</strong> — print it out and lay it on a table, and the density becomes visible; a talk needs air. And the <strong>hapax legomenon</strong>: the impenetrable slide you may use exactly once per talk, like the infamous Afghanistan governance chart, deployed precisely to show complexity that cannot be walked through.</p>
+      <p>The fix is subtraction: strip the background junk, strip the words until only keywords remain, strip the logos, strip the title — you can <em>say</em> the title — and never use a font smaller than about forty points.</p>
+
+      <details class="elab">
+        <summary>But why does the audience remember the slide instead of the speaker?</summary>
+        <p>Because reading and listening compete for the same single language processor, and reading wins — it is self-paced, concrete, and right there. In the fraternity experiment, half the material was spoken and half was on slides, then reversed for a control group; whichever channel carried the words, the slides took the memory. Dense slides don’t reinforce your talk; they replace you, and then the audience complains that your talking was the distraction.</p>
+      </details>
+
+      <h3>The fix, in order</h3>
+      <ol style="padding-left:22px;margin-bottom:8px">
+        <li style="margin-bottom:9px"><b>Print the deck and lay it on a table.</b> Density you can’t see on a screen becomes obvious on paper.</li>
+        <li style="margin-bottom:9px"><b>Strip the background junk</b> — decoration is distraction.</li>
+        <li style="margin-bottom:9px"><b>Strip the words</b> — keep only keywords; say everything else out loud.</li>
+        <li style="margin-bottom:9px"><b>Strip the logos and the title</b> — you are the title.</li>
+        <li style="margin-bottom:9px"><b>Bake in arrows</b> — retire the laser pointer and keep your eye contact.</li>
+        <li style="margin-bottom:9px"><b>Enforce a minimum font (~40 pt).</b> Small fonts exist to smuggle in too many words.</li>
+      </ol>
+
+      <h3>Three ways it shows up</h3>
+      <div class="ex">
+        <span class="ex-tag">THE OBVIOUS CASE</span>
+        <p><b>The airport diagnosis.</b> A stranger in Terminal A, en route to give a job talk, asks Winston to critique his slides. Winston has never seen the deck, but he knows: too many slides, too many words — “because it’s always true.” Most decks are one subtraction away from competence.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE COUNTER-INTUITIVE CASE</span>
+        <p><b>Dense slides don’t reinforce your talk — they replace you.</b> In the experiment, the audience remembered the slide text better than the spoken words, then complained that the speaker’s talking was distracting. Every word you put on the screen is a word they stop hearing from you.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE EDGE CASE</span>
+        <p><b>The hapax legomenon.</b> One slide per talk may be impenetrable — the Afghanistan chart, shown precisely because it cannot be walked through, to demonstrate impossibility. One is a rhetorical device; two is a pattern of laziness. The same rule licenses a rare text-heavy historical slide — like the 1957 Dartmouth proposal — provided you give the audience time to read it.</p>
+      </div>
+
+      <figure class="diagram" id="fig6">
+        <svg viewBox="0 0 660 300" role="img" aria-label="A dense crime-scene slide with numbered hotspots beside a sparse fixed slide with one keyword and a baked-in arrow">
+          <!-- crime scene slide -->
+          <rect x="40" y="40" width="280" height="200" class="fbg" stroke="var(--ink)" stroke-width="1.25"/>
+          <g class="layer-bg">
+            <rect x="40" y="40" width="280" height="26" class="fgray"/>
+            <circle cx="300" cy="222" r="16" class="fgray"/>
+            <path d="M44 228 q60 -30 120 0" fill="none" stroke="var(--line2)" stroke-width="6" opacity=".55"/>
+          </g>
+          <g class="layer-title">
+            <text x="50" y="57" style="font:700 7.5px var(--mono);fill:var(--soft)">Q3 SYNERGY PARADIGM ROADMAP</text>
+          </g>
+          <g class="layer-logo">
+            <rect x="268" y="44" width="44" height="17" fill="none" stroke="var(--soft)" stroke-width="1"/>
+            <text x="290" y="55.5" style="font:700 6.5px var(--mono);fill:var(--soft)" text-anchor="middle">ACME™</text>
+          </g>
+          <g class="layer-words">
+            <circle cx="54" cy="82" r="1.6" class="fgray"/><rect x="60" y="79" width="200" height="4" class="fgray"/>
+            <circle cx="54" cy="95" r="1.6" class="fgray"/><rect x="60" y="92" width="178" height="4" class="fgray"/>
+            <circle cx="54" cy="108" r="1.6" class="fgray"/><rect x="60" y="105" width="210" height="4" class="fgray"/>
+            <circle cx="54" cy="121" r="1.6" class="fgray"/><rect x="60" y="118" width="158" height="4" class="fgray"/>
+            <circle cx="54" cy="134" r="1.6" class="fgray"/><rect x="60" y="131" width="194" height="4" class="fgray"/>
+            <circle cx="54" cy="147" r="1.6" class="fgray"/><rect x="60" y="144" width="148" height="4" class="fgray"/>
+            <circle cx="54" cy="160" r="1.6" class="fgray"/><rect x="60" y="157" width="204" height="4" class="fgray"/>
+            <circle cx="54" cy="173" r="1.6" class="fgray"/><rect x="60" y="170" width="170" height="4" class="fgray"/>
+            <circle cx="54" cy="186" r="1.6" class="fgray"/><rect x="60" y="183" width="190" height="4" class="fgray"/>
+            <circle cx="54" cy="199" r="1.6" class="fgray"/><rect x="60" y="196" width="140" height="4" class="fgray"/>
+            <circle cx="54" cy="212" r="1.6" class="fgray"/><rect x="60" y="209" width="186" height="4" class="fgray"/>
+          </g>
+          <g class="layer-laser">
+            <circle cx="210" cy="170" r="4" fill="var(--bad)"/>
+            <path d="M210 170 q-30 12 -55 32" fill="none" stroke="var(--bad)" stroke-width="1" stroke-dasharray="2.5 3"/>
+          </g>
+          <g class="layer-final">
+            <text x="180" y="150" style="font:700 24px var(--serif);fill:var(--ink)" text-anchor="middle">LESS</text>
+            <line x1="92" y1="176" x2="142" y2="158" class="acc" stroke-width="1.4"/>
+            <path d="M142 158 l-9 0 M142 158 l-3 8" class="acc" fill="none" stroke-width="1.4"/>
+          </g>
+          <text x="180" y="262" class="slb" text-anchor="middle">the crime scene</text>
+          <!-- fixed slide -->
+          <rect x="400" y="40" width="220" height="200" class="fbg" stroke="var(--ink)" stroke-width="1.25"/>
+          <text x="510" y="132" style="font:700 27px var(--serif);fill:var(--ink)" text-anchor="middle">LESS</text>
+          <line x1="428" y1="176" x2="478" y2="146" class="acc" stroke-width="1.4"/>
+          <path d="M478 146 l-10 1 M478 146 l-2 9" class="acc" fill="none" stroke-width="1.4"/>
+          <circle cx="362" cy="150" r="8" class="ln" fill="none"/>
+          <line x1="362" y1="158" x2="362" y2="190" class="ln"/>
+          <line x1="362" y1="166" x2="394" y2="146" class="ln"/>
+          <text x="510" y="262" class="slb" text-anchor="middle">the fix — one keyword, a baked-in arrow, you doing the talking</text>
+          <!-- hotspots -->
+          <g class="hotspot" tabindex="0" role="button" aria-label="Hotspot 1: too many words" data-note="Too many words — the audience reads instead of listens, because one language processor can’t do both. In the experiment, subjects remembered the slides and complained the speaker was distracting.">
+            <circle cx="140" cy="120" r="11"/><text x="140" y="123.5">1</text>
+          </g>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Hotspot 2: logo and background junk" data-note="Background junk and logos — pure distraction, zero information. Strip it all; the slide owes the audience nothing but one idea.">
+            <circle cx="290" cy="78" r="11"/><text x="290" y="81.5">2</text>
+          </g>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Hotspot 3: the title on the slide" data-note="The title on the slide — you can say the title; the screen doesn’t need it. Removing it buys attention for you, the speaker.">
+            <circle cx="120" cy="53" r="11"/><text x="120" y="56.5">3</text>
+          </g>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Hotspot 4: the laser pointer" data-note="The laser pointer — you can’t use it without turning your head, and then it’s the back of your head the audience sees: no eye contact, no engagement. Bake in an arrow: ‘look at the guy at the end of arrow number one.’">
+            <circle cx="210" cy="196" r="11"/><text x="210" y="199.5">4</text>
+          </g>
+        </svg>
+        <figcaption>Fig. 6 — A crime scene and its fix. Tap the numbered points, then strip the slide yourself below.</figcaption>
+        <div class="hs-note" id="note5">Tap a numbered point to read the charge sheet.</div>
+      </figure>
+
+      <div class="widget" id="stripWidget">
+        <span class="widget-tag">PRACTICE · STRIP THE SLIDE</span>
+        <h4>Commit the fixes, in order, on the crime scene</h4>
+        <p class="prompt">Each fix removes a layer from the left slide. Watch it converge on the fix on the right.</p>
+        <div class="btn-row" style="margin-top:0">
+          <button class="btn ghost strip-btn" data-layer="layer-bg">1 · Strip background junk</button>
+          <button class="btn ghost strip-btn" data-layer="layer-words">2 · Strip the words</button>
+          <button class="btn ghost strip-btn" data-layer="layer-title">3 · Strip the title</button>
+          <button class="btn ghost strip-btn" data-layer="layer-logo">4 · Strip the logo</button>
+          <button class="btn ghost strip-btn" data-layer="layer-laser" data-final="1">5 · Retire the laser, bake an arrow</button>
+          <button class="btn ghost" id="stripReset">Reset</button>
+        </div>
+        <div class="fb" id="stripFb"></div>
+      </div>
+
+      <h3>Visual analogy</h3>
+      <div class="analogy">
+        <div class="half">
+          <span class="half-tag">THE CONCEPT</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="A sparse slide with one keyword and a baked-in arrow">
+            <rect x="70" y="26" width="120" height="82" class="fbg" stroke="var(--ink)" stroke-width="1.2"/>
+            <text x="130" y="72" style="font:700 17px var(--serif);fill:var(--ink)" text-anchor="middle">LESS</text>
+            <line x1="84" y1="94" x2="112" y2="80" class="acc" stroke-width="1.3"/>
+            <path d="M112 80 l-9 0 M112 80 l-3 8" class="acc" fill="none" stroke-width="1.3"/>
+            <text x="130" y="128" class="sl" text-anchor="middle">one keyword + one arrow</text>
+          </svg>
+        </div>
+        <div class="half">
+          <span class="half-tag">THE ANALOGY — KETCHUP ON THE BURGER</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="Two burgers: one with a single line of ketchup, one drowned in it">
+            <path d="M42 76 Q70 50 98 76" class="ln" fill="none"/>
+            <line x1="42" y1="83" x2="98" y2="83" class="ln2" stroke-width="2.5"/>
+            <path d="M42 89 Q70 101 98 89" class="ln" fill="none"/>
+            <path d="M48 80 q11 -4 22 0 q11 4 22 0" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"/>
+            <text x="70" y="118" class="sgood" text-anchor="middle">✓</text>
+            <path d="M162 70 q30 -16 60 0 l0 22 q-30 13 -60 0 z" class="fbg" fill="var(--bad-soft)" stroke="var(--bad)" stroke-width="1.1"/>
+            <line x1="176" y1="94" x2="176" y2="106" stroke="var(--bad)" stroke-width="1.2"/>
+            <line x1="206" y1="96" x2="206" y2="108" stroke="var(--bad)" stroke-width="1.2"/>
+            <text x="192" y="122" class="sbad" text-anchor="middle">✗</text>
+            <text x="130" y="142" class="sl" text-anchor="middle">seasoning vs. the whole bottle</text>
+          </svg>
+        </div>
+        <div class="bridge">
+          <b>THE BRIDGE</b>
+          A single line of ketchup makes the burger; the whole bottle ruins it. Slides are condiments to what you say — a keyword here, an arrow there. The moment they become the meal, the speaker becomes background noise.
+        </div>
+      </div>
+
+      <details class="mis">
+        <summary>What people get wrong</summary>
+        <div class="mis-body">
+          <p><b class="lbl">THE MYTH</b>“More content on the slide looks more professional.”</p>
+          <p><b class="lbl">THE TRUTH</b>It forces the audience to read instead of listen, and they will remember the screen, not you. Slides are condiments — keywords and arrows — while you remain the main event.</p>
+          <p><b class="lbl">BONUS MYTH</b>“A laser pointer shows precision.” It shows the back of your head. A baked-in arrow does the pointing while you keep eye contact — and it stays put when you move on.</p>
+        </div>
+      </details>
+
+      <p class="matters">Your audience has one language processor — every word you put on the screen is a word they stop hearing from you.</p>
+      <p class="mlink">🔗 This connects to Module 3 because when slides are sparse, verbal punctuation has to carry the structure — your spoken landmarks become the audience’s only map.</p>
+
+      <div class="widget" id="fibWidget">
+        <span class="widget-tag">PRACTICE · FILL IN THE BLANK</span>
+        <h4>Winston’s rule of the screen</h4>
+        <p class="fib-line">“Slides should be <input type="text" id="fibInput" autocomplete="off" aria-label="Fill in the missing word"> to what you say — not the main event.”</p>
+        <div class="btn-row">
+          <button class="btn" id="fibCheck">Check</button>
+          <button class="btn ghost" id="fibHint">Hint (1/3)</button>
+        </div>
+        <div class="hint-line" id="fibHintLine"></div>
+        <div class="fb" id="fibFb"></div>
+      </div>
+    </article>
+
+    <!-- ==================== MODULE 6 ==================== -->
+    <article class="module" id="m6">
+      <span class="kicker">MODULE 6 · HIGH STAKES</span>
+      <h2>Job Talks, Fame, and the Sendoff</h2>
+      <blockquote class="epigraph">“Your ideas are like your children. You don’t want them to go into the world in rags.”</blockquote>
+
+      <h3>The core idea</h3>
+      <p>The final module handles the occasions where the stakes are highest. First, <strong>inspiring</strong>: when Winston surveyed everyone from incoming freshmen to senior faculty about what inspired them, three answers emerged — someone who told them <em>they could do it</em>; someone who helped them <em>see a problem in a new way</em>; and, from everyone, someone who <em>exhibited passion</em> about what they were doing. Passion is contagious and, unlike charisma, it is honest: talk about what you think is cool.</p>
+      <p>Then the <strong>job talk</strong>. Winston asked two seasoned reviewers what they look for in a faculty candidate, and the answers came back in a microsecond: <strong>vision</strong> — a problem somebody cares about, plus something new in your approach — and evidence that you’ve <strong>done something</strong>. How long does a candidate have to establish both? <strong>Five minutes.</strong> The structure follows: open with the vision, enumerate the steps needed to realize it (you needn’t have done them all — say what needs doing, what is done, and demonstrate), and close by enumerating contributions.</p>
+      <p>Then <strong>getting famous</strong> — or rather, packaging, because your ideas are your children and you don’t send them into the world in rags. <strong>Winston’s Star</strong> names the five S-words that made his arch work famous: a <strong>Symbol</strong> (the arch itself), a <strong>Slogan</strong> (“one-shot learning”), a <strong>Surprise</strong> (you don’t need a million examples), a <strong>Salient idea</strong> (the near miss — not the most important idea, the one that sticks out), and a <strong>Story</strong> (how it works and why it matters).</p>
+      <p>And finally, <strong>how to stop</strong>. The last slide should not be a collaborator list (that belongs on slide one), not “Thank you,” not “Questions?” — it should be labeled <strong>Contributions</strong>, because it stays up for twenty minutes during Q&amp;A. And the last word shouldn’t be “thank you” either — it implies the audience endured you out of politeness. End with a joke (people think they had fun the whole time), a benediction, or a salute to the audience.</p>
+
+      <h3>Step by step</h3>
+      <ol style="padding-left:22px;margin-bottom:8px">
+        <li style="margin-bottom:9px"><b>Inspire with three levers:</b> “you can do it,” a new angle on an old problem, and visible passion for what is cool.</li>
+        <li style="margin-bottom:9px"><b>Spend the first five minutes of a job talk</b> establishing vision plus done-something; enumerate the steps; promise the demo.</li>
+        <li style="margin-bottom:9px"><b>Package with the five S’s</b> — Symbol, Slogan, Surprise, Salient idea, Story.</li>
+        <li style="margin-bottom:9px"><b>Put collaborators on the first slide and contributions on the last</b> — and never let “thank you” be your final word.</li>
+      </ol>
+
+      <h3>Three ways it shows up</h3>
+      <div class="ex">
+        <span class="ex-tag">THE OBVIOUS CASE</span>
+        <p><b>Winston’s stump speech.</b> Vision in one breath: what makes us different from chimpanzees and Neanderthals — we are symbolic creatures who string symbols into stories. Then the steps: specify the behavior, enumerate the constraints, build a system (engineers don’t believe they understand something until they can build it), and demonstrate it. Vision and done-something, side by side.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE COUNTER-INTUITIVE CASE</span>
+        <p><b>The collaborator list belongs on the first slide, not the last.</b> A giant roll-call at the end reads as a letdown — divide your work by a thousand faculty and it looks tiny, and the audience wonders whether you did anything at all. Acknowledge people at the start; end on what you did.</p>
+      </div>
+      <div class="ex">
+        <span class="ex-tag">THE EDGE CASE</span>
+        <p><b>The practice-audience trap.</b> Rehearsing for your advisor backfires: people who know your work hallucinate content that isn’t in the talk. You need friends who <em>don’t</em> know the material — and you start the session by saying, “if you can’t make me cry, I won’t value you as a friend anymore.” Then the actual committee feels easy.</p>
+      </div>
+
+      <figure class="diagram" id="fig7">
+        <svg viewBox="0 0 660 340" role="img" aria-label="Winston's Star: a five-pointed star whose points are Symbol, Slogan, Surprise, Salient idea and Story">
+          <path d="M330 55 L400 272 L216 138 L444 138 L260 272 Z" class="acc" fill="none" stroke-width="1.25" stroke-linejoin="round"/>
+          <line x1="330" y1="175" x2="330" y2="55" class="ln2 dash"/>
+          <line x1="330" y1="175" x2="444" y2="138" class="ln2 dash"/>
+          <line x1="330" y1="175" x2="400" y2="272" class="ln2 dash"/>
+          <line x1="330" y1="175" x2="260" y2="272" class="ln2 dash"/>
+          <line x1="330" y1="175" x2="216" y2="138" class="ln2 dash"/>
+          <text x="330" y="171" class="slb" text-anchor="middle">your</text>
+          <text x="330" y="185" class="slb" text-anchor="middle">work</text>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Star point: Symbol" data-note="Symbol — the arch. A picture your audience can draw from memory. Give your work a shape it can be recognized by.">
+            <circle cx="330" cy="55" r="24"/><text x="330" y="58.5">S</text>
+          </g>
+          <text x="330" y="20" class="slb" text-anchor="middle">Symbol</text>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Star point: Slogan" data-note="Slogan — ‘one-shot learning.’ A phrase that becomes a handle on the work, the thing people repeat when you leave the room.">
+            <circle cx="444" cy="138" r="24"/><text x="444" y="141.5">S</text>
+          </g>
+          <text x="482" y="134" class="slb">Slogan</text>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Star point: Surprise" data-note="Surprise — you don’t need a million examples to learn; one, used well, is enough. The hook that makes people repeat the work to others.">
+            <circle cx="400" cy="272" r="24"/><text x="400" y="275.5">S</text>
+          </g>
+          <text x="430" y="306" class="slb">Surprise</text>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Star point: Salient idea" data-note="Salient idea — the near miss. Not the most important idea, the one that sticks out. A thesis with too many good ideas leaves people unable to say what it is about.">
+            <circle cx="260" cy="272" r="24"/><text x="260" y="275.5">S</text>
+          </g>
+          <text x="228" y="306" class="slb" text-anchor="end">Salient idea</text>
+          <g class="hotspot" tabindex="0" role="button" aria-label="Star point: Story" data-note="Story — how you did it, how it works, why it matters. The narrative that carries the other four points into other people’s heads.">
+            <circle cx="216" cy="138" r="24"/><text x="216" y="141.5">S</text>
+          </g>
+          <text x="178" y="134" class="slb" text-anchor="end">Story</text>
+        </svg>
+        <figcaption>Fig. 7 — Winston’s Star. Tap each point for the arch example that accidentally had all five.</figcaption>
+        <div class="hs-note" id="note6">Tap a point of the star to see how the arch work earned it.</div>
+      </figure>
+
+      <figure class="diagram" id="fig8">
+        <svg viewBox="0 0 660 132" role="img" aria-label="Three candidate final slides: Thank you, a collaborator list, and Contributions — only the last is recommended">
+          <rect x="60" y="16" width="140" height="80" class="fbg" stroke="var(--ink)" stroke-width="1.2"/>
+          <text x="130" y="60" style="font:italic 500 13px var(--serif);fill:var(--soft)" text-anchor="middle">Thank you!</text>
+          <text x="130" y="116" class="sbad" text-anchor="middle">✗ squanders the real estate</text>
+          <rect x="260" y="16" width="140" height="80" class="fbg" stroke="var(--ink)" stroke-width="1.2"/>
+          <rect x="276" y="32" width="80" height="4" class="fgray"/><rect x="276" y="44" width="100" height="4" class="fgray"/>
+          <rect x="276" y="56" width="70" height="4" class="fgray"/><rect x="276" y="68" width="94" height="4" class="fgray"/>
+          <rect x="276" y="80" width="60" height="4" class="fgray"/>
+          <text x="330" y="116" class="sbad" text-anchor="middle">✗ “so… what did you do?”</text>
+          <rect x="460" y="16" width="140" height="80" class="fbg" stroke="var(--acc)" stroke-width="1.3"/>
+          <text x="476" y="36" class="sacc">CONTRIBUTIONS</text>
+          <rect x="476" y="48" width="104" height="4" class="facc" stroke="var(--acc)" stroke-width=".6"/>
+          <rect x="476" y="60" width="88" height="4" class="facc" stroke="var(--acc)" stroke-width=".6"/>
+          <rect x="476" y="72" width="98" height="4" class="facc" stroke="var(--acc)" stroke-width=".6"/>
+          <text x="530" y="116" class="sgood" text-anchor="middle">✓ up for the whole Q&amp;A</text>
+        </svg>
+        <figcaption>Fig. 8 — The last slide stays up for twenty minutes of questions. Spend it on what you did.</figcaption>
+      </figure>
+
+      <h3>Visual analogy</h3>
+      <div class="analogy">
+        <div class="half">
+          <span class="half-tag">THE CONCEPT</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="A small five-pointed star">
+            <path d="M130 30 L156 111 L87 61 L173 61 L104 111 Z" class="acc" fill="none" stroke-width="1.25" stroke-linejoin="round"/>
+            <circle cx="130" cy="72" r="3" fill="var(--acc)"/>
+            <text x="130" y="134" class="sl" text-anchor="middle">five handles, one work</text>
+          </svg>
+        </div>
+        <div class="half">
+          <span class="half-tag">THE ANALOGY — SENDING YOUR CHILD TO SCHOOL</span>
+          <svg viewBox="0 0 260 150" role="img" aria-label="A child in a coat with a name tag labeled handle">
+            <circle cx="100" cy="48" r="9" class="ln" fill="none"/>
+            <rect x="88" y="58" width="24" height="38" rx="4" class="fbg" stroke="var(--ink)" stroke-width="1.2"/>
+            <line x1="100" y1="96" x2="92" y2="118" class="ln"/>
+            <line x1="100" y1="96" x2="108" y2="118" class="ln"/>
+            <line x1="112" y1="68" x2="128" y2="70" class="ln2"/>
+            <rect x="128" y="62" width="52" height="17" rx="3" class="facc" stroke="var(--acc)" stroke-width="1.2"/>
+            <text x="154" y="74" class="sacc" text-anchor="middle">handle</text>
+            <text x="130" y="138" class="sl" text-anchor="middle">dressed to be recognized</text>
+          </svg>
+        </div>
+        <div class="bridge">
+          <b>THE BRIDGE</b>
+          You wouldn’t send your child into the world in rags with no name on their coat — you’d make sure they could be recognized and claimed. A slogan is the name tag; a symbol is the coat. The Star isn’t vanity; it is how the world grabs hold of value that is already there.
+        </div>
+      </div>
+
+      <details class="mis">
+        <summary>What people get wrong</summary>
+        <div class="mis-body">
+          <p><b class="lbl">THE MYTH</b>“Good work speaks for itself — packaging is for shallow people.”</p>
+          <p><b class="lbl">THE TRUTH</b>Winston’s reply is Julia Child’s: being famous, “you get used to it” — but you never get used to being ignored. Packaging doesn’t inflate the work; it makes the work’s value legible. The arch was good before the Star; the Star is why anyone remembers it.</p>
+          <p><b class="lbl">BONUS MYTH</b>“Ending with ‘thank you’ is polite.” It suggests the audience stayed out of politeness, wishing they were elsewhere. End with a joke, a benediction, or a salute — and let the applause do the thanking.</p>
+        </div>
+      </details>
+
+      <p class="matters">The last slide stays up for twenty minutes during Q&amp;A — that is prime real estate, and “thank you” leaves it empty.</p>
+      <p class="mlink">🔗 This connects to Module 1 because the Star is the formula made social: Symbol, Slogan, Surprise, Salient idea, and Story are all learnable technique — K and P — with no talent term anywhere.</p>
+
+      <div class="widget" id="scen3">
+        <span class="widget-tag">MINI-CHALLENGE · THE JOB TALK</span>
+        <h4>Five minutes to establish vision and done-something</h4>
+        <div class="sc-body"></div>
+      </div>
+
+      <div class="widget" id="tbWidget">
+        <span class="widget-tag">TEACH-BACK · EXPLAIN IT TO A 5-YEAR-OLD</span>
+        <h4>The empowerment promise, in your own words</h4>
+        <p class="prompt">Type your explanation below. Then check which key ideas you covered, and compare with a model answer.</p>
+        <div class="tb-grid">
+          <textarea id="tbText" aria-label="Your explanation of the empowerment promise for a five year old" placeholder="Before the talk starts, the speaker tells everyone…"></textarea>
+          <div class="btn-row" style="margin-top:0">
+            <button class="btn" id="tbCheck">Check my coverage</button>
+            <button class="btn ghost" id="tbReveal">Reveal the model answer</button>
+          </div>
+          <div class="cov" id="tbCov"></div>
+          <div class="tb-model" id="tbModel">“Before the talk starts, the speaker tells everyone a secret about the end: <em>when we’re done, you’ll know things you don’t know now.</em> It’s like promising a present. When people know a present is coming, they listen with both ears.”</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Quick recall 3 -->
+    <section class="qr" id="qr3">
+      <span class="widget-tag">RETRIEVAL PRACTICE · QUICK RECALL — CUMULATIVE</span>
+      <p class="prompt" style="margin-top:8px">Three final retrievals across the whole lesson. This is the last rep before the cheat sheet.</p>
+      <div class="qr-mount"></div>
+    </section>
+
+    <!-- ==================== FLASHCARDS ==================== -->
+    <section class="module" id="cardsSec" style="border-top:1px solid var(--line)">
+      <span class="kicker">MEMORY · THE DECK</span>
+      <h2>Flashcards: The Vocabulary of the Craft</h2>
+      <p>Nine terms carry the whole lesson. Flip a card, say the definition out loud before turning it, then mark yourself honestly — mastery is saved on this device.</p>
+
+      <div class="widget" id="cardWidget">
+        <span class="widget-tag">📝 FLASHCARDS · SPACED-REPETITION READY</span>
+        <div class="fmeta"><span id="cardCount">Card 1 of 9</span><span id="cardMastery">0 / 9 mastered</span></div>
+        <div class="fcard-zone">
+          <div class="fcard" id="fcard" tabindex="0" role="button" aria-label="Flashcard. Press enter to flip.">
+            <div class="fface front">
+              <span class="ftag" id="cardTag">TERM</span>
+              <div class="fterm" id="cardTerm"></div>
+              <p style="font-size:13px;color:var(--soft);margin:14px 0 0">Tap or press Enter to flip</p>
+            </div>
+            <div class="fface back">
+              <span class="ftag">DEFINITION</span>
+              <div class="fdef" id="cardDef"></div>
+              <div class="fextra" id="cardExtra"></div>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="cardFlip">Flip</button>
+          <button class="btn ghost" id="cardExtraBtn">Show extra context</button>
+          <button class="btn ghost" id="cardGot">✓ Got it</button>
+          <button class="btn ghost" id="cardAgain">↺ Still shaky</button>
+        </div>
+        <div class="fb" id="cardFb"></div>
+      </div>
+    </section>
+
+    <!-- ==================== SUMMARY ==================== -->
+    <section class="module" id="summary" style="border-top:1px solid var(--line)">
+      <span class="kicker">THE ONE-PAGER</span>
+      <h2>Summary &amp; Cheat Sheet</h2>
+      <p>Everything in the lesson, compressed to a page you could tape above a desk.</p>
+
+      <div class="cheat">
+        <div class="cheat-row"><span class="ck">THE FORMULA</span><span class="cv"><code>Q = K × P × T</code> — knowledge times practice times talent, and the T is very small. Multiplication means a zero anywhere zeroes everything.</span></div>
+        <div class="cheat-row"><span class="ck">THE OPENING</span><span class="cv">No joke in minute one — the room is still calibrating. Open with an <b>empowerment promise</b>: what they will know at the end that they don’t know now. State the rules of engagement: one language processor, so no laptops.</span></div>
+        <div class="cheat-row"><span class="ck">FOUR HEURISTICS</span><span class="cv"><b>Cycle</b> the subject three times · build a <b>fence</b> around your idea (“his is exponential, mine is linear”) · use <b>verbal punctuation</b> (“now the third of four”) · ask a tuned question and wait <b>seven seconds</b>.</span></div>
+        <div class="cheat-row"><span class="ck">TIME &amp; PLACE</span><span class="cv">11 a.m. · lights full up (“hard to see slides through closed eyelids”) · case the room in advance · more than half full.</span></div>
+        <div class="cheat-row"><span class="ck">TOOLS</span><span class="cv">Board for <em>informing</em> (graphic, pace-matched, a target for hands) · props for physical truth (empathetic mirroring) · slides only for <em>exposing</em>.</span></div>
+        <div class="cheat-row"><span class="ck">SLIDE RULES</span><span class="cv">Never read them · few words, ≥ 40 pt · strip junk, logos, titles · bake in arrows instead of a laser · let the deck breathe · one <b>hapax legomenon</b> per talk, at most.</span></div>
+        <div class="cheat-row"><span class="ck">THE JOB TALK</span><span class="cv">Five minutes to show <b>vision</b> (a problem people care about + a new approach) and <b>done-something</b> (enumerate the steps, mark what’s done, demo). Practice with friends who don’t know the work.</span></div>
+        <div class="cheat-row"><span class="ck">WINSTON’S STAR</span><span class="cv"><b>S</b>ymbol · <b>S</b>logan · <b>S</b>urprise · <b>S</b>alient idea · <b>S</b>tory. Your ideas are your children — don’t send them out in rags.</span></div>
+        <div class="cheat-row"><span class="ck">THE SENDOFF</span><span class="cv">Collaborators on slide one. Final slide: <b>Contributions</b>. Final words: a joke, a benediction, or a salute — never “thank you” as the last word.</span></div>
+      </div>
+
+      <h3>The map, one more time</h3>
+      <figure class="diagram" id="figEnd">
+        <svg viewBox="0 0 660 110" role="img" aria-label="Compact knowledge map: six connected nodes from the formula to the sendoff">
+          <line x1="56" y1="40" x2="156" y2="40" class="ln2"/>
+          <line x1="172" y1="40" x2="272" y2="40" class="ln2"/>
+          <line x1="288" y1="40" x2="388" y2="40" class="ln2"/>
+          <line x1="404" y1="40" x2="504" y2="40" class="ln2"/>
+          <line x1="520" y1="40" x2="604" y2="40" class="ln2"/>
+          <g class="mnode" data-target="m1" tabindex="0" role="button" aria-label="Back to module 1"><circle cx="48" cy="40" r="8" class="fbg" stroke="var(--acc)" stroke-width="1.25"/><text x="48" y="70" class="sl" text-anchor="middle">Formula</text></g>
+          <g class="mnode" data-target="m2" tabindex="0" role="button" aria-label="Back to module 2"><circle cx="164" cy="40" r="8" class="fbg" stroke="var(--acc)" stroke-width="1.25"/><text x="164" y="70" class="sl" text-anchor="middle">Opening</text></g>
+          <g class="mnode" data-target="m3" tabindex="0" role="button" aria-label="Back to module 3"><circle cx="280" cy="40" r="8" class="fbg" stroke="var(--acc)" stroke-width="1.25"/><text x="280" y="70" class="sl" text-anchor="middle">Heuristics</text></g>
+          <g class="mnode" data-target="m4" tabindex="0" role="button" aria-label="Back to module 4"><circle cx="396" cy="40" r="8" class="fbg" stroke="var(--acc)" stroke-width="1.25"/><text x="396" y="70" class="sl" text-anchor="middle">Time &amp; Place</text></g>
+          <g class="mnode" data-target="m5" tabindex="0" role="button" aria-label="Back to module 5"><circle cx="512" cy="40" r="8" class="fbg" stroke="var(--acc)" stroke-width="1.25"/><text x="512" y="70" class="sl" text-anchor="middle">Slides</text></g>
+          <g class="mnode" data-target="m6" tabindex="0" role="button" aria-label="Back to module 6"><circle cx="612" cy="40" r="8" class="fbg" stroke="var(--acc)" stroke-width="1.25"/><text x="612" y="70" class="sl" text-anchor="middle">Sendoff</text></g>
+        </svg>
+        <figcaption>Fig. 9 — The six modules as one chain. Click any node to revisit it.</figcaption>
+      </figure>
+
+      <h3>Spaced repetition — make it stick</h3>
+      <ul class="sr-list">
+        <li><b>10 MIN</b> Recite the four heuristics from memory, out loud, while walking somewhere.</li>
+        <li><b>1 HOUR</b> Sketch Winston’s Star from memory and label all five points.</li>
+        <li><b>1 DAY</b> Open your most recent slide deck and run the density check: print, lay on a table, count crimes.</li>
+        <div id="srMore" hidden>
+          <li><b>3 DAYS</b> Watch one talk you admire. Write down three techniques and which module they belong to.</li>
+          <li><b>1 WEEK</b> Give a five-minute practice talk to one naive friend. Open with the promise; end on contributions; time your one question’s pause.</li>
+        </div>
+      </ul>
+      <button class="more-btn" data-more="srMore">Show 2 more review prompts</button>
+    </section>
+
+    <!-- ==================== FAQ ==================== -->
+    <section class="module" id="faq" style="border-top:1px solid var(--line)">
+      <span class="kicker">STILL CONFUSED?</span>
+      <h2>Frequently Asked Questions</h2>
+      <details class="faq">
+        <summary>Isn’t repeating myself three times insulting to a smart audience?</summary>
+        <p>No — it is statistical insurance for a human one. Winston’s operating assumption is that about 20% of any audience is fogged out at any moment, regardless of brilliance; attention is a bus people keep falling off. One pass reaches roughly 80% of listeners; three passes, framed differently, reach nearly everyone. The sharpest people in the room barely notice the extra orbits, and the people who needed them will never know you saved them.</p>
+      </details>
+      <details class="faq">
+        <summary>What if my venue forces me to use slides for teaching?</summary>
+        <p>Then make the slides behave like a board: one keyword at a time, revealed progressively, at the pace you would write them by hand. Give the audience explicit reading time on the rare text slide, and keep yourself — not the screen — as the main event. The underlying principle is empathetic mirroring: live, paced, hand-made motion engages the audience’s motor system in a way that a wall of static text never can.</p>
+      </details>
+      <details class="faq">
+        <summary>Does the seven-second pause really work on video calls?</summary>
+        <p>It works even better, because silence reads as longer through a screen than in a room — speakers routinely panic and answer their own question after two seconds, which teaches the audience not to bother answering. Count the full seven. The rule’s logic is unchanged: the pause is what converts a rhetorical flourish into a real question, and the question is what pulls fogged-out listeners back onto the bus.</p>
+      </details>
+      <details class="faq">
+        <summary>What if my whole talk is only five minutes?</summary>
+        <p>Everything compresses but nothing disappears. The empowerment promise becomes one sentence (“in five minutes you’ll know the one fix for…”). Cycling becomes a single orbit plus a fence. Verbal punctuation becomes two landmarks instead of four. And the last slide is still Contributions — five minutes is exactly the window Winston says job-talk reviewers decide in, so the discipline is identical at any length.</p>
+      </details>
+      <details class="faq">
+        <summary>Is saying “thank you” really that bad?</summary>
+        <p>You will not go to hell for it — Winston says so himself. It is a weak move, not a sin: “thank you for listening” implies the audience stayed out of politeness, enduring you rather than choosing you. Once the applause has started, mouthing a thank-you is fine. But the last thing you say should be a joke, a benediction, or a salute to the audience — something that ends on your terms, not on an apology for having taken up their time.</p>
+      </details>
+    </section>
+
+    <!-- ==================== NEXT STEPS ==================== -->
+    <section class="module next" id="next" style="border-top:1px solid var(--line)">
+      <span class="kicker">LEAVING THE ROOM</span>
+      <h2>Next Steps</h2>
+      <ul>
+        <li>Watch three talks you admire this week and write down one technique from each — that is how you bank the K.</li>
+        <li>Record your next practice run. Count your pauses, and check whether your questions are tuned — not too easy, not impossible.</li>
+        <li>Print your current deck, lay it on a table, and run the too-heavy check. Subtraction is the fastest improvement available to you.</li>
+        <li>Draft your own Winston’s Star for your current project: symbol, slogan, surprise, salient idea, story.</li>
+        <div id="nextMore" hidden>
+          <li>Assemble two naive friends for a practice session — and start it with the crying rule.</li>
+          <li>Watch the original lecture: Patrick Winston’s “How to Speak,” MIT — the source of every idea in this lesson.</li>
+        </div>
+      </ul>
+      <button class="more-btn" data-more="nextMore">Show 2 more next steps</button>
+
+      <div style="margin-top:40px">
+        <div id="finishBadge">YOU FINISHED THE LESSON</div>
+      </div>
+    </section>
+
+    <footer>
+      BUILT FROM THE TRANSCRIPT OF PATRICK WINSTON’S “HOW TO SPEAK,” MASSACHUSETTS INSTITUTE OF TECHNOLOGY.<br>
+      AN INTERACTIVE LESSON · SELF-CONTAINED · PROGRESS SAVED ON THIS DEVICE · 30 JULY 2026
+    </footer>
+
+  </main>
+</div>
+
+<script>
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function $(sel, root){ return (root||document).querySelector(sel); }
+function $all(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+/* Safe localStorage wrapper */
+var store = {
+  get: function(k, fallback){ try{ var v = localStorage.getItem(k); return v===null?fallback:JSON.parse(v); }catch(e){ return fallback; } },
+  set: function(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+/* ============================================================
+   LOADING STATE — hide once content is ready
+   ============================================================ */
+function hideLoader(){
+  var l = $('#loader');
+  if(l && !l.classList.contains('done')){ l.classList.add('done'); setTimeout(function(){ l.remove(); }, 500); }
+}
+window.addEventListener('load', function(){ setTimeout(hideLoader, 250); });
+setTimeout(hideLoader, 2500); /* safety net */
+
+/* ============================================================
+   THEME — dark/light with persistence
+   ============================================================ */
+(function initTheme(){
+  var saved = store.get('tw.theme', null);
+  var pref = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.body.setAttribute('data-theme', pref);
+  $('#themeBtn').addEventListener('click', function(){
+    var next = document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.body.setAttribute('data-theme', next);
+    store.set('tw.theme', next);
+  });
+})();
+
+/* ============================================================
+   PROGRESS BAR — thin, quiet, width only
+   ============================================================ */
+var pbar = $('#pbar'), ticking = false;
+function paintProgress(){
+  var max = document.documentElement.scrollHeight - window.innerHeight;
+  pbar.style.width = (max > 0 ? (window.scrollY / max) * 100 : 0) + '%';
+  ticking = false;
+}
+window.addEventListener('scroll', function(){
+  if(!ticking){ ticking = true; requestAnimationFrame(paintProgress); }
+}, {passive:true});
+paintProgress();
+
+/* ============================================================
+   READ TRACKING — mark modules read as they scroll past
+   ============================================================ */
+var readSet = new Set(store.get('tw.read', []));
+var moduleIds = ['m1','m2','m3','m4','m5','m6'];
+function refreshNav(){
+  $all('.navitem').forEach(function(btn){
+    btn.classList.toggle('read', readSet.has(btn.getAttribute('data-target')));
+  });
+  $('#sideCount').textContent = readSet.size + ' of 6 modules read';
+  if(readSet.size === 6){ showFinish(); }
+}
+function showFinish(){
+  var b = $('#finishBadge');
+  if(b && !b.classList.contains('show')){ b.classList.add('show'); store.set('tw.done', true); }
+}
+if(store.get('tw.done', false)){ $('#finishBadge').classList.add('show'); }
+function checkReads(){
+  var vh = window.innerHeight;
+  moduleIds.forEach(function(id){
+    if(readSet.has(id)) return;
+    var el = document.getElementById(id);
+    if(!el) return;
+    var r = el.getBoundingClientRect();
+    if(r.bottom < vh * 0.8){ readSet.add(id); store.set('tw.read', Array.from(readSet)); refreshNav(); }
+  });
+}
+window.addEventListener('scroll', function(){ requestAnimationFrame(checkReads); }, {passive:true});
+refreshNav(); checkReads();
+
+/* ============================================================
+   KNOWLEDGE MAPS + NAV — click to scroll, hover to darken links
+   ============================================================ */
+$all('.mnode').forEach(function(node){
+  function go(){ var t = document.getElementById(node.getAttribute('data-target')); if(t) t.scrollIntoView({behavior:'smooth', block:'start'}); }
+  node.addEventListener('click', go);
+  node.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } });
+  /* hover: darken connected lines */
+  var n = node.getAttribute('data-n');
+  node.addEventListener('mouseenter', function(){ setLinkHot(n, true); });
+  node.addEventListener('mouseleave', function(){ setLinkHot(n, false); });
+});
+function setLinkHot(n, on){
+  if(!n) return;
+  $all('.mline').forEach(function(line){
+    var nodes = (line.getAttribute('data-nodes')||'').split(' ');
+    if(nodes.indexOf(n) !== -1){ line.setAttribute('stroke', on ? 'var(--acc)' : 'var(--line2)'); }
+  });
+}
+$all('.navitem').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var t = document.getElementById(btn.getAttribute('data-target'));
+    if(t) t.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+
+/* ============================================================
+   DRAW-ON-VIEW — sequential stroke animation, once per figure
+   ============================================================ */
+if('IntersectionObserver' in window){
+  var figIO = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){ en.target.classList.add('go'); figIO.unobserve(en.target); }
+    });
+  }, {threshold: 0.3});
+  $all('figure.diagram, .masthead').forEach(function(f){ figIO.observe(f); });
+} else {
+  $all('figure.diagram, .masthead').forEach(function(f){ f.classList.add('go'); });
+}
+
+/* ============================================================
+   QUIZ COMPONENT — per-option feedback, one attempt, saved score
+   ============================================================ */
+var scores = store.get('tw.scores', {});
+function mountQuiz(container, data, id){
+  var body = $('.q-body', container) || $('.qr-mount', container);
+  if(!body) return;
+  var html = '<p class="qprompt">' + data.prompt + '</p>';
+  data.options.forEach(function(opt, i){
+    html += '<button class="q-opt" data-i="' + i + '">' + opt.t + '</button>';
+  });
+  html += '<div class="fb"></div>';
+  body.insertAdjacentHTML('beforeend', html);
+  var opts = $all('.q-opt', body).slice(-data.options.length);
+  var fb = $all('.fb', body).slice(-1)[0];
+  opts.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if(container.classList.contains('answered')) return;
+      container.classList.add('answered');
+      var i = +btn.getAttribute('data-i');
+      var opt = data.options[i];
+      opts.forEach(function(o, j){
+        o.setAttribute('disabled','disabled');
+        if(data.options[j].ok) o.classList.add('correct');
+      });
+      if(!opt.ok) btn.classList.add('wrong');
+      fb.textContent = opt.fb;
+      fb.classList.add('show', opt.ok ? 'good' : 'bad');
+      scores[id] = opt.ok ? 1 : 0;
+      store.set('tw.scores', scores);
+    });
+  });
+}
+
+/* Quiz: Module 2 — pick the empowerment promise */
+mountQuiz($('#quizOpen'), {
+  prompt: 'Three speakers, three opening lines. Which one is an empowerment promise?',
+  options: [
+    { t:'“So — how about that airline food on the way here?”', ok:false,
+      fb:'Not quite. That is a joke, and in minute one the audience is still calibrating to your voice — it will fall flat. The correct answer is the promise: tell people what they will know at the end that they don’t know now. Jokes belong at the end, once the room is tuned to you.' },
+    { t:'“By the end of this hour, you’ll be able to spot and fix the five mistakes that sink most technical talks.”', ok:true,
+      fb:'That’s right. It names a knowledge delta — you don’t know this now, you will in an hour — and a benefit you can feel. Destination plus reason to pay attention: that is the empowerment promise shape.' },
+    { t:'“Thanks for coming. Let me start with some background on my department’s history.”', ok:false,
+      fb:'Not quite. Gratitude and background give the audience no destination — nothing to know by the end, so no reason to spend attention. The correct answer is the promise: “By the end of this hour, you’ll be able to spot and fix the five mistakes that sink most technical talks.”' }
+  ]
+}, 'q-open');
+
+/* Quick Recall 1 — modules 1–2 */
+(function(){
+  var mount = $('#qr1 .qr-mount');
+  var q1 = document.createElement('div'); q1.className = 'qr-q'; mount.appendChild(q1);
+  var q2 = document.createElement('div'); q2.className = 'qr-q'; mount.appendChild(q2);
+  mountQuiz({classList:document.createElement('div').classList, contains:function(){return false;}}, null, 'x'); /* no-op guard */
+})();
+/* Simpler: mount each QR question into its own wrapper */
+(function(){
+  function qwrap(sel){ var w = document.createElement('div'); w.className='qr-q'; $(sel + ' .qr-mount').appendChild(w); return w; }
+  function mountInto(wrap, data, id){
+    var c = { classList: wrap.classList, contains:function(){ return wrap.classList.contains('answered'); } };
+    wrap.innerHTML = '';
+    var holder = document.createElement('div'); holder.className='q-body'; wrap.appendChild(holder);
+    mountQuiz(wrap, data, id);
+  }
+  mountInto(qwrap('#qr1'), {
+    prompt:'In Q = K × P × T, which statement is true?',
+    options:[
+      { t:'Talent is the largest factor — the rest is luck.', ok:false, fb:'Not quite. The correct answer is that talent is very small. Winston’s whole point is that K and P — knowledge and practice — are the big, controllable, multiplicative factors, and T is a rounding error.' },
+      { t:'K and P are large and controllable; T is very small.', ok:true, fb:'That’s right. Knowledge and practice multiply together and are largely under your control; talent exists but barely moves the product — the Mary Lou Retton story is the proof.' },
+      { t:'The factors add together, so a weakness in one can be offset by another.', ok:false, fb:'Not quite — they multiply, which is stricter. The correct answer is that K and P are large and controllable while T is very small. Because it is multiplication, a zero in K or P zeroes the whole product.' }
+    ]
+  }, 'qr1a');
+  mountInto(qwrap('#qr1'), {
+    prompt:'Why does Winston advise against opening with a joke?',
+    options:[
+      { t:'Jokes are unprofessional in technical settings.', ok:false, fb:'Not quite — a joke at the end is fine, even recommended. The correct answer is about timing: in minute one the audience is still calibrating to your vocal parameters, so the joke lands on a room that isn’t tuned in yet.' },
+      { t:'The audience is still calibrating to your voice, so it falls flat.', ok:true, fb:'That’s right. Laptops are closing, ears are adjusting; the room needs a destination — an empowerment promise — not a punchline. Save the joke for the end, when they’re tuned to you.' },
+      { t:'Promises are statistically funnier.', ok:false, fb:'Not quite. The correct answer is that the audience is still calibrating to your voice in minute one, so jokes fall flat. The promise works because it gives an untuned room a reason to tune in.' }
+    ]
+  }, 'qr1b');
+  mountInto(qwrap('#qr2'), {
+    prompt:'How long is the standard pause after asking the audience a question?',
+    options:[
+      { t:'One second — keep the pace up.', ok:false, fb:'Not quite. One second reads as rhetorical. The correct answer is seven seconds — it feels like an eternity to the speaker and is exactly right for the room.' },
+      { t:'Seven seconds.', ok:true, fb:'That’s right. Winston timed it: seven seconds of dead air felt endless, and it is the standard. Long enough to be a real invitation; short enough that the silence doesn’t curdle.' },
+      { t:'Thirty seconds — never let them off the hook.', ok:false, fb:'Not quite. Thirty seconds curdles. The correct answer is seven seconds — the standard wait that feels eternal to the speaker but reads as a genuine invitation to the room.' }
+    ]
+  }, 'qr2a');
+  mountInto(qwrap('#qr2'), {
+    prompt:'Why keep the lights full up during a talk?',
+    options:[
+      { t:'So the audience can take notes.', ok:false, fb:'Not quite. The correct answer is that dim light is a sleep signal — the room’s eyelids close, and no slide contrast can fix that.' },
+      { t:'Dim rooms signal sleep; a lit room keeps the audience’s processor on.', ok:true, fb:'That’s right. “It’s extremely hard to see slides through closed eyelids” — the lights serve the audience’s alertness, not the projector.' },
+      { t:'Projectors perform better in bright rooms.', ok:false, fb:'Not quite — if anything, the AV people argue the opposite. The correct answer is about the audience: dim light signals sleep, so keep the lights full up.' }
+    ]
+  }, 'qr2b');
+  mountInto(qwrap('#qr2'), {
+    prompt:'For Winston, the blackboard’s “target” property means…',
+    options:[
+      { t:'It gives your hands somewhere to point, solving the novice’s hand-terror.', ok:true, fb:'That’s right. Papert pointed constantly — even at irrelevant material — and it worked; the board turns anxious hands into a teaching instrument.' },
+      { t:'You can strike the board for emphasis.', ok:false, fb:'Not quite. The correct answer is that the board gives your hands a target to point at — solving the pocket-hiding, behind-the-back problem of novice speakers.' },
+      { t:'It keeps the audience’s eyes off the speaker.', ok:false, fb:'Not quite — the pointing actually routes attention back through the speaker. The correct answer: the board gives your hands somewhere to go, which is what novice speakers most need.' }
+    ]
+  }, 'qr2c');
+  mountInto(qwrap('#qr3'), {
+    prompt:'Which of these is NOT one of the five S-words of Winston’s Star?',
+    options:[
+      { t:'Surprise', ok:false, fb:'Not quite — Surprise is on the Star (you don’t need a million examples). The correct answer is Statistics: the five are Symbol, Slogan, Surprise, Salient idea, and Story.' },
+      { t:'Statistics', ok:true, fb:'That’s right. The Star is Symbol, Slogan, Surprise, Salient idea, Story — no Statistics. Each is a handle the audience can grab.' },
+      { t:'Salient idea', ok:false, fb:'Not quite — the Salient idea (the one that sticks out, like the near miss) is on the Star. The correct answer is Statistics.' }
+    ]
+  }, 'qr3a');
+  mountInto(qwrap('#qr3'), {
+    prompt:'Where does the collaborator list belong?',
+    options:[
+      { t:'The final slide, as a thank-you.', ok:false, fb:'Not quite. A roll-call at the end reads as a letdown — it divides your work by a thousand people. The correct answer is the first slide: acknowledge people early, end on contributions.' },
+      { t:'The first slide.', ok:true, fb:'That’s right. Acknowledge collaborators at the start; the final slide — up for twenty minutes of Q&A — should be labeled Contributions.' },
+      { t:'Nowhere — skip acknowledgments entirely.', ok:false, fb:'Not quite — you must recognize collaborators; just not at the end. The correct answer is the first slide.' }
+    ]
+  }, 'qr3b');
+  mountInto(qwrap('#qr3'), {
+    prompt:'In a job talk, how long do you have to establish vision and evidence you’ve done something?',
+    options:[
+      { t:'Five minutes.', ok:true, fb:'That’s right. Two seasoned reviewers answered within one microsecond: vision — a problem people care about plus a new approach — and done-something, both inside five minutes.' },
+      { t:'The full hour — let it build.', ok:false, fb:'Not quite. By the time you “build to it,” the reviewers have decided. The correct answer is five minutes — enumerate the steps needed, say what’s done, promise the demo.' },
+      { t:'Twenty minutes, after the literature review.', ok:false, fb:'Not quite — the literature review is where reviews go to die. The correct answer is five minutes: vision and done-something, up front.' }
+    ]
+  }, 'qr3c');
+})();
+
+/* ============================================================
+   SCENARIO COMPONENT — decision points with consequence feedback
+   ============================================================ */
+function mountScenario(container, data){
+  var body = $('.sc-body', container);
+  var stepIdx = 0, goodCount = 0;
+  function render(){
+    if(stepIdx >= data.steps.length){
+      var verdict = data.verdicts[Math.min(goodCount, data.verdicts.length-1)];
+      body.innerHTML = '<div class="sc-count">DECISION ' + data.steps.length + ' OF ' + data.steps.length + ' — RESOLVED</div>' +
+        '<div class="fb show ' + (goodCount >= 2 ? 'good' : 'bad') + '">' + verdict + '</div>' +
+        '<div class="btn-row"><button class="btn ghost sc-replay">Replay the scenario</button></div>';
+      $('.sc-replay', body).addEventListener('click', function(){ stepIdx = 0; goodCount = 0; render(); });
+      return;
+    }
+    var st = data.steps[stepIdx];
+    var html = '<div class="sc-count">DECISION ' + (stepIdx+1) + ' OF ' + data.steps.length + '</div>' +
+               '<div class="sc-step">' + st.text + '</div>';
+    st.choices.forEach(function(c, i){
+      html += '<button class="sc-choice" data-i="' + i + '">' + c.t + '</button>';
+    });
+    html += '<div class="fb"></div>';
+    body.innerHTML = html;
+    $all('.sc-choice', body).forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var c = st.choices[+btn.getAttribute('data-i')];
+        if(c.good) goodCount++;
+        $all('.sc-choice', body).forEach(function(b){ b.setAttribute('disabled','disabled'); b.style.opacity = '.55'; });
+        btn.style.opacity = '1';
+        var fb = $('.fb', body);
+        fb.textContent = c.fb;
+        fb.classList.add('show', c.good ? 'good' : 'bad');
+        var next = document.createElement('div');
+        next.className = 'btn-row';
+        next.innerHTML = '<button class="btn">Continue →</button>';
+        body.appendChild(next);
+        $('button', next).addEventListener('click', function(){ stepIdx++; render(); });
+      });
+    });
+  }
+  render();
+}
+
+/* Scenario data — Module 1 */
+mountScenario($('#scen1'), {
+  steps:[
+    { text:'Week 1. Your calendar is open. Where do you invest it?',
+      choices:[
+        { t:'Watch three talks you admire in your field and annotate why each moment worked.', good:true, fb:'Good. That is banking K — Winston’s first move: watch speakers you admire and ask why they are effective. Every annotated moment becomes a technique in your armamentarium.' },
+        { t:'Start building slides immediately — momentum matters.', good:false, fb:'Momentum without knowledge is practice spent blindly; you will rebuild these slides three times. Better: spend week 1 banking K — studying talks that work — so your practice has a target.' },
+        { t:'Wait for inspiration; you work best under pressure.', good:false, fb:'That is a bet on T — the smallest factor in the formula. Pressure does not manufacture knowledge or practice. Start with K: study three talks you admire and write down why they work.' }
+      ]},
+    { text:'Week 4. Rehearsal time. Who is in the room?',
+      choices:[
+        { t:'Friends who don’t know your topic, watching you speak it out loud.', good:true, fb:'Good. Naive ears hear what is actually there — not what an expert would hallucinate into it. Out-loud practice is the P that multiplies your K.' },
+        { t:'Just you, in your head, on the walk to work.', good:false, fb:'In-your-head rehearsal skips the P that matters — out loud, timed, in front of eyes. Solo review also lets you hallucinate missing material, the same trap Winston warns about for advisors.' },
+        { t:'Your advisor, slide by slide.', good:false, fb:'Careful — people who know your work hallucinate content that isn’t in the talk. Save expert review for content; spend rehearsal P on friends who don’t know the material.' }
+      ]},
+    { text:'The night before. One hour left.',
+      choices:[
+        { t:'Rehearse the opening ten times — the first minute is highest-leverage.', good:true, fb:'Good. The opening is where attention is won or lost — promise, rules of engagement, calibration. Ten clean run-throughs of minute one beat one anxious run of the whole deck.' },
+        { t:'Rewrite the middle section one more time.', good:false, fb:'Diminishing returns — you are editing K at the hour when P pays most. The opening decides whether they listen to the middle at all; rehearse it instead.' },
+        { t:'Wing it. You’re a natural.', good:false, fb:'That is T-talk — and T is very small. Even naturals multiply by zero without P. Run the opening ten times; it is the highest-leverage hour you have.' }
+      ]}
+  ],
+  verdicts:[
+    'You leaned on T tonight. The formula says otherwise: bank K early, spend P out loud, and the talk wins itself.',
+    'A strong build — one decision left talent in the driver’s seat. You know which one.',
+    'Solid: two of three decisions multiplied your K and P. One more pass and the build is textbook.',
+    'A textbook K×P build — the talk is already won before you reach the podium.'
+  ]
+});
+
+/* Scenario data — Module 2 */
+mountScenario($('#scen2'), {
+  steps:[
+    { text:'A row of laptops is already open. You…',
+      choices:[
+        { t:'Ask, warmly, for them to close — and say why: everyone has one language processor.', good:true, fb:'Good. That is the rule of engagement: not a power trip, a favor to the whole room — open screens distract the neighbors and rattle the speaker.' },
+        { t:'Say nothing. It’s their attention to spend.', good:false, fb:'Their laptop, everyone’s problem: open screens distract the neighbors, and the speaker gives a worse performance. The room needed you to set the rule.' },
+        { t:'Make a sarcastic comment about the “laptop section.”', good:false, fb:'Sarcasm spends goodwill your promise hasn’t earned yet. State the rule warmly and give the reason — one language processor — and the room will comply.' }
+      ]},
+    { text:'Your first sentence is…',
+      choices:[
+        { t:'“By the end of this hour, you’ll know three things you didn’t know — and one of them will change how you present.”', good:true, fb:'Good. Destination and benefit in one sentence — an empowerment promise. The room now has a reason to finish calibrating to you.' },
+        { t:'A joke about the conference Wi-Fi.', good:false, fb:'Minute one is calibration time — laptops closing, ears tuning. The joke lands on a room that isn’t listening yet. Save it for the end; open with the promise.' },
+        { t:'“Sorry, I’m a bit nervous and the slides were a nightmare.”', good:false, fb:'An apology gives the audience no destination — and hands them your anxiety. The correct move is the promise: tell them what they’ll know in an hour that they don’t know now.' }
+      ]},
+    { text:'Five minutes in, one person is typing loudly. You…',
+      choices:[
+        { t:'Stop talking. Wait. Let the silence do the work.', good:true, fb:'Good — and a preview of Module 3: silence is verbal punctuation. The room hears the typing, the typist hears the room, and you never had to scold anyone.' },
+        { t:'Talk louder to compete.', good:false, fb:'An arms race you will lose — and the audience reads the strain. A pause costs nothing and polices itself.' },
+        { t:'Give up and let it go.', good:false, fb:'Then the neighbors lose their processor too. A calm pause — or a warm restatement of the rule — protects the room without a fight.' }
+      ]}
+  ],
+  verdicts:[
+    'The room ran you tonight. Remember: the promise, the rule of engagement, and the pause are all tools you hold.',
+    'Two of three — the opening carried, but one leak cost the room attention.',
+    'Strong: you protected the room’s single language processor at nearly every turn.',
+    'Flawless roomcraft. The language processors of that room were yours from minute one.'
+  ]
+});
+
+/* Scenario data — Module 6, job talk mini-challenge */
+mountScenario($('#scen3'), {
+  steps:[
+    { text:'Slide one shows…',
+      choices:[
+        { t:'Your name, one sentence of vision, and your collaborators.', good:true, fb:'Good. Vision in the first breath — a problem people care about — and collaborators acknowledged up front where they belong. Reviewers decide in five minutes; you’ve started the clock correctly.' },
+        { t:'A forty-bullet chronology of your career.', good:false, fb:'That is a CV, not a vision. Reviewers are asking “what problem does this person care about, and what’s new in the approach?” — answer in one sentence, and put collaborators on slide one.' },
+        { t:'Your best joke, to relax the room.', good:false, fb:'Warmth is fine, but the clock is brutal: five minutes to show vision and done-something. Open with the vision sentence; earn the joke later.' }
+      ]},
+    { text:'Minute three. You…',
+      choices:[
+        { t:'Enumerate the steps needed to realize the vision — mark which are done, promise the demo.', good:true, fb:'Good. “Here’s what needs doing; here’s what I’ve done; watch me demonstrate” — that is how you show you’ve done something without claiming more than you have.' },
+        { t:'Dive deep into your favorite lemma.', good:false, fb:'Depth without the map reads as trivia. Reviewers need the step-list — what must be done, what is done — to believe the vision is real.' },
+        { t:'Say “I’ll skip the technical details” and move on.', good:false, fb:'Then nothing has been established — no vision, no steps, no evidence. Enumerate the steps; the enumeration is the evidence.' }
+      ]},
+    { text:'The final slide — up for the whole Q&A — says…',
+      choices:[
+        { t:'“Contributions” — the three things you did, in plain words.', good:true, fb:'Good. Twenty minutes of prime real estate naming what you did — the mirror of the steps you enumerated in minute three.' },
+        { t:'“Thank you for listening!”', good:false, fb:'Weak on two fronts: it implies they endured you out of politeness, and it leaves the best screen in the room empty. Contributions — and let the applause do the thanking.' },
+        { t:'The full collaborator roll-call.', good:false, fb:'A letdown — it divides your work by a thousand people and invites the question “so what did you do?” Collaborators belong on slide one; the last slide is contributions.' }
+      ]}
+  ],
+  verdicts:[
+    'The reviewers decided at minute five — against you. Rebuild: vision sentence, step-list, contributions slide.',
+    'Close — but one of those three decisions cost you the room. You know which.',
+    'Strong job talk. One fix and the five minutes are airtight.',
+    'Vision and done-something, established in five minutes flat. The committee is already nodding.'
+  ]
+});
+
+/* ============================================================
+   DRAG-AND-DROP MATCHING — Module 3 heuristics (click fallback)
+   ============================================================ */
+(function(){
+  var terms = [
+    { id:'cyc', label:'CYCLING' },
+    { id:'fen', label:'THE FENCE' },
+    { id:'pun', label:'VERBAL PUNCTUATION' },
+    { id:'que', label:'QUESTION + PAUSE' }
+  ];
+  var slots = [
+    { id:'pun', text:'“That was the second of four ideas — now, the third.”' },
+    { id:'cyc', text:'You state the core claim, then restate it as a diagram, then recap it — three orbits around one idea.' },
+    { id:'que', text:'You ask which factor matters most… then wait seven full seconds.' },
+    { id:'fen', text:'“Jones’s method looks similar — except his is exponential and mine is linear.”' }
+  ];
+  var termsBox = $('#dndTerms'), slotsBox = $('#dndSlots'), fb = $('#dndFb');
+  var selected = null, matched = 0;
+  /* shuffle terms for a fair challenge */
+  var shuffled = terms.slice();
+  for(var i = shuffled.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = tmp;
+  }
+  shuffled.forEach(function(t){
+    var b = document.createElement('button');
+    b.className = 'chip'; b.textContent = t.label; b.setAttribute('data-id', t.id);
+    b.addEventListener('click', function(){
+      if(b.classList.contains('used')) return;
+      $all('.chip', termsBox).forEach(function(c){ c.classList.remove('sel'); });
+      b.classList.add('sel'); selected = t;
+    });
+    termsBox.appendChild(b);
+  });
+  slots.forEach(function(s){
+    var d = document.createElement('div');
+    d.className = 'slot'; d.setAttribute('data-id', s.id); d.setAttribute('tabindex','0');
+    d.setAttribute('role','button');
+    d.setAttribute('aria-label','Drop zone: ' + s.text);
+    d.innerHTML = '<span class="ans"></span><span class="sit">' + s.text + '</span>';
+    function attempt(){
+      if(d.classList.contains('filled')) return;
+      if(!selected){ fb.textContent = 'Select a heuristic term above first, then choose the situation it names.'; fb.className = 'fb show'; return; }
+      if(d.getAttribute('data-id') === selected.id){
+        d.classList.add('filled');
+        $('.ans', d).textContent = '✓ ' + selected.label;
+        var chip = $('.chip[data-id="' + selected.id + '"]', termsBox);
+        chip.classList.add('used'); chip.classList.remove('sel');
+        selected = null; matched++;
+        if(matched === 4){
+          fb.textContent = 'All four matched. Cycling covers the fogged-out, the fence separates you from Jones, punctuation marks the seams, and the seven-second pause turns a flourish into a question.';
+          fb.className = 'fb show good';
+          scores['dnd'] = 1; store.set('tw.scores', scores);
+        } else {
+          fb.textContent = 'Correct — ' + (4 - matched) + ' situation' + (matched===3?'':'s') + ' left.';
+          fb.className = 'fb show good';
+        }
+      } else {
+        d.classList.add('err');
+        fb.textContent = 'Not quite. Read the situation again — which mechanic is actually at work in that sentence?';
+        fb.className = 'fb show bad';
+        setTimeout(function(){ d.classList.remove('err'); }, 900);
+        selected = null;
+        $all('.chip', termsBox).forEach(function(c){ c.classList.remove('sel'); });
+      }
+    }
+    d.addEventListener('click', attempt);
+    d.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); attempt(); } });
+    slotsBox.appendChild(d);
+  });
+})();
+
+/* ============================================================
+   HOTSPOTS — M4 hall, M5 slide crimes, M6 star
+   ============================================================ */
+function initHotspots(figSel, noteSel){
+  var fig = $(figSel), note = $(noteSel);
+  if(!fig || !note) return;
+  $all('.hotspot', fig).forEach(function(h){
+    function activate(){
+      $all('.hotspot', fig).forEach(function(o){ o.classList.remove('on'); });
+      h.classList.add('on');
+      note.textContent = h.getAttribute('data-note');
+      note.classList.remove('show'); void note.offsetWidth; note.classList.add('show');
+    }
+    h.addEventListener('click', activate);
+    h.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); activate(); } });
+  });
+}
+initHotspots('#fig4', '#note4');
+initHotspots('#fig6', '#note5');
+initHotspots('#fig7', '#note6');
+
+/* ============================================================
+   BIKE WHEEL STEP-THROUGH — Module 4
+   ============================================================ */
+(function(){
+  var caps = {
+    1:'Spin a bicycle wheel and ask which way it precesses when you torque the axle — most engineers, right-hand rule in hand, flip a coin.',
+    2:'Forget the whole wheel. Focus on the one piece under the duct tape as it comes over the top, and give it a puff of air. What happens to that piece?',
+    3:'That piece must move away from the puff — and so must the next piece, and the next. The only consistent answer: the wheel falls over this way. The right framing beats the right-hand rule, and a prop makes the framing visible.'
+  };
+  var cap = $('#wheelCap');
+  $all('.wbtn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var s = btn.getAttribute('data-step');
+      $all('.wpanel').forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-step') === s); });
+      cap.textContent = caps[s];
+    });
+  });
+})();
+
+/* ============================================================
+   STRIP THE SLIDE — Module 5
+   ============================================================ */
+(function(){
+  var fig = $('#fig6'), fb = $('#stripFb'), done = new Set();
+  var total = 5;
+  $all('.strip-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var layer = btn.getAttribute('data-layer');
+      var g = $('.' + layer, fig);
+      if(g){ g.style.transition = 'opacity .35s ease'; g.style.opacity = '0'; }
+      if(btn.getAttribute('data-final')){
+        var fin = $('.layer-final', fig);
+        if(fin){ fin.style.transition = 'opacity .35s ease .2s'; fin.style.opacity = '1'; }
+      }
+      btn.setAttribute('disabled','disabled');
+      done.add(layer);
+      if(done.size === total){
+        fb.textContent = 'Compare the left slide with the right — they have converged. You, not the screen, are the presentation. The audience’s single language processor is now pointed at you.';
+        fb.className = 'fb show good';
+      } else {
+        fb.textContent = 'Layer stripped. ' + (total - done.size) + ' crime' + (total - done.size === 1 ? '' : 's') + ' remaining.';
+        fb.className = 'fb show';
+      }
+    });
+  });
+  /* final layer starts hidden */
+  var fin = $('.layer-final', fig); if(fin) fin.style.opacity = '0';
+  $('#stripReset').addEventListener('click', function(){
+    done.clear();
+    ['layer-bg','layer-title','layer-logo','layer-words','layer-laser'].forEach(function(l){
+      var g = $('.' + l, fig); if(g) g.style.opacity = '1';
+    });
+    var f = $('.layer-final', fig); if(f) f.style.opacity = '0';
+    $all('.strip-btn').forEach(function(b){ b.removeAttribute('disabled'); });
+    fb.className = 'fb';
+  });
+})();
+
+/* ============================================================
+   FILL-IN-THE-BLANK — Module 5, three-level hints
+   ============================================================ */
+(function(){
+  var input = $('#fibInput'), fb = $('#fibFb'), hintLine = $('#fibHintLine'), hintBtn = $('#fibHint');
+  var hints = [
+    'It’s a food word — something you add in small amounts to improve the meal.',
+    'Nine letters, plural, starts with “C”.',
+    'C _ N _ I _ E _ T S — what sits next to the salt.'
+  ];
+  var hintIdx = 0, solved = false;
+  $('#fibCheck').addEventListener('click', function(){
+    if(solved) return;
+    var v = input.value.trim().toLowerCase();
+    if(v === 'condiments' || v === 'condiment'){
+      solved = true;
+      input.setAttribute('disabled','disabled');
+      fb.textContent = 'That’s right. “Condiments to what you say, not the main event.” A little seasoning sharpens the meal; the whole bottle ruins it — and every word on the screen is a word the audience stops hearing from you.';
+      fb.className = 'fb show good';
+      scores['fib'] = 1; store.set('tw.scores', scores);
+    } else if(v === ''){
+      fb.textContent = 'Type a word first — or take a hint.';
+      fb.className = 'fb show';
+    } else {
+      fb.textContent = 'Not quite. The word Winston reaches for comes from the kitchen, not the boardroom. Think about what a slide is to a spoken talk.';
+      fb.className = 'fb show bad';
+    }
+  });
+  hintBtn.addEventListener('click', function(){
+    if(solved) return;
+    hintLine.textContent = 'Hint ' + (hintIdx + 1) + '/3 — ' + hints[hintIdx];
+    if(hintIdx < 2) hintIdx++;
+    hintBtn.textContent = 'Hint (' + (hintIdx + 1) + '/3)';
+  });
+})();
+
+/* ============================================================
+   FLASHCARDS — flip, extra context, mastery persistence
+   ============================================================ */
+(function(){
+  var deck = [
+    { term:'Empowerment promise', def:'An opening that tells the audience what they will know at the end of the talk that they don’t know now — a destination plus a reason to pay attention.', extra:'Winston’s own: “By the end of the next 60 minutes you will know things about speaking you don’t know now.” It replaces the opening joke, which falls flat while the room is still calibrating.' },
+    { term:'Q = K × P × T', def:'Communication quality equals knowledge times practice times talent — multiplicative, with the T very small.', extra:'The Mary Lou Retton story: an Olympic gymnast with all the T was out-skied by a professor with K and P. A zero in K or P zeroes the whole product.' },
+    { term:'Cycling', def:'Orbiting the subject three times: tell them what you’re going to tell them, tell them, then tell them what you told them.', extra:'Not condescension — statistical insurance. About 20% of any audience is fogged out at any moment; one pass reaches ~80%, three passes reach nearly everyone.' },
+    { term:'The fence', def:'A sentence that distinguishes your idea from its nearest neighbor, so it can’t be confused with somebody else’s.', extra:'“Jones’s algorithm seems similar, except his is exponential and mine is linear.” For a Martian: this is an arch; that, and that, are not.' },
+    { term:'Verbal punctuation', def:'Spoken landmarks and numbering — “first… second… now the third” — that let a fogged-out listener locate themselves and get back on the bus.', extra:'The empowerment promise is the first piece of punctuation; the outline restated at each seam is the rest of it.' },
+    { term:'One language processor', def:'The constraint that humans can read or listen, but never both at once — the reason for the no-laptops rule and for sparse slides.', extra:'In the fraternity experiment, subjects remembered what they read on the slides, not what the speaker said — and complained that his talking was distracting.' },
+    { term:'Empathetic mirroring', def:'Mirror neurons firing as if you were performing the action you are watching — why live chalk-writing and physical props teach better than static slides.', extra:'Papert pointed at the board constantly, even at irrelevant material, and it worked. You can feel a steel ball swinging; you cannot feel a JPEG.' },
+    { term:'Hapax legomenon', def:'A slide you may get away with exactly once per talk — impenetrable on purpose, deployed to show complexity that cannot be walked through.', extra:'Like the infamous Afghanistan governance chart. One is a rhetorical device; two is a pattern of laziness. “Hapax legomenon” itself means a word that occurs only once.' },
+    { term:'Winston’s Star', def:'The five S-words that get work remembered: Symbol, Slogan, Surprise, Salient idea, Story.', extra:'The arch work had all five accidentally: the arch (symbol), “one-shot learning” (slogan), one example suffices (surprise), the near miss (salient idea), and how it works and why it matters (story).' }
+  ];
+  var mastered = new Set(store.get('tw.cards', []));
+  var idx = 0, flipped = false;
+  var card = $('#fcard');
+  function render(){
+    card.classList.remove('flip'); flipped = false;
+    $('#cardExtra').classList.remove('show');
+    $('#cardTag').textContent = 'TERM ' + (idx + 1) + (mastered.has(idx) ? ' · MASTERED' : '');
+    $('#cardTerm').textContent = deck[idx].term;
+    $('#cardDef').textContent = deck[idx].def;
+    $('#cardExtra').textContent = deck[idx].extra;
+    $('#cardCount').textContent = 'Card ' + (idx + 1) + ' of ' + deck.length;
+    $('#cardMastery').textContent = mastered.size + ' / ' + deck.length + ' mastered';
+  }
+  function flip(){ card.classList.toggle('flip'); flipped = !flipped; }
+  card.addEventListener('click', flip);
+  card.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); flip(); } });
+  $('#cardFlip').addEventListener('click', flip);
+  $('#cardExtraBtn').addEventListener('click', function(){
+    if(!flipped) flip();
+    $('#cardExtra').classList.toggle('show');
+  });
+  $('#cardGot').addEventListener('click', function(){
+    mastered.add(idx); store.set('tw.cards', Array.from(mastered));
+    var fb = $('#cardFb');
+    fb.textContent = '“' + deck[idx].term + '” marked mastered' + (mastered.size === deck.length ? ' — the whole deck is yours.' : '.');
+    fb.className = 'fb show good';
+    idx = (idx + 1) % deck.length; render();
+  });
+  $('#cardAgain').addEventListener('click', function(){
+    mastered.delete(idx); store.set('tw.cards', Array.from(mastered));
+    idx = (idx + 1) % deck.length; render();
+  });
+  render();
+})();
+
+/* ============================================================
+   TEACH-BACK — keyword coverage + model answer
+   ============================================================ */
+(function(){
+  var checks = [
+    { label:'the knowledge delta (know / don’t know)', re:/know/ },
+    { label:'the end of the talk (end / done / finish / after)', re:/end|done|finish|after/ },
+    { label:'a promise (promise / present)', re:/promis|present/ },
+    { label:'listening / attention', re:/listen|attention|ears|hear/ },
+    { label:'something new (new / didn’t know)', re:/new|didn'?t know|don'?t know/ }
+  ];
+  $('#tbCheck').addEventListener('click', function(){
+    var text = $('#tbText').value.toLowerCase();
+    if(text.trim().length < 10){
+      $('#tbCov').innerHTML = 'Write a sentence or two first — explain it the way you’d explain a promised present.';
+      return;
+    }
+    var hit = 0, parts = [];
+    checks.forEach(function(c){
+      var ok = c.re.test(text);
+      if(ok) hit++;
+      parts.push('<b class="' + (ok ? 'y' : 'n') + '">' + (ok ? '✓ ' : '✗ ') + '</b>' + c.label);
+    });
+    $('#tbCov').innerHTML = 'You covered ' + hit + ' of ' + checks.length + ' key ideas — ' + parts.join(' · ');
+  });
+  $('#tbReveal').addEventListener('click', function(){
+    $('#tbModel').classList.add('show');
+  });
+})();
+
+/* ============================================================
+   SHOW-MORE TOGGLES — chunking
+   ============================================================ */
+$all('.more-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var target = document.getElementById(btn.getAttribute('data-more'));
+    var hidden = target.hasAttribute('hidden');
+    if(hidden){ target.removeAttribute('hidden'); btn.textContent = 'Show less'; }
+    else { target.setAttribute('hidden',''); btn.textContent = btn.textContent.replace('Show less','Show more'); }
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,2156 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Architecture of Physics — An Interactive Lesson</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f5f1e8;
+  --bg-soft: #ede8db;
+  --bg-card: #fbf8f1;
+  --fg: #1c1c1a;
+  --fg-soft: #4a4a47;
+  --fg-mute: #8a8680;
+  --accent: #2d6470;
+  --accent-soft: rgba(45, 100, 112, 0.1);
+  --rule: #d6d0c0;
+  --warn: #a04040;
+  --serif: Georgia, 'Times New Roman', serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --mono: 'SF Mono', Menlo, Monaco, Consolas, monospace;
+}
+
+[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --bg-soft: #232323;
+  --bg-card: #1f1f1f;
+  --fg: #e8e4d8;
+  --fg-soft: #b5b1a5;
+  --fg-mute: #7a7770;
+  --accent: #7fb3bd;
+  --accent-soft: rgba(127, 179, 189, 0.15);
+  --rule: #353535;
+  --warn: #d08080;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--serif);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.75;
+  font-size: 17px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+}
+
+.progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: var(--accent);
+  width: 0;
+  z-index: 1000;
+  transition: width 0.1s linear;
+}
+
+.loading {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  font-family: var(--sans);
+  color: var(--fg-mute);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  transition: opacity 0.5s ease;
+}
+.loading.hidden { opacity: 0; pointer-events: none; }
+
+.theme-toggle {
+  position: fixed;
+  top: 18px;
+  right: 28px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--fg-soft);
+  font-size: 18px;
+  z-index: 100;
+  padding: 8px;
+  transition: color 0.3s ease;
+  font-family: var(--sans);
+}
+.theme-toggle:hover { color: var(--accent); }
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--serif);
+  font-weight: normal;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+h1 { font-size: 2.6rem; margin-bottom: 0.4em; letter-spacing: -0.02em; }
+h2 { font-size: 1.9rem; margin-top: 3.5em; margin-bottom: 0.6em; }
+h3 { font-size: 1.3rem; margin-top: 2em; margin-bottom: 0.5em; }
+h4 { font-size: 1.05rem; margin-top: 1.5em; margin-bottom: 0.4em; font-style: italic; color: var(--fg-soft); }
+
+p { margin-bottom: 1em; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.eyebrow {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-mute);
+  margin-bottom: 1.2em;
+}
+
+header.hero {
+  padding: 6em 0 3em;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 3em;
+}
+
+header.hero p.lede {
+  font-size: 1.18rem;
+  color: var(--fg-soft);
+  max-width: 36em;
+  line-height: 1.7;
+}
+
+.overview ul { list-style: none; margin: 1.5em 0; }
+.overview li {
+  padding: 0.4em 0 0.4em 1.6em;
+  position: relative;
+  color: var(--fg-soft);
+}
+.overview li::before { content: "—"; position: absolute; left: 0; color: var(--accent); }
+
+.km-container {
+  margin: 3em 0;
+  padding: 1.5em 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.km-svg { width: 100%; height: auto; display: block; max-width: 600px; margin: 0 auto; }
+.km-node { cursor: pointer; transition: opacity 0.2s ease; }
+.km-node:hover { opacity: 0.6; }
+.km-node text { font-family: var(--sans); font-size: 11px; fill: var(--fg-soft); }
+.km-line { stroke: var(--rule); stroke-width: 1; fill: none; }
+.km-node circle { fill: var(--bg); stroke: var(--accent); stroke-width: 1.5; transition: fill 0.2s ease; }
+.km-node:hover circle { fill: var(--accent-soft); }
+
+.module {
+  padding: 2em 0 4em;
+  border-bottom: 1px solid var(--rule);
+}
+.module:last-of-type { border-bottom: none; }
+
+.module-num {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  margin-bottom: 0.6em;
+}
+.module h2 { margin-top: 0.2em; }
+
+.analogy {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin: 2em 0;
+  border: 1px solid var(--rule);
+}
+.analogy-side { padding: 1.5em; }
+.analogy-side:first-child { border-right: 1px solid var(--rule); }
+.analogy-side h4 {
+  margin-top: 0;
+  font-style: normal;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-mute);
+}
+.analogy-side .mini-diagram { margin-top: 0.8em; }
+.analogy-side .mini-diagram svg { width: 100%; max-width: 200px; height: auto; }
+.analogy-caption {
+  padding: 1em 1.5em;
+  border-top: 1px solid var(--rule);
+  font-style: italic;
+  color: var(--fg-soft);
+  font-size: 0.95rem;
+  background: var(--bg-soft);
+  grid-column: 1 / -1;
+}
+
+details.misconception {
+  margin: 1.5em 0;
+  padding: 1em 1.2em;
+  border-left: 2px solid var(--warn);
+  background: var(--bg-soft);
+}
+details.misconception summary {
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  color: var(--warn);
+  list-style: none;
+}
+details.misconception summary::-webkit-details-marker { display: none; }
+details.misconception summary::before { content: "❌  "; }
+details.misconception[open] summary { margin-bottom: 0.6em; }
+details.misconception p {
+  margin-top: 0.4em;
+  color: var(--fg-soft);
+  font-size: 0.95rem;
+}
+
+.why-matters {
+  font-style: italic;
+  color: var(--fg-soft);
+  padding: 0.5em 0 0.5em 1.2em;
+  border-left: 2px solid var(--accent);
+  margin: 1.5em 0;
+}
+
+.interlink {
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  color: var(--fg-mute);
+  margin: 1.5em 0 0;
+  line-height: 1.6;
+}
+
+.diagram { margin: 2em 0; padding: 1.5em 0; }
+.diagram svg { width: 100%; height: auto; max-width: 540px; display: block; margin: 0 auto; }
+.diagram figcaption {
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  color: var(--fg-mute);
+  text-align: center;
+  margin-top: 0.8em;
+  font-style: italic;
+}
+.diagram svg .stroke { stroke: var(--fg-soft); stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.diagram svg .accent-stroke { stroke: var(--accent); stroke-width: 1.5; fill: none; stroke-linecap: round; }
+.diagram svg .accent-fill { fill: var(--accent-soft); }
+.diagram svg .label { font-family: var(--sans); font-size: 11px; fill: var(--fg-soft); }
+.diagram svg .axis { stroke: var(--rule); stroke-width: 1; }
+.diagram svg .dot { fill: var(--accent); }
+.diagram svg .arrow-head { fill: var(--accent); }
+
+.steps { counter-reset: step; list-style: none; margin: 1.5em 0; }
+.steps li {
+  counter-increment: step;
+  padding: 0.7em 0 0.7em 2.8em;
+  position: relative;
+  border-bottom: 1px dashed var(--rule);
+  color: var(--fg-soft);
+}
+.steps li:last-child { border-bottom: none; }
+.steps li::before {
+  content: counter(step, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--accent);
+  top: 0.85em;
+}
+
+.examples { margin: 1.5em 0; padding-left: 0; list-style: none; }
+.examples li { margin-bottom: 0.9em; color: var(--fg-soft); padding-left: 1.4em; position: relative; }
+.examples li::before { content: "·"; position: absolute; left: 0.4em; color: var(--accent); font-weight: bold; font-size: 1.4em; top: -0.05em; }
+
+.quiz { margin: 2em 0; padding: 1.5em; border: 1px solid var(--rule); }
+.quiz-q { font-style: italic; margin-bottom: 1em; color: var(--fg); }
+.quiz-options { list-style: none; }
+.quiz-options li {
+  padding: 0.7em 1em;
+  margin: 0.4em 0;
+  border: 1px solid var(--rule);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+.quiz-options li:hover { border-color: var(--accent); color: var(--accent); }
+.quiz-options li.correct { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.quiz-options li.incorrect { border-color: var(--warn); color: var(--warn); }
+.quiz-options li.disabled { cursor: default; }
+.quiz-options li.disabled:hover { border-color: var(--rule); color: var(--fg-soft); }
+.quiz-feedback {
+  margin-top: 1em;
+  padding: 0.8em 1em;
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: var(--fg-soft);
+  border-left: 2px solid var(--accent);
+  display: none;
+  line-height: 1.6;
+}
+.quiz-feedback.show { display: block; }
+.quiz-feedback.incorrect { border-left-color: var(--warn); }
+
+.flashcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1em;
+  margin: 2em 0;
+}
+.flashcard {
+  perspective: 600px;
+  height: 170px;
+  cursor: pointer;
+}
+.flashcard-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.5s;
+  transform-style: preserve-3d;
+}
+.flashcard.flipped .flashcard-inner { transform: rotateY(180deg); }
+.flashcard-front, .flashcard-back {
+  position: absolute;
+  inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2em;
+  text-align: center;
+  border: 1px solid var(--rule);
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.flashcard-front { color: var(--fg); font-weight: 500; background: var(--bg-card); }
+.flashcard-back {
+  transform: rotateY(180deg);
+  background: var(--bg-soft);
+  color: var(--fg-soft);
+  font-size: 0.85rem;
+}
+.flashcard-extra {
+  margin-top: 0.6em;
+  font-size: 0.8rem;
+  color: var(--fg-mute);
+  display: none;
+}
+.flashcard-extra.show { display: block; }
+.flashcard-extra-btn {
+  background: none;
+  border: none;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  margin-top: 0.4em;
+}
+
+.reveal { margin: 1em 0; }
+.reveal-btn {
+  background: none;
+  border: 1px solid var(--rule);
+  padding: 0.5em 1em;
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  color: var(--accent);
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+.reveal-btn:hover { border-color: var(--accent); }
+.reveal-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, padding 0.4s ease;
+  padding: 0 1em;
+  border-left: 1px solid var(--rule);
+  margin-top: 0.5em;
+}
+.reveal-content.open { max-height: 800px; padding: 0.8em 1em; }
+
+.fill-blank {
+  margin: 1.5em 0;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  color: var(--fg-soft);
+  padding: 1em 1.2em;
+  border: 1px solid var(--rule);
+}
+.fill-blank input {
+  border: none;
+  border-bottom: 1px solid var(--accent);
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  color: var(--accent);
+  padding: 0.2em 0.4em;
+  width: 140px;
+  outline: none;
+}
+.fill-blank .controls { margin-top: 0.8em; }
+.fill-blank button {
+  background: none;
+  border: 1px solid var(--rule);
+  padding: 0.3em 0.8em;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--fg-soft);
+  font-family: var(--sans);
+  margin-right: 0.4em;
+}
+.fill-blank button:hover { border-color: var(--accent); color: var(--accent); }
+.fill-blank .hint, .fill-blank .result {
+  font-size: 0.85rem;
+  margin-top: 0.6em;
+  font-style: italic;
+  display: none;
+}
+.fill-blank .hint.show, .fill-blank .result.show { display: block; }
+.fill-blank .result.correct { color: var(--accent); }
+.fill-blank .result.wrong { color: var(--warn); }
+
+.challenge {
+  margin: 2em 0;
+  padding: 1.5em;
+  border: 1px solid var(--rule);
+  background: var(--bg-soft);
+}
+.challenge h4 {
+  margin-top: 0;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-mute);
+  font-style: normal;
+}
+.challenge .scenario { font-style: italic; margin: 0.8em 0; color: var(--fg); }
+.challenge .choices { list-style: none; margin: 1em 0; }
+.challenge .choices li {
+  padding: 0.7em 1em;
+  margin: 0.4em 0;
+  border: 1px solid var(--rule);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  background: var(--bg);
+  transition: border-color 0.2s ease;
+}
+.challenge .choices li:hover { border-color: var(--accent); }
+.challenge .choices li.selected { border-color: var(--accent); color: var(--accent); }
+.challenge .reasoning {
+  margin-top: 1em;
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: var(--fg-soft);
+  display: none;
+  padding-top: 0.8em;
+  border-top: 1px dashed var(--rule);
+  line-height: 1.6;
+}
+.challenge .reasoning.show { display: block; }
+
+.teach-back {
+  margin: 2em 0;
+  padding: 1.5em;
+  border: 1px solid var(--rule);
+}
+.teach-back h4 {
+  margin-top: 0;
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-mute);
+}
+.teach-back p.note { font-size: 0.92rem; color: var(--fg-soft); margin: 0.6em 0 1em; }
+.teach-back textarea {
+  width: 100%;
+  min-height: 120px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  padding: 0.8em;
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  color: var(--fg);
+  resize: vertical;
+  line-height: 1.6;
+}
+.teach-back .keywords {
+  margin-top: 1em;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--fg-mute);
+}
+.teach-back .keywords .covered { color: var(--accent); }
+.teach-back button {
+  margin-top: 0.8em;
+  background: none;
+  border: 1px solid var(--rule);
+  padding: 0.4em 1em;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--fg-soft);
+}
+.teach-back button:hover { border-color: var(--accent); color: var(--accent); }
+
+.dragdrop {
+  margin: 2em 0;
+  padding: 1.5em;
+  border: 1px solid var(--rule);
+}
+.dragdrop h4 {
+  margin-top: 0;
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-mute);
+}
+.dragdrop .bins { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin-top: 1em; }
+.dragdrop .bin {
+  border: 1px dashed var(--rule);
+  padding: 1em;
+  min-height: 100px;
+  font-family: var(--sans);
+  font-size: 0.88rem;
+}
+.dragdrop .bin-title {
+  font-size: 0.78rem;
+  color: var(--fg-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.6em;
+}
+.dragdrop .items { display: flex; flex-wrap: wrap; gap: 0.5em; margin-top: 1em; }
+.dragdrop .item {
+  background: var(--bg-soft);
+  border: 1px solid var(--rule);
+  padding: 0.4em 0.8em;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  cursor: grab;
+  user-select: none;
+  transition: border-color 0.2s ease;
+}
+.dragdrop .item:hover { border-color: var(--accent); }
+.dragdrop .item.dragging { opacity: 0.4; }
+.dragdrop .bin.drag-over { border-color: var(--accent); border-style: solid; }
+.dragdrop .feedback {
+  margin-top: 1em;
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  color: var(--fg-soft);
+  display: none;
+}
+.dragdrop .feedback.show { display: block; }
+
+.cumulative {
+  margin: 3.5em 0;
+  padding: 2em 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.cumulative h3 {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  margin-top: 0;
+}
+
+.cheatsheet { margin: 4em 0 2em; padding: 2em 0; border-top: 2px solid var(--fg); }
+.cheatsheet h2 { margin-top: 0; }
+.cheatsheet dl { margin-top: 1.5em; }
+.cheatsheet dt {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 0.92rem;
+  margin-top: 1.2em;
+  color: var(--fg);
+}
+.cheatsheet dd {
+  margin-left: 0;
+  margin-bottom: 0.5em;
+  color: var(--fg-soft);
+  font-size: 0.95rem;
+  padding-left: 1.2em;
+  border-left: 1px solid var(--rule);
+  font-family: var(--mono);
+  line-height: 1.6;
+}
+
+.assessment { margin: 4em 0; }
+.assessment h2 { margin-top: 0; }
+.assessment .quiz { background: var(--bg-soft); }
+.assessment .quiz-q-num {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--accent);
+  margin-bottom: 0.3em;
+}
+.assessment .score {
+  margin-top: 2em;
+  padding: 1em 1.2em;
+  border: 1px solid var(--rule);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  color: var(--fg-soft);
+  display: none;
+}
+.assessment .score.show { display: block; }
+
+.faq details {
+  margin: 1em 0;
+  padding: 1em 1.2em;
+  border-left: 2px solid var(--rule);
+}
+.faq details[open] { border-left-color: var(--accent); }
+.faq details summary {
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.98rem;
+  color: var(--fg);
+}
+.faq details p {
+  margin-top: 0.6em;
+  color: var(--fg-soft);
+  font-size: 0.95rem;
+}
+
+.next-steps ul { list-style: none; margin: 1em 0; }
+.next-steps li {
+  padding: 0.5em 0 0.5em 1.6em;
+  position: relative;
+  color: var(--fg-soft);
+}
+.next-steps li::before { content: "→"; position: absolute; left: 0; color: var(--accent); }
+
+.review-schedule {
+  margin: 1.5em 0;
+  padding: 1.2em 1.5em;
+  border: 1px solid var(--rule);
+}
+.review-schedule h4 {
+  margin-top: 0;
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--fg-mute);
+}
+.review-schedule ol {
+  margin: 0.8em 0 0;
+  padding-left: 1.5em;
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: var(--fg-soft);
+}
+.review-schedule li { padding: 0.2em 0; }
+
+.but-why { margin: 1em 0; }
+.but-why-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  font-style: italic;
+  padding: 0;
+}
+.but-why-btn:hover { text-decoration: underline; }
+.but-why-content {
+  display: none;
+  margin-top: 0.6em;
+  padding: 0.8em 1em;
+  border-left: 2px solid var(--accent);
+  color: var(--fg-soft);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+.but-why-content.show { display: block; }
+
+.finished-badge {
+  text-align: center;
+  padding: 4em 0 6em;
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-mute);
+  font-style: italic;
+}
+.finished-badge .badge {
+  display: inline-block;
+  padding: 0.6em 1.5em;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-style: normal;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  margin-bottom: 1.2em;
+}
+
+.hotspot { cursor: pointer; transition: opacity 0.2s ease; }
+.hotspot-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.hotspot:hover .hotspot-ring, .hotspot.active .hotspot-ring { opacity: 1; }
+.hotspot-tooltip {
+  font-family: var(--sans);
+  font-size: 11px;
+  fill: var(--fg-soft);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.hotspot.active .hotspot-tooltip { opacity: 1; }
+.hotspot-panel {
+  margin-top: 0.8em;
+  padding: 0.8em 1em;
+  border-left: 2px solid var(--accent);
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  color: var(--fg-soft);
+  display: none;
+  line-height: 1.6;
+}
+.hotspot-panel.show { display: block; }
+
+@media (max-width: 600px) {
+  .container { padding: 0 20px; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.5rem; }
+  body { font-size: 16px; }
+  .analogy { grid-template-columns: 1fr; }
+  .analogy-side:first-child { border-right: none; border-bottom: 1px solid var(--rule); }
+  .dragdrop .bins { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">Preparing your lesson…</div>
+<div class="progress-bar" id="progressBar"></div>
+<button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">☾</button>
+
+<div class="container">
+
+  <header class="hero">
+    <div class="eyebrow">An Interactive Lesson</div>
+    <h1>The Architecture of Physics</h1>
+    <p class="lede">From the swing of a pendulum to the curve of spacetime, physics is the grammar the universe uses to speak. This lesson walks through six foundations — motion, force, energy, rotation, waves, and heat — and shows how each one quietly shapes the world you move through.</p>
+  </header>
+
+  <section class="overview">
+    <div class="eyebrow">What You'll Learn</div>
+    <p>You'll build a working mental model of the principles that govern everyday motion and natural phenomena — not by memorising formulas, but by understanding the relationships between them. Each module pairs a plain-English explanation with diagrams, analogies, and short exercises that test the idea from more than one angle.</p>
+    <ul>
+      <li>How physicists describe motion using position, speed, velocity, and acceleration</li>
+      <li>Why forces change motion, and how Newton's three laws tie everything together</li>
+      <li>How momentum, work, and energy flow through collisions and machines</li>
+      <li>The geometry of rotation — torque, angular momentum, and centripetal force</li>
+      <li>How oscillations and waves carry energy through space and matter</li>
+      <li>Why heat, temperature, and entropy set the direction of every natural process</li>
+    </ul>
+  </section>
+
+  <section class="km-container">
+    <div class="eyebrow">Knowledge Map</div>
+    <svg class="km-svg" viewBox="0 0 660 240" role="img" aria-label="Knowledge map of six physics modules connected by thin lines">
+      <path class="km-line" d="M 90 130 Q 145 70 220 70" />
+      <path class="km-line" d="M 220 70 Q 285 50 350 70" />
+      <path class="km-line" d="M 350 70 Q 415 90 480 110" />
+      <path class="km-line" d="M 480 110 Q 545 130 570 170" />
+      <path class="km-line" d="M 570 170 Q 470 220 350 200" />
+      <path class="km-line" d="M 350 200 Q 285 200 220 200" />
+      <path class="km-line" d="M 220 200 Q 145 200 90 130" />
+      <path class="km-line" d="M 220 70 L 220 200" stroke-dasharray="2 4" />
+      <path class="km-line" d="M 350 70 L 350 200" stroke-dasharray="2 4" />
+      <path class="km-line" d="M 480 110 L 570 170" stroke-dasharray="2 4" />
+
+      <g class="km-node" data-target="m1">
+        <circle cx="90" cy="130" r="7" />
+        <text x="90" y="155" text-anchor="middle">Motion</text>
+      </g>
+      <g class="km-node" data-target="m2">
+        <circle cx="220" cy="70" r="7" />
+        <text x="220" y="55" text-anchor="middle">Forces</text>
+      </g>
+      <g class="km-node" data-target="m3">
+        <circle cx="350" cy="70" r="7" />
+        <text x="350" y="55" text-anchor="middle">Energy</text>
+      </g>
+      <g class="km-node" data-target="m4">
+        <circle cx="480" cy="110" r="7" />
+        <text x="480" y="95" text-anchor="middle">Rotation</text>
+      </g>
+      <g class="km-node" data-target="m5">
+        <circle cx="570" cy="170" r="7" />
+        <text x="570" y="195" text-anchor="middle">Waves</text>
+      </g>
+      <g class="km-node" data-target="m6">
+        <circle cx="350" cy="200" r="7" />
+        <text x="350" y="225" text-anchor="middle">Heat</text>
+      </g>
+      <g class="km-node" data-target="m2">
+        <circle cx="220" cy="200" r="5" />
+        <text x="220" y="225" text-anchor="middle" font-size="10">Inertia</text>
+      </g>
+    </svg>
+    <p style="font-family: var(--sans); font-size: 0.82rem; color: var(--fg-mute); text-align: center; margin-top: 0.6em; font-style: italic;">Click any node to jump to that module.</p>
+  </section>
+
+  <!-- ============ MODULE 1 ============ -->
+  <section class="module" id="m1">
+    <div class="module-num">Module One</div>
+    <h2>The Language of Motion</h2>
+
+    <p>Before physics can explain anything, it has to describe it. Motion is the change of position over time, and to track it we need a small vocabulary: <em>position</em>, <em>distance</em>, <em>speed</em>, <em>velocity</em>, and <em>acceleration</em>. Each word answers a slightly different question, and confusing them is the most common source of error in early physics.</p>
+
+    <p>Position is always measured <em>relative</em> to something — a reference point, a coordinate system, an origin. A train at platform 3 is stationary to a passenger sipping coffee inside, but moving at 120 km/h to someone watching from the platform. Neither is wrong; they're using different <em>frames of reference</em>. Distance is the total path length travelled, regardless of direction. Displacement is the straight-line change from start to finish — a vector, meaning direction matters.</p>
+
+    <p>Speed tells you how fast. Velocity tells you how fast <em>and</em> in which direction. Acceleration is any change in velocity — speeding up, slowing down, or turning. A car cornering at constant speed is still accelerating, because its direction is changing. This single insight unlocks most of classical mechanics.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 540 200" role="img" aria-label="Diagram showing a coordinate axis with an object moving from position x=2 to x=6, with a velocity arrow">
+        <line class="axis" x1="40" y1="150" x2="500" y2="150" />
+        <line class="axis" x1="40" y1="150" x2="40" y2="40" />
+        <polygon class="arrow-head" points="500,150 490,146 490,154" />
+        <polygon class="arrow-head" points="40,40 36,50 44,50" />
+        <text class="label" x="505" y="154">x</text>
+        <text class="label" x="30" y="35">y</text>
+
+        <line class="axis" x1="100" y1="155" x2="100" y2="145" />
+        <line class="axis" x1="180" y1="155" x2="180" y2="145" />
+        <line class="axis" x1="260" y1="155" x2="260" y2="145" />
+        <line class="axis" x1="340" y1="155" x2="340" y2="145" />
+        <line class="axis" x1="420" y1="155" x2="420" y2="145" />
+        <text class="label" x="100" y="170" text-anchor="middle">0</text>
+        <text class="label" x="180" y="170" text-anchor="middle">1</text>
+        <text class="label" x="260" y="170" text-anchor="middle">2</text>
+        <text class="label" x="340" y="170" text-anchor="middle">3</text>
+        <text class="label" x="420" y="170" text-anchor="middle">4</text>
+
+        <circle class="dot" cx="260" cy="150" r="5" />
+        <text class="label" x="260" y="135" text-anchor="middle">start</text>
+
+        <circle class="dot" cx="420" cy="150" r="5" />
+        <text class="label" x="420" y="135" text-anchor="middle">end</text>
+
+        <line class="accent-stroke" x1="270" y1="150" x2="410" y2="150" stroke-width="2" />
+        <polygon class="arrow-head" points="420,150 408,145 408,155" />
+        <text class="label" x="340" y="140" text-anchor="middle" fill="var(--accent)">velocity</text>
+
+        <text class="label" x="270" y="185" font-style="italic">displacement = +2 units</text>
+      </svg>
+      <figcaption>An object moves from position 2 to position 4. Displacement is the straight-line change, not the path travelled.</figcaption>
+    </figure>
+
+    <h3>Step-by-Step Breakdown</h3>
+    <ol class="steps">
+      <li>Choose a reference frame — an origin and coordinate axes that make the problem simple.</li>
+      <li>Record the object's initial position. Mark it on the axis.</li>
+      <li>Measure distance as the total path travelled; measure displacement as start-to-finish straight line.</li>
+      <li>Compute speed as distance ÷ time. Compute velocity as displacement ÷ time (with direction).</li>
+      <li>Detect acceleration by checking whether velocity changed — in magnitude or direction.</li>
+    </ol>
+
+    <h3>Real-World Examples</h3>
+    <ul class="examples">
+      <li><strong>Train passing a station.</strong> To a passenger reading a book, the train is still. To someone on the platform, it's a blur. Same event, two valid frames of reference.</li>
+      <li><strong>Walker around a city block.</strong> Walks 400 metres total but ends where she began. Distance: 400 m. Displacement: zero.</li>
+      <li><strong>Earth in orbit.</strong> Moves at roughly 107,000 km/h around the Sun. We don't feel it because everything around us shares the same motion — the same reason you can pour coffee on a smooth flight.</li>
+    </ul>
+
+    <div class="analogy">
+      <div class="analogy-side">
+        <h4>The Concept</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Position is a coordinate. Velocity is position's rate of change. Acceleration is velocity's rate of change — each one is the derivative of the one before.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 80">
+            <line class="axis" x1="20" y1="60" x2="180" y2="60" />
+            <circle class="dot" cx="60" cy="60" r="4" />
+            <circle class="dot" cx="140" cy="60" r="4" />
+            <line class="accent-stroke" x1="64" y1="60" x2="130" y2="60" stroke-width="2" />
+            <polygon class="arrow-head" points="140,60 130,56 130,64" />
+            <text class="label" x="60" y="75" text-anchor="middle">x₀</text>
+            <text class="label" x="140" y="75" text-anchor="middle">x₁</text>
+          </svg>
+        </div>
+      </div>
+      <div class="analogy-side">
+        <h4>The Analogy</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Position is a bookmark — it tells you where you are. Velocity is the bookmark plus which way you're turning pages. Acceleration is when you start flipping faster, slower, or backwards.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 80">
+            <rect x="40" y="20" width="14" height="40" class="stroke" />
+            <rect x="56" y="20" width="14" height="40" class="stroke" />
+            <rect x="72" y="20" width="14" height="40" class="stroke" />
+            <rect x="88" y="20" width="14" height="40" class="stroke" />
+            <rect x="104" y="20" width="14" height="40" class="stroke" />
+            <rect x="120" y="20" width="14" height="40" class="stroke" />
+            <rect x="136" y="20" width="14" height="40" class="stroke" />
+            <line class="accent-stroke" x1="47" y1="55" x2="143" y2="55" stroke-width="2" />
+            <polygon class="arrow-head" points="143,55 135,51 135,59" />
+          </svg>
+        </div>
+      </div>
+      <p class="analogy-caption">Each quantity is the rate of change of the previous one — like pages turning, then turning faster.</p>
+    </div>
+
+    <details class="misconception">
+      <summary>What People Get Wrong</summary>
+      <p>"Acceleration" is often used to mean only "speeding up." In physics it means any change in velocity — including slowing down, or turning at constant speed. A satellite in circular orbit is constantly accelerating, even though its speed never changes, because its direction is always shifting.</p>
+    </details>
+
+    <p class="why-matters">Every motion you'll ever study — a falling apple, a braking car, a spacecraft slingshot — begins with these four quantities. Get them straight, and the rest of physics becomes a conversation rather than a foreign language.</p>
+
+    <p class="interlink">🔗 This connects to Module 2 because forces are exactly what cause acceleration. Once you can describe motion, the next question is: what changes it?</p>
+
+    <div class="but-why">
+      <button class="but-why-btn" onclick="this.nextElementSibling.classList.toggle('show')">But why does direction matter so much?</button>
+      <div class="but-why-content">Because the universe is geometric. Two cars moving at 60 km/h toward each other will collide; two moving at 60 km/h in the same direction will never meet. The number alone doesn't tell you what happens — the direction does. Vectors exist because reality is directional.</div>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 2 ============ -->
+  <section class="module" id="m2">
+    <div class="module-num">Module Two</div>
+    <h2>Forces and Newton's Laws</h2>
+
+    <p>A force is a push or a pull — an interaction that can change an object's motion. It can start something moving, stop it, speed it up, slow it down, or bend its path. Without forces, the world would be static: no rivers, no wind, no heartbeat. With them, everything moves, interacts, and responds.</p>
+
+    <p>Isaac Newton distilled three centuries of observation into three laws that still hold for nearly every everyday situation. The first law says objects resist changes to their motion — a property called <em>inertia</em>. The second law quantifies it: force equals mass times acceleration (F = ma). The third law says every action has an equal and opposite reaction. Together, they convert the kinematics of Module 1 into a story about <em>causes</em>.</p>
+
+    <p>Forces come in two broad families. <em>Contact forces</em> require physical interaction — friction, tension, normal force. <em>Field forces</em> act at a distance — gravity, magnetism, electricity. Whether balanced or unbalanced determines whether motion changes. When forces cancel, the object moves at constant velocity (or stays still). When they don't, it accelerates.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 540 240" role="img" aria-label="Free body diagram of a block on a surface with four forces: gravity down, normal up, applied force right, friction left">
+        <line class="axis" x1="40" y1="180" x2="500" y2="180" />
+        <line class="axis" x1="40" y1="180" x2="40" y2="40" stroke-dasharray="3 3" opacity="0.5" />
+
+        <rect x="220" y="130" width="100" height="50" class="accent-fill" stroke="var(--fg-soft)" stroke-width="1.5" fill="rgba(45,100,112,0.1)" />
+
+        <line class="accent-stroke" x1="270" y1="130" x2="270" y2="80" stroke-width="2" />
+        <polygon class="arrow-head" points="270,75 265,87 275,87" />
+        <text class="label" x="280" y="80">Normal force</text>
+
+        <line class="accent-stroke" x1="270" y1="180" x2="270" y2="230" stroke-width="2" />
+        <polygon class="arrow-head" points="270,235 265,223 275,223" />
+        <text class="label" x="280" y="225">Gravity (mg)</text>
+
+        <line class="accent-stroke" x1="320" y1="155" x2="400" y2="155" stroke-width="2" />
+        <polygon class="arrow-head" points="405,155 393,150 393,160" />
+        <text class="label" x="345" y="148">Applied force</text>
+
+        <line class="accent-stroke" x1="220" y1="155" x2="160" y2="155" stroke-width="2" />
+        <polygon class="arrow-head" points="155,155 167,150 167,160" />
+        <text class="label" x="160" y="148" text-anchor="end">Friction</text>
+      </svg>
+      <figcaption>A block at rest with four forces acting on it. If applied force equals friction, the block doesn't accelerate.</figcaption>
+    </figure>
+
+    <h3>Newton's Three Laws</h3>
+    <ol class="steps">
+      <li><strong>First Law (Inertia):</strong> An object at rest stays at rest; an object in motion stays in motion at constant velocity — unless an external force acts on it.</li>
+      <li><strong>Second Law:</strong> The acceleration of an object is proportional to the net force on it and inversely proportional to its mass. F = ma.</li>
+      <li><strong>Third Law:</strong> For every action, there is an equal and opposite reaction. Forces always come in pairs.</li>
+    </ol>
+
+    <h3>Real-World Examples</h3>
+    <ul class="examples">
+      <li><strong>Book on a table.</strong> Gravity pulls down; the table pushes up with an equal normal force. Balanced — the book stays put.</li>
+      <li><strong>Rocket launch.</strong> The engine expels gas downward at high speed; the gas pushes back up on the rocket with equal force. That upward push is thrust.</li>
+      <li><strong>Car braking.</strong> Friction between tires and road provides the decelerating force. On ice, friction drops and the same brake pedal does almost nothing.</li>
+    </ul>
+
+    <div class="analogy">
+      <div class="analogy-side">
+        <h4>The Concept</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Force = mass × acceleration. More mass means more force needed for the same acceleration. More force means more acceleration for the same mass.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 80">
+            <rect x="30" y="40" width="30" height="25" class="accent-fill" stroke="var(--fg-soft)" stroke-width="1.2" />
+            <line class="accent-stroke" x1="60" y1="52" x2="100" y2="52" stroke-width="2" />
+            <polygon class="arrow-head" points="105,52 95,48 95,56" />
+            <text class="label" x="45" y="75" text-anchor="middle">small m</text>
+            <rect x="130" y="35" width="40" height="30" class="accent-fill" stroke="var(--fg-soft)" stroke-width="1.2" />
+            <text class="label" x="150" y="75" text-anchor="middle">large m</text>
+          </svg>
+        </div>
+      </div>
+      <div class="analogy-side">
+        <h4>The Analogy</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Force is a hand pushing a shopping cart. Push harder and it speeds up faster. Load the cart with bowling balls and the same push barely moves it.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 80">
+            <path class="stroke" d="M 40 50 L 60 50 L 60 35 L 100 35 L 100 50 L 120 50" />
+            <circle cx="50" cy="55" r="6" class="stroke" />
+            <circle cx="110" cy="55" r="6" class="stroke" />
+            <line class="accent-stroke" x1="10" y1="42" x2="35" y2="42" stroke-width="2" />
+            <polygon class="arrow-head" points="40,42 30,38 30,46" />
+          </svg>
+        </div>
+      </div>
+      <p class="analogy-caption">Mass is the cart's load. Force is your push. Acceleration is what you get. Same push, different loads, different results.</p>
+    </div>
+
+    <details class="misconception">
+      <summary>What People Get Wrong</summary>
+      <p>"If there's no force, things stop." Actually, without force, things keep moving at constant velocity forever — that's inertia. Friction is what stops them on Earth. In deep space, a thrown wrench would travel in a straight line at constant speed until it hit something. The reason things "naturally" come to rest on Earth is that friction is everywhere, quietly applying opposing forces.</p>
+    </details>
+
+    <p class="why-matters">Newton's three laws are the bedrock of classical mechanics. Every bridge, vehicle, and satellite is designed using them. They tell you not just <em>how</em> things move, but <em>why</em>.</p>
+
+    <p class="interlink">🔗 This connects to Module 3 because a force applied over a distance does <em>work</em>, and work transfers <em>energy</em>. Force is the bridge between motion and energy.</p>
+
+    <!-- Mini-challenge -->
+    <div class="challenge">
+      <h4>Mini-Challenge — The Subway Pole</h4>
+      <p class="scenario">You're standing in a subway car, holding nothing. The train suddenly brakes. You lurch forward. Why — and which of Newton's laws explains it?</p>
+      <ul class="choices" data-correct="b">
+        <li data-choice="a">First law: the train pushed you forward.</li>
+        <li data-choice="b">First law: your body kept moving at constant velocity while the train slowed around you.</li>
+        <li data-choice="c">Third law: the floor exerted an equal and opposite reaction on your feet.</li>
+        <li data-choice="d">Second law: a forward force acted on your body.</li>
+      </ul>
+      <div class="reasoning">
+        <strong>Answer: B.</strong> Your body was moving at the train's speed. When the train braked, friction between your feet and the floor wasn't enough to immediately slow you to match. By the first law, your body continued at its original velocity — forward — until something (a pole, a stranger, the door) applied a force to stop you.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CUMULATIVE QUIZ 1 ============ -->
+  <section class="cumulative">
+    <h3>Retrieval Practice — Modules 1 &amp; 2</h3>
+    <p style="font-size: 0.95rem; color: var(--fg-soft);">Three quick questions before moving on. The point is retrieval, not perfection.</p>
+
+    <div class="quiz" data-correct="c">
+      <p class="quiz-q">A car drives 10 km north, then 10 km south, ending where it started. What is its displacement?</p>
+      <ul class="quiz-options">
+        <li>20 km</li>
+        <li>10 km north</li>
+        <li>0 km</li>
+        <li>20 km south</li>
+      </ul>
+      <div class="quiz-feedback">Displacement is start-to-finish straight-line change. Since the car returned to its starting point, displacement is zero — though the distance travelled is 20 km.</div>
+    </div>
+
+    <div class="quiz" data-correct="b">
+      <p class="quiz-q">A satellite orbits Earth at constant speed in a circular path. Is it accelerating?</p>
+      <ul class="quiz-options">
+        <li>No — its speed is constant.</li>
+        <li>Yes — its direction is constantly changing, which means velocity is changing.</li>
+        <li>Only when it crosses the equator.</li>
+        <li>Only if its orbit is elliptical.</li>
+      </ul>
+      <div class="quiz-feedback">Acceleration is any change in velocity — including direction. A satellite in circular orbit is continuously accelerating toward Earth, even though its speed never changes.</div>
+    </div>
+
+    <div class="quiz" data-correct="a">
+      <p class="quiz-q">Which of these is the cleanest statement of Newton's third law?</p>
+      <ul class="quiz-options">
+        <li>If A pushes B, B pushes A with equal force in the opposite direction.</li>
+        <li>Every force eventually runs out.</li>
+        <li>Heavier objects fall faster.</li>
+        <li>An object in motion stays in motion.</li>
+      </ul>
+      <div class="quiz-feedback">The third law is about force pairs. Whenever one object exerts a force on another, the second exerts an equal and opposite force back. The other options describe the first law or common misconceptions.</div>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 3 ============ -->
+  <section class="module" id="m3">
+    <div class="module-num">Module Three</div>
+    <h2>Momentum, Energy &amp; Work</h2>
+
+    <p>Some quantities in physics describe <em>state</em> — where something is, how fast it's going. Others describe <em>transfer</em> — what moves from one object to another when they interact. Momentum, work, and energy belong to the second group. They are the universe's accounting system: they tell you what can happen, what must be conserved, and what gets shuffled around when things collide.</p>
+
+    <p><em>Momentum</em> is mass times velocity — "motion with impact." A slow truck can have more momentum than a fast bicycle because mass dominates. <em>Impulse</em> is force applied over time; it's how momentum changes. This is why airbags work: they extend the time of collision, reducing the force for the same momentum change.</p>
+
+    <p><em>Work</em> is force applied over a distance. If you push against a wall and it doesn't move, no work is done — no matter how tired you feel. <em>Energy</em> is the capacity to do work. It comes in two main flavours: <em>kinetic</em> (energy of motion) and <em>potential</em> (stored energy of position or configuration). The total amount in a closed system never changes — it only transforms. This is the law of <em>conservation of energy</em>, perhaps the most important principle in all of physics.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 540 240" role="img" aria-label="Roller coaster track showing potential energy at the top converting to kinetic energy at the bottom">
+        <path class="stroke" d="M 40 60 Q 120 60 180 100 Q 240 180 300 200 Q 360 180 420 100 Q 480 60 520 60" stroke-width="1.8" />
+
+        <circle class="dot" cx="120" cy="68" r="6" />
+        <text class="label" x="120" y="50" text-anchor="middle">PE max, KE ≈ 0</text>
+
+        <circle class="dot" cx="270" cy="195" r="6" />
+        <text class="label" x="270" y="220" text-anchor="middle">KE max, PE min</text>
+
+        <line class="axis" x1="40" y1="215" x2="520" y2="215" opacity="0.3" />
+        <text class="label" x="490" y="210" font-style="italic">ground</text>
+
+        <line class="accent-stroke" x1="125" y1="74" x2="125" y2="195" stroke-dasharray="3 3" />
+        <line class="accent-stroke" x1="275" y1="195" x2="275" y2="74" stroke-dasharray="3 3" />
+        <text class="label" x="200" y="140" text-anchor="middle" fill="var(--accent)" font-style="italic">energy transforms</text>
+      </svg>
+      <figcaption>A roller coaster at the top of the first hill has maximum potential energy. As it descends, PE converts to KE. Total energy stays constant; friction leaks some away as heat.</figcaption>
+    </figure>
+
+    <h3>The Core Relationships</h3>
+    <ol class="steps">
+      <li><strong>Momentum</strong> (p = mv): mass × velocity. Vector — direction matters. Conserved in collisions.</li>
+      <li><strong>Impulse</strong> (J = F·t): force × time. Equals the change in momentum. Same impulse, longer time → smaller force.</li>
+      <li><strong>Work</strong> (W = F·d): force × distance, in the direction of motion. Measured in joules.</li>
+      <li><strong>Kinetic energy</strong> (KE = ½mv²): energy of motion. Scalar — direction irrelevant. Speed matters quadratically.</li>
+      <li><strong>Potential energy</strong>: stored by position. Gravitational (mgh), elastic (½kx²), chemical (in bonds).</li>
+      <li><strong>Power</strong> (P = W/t): how quickly work is done. Measured in watts (joules per second).</li>
+    </ol>
+
+    <h3>Real-World Examples</h3>
+    <ul class="examples">
+      <li><strong>Airbags.</strong> Same momentum change, longer collision time. By impulse (J = F·t), extending t reduces F — that's what saves your face.</li>
+      <li><strong>Hydroelectric dam.</strong> Water at height has gravitational PE. Falling converts it to KE, which spins a turbine, which converts it to electrical energy.</li>
+      <li><strong>Billiard ball collision.</strong> One ball stops, the other moves off at the same speed. Momentum is transferred almost perfectly; little energy is lost.</li>
+    </ul>
+
+    <div class="analogy">
+      <div class="analogy-side">
+        <h4>The Concept</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Energy can't be created or destroyed, only transformed. PE ↔ KE ↔ heat ↔ sound — the total stays the same in a closed system.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 70">
+            <circle cx="40" cy="35" r="14" class="accent-fill" stroke="var(--accent)" stroke-width="1.2" />
+            <text class="label" x="40" y="38" text-anchor="middle">PE</text>
+            <line class="accent-stroke" x1="58" y1="35" x2="92" y2="35" stroke-width="1.5" />
+            <polygon class="arrow-head" points="98,35 88,31 88,39" />
+            <circle cx="115" cy="35" r="14" class="accent-fill" stroke="var(--accent)" stroke-width="1.2" />
+            <text class="label" x="115" y="38" text-anchor="middle">KE</text>
+            <line class="accent-stroke" x1="133" y1="35" x2="167" y2="35" stroke-width="1.5" />
+            <polygon class="arrow-head" points="173,35 163,31 163,39" />
+            <circle cx="190" cy="35" r="10" class="accent-fill" stroke="var(--accent)" stroke-width="1.2" />
+            <text class="label" x="190" y="38" text-anchor="middle" font-size="9">heat</text>
+          </svg>
+        </div>
+      </div>
+      <div class="analogy-side">
+        <h4>The Analogy</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Energy is like money in an economy. It changes hands (work) and forms (cash, bank balance, goods), but the total amount in circulation stays the same — unless you trace it outside the system.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 70">
+            <rect x="25" y="25" width="40" height="25" class="stroke" stroke-width="1.2" />
+            <text class="label" x="45" y="42" text-anchor="middle" font-size="9">cash</text>
+            <line class="accent-stroke" x1="68" y1="37" x2="92" y2="37" stroke-width="1.5" />
+            <polygon class="arrow-head" points="98,37 88,33 88,41" />
+            <rect x="80" y="20" width="40" height="30" class="stroke" stroke-width="1.2" />
+            <text class="label" x="100" y="40" text-anchor="middle" font-size="9">bank</text>
+            <line class="accent-stroke" x1="123" y1="37" x2="147" y2="37" stroke-width="1.5" />
+            <polygon class="arrow-head" points="153,37 143,33 143,41" />
+            <rect x="135" y="25" width="40" height="25" class="stroke" stroke-width="1.2" />
+            <text class="label" x="155" y="42" text-anchor="middle" font-size="9">goods</text>
+          </svg>
+        </div>
+      </div>
+      <p class="analogy-caption">Same currency, different forms. The total never changes — it just moves around.</p>
+    </div>
+
+    <details class="misconception">
+      <summary>What People Get Wrong</summary>
+      <p>People confuse momentum and kinetic energy. Momentum is a vector (direction matters); KE is a scalar (direction irrelevant). Two identical cars moving at 50 km/h in opposite directions have equal and opposite momentum — their total momentum is zero — but their total kinetic energy is not zero. That's why head-on collisions are so destructive: all that KE has to go somewhere, and it goes into crumpling metal.</p>
+    </details>
+
+    <p class="why-matters">Conservation laws are nature's balance sheet. They tell you what's possible without needing to know the details. If energy and momentum must be conserved, you can predict the outcome of a collision before you understand the forces involved.</p>
+
+    <p class="interlink">🔗 This connects to Module 4 because rotating objects carry <em>angular</em> momentum — and it, too, is conserved. The same accounting principle, applied to spin instead of straight-line motion.</p>
+
+    <!-- Flashcards -->
+    <h3 style="margin-top: 2.5em;">Key Terms — Flip to Reveal</h3>
+    <div class="flashcards">
+      <div class="flashcard">
+        <div class="flashcard-inner">
+          <div class="flashcard-front">Momentum</div>
+          <div class="flashcard-back">Mass × velocity. A vector — direction matters. Conserved in closed systems.</div>
+        </div>
+      </div>
+      <div class="flashcard">
+        <div class="flashcard-inner">
+          <div class="flashcard-front">Impulse</div>
+          <div class="flashcard-back">Force × time. Equals change in momentum. Longer time, smaller force — the airbag principle.</div>
+        </div>
+      </div>
+      <div class="flashcard">
+        <div class="flashcard-inner">
+          <div class="flashcard-front">Work</div>
+          <div class="flashcard-back">Force × distance (in the direction of motion). No movement, no work — even if you're exhausted.</div>
+        </div>
+      </div>
+      <div class="flashcard">
+        <div class="flashcard-inner">
+          <div class="flashcard-front">Kinetic Energy</div>
+          <div class="flashcard-back">½mv². Energy of motion. Speed matters quadratically — double the speed, quadruple the energy.</div>
+        </div>
+      </div>
+      <div class="flashcard">
+        <div class="flashcard-inner">
+          <div class="flashcard-front">Power</div>
+          <div class="flashcard-back">Work ÷ time. How quickly energy is transferred. Measured in watts.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 4 ============ -->
+  <section class="module" id="m4">
+    <div class="module-num">Module Four</div>
+    <h2>Gravity &amp; Rotation</h2>
+
+    <p>So far we've treated motion as a straight-line affair. But the universe spins. Planets rotate, wheels turn, atoms tumble. Rotation follows rules that mirror linear motion — but with a twist. Position becomes <em>angular displacement</em>, velocity becomes <em>angular velocity</em>, force becomes <em>torque</em>, and mass becomes <em>moment of inertia</em>.</p>
+
+    <p>Gravity is the silent partner. Every mass attracts every other mass; the attraction grows with mass and falls off with the square of distance. Newton described it as a force. Einstein, two centuries later, recast it as the curvature of spacetime itself — a heavy ball denting a rubber sheet, with smaller objects rolling along the curves. Either way, gravity is what keeps the Moon in orbit, the Earth round, and your coffee in the cup.</p>
+
+    <p>Two ideas tie rotation and gravity together. <em>Torque</em> is the rotational equivalent of force — it depends on how hard you push, how far from the pivot you push, and the angle. <em>Angular momentum</em> is the rotational equivalent of linear momentum, and it is conserved. A figure skater pulling in their arms spins faster because their mass redistributes closer to the axis — to keep angular momentum constant, rotational speed must rise.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 540 240" role="img" aria-label="Diagram of a planet orbiting the sun, with gravity pulling inward and inertia carrying it forward">
+        <circle cx="270" cy="120" r="22" class="accent-fill" stroke="var(--accent)" stroke-width="1.5" />
+        <text class="label" x="270" y="124" text-anchor="middle" font-size="10">Sun</text>
+
+        <ellipse class="stroke" cx="270" cy="120" rx="200" ry="80" stroke-dasharray="3 4" opacity="0.5" />
+
+        <circle class="dot" cx="470" cy="120" r="7" />
+        <text class="label" x="470" y="108" text-anchor="middle">Earth</text>
+
+        <line class="accent-stroke" x1="470" y1="120" x2="295" y2="120" stroke-width="1.8" />
+        <polygon class="arrow-head" points="290,120 300,116 300,124" />
+        <text class="label" x="380" y="115" text-anchor="middle" fill="var(--accent)">gravity →</text>
+
+        <line class="stroke" x1="470" y1="120" x2="470" y2="60" stroke-width="1.8" />
+        <polygon class="arrow-head" points="470,55 466,65 474,65" />
+        <text class="label" x="470" y="45" text-anchor="middle">inertia (forward)</text>
+
+        <text class="label" x="270" y="225" text-anchor="middle" font-style="italic">Gravity pulls inward; inertia carries forward. The balance is an orbit.</text>
+      </svg>
+      <figcaption>An orbit is continuous free fall — the planet falls toward the Sun, but moves sideways fast enough to keep missing it.</figcaption>
+    </figure>
+
+    <h3>The Rotational Vocabulary</h3>
+    <ol class="steps">
+      <li><strong>Torque</strong> (τ = F·r): force × lever arm. Longer wrench, less effort. Same principle as a seesaw.</li>
+      <li><strong>Moment of inertia</strong> (I): rotational mass. Depends on how mass is distributed — closer to the axis means smaller I, easier to spin.</li>
+      <li><strong>Angular momentum</strong> (L = Iω): I × angular velocity. Conserved unless an external torque acts.</li>
+      <li><strong>Centripetal force</strong>: the inward force that keeps an object on a circular path. Without it, the object flies off in a straight line — that's inertia, not a mysterious outward push.</li>
+      <li><strong>Center of mass</strong>: the average position of an object's mass. The point where, if you support it, the object balances.</li>
+    </ol>
+
+    <h3>Real-World Examples</h3>
+    <ul class="examples">
+      <li><strong>Figure skater's spin.</strong> Arms outstretched: large I, slow spin. Arms pulled in: smaller I, faster spin. Angular momentum is conserved throughout.</li>
+      <li><strong>Wrench with a long handle.</strong> More lever arm means more torque for the same force. That's why stubborn bolts need a longer wrench, not a stronger arm.</li>
+      <li><strong>Satellite in orbit.</strong> Constantly falling toward Earth, but moving sideways fast enough to keep missing it. Astronauts inside feel weightless not because there's no gravity, but because they're in free fall along with their spacecraft.</li>
+    </ul>
+
+    <div class="analogy">
+      <div class="analogy-side">
+        <h4>The Concept</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Torque depends on where you push, not just how hard. The same force at twice the distance produces twice the torque.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 90">
+            <circle cx="30" cy="60" r="5" class="accent-fill" stroke="var(--accent)" stroke-width="1.2" />
+            <line class="stroke" x1="30" y1="60" x2="170" y2="60" stroke-width="1.5" />
+            <line class="accent-stroke" x1="80" y1="60" x2="80" y2="30" stroke-width="2" />
+            <polygon class="arrow-head" points="80,25 76,35 84,35" />
+            <text class="label" x="80" y="20" text-anchor="middle">F near</text>
+            <line class="accent-stroke" x1="160" y1="60" x2="160" y2="30" stroke-width="2" />
+            <polygon class="arrow-head" points="160,25 156,35 164,35" />
+            <text class="label" x="160" y="20" text-anchor="middle">F far</text>
+          </svg>
+        </div>
+      </div>
+      <div class="analogy-side">
+        <h4>The Analogy</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Opening a door: push near the hinge and it barely moves. Push at the handle and it swings easily. Same force, different lever arm, very different result.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 90">
+            <line class="stroke" x1="20" y1="70" x2="20" y2="20" stroke-width="2" />
+            <circle cx="20" cy="45" r="3" class="dot" />
+            <rect x="22" y="40" width="100" height="10" class="accent-fill" stroke="var(--fg-soft)" stroke-width="1" fill="rgba(45,100,112,0.1)" />
+            <line class="accent-stroke" x1="40" y1="45" x2="40" y2="25" stroke-width="1.5" />
+            <polygon class="arrow-head" points="40,20 36,30 44,30" />
+            <line class="accent-stroke" x1="110" y1="45" x2="110" y2="25" stroke-width="2" />
+            <polygon class="arrow-head" points="110,20 106,30 114,30" />
+            <text class="label" x="75" y="80" text-anchor="middle">door</text>
+          </svg>
+        </div>
+      </div>
+      <p class="analogy-caption">Lever arm matters as much as force. That's the whole secret of simple machines.</p>
+    </div>
+
+    <details class="misconception">
+      <summary>What People Get Wrong</summary>
+      <p>"Centrifugal force" pushes you outward on a curve — or so it feels. In reality, your inertia wants to keep you going straight. The car (or the seat, or the seatbelt) pushes you <em>inward</em> — that's the centripetal force curving your path. The "outward push" you feel is just your body's resistance to being redirected. There is no centrifugal force in an inertial frame; it's a fictitious force that appears only in rotating frames of reference.</p>
+    </details>
+
+    <p class="why-matters">Rotation is everywhere — wheels, turbines, planets, atoms. Without angular momentum conservation, galaxies wouldn't hold their shapes and bicycles wouldn't stay upright. Mastering rotation unlocks everything from engine design to spaceflight.</p>
+
+    <p class="interlink">🔗 This connects to Module 5 because rotational motion often produces oscillations: a spinning wheel wobbles, a planet's axis precesses, a pendulum swings back and forth. Rotation and oscillation are cousins.</p>
+
+    <!-- Fill in the blank -->
+    <div class="fill-blank">
+      <p>If a skater pulls their arms in, their moment of inertia <input type="text" id="fib1" placeholder="…"> and their angular velocity increases.</p>
+      <div class="controls">
+        <button onclick="checkFill('fib1', 'decreases', 'hint1', 'result1')">Check</button>
+        <button onclick="document.getElementById('hint1').classList.add('show')">Hint</button>
+      </div>
+      <p class="hint" id="hint1">Think about what happens to mass distribution when arms move closer to the body.</p>
+      <p class="result" id="result1"></p>
+    </div>
+  </section>
+
+  <!-- ============ CUMULATIVE QUIZ 2 ============ -->
+  <section class="cumulative">
+    <h3>Retrieval Practice — Modules 3 &amp; 4</h3>
+    <p style="font-size: 0.95rem; color: var(--fg-soft);">Three more questions, reaching back across the last two modules.</p>
+
+    <div class="quiz" data-correct="c">
+      <p class="quiz-q">A truck and a bicycle are moving at the same speed. Which has more momentum?</p>
+      <ul class="quiz-options">
+        <li>The bicycle — it's more agile.</li>
+        <li>They have the same momentum.</li>
+        <li>The truck — mass dominates the equation p = mv.</li>
+        <li>Neither — momentum depends only on speed.</li>
+      </ul>
+      <div class="quiz-feedback">Momentum is mass × velocity. At equal velocity, the object with greater mass carries more momentum. That's why a slow truck can do far more damage than a fast bicycle.</div>
+    </div>
+
+    <div class="quiz" data-correct="b">
+      <p class="quiz-q">You push a wall as hard as you can for a minute. It doesn't move. How much work have you done on the wall?</p>
+      <ul class="quiz-options">
+        <li>A lot — your arms are tired.</li>
+        <li>Zero — no displacement means no work, regardless of effort.</li>
+        <li>Equal to your force × 60 seconds.</li>
+        <li>Equal to your body weight × distance.</li>
+      </ul>
+      <div class="quiz-feedback">Work requires displacement. Without movement in the direction of the force, no work is done on the object — even though your muscles are burning energy internally. Effort ≠ work in the physical sense.</div>
+    </div>
+
+    <div class="quiz" data-correct="a">
+      <p class="quiz-q">Why does a figure skater spin faster when pulling in their arms?</p>
+      <ul class="quiz-options">
+        <li>Angular momentum is conserved — reducing moment of inertia increases angular velocity.</li>
+        <li>They are doing work against friction.</li>
+        <li>Air resistance decreases when arms are tucked.</li>
+        <li>Gravity pulls harder on a tighter body.</li>
+      </ul>
+      <div class="quiz-feedback">Angular momentum L = Iω is conserved. Pulling arms in reduces I (mass closer to axis). To keep L constant, ω must increase. No external torque acts, so the principle holds exactly.</div>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 5 ============ -->
+  <section class="module" id="m5">
+    <div class="module-num">Module Five</div>
+    <h2>Oscillations &amp; Waves</h2>
+
+    <p>An oscillation is any motion that repeats around a central position — a swing, a plucked string, a heartbeat. It happens whenever a system is displaced from equilibrium and a restoring force pulls it back. But instead of stopping at equilibrium, the system overshoots, and the cycle repeats. This back-and-forth is one of nature's most fundamental patterns.</p>
+
+    <p>The simplest case is <em>simple harmonic motion</em> (SHM), where the restoring force is directly proportional to displacement. A spring follows this rule: pull it twice as far, and it pulls back twice as hard. A pendulum does too, for small angles. SHM gives us two useful quantities: the <em>period</em> (time for one full cycle) and the <em>frequency</em> (cycles per second, measured in hertz).</p>
+
+    <p>When oscillations travel — when the disturbance moves through a medium without carrying matter with it — we get a <em>wave</em>. Waves are characterised by <em>wavelength</em> (distance between peaks), <em>amplitude</em> (maximum displacement, tied to energy), and <em>frequency</em>. Their speed is wavelength × frequency. Sound, light, water ripples, and earthquake tremors are all waves, differing only in medium and scale.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 540 200" role="img" aria-label="Sine wave with labeled amplitude, wavelength, and one period marked">
+        <line class="axis" x1="20" y1="100" x2="520" y2="100" />
+        <path class="accent-stroke" d="M 20 100 Q 50 40 80 100 T 140 100 T 200 100 T 260 100 T 320 100 T 380 100 T 440 100 T 500 100" stroke-width="1.8" />
+
+        <line class="stroke" x1="80" y1="100" x2="80" y2="55" stroke-dasharray="2 3" />
+        <line class="stroke" x1="80" y1="100" x2="80" y2="145" stroke-dasharray="2 3" />
+        <text class="label" x="90" y="48">amplitude</text>
+
+        <line class="stroke" x1="80" y1="170" x2="200" y2="170" />
+        <line class="stroke" x1="80" y1="165" x2="80" y2="175" />
+        <line class="stroke" x1="200" y1="165" x2="200" y2="175" />
+        <text class="label" x="140" y="185" text-anchor="middle">wavelength (λ)</text>
+
+        <text class="label" x="500" y="90" text-anchor="end">crest</text>
+        <text class="label" x="500" y="120" text-anchor="end" opacity="0.7">trough</text>
+      </svg>
+      <figcaption>A wave carries energy, not matter. The water (or air, or rope) oscillates in place; what travels is the disturbance.</figcaption>
+    </figure>
+
+    <h3>The Anatomy of a Wave</h3>
+    <ol class="steps">
+      <li><strong>Wavelength (λ):</strong> distance between two consecutive crests. Long wavelengths bend around obstacles; short ones cast sharp shadows.</li>
+      <li><strong>Frequency (f):</strong> cycles per second, in hertz. Determines pitch in sound and colour in light.</li>
+      <li><strong>Amplitude:</strong> maximum displacement from rest. Determines loudness in sound and brightness in light.</li>
+      <li><strong>Period (T):</strong> time for one cycle. T = 1/f. High frequency means short period.</li>
+      <li><strong>Wave speed (v = fλ):</strong> how fast the disturbance propagates. Sound in air: ~343 m/s. Light in vacuum: ~300,000 km/s.</li>
+      <li><strong>Resonance:</strong> when an external force matches a system's natural frequency, amplitude grows dramatically. Useful in music, destructive in bridges.</li>
+    </ol>
+
+    <h3>Real-World Examples</h3>
+    <ul class="examples">
+      <li><strong>Guitar string.</strong> Plucked, it vibrates at its natural frequency. The soundboard resonates in sympathy, amplifying the sound into the room.</li>
+      <li><strong>Pendulum clock.</strong> The period depends only on length and gravity — not on amplitude (for small swings). That's why pendulum clocks keep steady time.</li>
+      <li><strong>Tacoma Narrows Bridge (1940).</strong> Wind matched the bridge's natural frequency. Oscillations grew until the structure tore itself apart. Resonance, gone wrong.</li>
+    </ul>
+
+    <div class="analogy">
+      <div class="analogy-side">
+        <h4>The Concept</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">A wave transports energy without transporting matter. Particles oscillate in place; the disturbance travels.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 80">
+            <path class="accent-stroke" d="M 10 40 Q 30 10 50 40 T 90 40 T 130 40 T 170 40 T 190 40" stroke-width="1.5" />
+            <circle class="dot" cx="30" cy="25" r="3" />
+            <circle class="dot" cx="70" cy="55" r="3" />
+            <circle class="dot" cx="110" cy="25" r="3" />
+            <circle class="dot" cx="150" cy="55" r="3" />
+          </svg>
+        </div>
+      </div>
+      <div class="analogy-side">
+        <h4>The Analogy</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">A stadium wave: each person stands and sits in place. No one travels around the stadium — but the wave of standing-people does.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 80">
+            <circle cx="30" cy="55" r="6" class="stroke" />
+            <circle cx="60" cy="40" r="6" class="stroke" />
+            <circle cx="90" cy="25" r="6" class="accent-fill" stroke="var(--accent)" stroke-width="1.2" />
+            <circle cx="120" cy="40" r="6" class="stroke" />
+            <circle cx="150" cy="55" r="6" class="stroke" />
+            <line class="accent-stroke" x1="90" y1="15" x2="90" y2="5" stroke-width="1.5" />
+            <polygon class="arrow-head" points="90,5 86,12 94,12" />
+          </svg>
+        </div>
+      </div>
+      <p class="analogy-caption">The wave moves; the medium stays. Energy travels; matter oscillates.</p>
+    </div>
+
+    <details class="misconception">
+      <summary>What People Get Wrong</summary>
+      <p>Sound in space. Movies show explosions with booming sound effects — but in vacuum, there's nothing to carry the wave. Sound is a mechanical wave; it needs a medium. Light, an electromagnetic wave, doesn't — which is why we see distant stars but would never hear them, no matter how violent their deaths.</p>
+    </details>
+
+    <p class="why-matters">Waves carry energy and information across vast distances — through air, water, solid rock, and empty space. Understanding them is understanding how the universe communicates: from a whisper to a radio signal to the light of a distant galaxy.</p>
+
+    <p class="interlink">🔗 This connects to Module 6 because heat can travel as a wave — infrared radiation carries thermal energy through empty space, no medium required. That's how the Sun warms the Earth.</p>
+
+    <!-- Interactive hotspot diagram -->
+    <h3 style="margin-top: 2.5em;">Explore the Wave</h3>
+    <p style="font-size: 0.92rem; color: var(--fg-soft);">Click the dashed circles to learn what each part of the wave does.</p>
+    <figure class="diagram">
+      <svg viewBox="0 0 540 220" role="img" aria-label="Interactive wave diagram with clickable hotspots for amplitude, wavelength, frequency and rest position">
+        <line class="axis" x1="20" y1="110" x2="520" y2="110" />
+        <path class="accent-stroke" d="M 20 110 Q 55 50 90 110 T 160 110 T 230 110 T 300 110 T 370 110 T 440 110 T 510 110" stroke-width="1.8" />
+
+        <g class="hotspot" data-info="amplitude" tabindex="0">
+          <circle class="hotspot-ring" cx="55" cy="60" r="14" />
+          <circle class="dot" cx="55" cy="60" r="4" />
+        </g>
+        <g class="hotspot" data-info="wavelength" tabindex="0">
+          <circle class="hotspot-ring" cx="125" cy="110" r="14" />
+          <circle class="dot" cx="125" cy="110" r="4" />
+        </g>
+        <g class="hotspot" data-info="frequency" tabindex="0">
+          <circle class="hotspot-ring" cx="265" cy="110" r="14" />
+          <circle class="dot" cx="265" cy="110" r="4" />
+        </g>
+        <g class="hotspot" data-info="rest" tabindex="0">
+          <circle class="hotspot-ring" cx="370" cy="110" r="14" />
+          <circle class="dot" cx="370" cy="110" r="4" />
+        </g>
+      </svg>
+      <div class="hotspot-panel" id="panel-amplitude"><strong>Amplitude</strong> — the maximum displacement from rest. Larger amplitude means more energy: louder sound, brighter light, bigger swell.</div>
+      <div class="hotspot-panel" id="panel-wavelength"><strong>Wavelength (λ)</strong> — distance between two consecutive crests. Long wavelengths bend around barriers; short ones cast sharp shadows and resolve fine detail.</div>
+      <div class="hotspot-panel" id="panel-frequency"><strong>Frequency (f)</strong> — cycles per second, in hertz. Determines pitch in sound and colour in light. Higher frequency = higher pitch / bluer colour.</div>
+      <div class="hotspot-panel" id="panel-rest"><strong>Rest position</strong> — the equilibrium the wave oscillates around. Particles don't travel with the wave; they return here repeatedly.</div>
+    </figure>
+  </section>
+
+  <!-- ============ MODULE 6 ============ -->
+  <section class="module" id="m6">
+    <div class="module-num">Module Six</div>
+    <h2>Heat &amp; Thermodynamics</h2>
+
+    <p>Heat is energy on the move — flowing from hot to cold, always, never the other way around. Temperature is its close cousin: a measure of the average kinetic energy of particles in a substance. A bathtub of warm water holds more heat than a spark of flame, even though the spark is far hotter, because there are vastly more molecules jiggling in the tub.</p>
+
+    <p>Heat moves in three ways. <em>Conduction</em> happens through direct contact — fast-moving particles in a hot pan bump into slower ones in your hand. <em>Convection</em> happens in fluids: warm regions rise, cool regions sink, currents form. <em>Radiation</em> needs no medium at all — infrared waves carry energy across empty space, which is how the Sun warms the Earth.</p>
+
+    <p>Four laws govern this domain. The <em>zeroth</em> defines temperature through thermal equilibrium. The <em>first</em> says energy is conserved — heat plus work equals the change in internal energy. The <em>second</em> says entropy, the measure of disorder, always increases in an isolated system: heat flows spontaneously from hot to cold, never the reverse. The <em>third</em> says that as temperature approaches absolute zero, entropy approaches its minimum. Together, these laws set the arrow of time — the reason yesterday's coffee doesn't spontaneously reheat.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 540 240" role="img" aria-label="Three modes of heat transfer: conduction through a solid, convection in a fluid, radiation across space">
+        <!-- Conduction -->
+        <rect x="40" y="80" width="120" height="40" class="accent-fill" stroke="var(--fg-soft)" stroke-width="1.2" />
+        <text class="label" x="100" y="70" text-anchor="middle">solid bar</text>
+        <circle cx="55" cy="100" r="3" class="dot" />
+        <circle cx="75" cy="100" r="3" class="dot" />
+        <circle cx="95" cy="100" r="3" class="dot" />
+        <circle cx="115" cy="100" r="3" class="dot" />
+        <circle cx="135" cy="100" r="3" class="dot" />
+        <line class="accent-stroke" x1="55" y1="100" x2="75" y2="100" stroke-width="1.2" />
+        <line class="accent-stroke" x1="75" y1="100" x2="95" y2="100" stroke-width="1.2" />
+        <line class="accent-stroke" x1="95" y1="100" x2="115" y2="100" stroke-width="1.2" />
+        <line class="accent-stroke" x1="115" y1="100" x2="135" y2="100" stroke-width="1.2" />
+        <text class="label" x="100" y="140" text-anchor="middle">conduction</text>
+
+        <!-- Convection -->
+        <path class="accent-stroke" d="M 220 130 Q 250 80 280 130 Q 310 180 340 130" stroke-width="1.5" />
+        <path class="accent-stroke" d="M 230 130 Q 260 90 290 130 Q 320 170 350 130" stroke-width="1.5" opacity="0.5" />
+        <rect x="210" y="135" width="160" height="8" class="accent-fill" stroke="var(--accent)" stroke-width="1" />
+        <text class="label" x="290" y="160" text-anchor="middle">heat source</text>
+        <text class="label" x="290" y="200" text-anchor="middle">convection</text>
+        <polygon class="arrow-head" points="280,75 275,90 285,90" />
+
+        <!-- Radiation -->
+        <circle cx="460" cy="100" r="20" class="accent-fill" stroke="var(--accent)" stroke-width="1.5" />
+        <text class="label" x="460" y="103" text-anchor="middle" font-size="9">Sun</text>
+        <path class="accent-stroke" d="M 480 95 L 510 80" stroke-width="1.2" />
+        <path class="accent-stroke" d="M 480 100 L 515 100" stroke-width="1.2" />
+        <path class="accent-stroke" d="M 480 105 L 510 120" stroke-width="1.2" />
+        <text class="label" x="475" y="160" text-anchor="middle">radiation</text>
+      </svg>
+      <figcaption>Three ways heat travels: through solids (conduction), through fluids (convection), and through empty space (radiation).</figcaption>
+    </figure>
+
+    <h3>The Four Laws of Thermodynamics</h3>
+    <ol class="steps">
+      <li><strong>Zeroth Law:</strong> If A is in thermal equilibrium with B, and B with C, then A is in equilibrium with C. This is what makes temperature a meaningful, measurable quantity.</li>
+      <li><strong>First Law:</strong> Energy is conserved. Heat added to a system either raises its internal energy or does work. You can't get something for nothing.</li>
+      <li><strong>Second Law:</strong> The total entropy of an isolated system always increases. Heat flows spontaneously from hot to cold. No machine is 100% efficient.</li>
+      <li><strong>Third Law:</strong> As temperature approaches absolute zero (0 K, −273.15 °C), the entropy of a perfect crystal approaches zero. Absolute zero itself is unreachable.</li>
+    </ol>
+
+    <h3>Real-World Examples</h3>
+    <ul class="examples">
+      <li><strong>Coffee cooling.</strong> Heat flows from coffee to air, never back. The total energy is conserved, but its usefulness drops — that's entropy at work.</li>
+      <li><strong>Refrigerator.</strong> Forces heat to flow from cold (inside) to hot (outside) by doing electrical work. It's fighting the second law, which is why it needs a power source.</li>
+      <li><strong>Hydraulic lift.</strong> Pressure applied to a small piston transmits through fluid to a large piston, multiplying force. Pascal's principle in action.</li>
+    </ul>
+
+    <div class="analogy">
+      <div class="analogy-side">
+        <h4>The Concept</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Temperature = average kinetic energy of particles. Heat = total energy transferred. Different quantities, often confused.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 80">
+            <circle cx="50" cy="40" r="20" class="accent-fill" stroke="var(--accent)" stroke-width="1.2" />
+            <text class="label" x="50" y="75" text-anchor="middle" font-size="9">spark</text>
+            <text class="label" x="50" y="20" text-anchor="middle" font-size="9">hot</text>
+            <rect x="100" y="30" width="80" height="20" class="accent-fill" stroke="var(--accent)" stroke-width="1.2" fill="rgba(45,100,112,0.05)" />
+            <text class="label" x="140" y="75" text-anchor="middle" font-size="9">bathtub</text>
+            <text class="label" x="140" y="20" text-anchor="middle" font-size="9">warm</text>
+          </svg>
+        </div>
+      </div>
+      <div class="analogy-side">
+        <h4>The Analogy</h4>
+        <p style="font-size: 0.95rem; color: var(--fg-soft);">Temperature is the average speed of cars on a highway. Heat is the total fuel burned by all of them. A few fast cars (spark) vs many steady ones (bathtub) — different averages, different totals.</p>
+        <div class="mini-diagram">
+          <svg viewBox="0 0 200 80">
+            <line class="axis" x1="20" y1="60" x2="180" y2="60" />
+            <polygon class="arrow-head" points="180,60 170,56 170,64" />
+            <rect x="30" y="55" width="10" height="8" class="stroke" />
+            <rect x="60" y="40" width="10" height="20" class="stroke" />
+            <rect x="90" y="50" width="10" height="12" class="stroke" />
+            <rect x="120" y="45" width="10" height="16" class="stroke" />
+            <rect x="150" y="52" width="10" height="10" class="stroke" />
+          </svg>
+        </div>
+      </div>
+      <p class="analogy-caption">Same average speed (temperature), very different total fuel (heat). The spark is hotter; the bathtub has more heat.</p>
+    </div>
+
+    <details class="misconception">
+      <summary>What People Get Wrong</summary>
+      <p>"Cold flows into a warm room when you open the window in winter." It doesn't. Heat flows out — from warm room to cold outdoors. Cold isn't a substance or an energy; it's the absence of heat. The room feels colder because its heat escaped, not because cold came in. The same misunderstanding shows up in talk of "keeping the cold out" — what you're really doing is keeping the heat in.</p>
+    </details>
+
+    <p class="why-matters">Thermodynamics sets the direction of time itself. Every natural process — melting, burning, ageing, dying — obeys the second law. It explains why machines can never be perfectly efficient, why the universe trends toward disorder, and why yesterday doesn't run in reverse.</p>
+
+    <p class="interlink">🔗 This connects back to Module 1: time is the measure of change. The second law of thermodynamics is what gives time its direction — entropy increases, never decreases. Without thermodynamics, "before" and "after" would be indistinguishable.</p>
+
+    <!-- Drag and drop -->
+    <div class="dragdrop">
+      <h4>Sort the Heat Transfer Mode</h4>
+      <p style="font-size: 0.92rem; color: var(--fg-soft); margin-top: 0.6em;">Drag each scenario into the correct bin.</p>
+      <div class="bins">
+        <div class="bin" data-bin="conduction">
+          <div class="bin-title">Conduction</div>
+        </div>
+        <div class="bin" data-bin="radiation">
+          <div class="bin-title">Radiation</div>
+        </div>
+      </div>
+      <div class="items" id="dd-items">
+        <div class="item" draggable="true" data-answer="conduction">A metal spoon handle gets hot in soup</div>
+        <div class="item" draggable="true" data-answer="radiation">Sunlight warms your skin through space</div>
+        <div class="item" draggable="true" data-answer="conduction">A bare foot on hot pavement</div>
+        <div class="item" draggable="true" data-answer="radiation">A campfire's warmth felt from a metre away</div>
+      </div>
+      <p class="feedback" id="dd-feedback"></p>
+    </div>
+
+    <!-- Teach-back -->
+    <div class="teach-back">
+      <h4>Teach It Back — Feynman Style</h4>
+      <p class="note">Explain the second law of thermodynamics as if to a curious 10-year-old. Aim for plain language, no jargon. When you're done, check which key ideas you covered.</p>
+      <textarea id="teachback" placeholder="Imagine you have a box of marbles, all neatly lined up..."></textarea>
+      <button onclick="checkTeachBack()">Check Coverage</button>
+      <p class="keywords" id="tb-keywords">Look for these ideas in your explanation: <em>disorder</em>, <em>hot to cold</em>, <em>irreversible</em>, <em>efficiency</em>, <em>time's arrow</em>.</p>
+    </div>
+  </section>
+
+  <!-- ============ REVIEW SCHEDULE ============ -->
+  <section class="review-schedule">
+    <h4>Spaced Repetition — Review Schedule</h4>
+    <p style="font-size: 0.9rem; color: var(--fg-soft); margin-top: 0.5em;">Memory consolidates with sleep. Revisit these ideas at increasing intervals — each review takes only a few minutes.</p>
+    <ol>
+      <li>Tonight, before bed — skim the cheat sheet below.</li>
+      <li>Two days from now — re-answer the cumulative quizzes without looking.</li>
+      <li>One week — explain each module's core idea aloud in one sentence.</li>
+      <li>Two weeks — retake the final assessment.</li>
+      <li>One month — teach a friend something from this lesson.</li>
+    </ol>
+  </section>
+
+  <!-- ============ CHEAT SHEET ============ -->
+  <section class="cheatsheet">
+    <div class="eyebrow">Summary</div>
+    <h2>The One-Page Cheat Sheet</h2>
+    <p style="color: var(--fg-soft); margin-top: 0.5em;">Every essential relationship, in one place. Print it, fold it, keep it in a pocket.</p>
+    <dl>
+      <dt>Displacement</dt><dd>Δx = x_final − x_initial (vector)</dd>
+      <dt>Velocity</dt><dd>v = Δx / Δt (vector)</dd>
+      <dt>Acceleration</dt><dd>a = Δv / Δt (vector)</dd>
+      <dt>Newton's 2nd Law</dt><dd>F = m × a</dd>
+      <dt>Momentum</dt><dd>p = m × v (conserved in closed systems)</dd>
+      <dt>Impulse</dt><dd>J = F × t = Δp</dd>
+      <dt>Work</dt><dd>W = F × d (in direction of motion)</dd>
+      <dt>Kinetic Energy</dt><dd>KE = ½ × m × v²</dd>
+      <dt>Gravitational PE</dt><dd>PE = m × g × h</dd>
+      <dt>Power</dt><dd>P = W / t (watts)</dd>
+      <dt>Torque</dt><dd>τ = F × r (perpendicular lever arm)</dd>
+      <dt>Angular Momentum</dt><dd>L = I × ω (conserved without external torque)</dd>
+      <dt>Centripetal Force</dt><dd>F_c = m × v² / r (inward)</dd>
+      <dt>Wave Speed</dt><dd>v = f × λ</dd>
+      <dt>Period &amp; Frequency</dt><dd>T = 1 / f</dd>
+      <dt>First Law of Thermo</dt><dd>ΔU = Q − W (energy conserved)</dd>
+      <dt>Second Law</dt><dd>Entropy of an isolated system always increases</dd>
+      <dt>Speed of light</dt><dd>c ≈ 3 × 10⁸ m/s (vacuum)</dd>
+      <dt>Acceleration due to gravity</dt><dd>g ≈ 9.8 m/s² (Earth's surface)</dd>
+    </dl>
+  </section>
+
+  <!-- ============ FINAL ASSESSMENT ============ -->
+  <section class="assessment">
+    <div class="eyebrow">Final Assessment</div>
+    <h2>Fifteen Questions, All Modules</h2>
+    <p style="color: var(--fg-soft); margin-top: 0.5em;">Choose the best answer for each. Explanations appear after you select.</p>
+
+    <div class="quiz" data-correct="b">
+      <p class="quiz-q-num">Question 01</p>
+      <p class="quiz-q">A runner jogs 5 km east, then 5 km west, ending where she started. Which is true?</p>
+      <ul class="quiz-options">
+        <li>Distance is 0; displacement is 10 km.</li>
+        <li>Distance is 10 km; displacement is 0.</li>
+        <li>Distance is 10 km; displacement is 10 km west.</li>
+        <li>Both are zero.</li>
+      </ul>
+      <div class="quiz-feedback">Distance is the total path travelled — 10 km. Displacement is start-to-finish — zero, since she returned to her starting point.</div>
+    </div>
+
+    <div class="quiz" data-correct="c">
+      <p class="quiz-q-num">Question 02</p>
+      <p class="quiz-q">A car turns a corner at constant speed. Is it accelerating?</p>
+      <ul class="quiz-options">
+        <li>No — speed is constant.</li>
+        <li>Only if the road is banked.</li>
+        <li>Yes — direction is part of velocity, and velocity is changing.</li>
+        <li>Only if the tires screech.</li>
+      </ul>
+      <div class="quiz-feedback">Acceleration is any change in velocity, including direction. A car turning at constant speed is accelerating — the force comes from friction between tires and road.</div>
+    </div>
+
+    <div class="quiz" data-correct="a">
+      <p class="quiz-q-num">Question 03</p>
+      <p class="quiz-q">A book rests on a table. Which pair of forces is the Newton's third law action-reaction pair?</p>
+      <ul class="quiz-options">
+        <li>The book pulls Earth up; Earth pulls the book down.</li>
+        <li>Gravity pulls the book down; the table pushes the book up.</li>
+        <li>The table pushes the book up; the book pushes the table down.</li>
+        <li>Both (a) and (c) are valid third-law pairs.</li>
+      </ul>
+      <div class="quiz-feedback">Tricky one. Gravity and the normal force are equal and opposite, but they act on the same object (the book) — they're not a third-law pair. The third-law pair is the book pulling Earth up and Earth pulling the book down. (The book-on-table and table-on-book forces are also a valid pair, but on different objects.)</div>
+    </div>
+
+    <div class="quiz" data-correct="d">
+      <p class="quiz-q-num">Question 04</p>
+      <p class="quiz-q">Why does an airbag reduce injury in a collision?</p>
+      <ul class="quiz-options">
+        <li>It reduces the change in momentum.</li>
+        <li>It increases the impulse.</li>
+        <li>It lowers the mass of the passenger.</li>
+        <li>It extends the collision time, reducing force for the same momentum change.</li>
+      </ul>
+      <div class="quiz-feedback">Impulse J = F × t equals the change in momentum. The airbag doesn't change the momentum change, but it increases t, which decreases F. Same impulse, less force per moment.</div>
+    </div>
+
+    <div class="quiz" data-correct="b">
+      <p class="quiz-q-num">Question 05</p>
+      <p class="quiz-q">A moving object doubles its speed. What happens to its kinetic energy?</p>
+      <ul class="quiz-options">
+        <li>It doubles.</li>
+        <li>It quadruples.</li>
+        <li>It halves.</li>
+        <li>It stays the same.</li>
+      </ul>
+      <div class="quiz-feedback">KE = ½mv². The v is squared, so doubling speed multiplies KE by 4. This is why crash severity rises so steeply with speed — small increases in velocity mean large increases in energy.</div>
+    </div>
+
+    <div class="quiz" data-correct="c">
+      <p class="quiz-q-num">Question 06</p>
+      <p class="quiz-q">A figure skater pulls in their arms and spins faster. Which principle explains this?</p>
+      <ul class="quiz-options">
+        <li>Conservation of linear momentum.</li>
+        <li>Newton's first law.</li>
+        <li>Conservation of angular momentum.</li>
+        <li>Conservation of energy.</li>
+      </ul>
+      <div class="quiz-feedback">Angular momentum L = Iω is conserved. Pulling arms in reduces I (mass closer to axis), so ω must increase to keep L constant. No external torque acts.</div>
+    </div>
+
+    <div class="quiz" data-correct="a">
+      <p class="quiz-q-num">Question 07</p>
+      <p class="quiz-q">An astronaut in orbit feels weightless because...</p>
+      <ul class="quiz-options">
+        <li>They are in continuous free fall, falling at the same rate as their spacecraft.</li>
+        <li>There is no gravity in space.</li>
+        <li>They are beyond Earth's atmosphere.</li>
+        <li>Their mass becomes zero in orbit.</li>
+      </ul>
+      <div class="quiz-feedback">Gravity at orbital altitude is still strong — about 90% of surface gravity. Astronauts feel weightless because they and their spacecraft are falling together. The spacecraft moves sideways fast enough to keep missing Earth, but the falling is real.</div>
+    </div>
+
+    <div class="quiz" data-correct="b">
+      <p class="quiz-q-num">Question 08</p>
+      <p class="quiz-q">A wave has frequency 50 Hz and wavelength 4 m. What is its speed?</p>
+      <ul class="quiz-options">
+        <li>12.5 m/s</li>
+        <li>200 m/s</li>
+        <li>54 m/s</li>
+        <li>0.08 m/s</li>
+      </ul>
+      <div class="quiz-feedback">Wave speed v = f × λ = 50 × 4 = 200 m/s. Frequency and wavelength trade off inversely for a fixed wave speed in a given medium.</div>
+    </div>
+
+    <div class="quiz" data-correct="a">
+      <p class="quiz-q-num">Question 09</p>
+      <p class="quiz-q">The Tacoma Narrows Bridge collapsed in 1940 because of what phenomenon?</p>
+      <ul class="quiz-options">
+        <li>Resonance — wind matched the bridge's natural frequency, amplifying oscillations.</li>
+        <li>The bridge was overloaded with traffic.</li>
+        <li>Material fatigue from extreme cold.</li>
+        <li>An earthquake triggered the failure.</li>
+      </ul>
+      <div class="quiz-feedback">Wind induced oscillations that matched the bridge's natural frequency. Resonance amplified the motion until the structure tore itself apart. It's now a textbook case for engineering students everywhere.</div>
+    </div>
+
+    <div class="quiz" data-correct="c">
+      <p class="quiz-q-num">Question 10</p>
+      <p class="quiz-q">Which statement correctly distinguishes heat from temperature?</p>
+      <ul class="quiz-options">
+        <li>Heat is measured in kelvin; temperature in joules.</li>
+        <li>They are the same thing expressed in different units.</li>
+        <li>Temperature is average kinetic energy per particle; heat is total energy transferred.</li>
+        <li>Heat depends on mass; temperature does not.</li>
+      </ul>
+      <div class="quiz-feedback">Temperature is intensive — it doesn't depend on amount. A spark at 2000 °C has high temperature but little heat because few particles are involved. A warm bath has more heat but lower temperature.</div>
+    </div>
+
+    <div class="quiz" data-correct="b">
+      <p class="quiz-q-num">Question 11</p>
+      <p class="quiz-q">The second law of thermodynamics is most directly responsible for which observation?</p>
+      <ul class="quiz-options">
+        <li>A pendulum swings forever in a vacuum.</li>
+        <li>A hot coffee cools down; it never spontaneously reheats.</li>
+        <li>Energy is conserved in a closed system.</li>
+        <li>Absolute zero can be reached with enough cooling.</li>
+      </ul>
+      <div class="quiz-feedback">The second law says entropy increases — heat flows spontaneously from hot to cold, never the reverse without external work. Coffee cooling is its everyday signature. (Energy conservation is the first law; reaching absolute zero is forbidden by the third.)</div>
+    </div>
+
+    <div class="quiz" data-correct="d">
+      <p class="quiz-q-num">Question 12</p>
+      <p class="quiz-q">Which type of heat transfer can travel through a vacuum?</p>
+      <ul class="quiz-options">
+        <li>Conduction only.</li>
+        <li>Convection only.</li>
+        <li>Conduction and convection.</li>
+        <li>Radiation only.</li>
+      </ul>
+      <div class="quiz-feedback">Radiation is electromagnetic — it needs no medium. That's how the Sun's warmth reaches Earth across 150 million kilometres of empty space. Conduction and convection both require matter.</div>
+    </div>
+
+    <div class="quiz" data-correct="a">
+      <p class="quiz-q-num">Question 13</p>
+      <p class="quiz-q">If you double the lever arm (distance from pivot) without changing the force, what happens to torque?</p>
+      <ul class="quiz-options">
+        <li>It doubles.</li>
+        <li>It halves.</li>
+        <li>It quadruples.</li>
+        <li>It stays the same.</li>
+      </ul>
+      <div class="quiz-feedback">Torque τ = F × r. Torque is directly proportional to lever arm — double the distance, double the torque. That's why longer wrenches make stubborn bolts easier.</div>
+    </div>
+
+    <div class="quiz" data-correct="b">
+      <p class="quiz-q-num">Question 14</p>
+      <p class="quiz-q">A car drives in a perfect circle at constant speed. What provides the centripetal force?</p>
+      <ul class="quiz-options">
+        <li>The engine, pushing forward.</li>
+        <li>Friction between the tires and the road, directed inward.</li>
+        <li>A fictitious outward force called centrifugal force.</li>
+        <li>Gravity, pulling the car down.</li>
+      </ul>
+      <div class="quiz-feedback">Friction supplies the inward force that curves the car's path. On ice, friction vanishes and the car continues straight — that's inertia, not "centrifugal force," which is a fictitious force that appears only in rotating frames.</div>
+    </div>
+
+    <div class="quiz" data-correct="c">
+      <p class="quiz-q-num">Question 15</p>
+      <p class="quiz-q">Two objects collide and stick together. Which quantity is conserved (assuming no external force)?</p>
+      <ul class="quiz-options">
+        <li>Kinetic energy only.</li>
+        <li>Both momentum and kinetic energy.</li>
+        <li>Momentum only — this is an inelastic collision.</li>
+        <li>Neither; both are lost.</li>
+      </ul>
+      <div class="quiz-feedback">In an inelastic collision (objects stick together), momentum is conserved but kinetic energy is not — some is converted to heat, sound, or deformation. Only in perfectly elastic collisions is KE also conserved.</div>
+    </div>
+
+    <div class="score" id="finalScore"></div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section class="faq">
+    <div class="eyebrow">Questions You Might Still Have</div>
+    <h2>FAQ</h2>
+
+    <details>
+      <summary>Why is acceleration measured in m/s² and not just m/s?</summary>
+      <p>Because acceleration is the rate at which velocity changes — and velocity is already measured in m/s. So acceleration is (m/s) per second, which is m/s². It tells you how much the speed changes every second.</p>
+    </details>
+
+    <details>
+      <summary>If energy is conserved, why do we say it's "lost" to friction?</summary>
+      <p>It's not lost — it's transformed. Friction converts kinetic energy into heat, which dissipates into the surroundings. The total energy of the universe is unchanged; it's just less useful for doing work. "Lost" really means "no longer in a form we can easily use."</p>
+    </details>
+
+    <details>
+      <summary>What's the difference between mass and weight?</summary>
+      <p>Mass is the amount of matter in an object — constant everywhere. Weight is the force of gravity on that mass — it changes with location. A 70 kg astronaut has the same mass on Earth and on the Moon, but weighs about one-sixth as much on the Moon because lunar gravity is weaker.</p>
+    </details>
+
+    <details>
+      <summary>Why can't we reach absolute zero?</summary>
+      <p>The third law of thermodynamics. As temperature approaches zero, removing each additional bit of heat requires more and more effort — reaching absolute zero exactly would require infinite work. We've gotten to billionths of a kelvin in labs, but never to zero itself.</p>
+    </details>
+
+    <details>
+      <summary>Is centrifugal force real?</summary>
+      <p>It depends on your frame of reference. In an inertial (non-rotating) frame, no — there's only inertia trying to keep you going straight, and centripetal force curving your path. In a rotating frame, centrifugal force appears as a mathematical convenience to make Newton's laws work. Physicists call it a "fictitious force" — useful for calculation, but not a real interaction.</p>
+    </details>
+
+    <details>
+      <summary>How is sound different from light?</summary>
+      <p>Sound is a mechanical wave — it needs a medium (air, water, solid) and travels by particle vibration. Light is an electromagnetic wave — it needs no medium and travels through vacuum at the speed of light. Sound in air moves at ~343 m/s; light moves at ~300,000,000 m/s. That's why you see lightning before you hear thunder.</p>
+    </details>
+  </section>
+
+  <!-- ============ NEXT STEPS ============ -->
+  <section class="next-steps">
+    <div class="eyebrow">Where to Go Next</div>
+    <h2>Next Steps</h2>
+    <ul>
+      <li>Read a non-technical book like <em>Six Easy Pieces</em> by Richard Feynman — it's the next step up from this lesson.</li>
+      <li>Watch a Veritasium or MinutePhysics video on a topic that confused you here, and write a one-paragraph summary in your own words.</li>
+      <li>Pick one phenomenon from daily life — a bouncing ball, a boiling kettle, a bicycle turn — and try to explain it using only the concepts above.</li>
+      <li>If you want to go deeper, look into the next big arc: electricity &amp; magnetism, which builds directly on forces and energy.</li>
+      <li>Try keeping a "physics journal" for a week — note one observation each day and identify which principle is at work.</li>
+    </ul>
+  </section>
+
+  <div class="finished-badge">
+    <div class="badge">You finished the lesson</div>
+    <p>Physics isn't a subject you learn once. It's a way of seeing. Keep looking.</p>
+  </div>
+
+</div>
+
+<script>
+// Loading
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('loading').classList.add('hidden');
+  }, 400);
+});
+
+// Theme toggle
+const themeToggle = document.getElementById('themeToggle');
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'dark') {
+  document.documentElement.setAttribute('data-theme', 'dark');
+  themeToggle.textContent = '☀';
+}
+themeToggle.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  if (current === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'light');
+    themeToggle.textContent = '☾';
+    localStorage.setItem('theme', 'light');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    themeToggle.textContent = '☀';
+    localStorage.setItem('theme', 'dark');
+  }
+});
+
+// Progress bar
+const progressBar = document.getElementById('progressBar');
+function updateProgress() {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const pct = Math.min(100, (scrollTop / docHeight) * 100);
+  progressBar.style.width = pct + '%';
+}
+window.addEventListener('scroll', updateProgress, { passive: true });
+updateProgress();
+
+// Knowledge map navigation
+document.querySelectorAll('.km-node').forEach(node => {
+  node.addEventListener('click', () => {
+    const target = node.getAttribute('data-target');
+    const el = document.getElementById(target);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// Flashcard flip + extra context
+document.querySelectorAll('.flashcard').forEach(card => {
+  card.addEventListener('click', () => {
+    card.classList.toggle('flipped');
+  });
+});
+
+// Quizzes
+document.querySelectorAll('.quiz').forEach(quiz => {
+  const correct = quiz.getAttribute('data-correct');
+  const options = quiz.querySelectorAll('.quiz-options li');
+  const feedback = quiz.querySelector('.quiz-feedback');
+  const isAssessment = quiz.closest('.assessment') !== null;
+  options.forEach((opt, idx) => {
+    const letter = String.fromCharCode(97 + idx);
+    opt.addEventListener('click', () => {
+      if (opt.classList.contains('disabled')) return;
+      options.forEach(o => o.classList.add('disabled'));
+      if (letter === correct) {
+        opt.classList.add('correct');
+        feedback.classList.add('show');
+        feedback.classList.remove('incorrect');
+        feedback.innerHTML = feedback.innerHTML.startsWith('That') ? feedback.innerHTML : 'That\u2019s right. ' + feedback.innerHTML;
+      } else {
+        opt.classList.add('incorrect');
+        feedback.classList.add('show', 'incorrect');
+        const correctOpt = options[correct.charCodeAt(0) - 97];
+        const prefix = 'Not quite. The correct answer is ' + correctOpt.textContent.trim() + ' because ';
+        if (!feedback.innerHTML.startsWith('Not quite')) {
+          feedback.innerHTML = prefix + feedback.innerHTML;
+        }
+      }
+      if (isAssessment) updateScore();
+    });
+  });
+});
+
+// Final assessment scoring
+function updateScore() {
+  const assessment = document.querySelector('.assessment');
+  const quizzes = assessment.querySelectorAll('.quiz');
+  let answered = 0, correct = 0;
+  quizzes.forEach(q => {
+    const opts = q.querySelectorAll('.quiz-options li');
+    if ([...opts].some(o => o.classList.contains('correct') || o.classList.contains('incorrect'))) answered++;
+    if ([...opts].some(o => o.classList.contains('correct'))) correct++;
+  });
+  const scoreEl = document.getElementById('finalScore');
+  if (answered > 0) {
+    scoreEl.classList.add('show');
+    scoreEl.innerHTML = 'Answered <strong>' + answered + ' / ' + quizzes.length + '</strong> — <strong>' + correct + '</strong> correct so far. ' +
+      (answered === quizzes.length ? (correct >= 12 ? 'Well done. Try explaining the ones you missed to a friend.' : 'Revisit the modules for any you missed — the explanations are above.') : 'Keep going.');
+  }
+}
+
+// Mini-challenge
+document.querySelectorAll('.challenge').forEach(ch => {
+  const correctChoice = ch.querySelector('.choices').getAttribute('data-correct');
+  const choices = ch.querySelectorAll('.choices li');
+  const reasoning = ch.querySelector('.reasoning');
+  choices.forEach(c => {
+    c.addEventListener('click', () => {
+      choices.forEach(cc => cc.classList.remove('selected'));
+      c.classList.add('selected');
+      reasoning.classList.add('show');
+    });
+  });
+});
+
+// Reveal buttons
+document.querySelectorAll('.reveal-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const content = btn.nextElementSibling;
+    content.classList.toggle('open');
+    btn.textContent = content.classList.contains('open') ? 'Hide' : btn.textContent.replace('Hide', 'Show more');
+  });
+});
+
+// But-why buttons already inline
+
+// Fill in the blank
+function checkFill(inputId, answer, hintId, resultId) {
+  const input = document.getElementById(inputId).value.trim().toLowerCase();
+  const result = document.getElementById(resultId);
+  const hint = document.getElementById(hintId);
+  hint.classList.remove('show');
+  result.classList.add('show');
+  if (input === answer.toLowerCase()) {
+    result.className = 'result show correct';
+    result.textContent = 'That\u2019s right. Reducing moment of inertia (mass closer to the axis) means angular velocity must increase to keep angular momentum conserved.';
+  } else if (input.includes('decreas') || input.includes('smaller') || input.includes('lower') || input.includes('less')) {
+    result.className = 'result show correct';
+    result.textContent = 'Close enough — "decreases" is the precise word. With smaller I, angular velocity rises to conserve angular momentum.';
+  } else {
+    result.className = 'result show wrong';
+    result.textContent = 'Not quite. The answer is "decreases." Pulling arms in moves mass closer to the axis, reducing moment of inertia — so angular velocity must rise to conserve angular momentum.';
+  }
+}
+
+// Hotspots
+document.querySelectorAll('.hotspot').forEach(spot => {
+  spot.addEventListener('click', () => {
+    const info = spot.getAttribute('data-info');
+    document.querySelectorAll('.hotspot').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.hotspot-panel').forEach(p => p.classList.remove('show'));
+    spot.classList.add('active');
+    const panel = document.getElementById('panel-' + info);
+    if (panel) panel.classList.add('show');
+  });
+  spot.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); spot.click(); }
+  });
+});
+
+// Drag and drop
+const ddItems = document.querySelectorAll('#dd-items .item');
+const ddBins = document.querySelectorAll('.dragdrop .bin');
+const ddFeedback = document.getElementById('dd-feedback');
+let ddPlaced = 0;
+const ddTotal = ddItems.length;
+
+ddItems.forEach(item => {
+  item.addEventListener('dragstart', () => item.classList.add('dragging'));
+  item.addEventListener('dragend', () => item.classList.remove('dragging'));
+});
+
+ddBins.forEach(bin => {
+  bin.addEventListener('dragover', e => { e.preventDefault(); bin.classList.add('drag-over'); });
+  bin.addEventListener('dragleave', () => bin.classList.remove('drag-over'));
+  bin.addEventListener('drop', e => {
+    e.preventDefault();
+    bin.classList.remove('drag-over');
+    const dragging = document.querySelector('.dragging');
+    if (!dragging) return;
+    const answer = dragging.getAttribute('data-answer');
+    const binType = bin.getAttribute('data-bin');
+    if (answer === binType) {
+      bin.appendChild(dragging);
+      dragging.style.cursor = 'default';
+      ddPlaced++;
+      ddFeedback.classList.add('show');
+      ddFeedback.style.color = 'var(--accent)';
+      ddFeedback.textContent = ddPlaced === ddTotal
+        ? 'All sorted correctly. Conduction requires contact; radiation crosses empty space.'
+        : 'Correct. ' + (ddTotal - ddPlaced) + ' remaining.';
+    } else {
+      ddFeedback.classList.add('show');
+      ddFeedback.style.color = 'var(--warn)';
+      ddFeedback.textContent = 'Not quite — that scenario belongs in the other bin. Reconsider what medium the heat travels through.';
+    }
+  });
+});
+
+// Teach-back check
+function checkTeachBack() {
+  const text = document.getElementById('teachback').value.toLowerCase();
+  const keywords = ['disorder', 'hot to cold', 'irreversible', 'efficiency', "time's arrow", "time", "arrow", "cold", "hot"];
+  const found = keywords.filter(k => text.includes(k));
+  const tbEl = document.getElementById('tb-keywords');
+  if (text.length < 30) {
+    tbEl.innerHTML = 'Try writing a few sentences first. Even a rough attempt is more valuable than reading another explanation.';
+    return;
+  }
+  const coverage = found.length >= 3 ? 'strong' : found.length >= 1 ? 'decent' : 'thin';
+  let msg = 'Coverage looks ' + coverage + '. You touched on: ';
+  msg += found.length ? found.map(k => '<span class="covered">' + k + '</span>').join(', ') : 'none of the key ideas yet.';
+  msg += ' Don\u2019t worry about completeness — the act of putting it in your own words is what cements it.';
+  tbEl.innerHTML = msg;
+}
+
+// LocalStorage progress (simple module visit tracking)
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      if (id) localStorage.setItem('visited-' + id, 'true');
+    }
+  });
+}, { threshold: 0.3 });
+document.querySelectorAll('.module').forEach(m => observer.observe(m));
+
+</script>
+</body>
+</html>

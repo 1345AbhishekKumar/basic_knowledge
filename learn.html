@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Science of Learning — An Interactive Lesson</title>
+<style>
+/* ============================================================
+   DESIGN SYSTEM — quiet, editorial, humane
+   Monochrome core + one muted teal accent. No gradients,
+   no heavy shadows, radius <= 8px, thin 1.5px diagram strokes.
+   ============================================================ */
+:root{
+  --bg:#faf9f6; --panel:#f3f1ec; --ink:#22262b; --ink-soft:#5b6168;
+  --line:#dcd8d0; --accent:#2e8c80; --accent-soft:rgba(46,140,128,.12);
+  --good:#3e7d4f; --bad:#b0523f; --mono:"SF Mono","Cascadia Code",Consolas,"Roboto Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Helvetica Neue",sans-serif;
+}
+[data-theme="dark"]{
+  --bg:#1b1d1f; --panel:#232629; --ink:#dcdee1; --ink-soft:#9aa0a6;
+  --line:#3a3e42; --accent:#57b3a6; --accent-soft:rgba(87,179,166,.14);
+  --good:#7fbf90; --bad:#d98a76;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--sans);
+  font-size:17px; line-height:1.7;
+  transition:background-color .3s ease,color .3s ease;
+}
+::selection{background:var(--accent-soft)}
+
+/* ---------- loading state ---------- */
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);color:var(--ink-soft);font-family:var(--mono);font-size:14px;z-index:999;
+  transition:opacity .4s ease}
+#loading.gone{opacity:0;pointer-events:none}
+
+/* ---------- progress bar (thin, calm) ---------- */
+#progress{position:fixed;top:0;left:0;height:3px;width:100%;z-index:100;background:transparent}
+#progressFill{height:100%;width:0;background:var(--accent);transition:width .15s linear}
+
+/* ---------- theme toggle ---------- */
+#themeToggle{position:fixed;top:14px;right:16px;z-index:110;width:38px;height:38px;
+  border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);
+  cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;
+  transition:background-color .3s,color .3s,border-color .3s}
+#themeToggle:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ---------- Sidebar Studio layout ---------- */
+.layout{display:flex;max-width:1180px;margin:0 auto}
+aside{width:240px;flex-shrink:0;padding:56px 20px 40px 24px;position:sticky;top:0;
+  height:100vh;overflow-y:auto;border-right:1px solid var(--line)}
+aside .brand{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:4px}
+aside .brandTitle{font-size:19px;font-weight:800;line-height:1.25;margin-bottom:22px}
+aside nav a{display:flex;align-items:baseline;gap:9px;text-decoration:none;color:var(--ink-soft);
+  font-size:12.5px;padding:5px 6px;border-radius:6px;line-height:1.35;
+  transition:color .2s,background-color .2s}
+aside nav a:hover{color:var(--accent);background:var(--accent-soft)}
+aside nav a .n{font-family:var(--mono);font-size:10px;color:var(--ink-soft);min-width:20px}
+aside nav .chap{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-soft);margin:16px 0 4px 6px;opacity:.75}
+aside .side-progress{margin-top:26px;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft)}
+main{flex:1;min-width:0;padding:64px 56px 90px 64px;max-width:820px}
+
+/* ---------- header / opening ---------- */
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:14px}
+h1{font-size:clamp(34px,4.6vw,52px);font-weight:800;line-height:1.08;letter-spacing:-.02em;margin-bottom:18px}
+.lede{font-size:19px;color:var(--ink-soft);line-height:1.65;max-width:640px;margin-bottom:10px}
+.meta{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-bottom:44px;
+  display:flex;gap:18px;flex-wrap:wrap}
+.meta span b{color:var(--accent);font-weight:600}
+
+h2{font-size:27px;font-weight:800;letter-spacing:-.01em;margin:0 0 14px}
+h3{font-size:19px;font-weight:700;margin:26px 0 10px}
+p{margin-bottom:14px}
+hr.rule{border:none;border-top:1px solid var(--line);margin:56px 0}
+
+/* ---------- "What you'll learn" ---------- */
+.wyl{border:1px solid var(--line);border-radius:8px;padding:24px 28px;background:var(--panel);margin-bottom:20px}
+.wyl ul{list-style:none;margin-top:10px}
+.wyl li{padding:6px 0 6px 24px;position:relative;font-size:15.5px}
+.wyl li::before{content:"—";position:absolute;left:0;color:var(--accent)}
+
+/* ---------- knowledge map ---------- */
+.kmap-wrap{margin:34px 0 10px}
+.kmap-wrap svg{width:100%;height:auto;display:block}
+.knode{cursor:pointer}
+.knode circle,.knode rect{fill:var(--panel);stroke:var(--ink-soft);stroke-width:1.2;transition:stroke .2s,fill .2s}
+.knode:hover circle,.knode:hover rect{stroke:var(--accent);fill:var(--accent-soft)}
+.knode text{font-family:var(--mono);font-size:9.5px;fill:var(--ink);pointer-events:none}
+.kline{stroke:var(--line);stroke-width:1.2;fill:none}
+figcaption{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:8px}
+
+/* ---------- module sections ---------- */
+.mod{margin-top:72px;scroll-margin-top:30px}
+.mod-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:6px}
+.mod h2{font-size:29px}
+.mod-num{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+.core{font-size:17px}
+.core .drop::first-letter{font-size:44px;font-weight:800;float:left;line-height:.85;padding:2px 8px 0 0;color:var(--accent)}
+
+/* steps */
+.steps{counter-reset:st;margin:20px 0 8px;list-style:none}
+.steps li{counter-increment:st;padding:8px 0 8px 44px;position:relative;font-size:15.5px}
+.steps li::before{content:counter(st,decimal-leading-zero);position:absolute;left:0;top:9px;
+  font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:600}
+
+/* examples */
+.ex{border-left:2px solid var(--line);padding:4px 0 4px 18px;margin:14px 0}
+.ex .tag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);display:block;margin-bottom:3px}
+.ex p{font-size:15px;margin:0;color:var(--ink)}
+.ex .scen{color:var(--ink-soft)}
+
+/* analogy card — split view */
+.analogy{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);
+  border-radius:8px;overflow:hidden;margin:22px 0}
+.analogy .pane{padding:18px 20px}
+.analogy .pane+.pane{border-left:1px solid var(--line);background:var(--panel)}
+.analogy .pane h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:8px}
+.analogy .pane p{font-size:14px;margin:0;line-height:1.55}
+.analogy .bridge{grid-column:1/-1;border-top:1px solid var(--line);padding:12px 20px;
+  font-size:14px;color:var(--ink-soft);background:var(--accent-soft)}
+
+/* misconception */
+details.miscon{border:1px solid var(--line);border-radius:8px;margin:20px 0;background:var(--panel)}
+details.miscon summary{cursor:pointer;padding:14px 20px;font-weight:700;font-size:15px;list-style:none;
+  display:flex;align-items:center;gap:10px}
+details.miscon summary::-webkit-details-marker{display:none}
+details.miscon summary::before{content:"❌";font-size:14px}
+details.miscon[open] summary{border-bottom:1px solid var(--line)}
+details.miscon .body{padding:16px 20px;font-size:15px}
+details.miscon .myth{color:var(--bad);font-weight:600}
+details.miscon .truth{color:var(--good);font-weight:600}
+
+/* why matters + link */
+.why{font-style:italic;color:var(--ink-soft);border-top:1px solid var(--line);
+  padding-top:14px;margin-top:20px;font-size:15.5px}
+.why b{color:var(--accent);font-style:normal}
+.xlink{font-size:14px;color:var(--ink-soft);margin-top:10px}
+.xlink a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-soft)}
+.xlink a:hover{border-bottom-color:var(--accent)}
+
+/* diagram frame */
+.diagram{margin:24px 0;border:1px solid var(--line);border-radius:8px;padding:20px;background:var(--bg)}
+.diagram svg{width:100%;height:auto;display:block}
+.diagram text{font-family:var(--mono)}
+
+/* interactive bits */
+.btn{display:inline-block;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:6px;padding:7px 16px;font-size:13.5px;font-family:var(--sans);cursor:pointer;
+  transition:border-color .2s,color .2s,background-color .2s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:focus-visible,button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.reveal{max-height:0;overflow:hidden;transition:max-height .45s ease,opacity .4s ease;opacity:0}
+.reveal.open{max-height:900px;opacity:1}
+.hintlink{color:var(--accent);font-size:12.5px;cursor:pointer;text-decoration:underline;
+  text-underline-offset:3px;background:none;border:none;font-family:var(--sans)}
+.elab{font-size:13.5px;color:var(--ink-soft);border-left:2px solid var(--accent);
+  padding:6px 0 6px 14px;margin:10px 0}
+
+/* flashcards */
+.flashgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin:18px 0}
+.fcard{perspective:800px;height:150px;cursor:pointer}
+.fcard .inner{position:relative;width:100%;height:100%;transition:transform .45s ease;transform-style:preserve-3d}
+.fcard.flip .inner{transform:rotateY(180deg)}
+.fcard .face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid var(--line);
+  border-radius:8px;padding:14px;display:flex;flex-direction:column;justify-content:center;
+  font-size:14px;background:var(--panel)}
+.fcard .front{font-weight:700;font-size:15px}
+.fcard .back{transform:rotateY(180deg);font-size:13px;line-height:1.5;color:var(--ink-soft)}
+.fcard .ctx{margin-top:6px;font-size:11.5px;color:var(--accent)}
+.fcard .face .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:6px}
+
+/* drag & drop */
+.dd{margin:18px 0}
+.dd .pool,.dd .slots{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+.dd .chip{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:7px 14px;
+  font-size:13.5px;cursor:grab;user-select:none;transition:border-color .2s}
+.dd .chip:hover{border-color:var(--accent)}
+.dd .chip.dragging{opacity:.4}
+.dd .slot{border:1px dashed var(--line);border-radius:6px;padding:7px 14px;font-size:13.5px;
+  min-width:120px;color:var(--ink-soft);transition:border-color .2s,background-color .2s}
+.dd .slot.over{border-color:var(--accent);background:var(--accent-soft)}
+.dd .slot.filled{border-style:solid;color:var(--ink)}
+.dd .slot.right{border-color:var(--good);color:var(--good)}
+.dd .slot.wrong{border-color:var(--bad);color:var(--bad)}
+
+/* quiz */
+.quiz{border:1px solid var(--line);border-radius:8px;padding:20px 24px;margin:20px 0;background:var(--panel)}
+.quiz .q{font-weight:700;font-size:15.5px;margin-bottom:12px}
+.quiz .opt{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--bg);
+  border-radius:6px;padding:9px 14px;margin:7px 0;font-size:14px;cursor:pointer;font-family:var(--sans);
+  color:var(--ink);transition:border-color .2s}
+.quiz .opt:hover{border-color:var(--accent)}
+.quiz .opt.correct{border-color:var(--good);color:var(--good)}
+.quiz .opt.incorrect{border-color:var(--bad);color:var(--bad)}
+.quiz .fb{font-size:13.5px;margin-top:10px;padding:10px 14px;border-radius:6px;display:none}
+.quiz .fb.show{display:block}
+.quiz .fb.ok{background:rgba(62,125,79,.1);color:var(--good)}
+.quiz .fb.no{background:rgba(176,82,63,.1);color:var(--bad)}
+
+/* fill blank */
+.fillblank{margin:18px 0;font-size:16px}
+.fillblank input{border:none;border-bottom:1.5px solid var(--line);background:transparent;color:var(--accent);
+  font-family:var(--mono);font-size:14px;width:150px;padding:2px 6px;transition:border-color .2s}
+.fillblank input:focus{outline:none;border-bottom-color:var(--accent)}
+.fillblank .mark-ok{color:var(--good)} .fillblank .mark-no{color:var(--bad)}
+
+/* hotspots */
+.hotspot{cursor:pointer}
+.hotspot .hs-area{fill:transparent;stroke:transparent;stroke-width:1.2;stroke-dasharray:4 3;transition:stroke .2s,fill .2s}
+.hotspot:hover .hs-area,.hotspot:focus .hs-area{stroke:var(--accent);fill:var(--accent-soft)}
+.hs-tip{font-size:13.5px;border:1px solid var(--line);border-radius:8px;background:var(--panel);
+  padding:12px 16px;margin-top:12px;display:none}
+.hs-tip.show{display:block}
+.hs-tip b{color:var(--accent)}
+
+/* teach-back */
+.teachback textarea{width:100%;min-height:110px;border:1px solid var(--line);border-radius:8px;
+  background:var(--panel);color:var(--ink);padding:12px 14px;font-family:var(--sans);font-size:14.5px;
+  resize:vertical;line-height:1.6}
+.teachback textarea:focus{outline:none;border-color:var(--accent)}
+.teachback .model{border-left:2px solid var(--accent);padding:10px 0 10px 16px;margin-top:12px;
+  font-size:14px;color:var(--ink-soft)}
+.kw{display:inline-block;font-family:var(--mono);font-size:11px;border:1px solid var(--line);
+  border-radius:4px;padding:2px 8px;margin:3px 4px 0 0;color:var(--ink-soft)}
+.kw.hit{border-color:var(--good);color:var(--good)}
+
+/* timeline (RAIL) */
+.rail-line{display:flex;gap:0;margin:22px 0 6px;position:relative}
+.rail-line::before{content:"";position:absolute;top:17px;left:4%;right:4%;height:1.5px;background:var(--line)}
+.rail-node{flex:1;text-align:center;position:relative;cursor:pointer;background:none;border:none;
+  font-family:var(--sans);color:var(--ink);padding:0}
+.rail-node .dot{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--ink-soft);
+  background:var(--bg);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:600;position:relative;z-index:1;
+  transition:border-color .2s,background-color .2s,color .2s}
+.rail-node:hover .dot,.rail-node.active .dot{border-color:var(--accent);background:var(--accent);color:#fff}
+.rail-node .lbl{font-size:12px;font-weight:600}
+.rail-detail{border:1px solid var(--line);border-radius:8px;padding:16px 20px;background:var(--panel);
+  font-size:14.5px;margin-top:10px}
+
+/* cheat sheet */
+.cheat{border:1px solid var(--line);border-radius:8px;padding:26px 30px;background:var(--panel)}
+.cheat h3{margin-top:18px}
+.cheat .row{display:flex;gap:14px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.cheat .row:last-child{border-bottom:none}
+.cheat .row .k{font-family:var(--mono);font-size:11.5px;color:var(--accent);min-width:130px;padding-top:2px}
+
+/* FAQ */
+details.faq{border-bottom:1px solid var(--line);padding:4px 0}
+details.faq summary{cursor:pointer;font-weight:700;font-size:15.5px;padding:12px 0;list-style:none}
+details.faq summary::-webkit-details-marker{display:none}
+details.faq summary::before{content:"+ ";color:var(--accent);font-family:var(--mono)}
+details.faq[open] summary::before{content:"– "}
+details.faq .a{font-size:15px;color:var(--ink-soft);padding-bottom:14px}
+
+/* spaced repetition */
+.sr{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.sr .pill{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line);border-radius:20px;
+  padding:5px 14px;color:var(--ink-soft)}
+.sr .pill b{color:var(--accent);font-weight:600}
+
+/* end badge */
+.endbadge{margin-top:70px;text-align:center;font-family:var(--mono);font-size:12px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  border:1px solid var(--accent);border-radius:8px;padding:16px;display:none}
+.endbadge.show{display:block}
+
+/* scroll reveal — gentle */
+.rv{opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease}
+.rv.in{opacity:1;transform:none}
+
+/* responsive */
+@media(max-width:900px){
+  aside{display:none}
+  main{padding:56px 24px 70px}
+  .analogy{grid-template-columns:1fr}
+  .analogy .pane+.pane{border-left:none;border-top:1px solid var(--line)}
+  .rail-line{flex-direction:column;gap:14px}
+  .rail-line::before{display:none}
+  .rail-node{display:flex;align-items:center;gap:12px;text-align:left}
+  .rail-node .dot{margin:0}
+}
+</style>
+</head>
+<body>
+
+<div id="loading">Preparing your lesson…</div>
+<div id="progress"><div id="progressFill"></div></div>
+<button id="themeToggle" aria-label="Toggle dark mode">☾</button>
+
+<div class="layout">
+<!-- ================= SIDEBAR ================= -->
+<aside aria-label="Lesson navigation">
+  <div class="brand">Interactive Lesson</div>
+  <div class="brandTitle">The Science of Learning</div>
+  <nav id="sideNav">
+    <div class="chap">Ch 1 · Retrieval</div>
+    <a href="#m1"><span class="n">01</span>Three Pillars</a>
+    <a href="#m2"><span class="n">02</span>Memory Works</a>
+    <a href="#m3"><span class="n">03</span>Repetition Trap</a>
+    <a href="#m4"><span class="n">04</span>Flashcards Right</a>
+    <div class="chap">Ch 2 · Encoding</div>
+    <a href="#m5"><span class="n">05</span>Think Higher</a>
+    <a href="#m6"><span class="n">06</span>PACER Reading</a>
+    <a href="#m7"><span class="n">07</span>Ladder Method</a>
+    <a href="#m8"><span class="n">08</span>12 Rules</a>
+    <div class="chap">Ch 3 · Mind Mapping</div>
+    <a href="#m9"><span class="n">09</span>GRIND Method</a>
+    <a href="#m10"><span class="n">10</span>Blank→Level 3</a>
+    <div class="chap">Ch 4 · Skill</div>
+    <a href="#m11"><span class="n">11</span>RAIL Framework</a>
+    <a href="#m12"><span class="n">12</span>Theory Overload</a>
+    <a href="#m13"><span class="n">13</span>Professional</a>
+  </nav>
+  <div class="side-progress" id="sideProgress">0 / 13 modules visited</div>
+</aside>
+
+<!-- ================= MAIN ================= -->
+<main>
+
+<header>
+  <div class="kicker">From a 4-hour masterclass · Dr. Justin Sung</div>
+  <h1>Learning is a skill.<br>Here is how it actually works.</h1>
+  <p class="lede">Most people study harder. Effective learners study <em>differently</em>. This lesson distills 14 years of learning-coaching research into the four chapters that matter: retrieval, encoding, mind mapping, and skill acquisition.</p>
+  <div class="meta">
+    <span><b>13</b> modules</span><span><b>4</b> chapters</span>
+    <span><b>~45</b> min</span><span>Effort: <b>desirably difficult</b></span>
+  </div>
+</header>
+
+<!-- ============ WHAT YOU'LL LEARN ============ -->
+<section class="rv">
+  <h2>What You'll Learn</h2>
+  <div class="wyl">
+    <p>By the end you will be able to diagnose <em>why</em> you forget, build memory that doesn't leak, take notes that think for you, and acquire complex skills without burning out. Specifically:</p>
+    <ul>
+      <li>The three pillars of learning — and the order to build them so you don't stall.</li>
+      <li>How memory actually forms (sensory → working → long-term) and why cognitive load is the engine.</li>
+      <li>Why active recall &amp; spaced repetition plateau — and the three biases that keep the myth alive.</li>
+      <li>A flashcard system that shrinks your deck instead of growing it.</li>
+      <li>Encoding: jumping straight to higher-order thinking, the PACER reading framework, and the Ladder Method for tired days.</li>
+      <li>The GRIND checklist for mind maps that reach Level 3.</li>
+      <li>The RAIL framework for any complex skill, the theory-overload trap, and how professionals learn on the job.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ KNOWLEDGE MAP ============ -->
+<section class="rv kmap-wrap" id="kmap">
+  <h2>Interactive Knowledge Map</h2>
+  <p style="font-size:14.5px;color:var(--ink-soft)">Click any node to jump to that module. Hover to trace its connections.</p>
+  <svg viewBox="0 0 760 330" role="img" aria-label="Knowledge map linking four chapters to thirteen modules">
+    <!-- connecting lines -->
+    <path class="kline" d="M120,165 C200,165 200,60 300,60"/>
+    <path class="kline" d="M120,165 C200,165 200,120 300,120"/>
+    <path class="kline" d="M120,165 C200,165 200,210 300,210"/>
+    <path class="kline" d="M120,165 C200,165 200,270 300,270"/>
+    <path class="kline" d="M300,60 380,60"/><path class="kline" d="M300,120 380,120"/>
+    <path class="kline" d="M300,210 380,210"/><path class="kline" d="M300,270 380,270"/>
+    <path class="kline" d="M380,60 470,40"/><path class="kline" d="M380,60 470,80"/>
+    <path class="kline" d="M380,120 470,120"/><path class="kline" d="M380,120 470,158"/>
+    <path class="kline" d="M380,210 470,200"/><path class="kline" d="M380,210 470,238"/>
+    <path class="kline" d="M380,270 470,270"/><path class="kline" d="M380,270 470,305"/>
+    <path class="kline" d="M470,40 560,40"/><path class="kline" d="M470,120 560,120"/>
+    <path class="kline" d="M470,200 560,200"/><path class="kline" d="M470,270 560,270"/>
+    <!-- root -->
+    <g class="knode" data-target="m1"><rect x="20" y="145" width="100" height="40" rx="8"/>
+      <text x="70" y="162" text-anchor="middle">SCIENCE OF</text><text x="70" y="175" text-anchor="middle">LEARNING</text></g>
+    <!-- chapters -->
+    <g class="knode" data-target="m1"><circle cx="300" cy="60" r="7"/><text x="312" y="63">RETRIEVAL</text></g>
+    <g class="knode" data-target="m5"><circle cx="300" cy="120" r="7"/><text x="312" y="123">ENCODING</text></g>
+    <g class="knode" data-target="m9"><circle cx="300" cy="210" r="7"/><text x="312" y="213">MIND MAP</text></g>
+    <g class="knode" data-target="m11"><circle cx="300" cy="270" r="7"/><text x="312" y="273">SKILL</text></g>
+    <!-- modules -->
+    <g class="knode" data-target="m1"><circle cx="470" cy="40" r="6"/><text x="482" y="43">01 Pillars</text></g>
+    <g class="knode" data-target="m2"><circle cx="470" cy="80" r="6"/><text x="482" y="83">02 Memory</text></g>
+    <g class="knode" data-target="m3"><circle cx="470" cy="120" r="6"/><text x="482" y="123">03 Repetition</text></g>
+    <g class="knode" data-target="m4"><circle cx="470" cy="158" r="6"/><text x="482" y="161">04 Flashcards</text></g>
+    <g class="knode" data-target="m5"><circle cx="470" cy="200" r="6"/><text x="482" y="203">05 Higher-Order</text></g>
+    <g class="knode" data-target="m6"><circle cx="470" cy="238" r="6"/><text x="482" y="241">06 PACER</text></g>
+    <g class="knode" data-target="m7"><circle cx="470" cy="270" r="6"/><text x="482" y="273">07 Ladder</text></g>
+    <g class="knode" data-target="m8"><circle cx="470" cy="305" r="6"/><text x="482" y="308">08 12 Rules</text></g>
+    <g class="knode" data-target="m9"><circle cx="560" cy="40" r="6"/><text x="572" y="43">09 GRIND</text></g>
+    <g class="knode" data-target="m10"><circle cx="560" cy="120" r="6"/><text x="572" y="123">10 Levels</text></g>
+    <g class="knode" data-target="m11"><circle cx="560" cy="200" r="6"/><text x="572" y="203">11 RAIL</text></g>
+    <g class="knode" data-target="m12"><circle cx="560" cy="270" r="6"/><text x="572" y="273">12 Overload</text></g>
+    <g class="knode" data-target="m13"><circle cx="650" cy="165" r="6"/><text x="662" y="168">13 Pro</text></g>
+    <path class="kline" d="M560,40 650,165"/><path class="kline" d="M560,270 650,165"/>
+  </svg>
+  <figcaption>Fig 0 — The four chapters and thirteen modules of this lesson.</figcaption>
+</section>
+
+<hr class="rule">
+
+<!-- ================= MODULE 1 : THREE PILLARS ================= -->
+<section class="mod rv" id="m1">
+  <div class="mod-eyebrow">Chapter 1 · Retrieval</div>
+  <span class="mod-num">Module 01</span>
+  <h2>The Three Pillars of Learning</h2>
+
+  <div class="core"><p class="drop">Before any technique, you need a map of what actually makes learning work. Everything rests on three pillars. <strong>Encoding</strong> is the process of putting information into long-term memory — it determines how many gaps your knowledge has in the first place. <strong>Retrieval</strong> is pulling information back out — it finds the gaps and strengthens the memory each time you practice it. <strong>Enablers</strong> are the skills that let you show up at all: they split into <em>self-management</em> (procrastination, time management, prioritisation, focus) and <em>growth skills</em> (experimentation and critical reflection — the two things that determine how fast you improve at anything).</p>
+  <p>Here is the counter-intuitive part: although encoding is arguably the most important pillar — the hallmark of a "genius" who barely forgets — it is the <em>last</em> thing you should train. The order is enablers first, then retrieval, then encoding. Why? Because self-management and growth skills are <strong>rate limiters</strong>: if you can't sit down and reflect on what's working, no encoding technique will ever stick. Retrieval is quick to learn and acts as a safety net that catches gaps even when your encoding is weak. Encoding is a deep rewiring of decades-old thinking habits — it takes months to years, and you need the runway that the other two pillars create.</p>
+  <p>One more reframe: getting better at learning is <em>not</em> the same as making learning easier, faster, or finding the best app. Effective learning takes effort and feels uncomfortable — like marathon training, it doesn't become objectively easy, you just get used to the difficulty. Covering content quickly means nothing if you can't retain and use it.</p></div>
+
+  <h3>Step-by-step: the build order</h3>
+  <ol class="steps">
+    <li><strong>Enablers — self-management.</strong> Get your procrastination, time, priorities and focus to "good enough" (you don't need to be a machine).</li>
+    <li><strong>Enablers — growth skills.</strong> Run small experiments with techniques, then critically reflect on what worked and design the next experiment. This is why some students improve 20× faster than others.</li>
+    <li><strong>Retrieval.</strong> Install a consistent, regular testing habit aligned to how you'll use the knowledge. This is your safety net.</li>
+    <li><strong>Encoding.</strong> Only now, slowly rewire how you interpret and process new information. This is the long game that changes everything.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">A student who procrastinates every week.</span> No flashcard app can save them — the rate limiter is self-management. Fixing the show-up habit yields immediate results.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">A struggling learner who tries a new technique, hates the mistakes, and abandons it.</span> Compared to a learner who tries it immediately, reflects, and iterates — the second improves far faster, not because of the technique but because of <em>growth skills</em>.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">A top student with perfect encoding who collapses under exam stress.</span> Their enablers (focus under pressure) were never trained — proof that even the strongest pillar can't compensate for a missing one.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Encoding fills memory, retrieval tests and strengthens it, enablers let you do the work consistently.</p></div>
+    <div class="pane"><h4>The analogy — a house build</h4><p>Enablers are the scaffolding and site safety. Retrieval is the inspector finding cracks. Encoding is the brickwork itself.</p></div>
+    <div class="bridge">You can lay beautiful brick (encoding), but without scaffolding you can't reach the wall, and without an inspector the cracks go unnoticed. Build in the right order.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "I just need one better technique or app to fix my studying."</p>
+    <p><span class="truth">Truth:</span> Techniques are downstream of how you think and whether you show up. It's perfectly possible to have the best app and the best technique and still do terribly if your thinking and enablers are weak. You don't need the best tool — you need to know how to use your brain.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> Knowing the right order stops you wasting years polishing encoding while your real bottleneck — showing up and iterating — quietly runs the show.</p>
+  <p class="xlink">🔗 This connects to <a href="#m2">Module 02</a> because encoding and retrieval only make sense once you see where information actually lives in the brain.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 210" aria-label="Three pillars supporting learning, with build order">
+      <rect x="40" y="30" width="620" height="34" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="350" y="52" text-anchor="middle" font-size="13" fill="var(--ink)" font-weight="700">EFFECTIVE LEARNING</text>
+      <rect x="70" y="70" width="160" height="110" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="150" y="110" text-anchor="middle" font-size="12" fill="var(--ink)">ENABLERS</text>
+      <text x="150" y="128" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">self-mgmt + growth</text>
+      <text x="150" y="165" text-anchor="middle" font-size="10" fill="var(--accent)">build 1st</text>
+      <rect x="270" y="70" width="160" height="110" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="350" y="110" text-anchor="middle" font-size="12" fill="var(--ink)">RETRIEVAL</text>
+      <text x="350" y="128" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">find + fix gaps</text>
+      <text x="350" y="165" text-anchor="middle" font-size="10" fill="var(--accent)">build 2nd</text>
+      <rect x="470" y="70" width="160" height="110" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="550" y="110" text-anchor="middle" font-size="12" fill="var(--ink)">ENCODING</text>
+      <text x="550" y="128" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">fill memory well</text>
+      <text x="550" y="165" text-anchor="middle" font-size="10" fill="var(--accent)">build 3rd (hardest)</text>
+      <path d="M150,190 L550,190" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4" fill="none"/>
+      <path d="M545,186 L555,190 L545,194" fill="var(--accent)"/>
+      <text x="350" y="204" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">order of development →</text>
+    </svg>
+    <figcaption>Fig 1.1 — Three pillars hold up learning, but you build them left to right.</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 2 : MEMORY ================= -->
+<section class="mod rv" id="m2">
+  <div class="mod-eyebrow">Chapter 1 · Retrieval</div>
+  <span class="mod-num">Module 02</span>
+  <h2>How Memory Actually Works</h2>
+
+  <div class="core"><p class="drop">Your memory is a pipeline with three stations — the <strong>multi-store model</strong>. First, <strong>sensory memory</strong>: everything your eyes and ears pick up. Your brain discards almost all of it within moments, because remembering every license plate and every sensation on your skin would be overwhelming and dangerously energy-hungry (your brain already burns ~20% of your resting calories). If you intend to keep something, it moves to <strong>working memory</strong> — a tiny, temporary workspace that holds information for seconds to minutes. This is the "hotel lobby": you can pass through it, but you get kicked out unless you have a room. From working memory, information is transferred into <strong>long-term memory</strong> through <strong>encoding</strong> — and when you need it later, you <strong>retrieve</strong> it back through working memory.</p>
+  <p>Two rules follow. You can't retrieve what you never encoded — you can't pour from an empty bucket. And encoding is powered by <strong>cognitive load</strong>, the mental effort of processing. The relationship is an inverted-U: too little load and nothing encodes (this is passive learning — rereading, highlighting, zoning out); load rises and learning rises with it; but past a threshold you're overwhelmed and learning drops again. Crucially, productive load <em>feels like confusion</em> — "how does this fit? how is this different from what I know?" If you're bored or drowsy while studying, that's a signal the load is too low and almost nothing is being stored.</p>
+  <p>This discomfort has a name: <strong>desirable difficulty</strong>. Like a gym workout, the strain <em>is</em> the mechanism. This is also why the "Anki grind" happens: if encoding is weak, memory is full of holes, and retrieval practice just keeps revealing an endless, demoralising pile of gaps to relearn.</p></div>
+
+  <h3>The pipeline, step by step</h3>
+  <ol class="steps">
+    <li><strong>Sensory intake.</strong> Information arrives; nearly all of it is discarded as irrelevant.</li>
+    <li><strong>Working memory.</strong> A seconds-long window. This is your only chance to encode — you cannot "consume now, consolidate later."</li>
+    <li><strong>Encoding.</strong> Effortful processing moves it into long-term storage. More (tolerable) load = stronger trace.</li>
+    <li><strong>Retrieval.</strong> Pulling it back through working memory to use — this also strengthens the trace.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">Rereading a chapter three times and blanking in the exam.</span> Rereading keeps load near zero — the information never left the lobby.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">Feeling confused and slow while studying is actually the <em>good</em> sign.</span> That confusion is cognitive load doing the encoding. Feeling smooth and fast usually means you're learning almost nothing.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">A student who studies until 3am, sleep-deprived and hallucinating.</span> They've blown past the top of the inverted-U — load is maximal but learning has collapsed. More effort ≠ more encoding.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Working memory is a brief, mandatory gateway; long-term memory is durable storage.</p></div>
+    <div class="pane"><h4>The analogy — a hotel lobby</h4><p>Every guest (idea) must pass through the lobby. Stay too long without a room and you're escorted out. The rooms are long-term memory.</p></div>
+    <div class="bridge">Encoding is the act of checking a guest into a room while they're still in the lobby. Miss the window and they're gone — no amount of later searching brings them back.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "If I read it enough times, it'll eventually sink in."</p>
+    <p><span class="truth">Truth:</span> Repetition of a low-load activity keeps load low. Twenty rereads can encode less than one hard, confused, question-asking pass. It's the load, not the exposure, that builds memory.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> Once you know encoding runs on cognitive load, you stop measuring studying by hours and start measuring it by how hard your brain is working.</p>
+  <p class="xlink">🔗 This connects to <a href="#m3">Module 03</a> because the forgetting curve is what happens when encoding is weak and only retrieval is doing the work.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 230" aria-label="Multi-store memory model with cognitive load curve">
+      <rect x="20" y="60" width="120" height="52" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="80" y="82" text-anchor="middle" font-size="11" fill="var(--ink)">SENSORY</text>
+      <text x="80" y="97" text-anchor="middle" font-size="9" fill="var(--ink-soft)">forgotten instantly</text>
+      <path d="M140,86 L190,86" stroke="var(--ink-soft)" stroke-width="1.5" fill="none"/><path d="M186,82 L194,86 L186,90" fill="var(--ink-soft)"/>
+      <rect x="195" y="60" width="130" height="52" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="260" y="82" text-anchor="middle" font-size="11" fill="var(--ink)">WORKING</text>
+      <text x="260" y="97" text-anchor="middle" font-size="9" fill="var(--ink-soft)">"the hotel lobby" · sec–min</text>
+      <path d="M325,86 L390,86" stroke="var(--accent)" stroke-width="1.5" fill="none"/><path d="M386,82 L394,86 L386,90" fill="var(--accent)"/>
+      <text x="357" y="78" text-anchor="middle" font-size="9.5" fill="var(--accent)">encoding</text>
+      <rect x="395" y="60" width="140" height="52" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="465" y="82" text-anchor="middle" font-size="11" fill="var(--ink)">LONG-TERM</text>
+      <text x="465" y="97" text-anchor="middle" font-size="9" fill="var(--ink-soft)">hours–months</text>
+      <path d="M395,120 C340,160 320,160 265,120" stroke="var(--ink-soft)" stroke-width="1.5" stroke-dasharray="4 3" fill="none"/>
+      <text x="330" y="155" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">retrieval (back through the lobby)</text>
+      <!-- load curve -->
+      <path d="M560,150 C590,150 590,60 620,60 C650,60 650,120 680,150" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M560,155 L685,155" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <path d="M560,155 L560,50" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <text x="622" y="172" text-anchor="middle" font-size="9" fill="var(--ink-soft)">cognitive load →</text>
+      <text x="552" y="55" text-anchor="end" font-size="9" fill="var(--ink-soft)">learning</text>
+      <text x="620" y="48" text-anchor="middle" font-size="9" fill="var(--accent)">sweet spot</text>
+    </svg>
+    <figcaption>Fig 2.1 — The memory pipeline (left) and the inverted-U of cognitive load (right).</figcaption>
+  </div>
+
+  <button class="hintlink elab-toggle" data-for="e1">But why does confusion mean learning?</button>
+  <div class="reveal" id="e1"><p class="elab">Confusion is the felt experience of your brain searching for where new information fits — comparing, connecting, organising. That search <em>is</em> the encoding process. No search, no filing, no memory.</p></div>
+</section>
+
+<!-- ================= MODULE 3 : SPACED REP TRAP ================= -->
+<section class="mod rv" id="m3">
+  <div class="mod-eyebrow">Chapter 1 · Retrieval</div>
+  <span class="mod-num">Module 03</span>
+  <h2>The Spaced-Repetition Trap</h2>
+
+  <div class="core"><p class="drop">Active recall and spaced repetition are real and they do work — if you currently do nothing. The <strong>forgetting curve</strong> shows why: after first learning something, you lose roughly 50–60% within a week. Each successful review moves you onto a flatter slope, slowing the <em>rate of decay</em>. That's the whole mechanism — and it's also the ceiling. Spaced repetition is fundamentally <strong>repetitive</strong>: your brain keeps trying to delete the information and you keep forcing it back. Across every subject, that compounds into three, four, five re-learns of the same material. It's brute force against a leaky bucket.</p>
+  <p>The returns diminish fast. Think of tidying a room: the first hour takes you from chaos to "I can find my socks in 30 seconds" — a huge gain. Spending three more hours alphabetising the books buys you maybe five seconds. Spaced repetition takes you from <em>failing to passing</em> beautifully, but the research does not support it taking you from <em>good to excellent</em> — for high performers, more flashcards can even make things worse, because the time cost crowds out deeper processing.</p>
+  <p>So why does everyone swear by it? Three biases. <strong>Dunning–Kruger:</strong> it's often the first real technique people learn, so their confidence peaks before they know how much they don't know. <strong>Survivorship bias:</strong> like the WWII analysts who armoured the wrong part of the plane because they only saw the bombers that came back, we only hear from the people the technique worked for — the ones it failed never make a video. <strong>Availability bias:</strong> because it's everywhere, it feels legitimate, and confident survivors make more content, feeding the spiral. The hopeful flip side is <strong>neuroplasticity</strong>: encoding isn't a fixed talent. It can be trained — which is the real fix for the leaky bucket.</p></div>
+
+  <h3>Why the hype outlives the evidence</h3>
+  <ol class="steps">
+    <li><strong>It works at the margin.</strong> Anything beats nothing, so early adopters see real gains.</li>
+    <li><strong>Diminishing returns.</strong> Each extra review buys less retention for more time.</li>
+    <li><strong>Three biases amplify it.</strong> Dunning–Kruger, survivorship, availability.</li>
+    <li><strong>The real lever is upstream.</strong> Better encoding flattens the curve from day one, so you need far fewer reviews.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">A student who never revises, then "relearns everything" before finals.</span> The forgetting curve has already taken 50–60% — they're studying from scratch.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">The student who "never seems to study" yet tops the class.</span> They encode so well the first time that their forgetting curve starts flat — they don't need the endless review loop.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">A medical student whose Anki reviews hit 4+ hours daily.</span> Past the tipping point, the deck itself becomes the workload — more cards now <em>reduces</em> total learning.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Retrieval-only learning repeatedly refills a memory that keeps leaking.</p></div>
+    <div class="pane"><h4>The analogy — a bucket with a hole</h4><p>You can keep topping it up (spaced repetition), or you can patch the hole (encoding). Topping up works — but you'll be carrying water forever.</p></div>
+    <div class="bridge">Spaced repetition manages the leak. Encoding reduces it. Top learners patch the bucket first, then top up only occasionally.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "Active recall + spaced repetition is a god-tier, one-size-fits-all technique."</p>
+    <p><span class="truth">Truth:</span> Statistically, more people use it and do <em>not</em> do well than do. It's a good <em>part</em> of a system — terrible as the whole system. If it were the ceiling, nobody who used it would ever plateau, and clearly they do.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> If the technique is "proven" but you're still struggling, the problem isn't you — it's that you've been handed a retrieval-only strategy for an encoding problem.</p>
+  <p class="xlink">🔗 This connects to <a href="#m4">Module 04</a> because flashcards are the main vehicle for spaced repetition — and there's a right way to run them.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 220" aria-label="Forgetting curve flattening with reviews, and diminishing returns">
+      <path d="M60,40 L60,180 L360,180" stroke="var(--ink-soft)" stroke-width="1.2" fill="none"/>
+      <path d="M60,50 C100,120 130,150 200,165" stroke="var(--bad)" stroke-width="1.5" fill="none"/>
+      <path d="M60,50 C110,90 160,110 240,120 C300,128 330,132 355,134" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <text x="210" y="185" font-size="9" fill="var(--ink-soft)">no review: ~60% gone in a week</text>
+      <text x="250" y="112" font-size="9" fill="var(--accent)">with reviews: slower decay</text>
+      <text x="60" y="35" font-size="9.5" fill="var(--ink)">retention</text>
+      <text x="355" y="195" text-anchor="end" font-size="9.5" fill="var(--ink)">time →</text>
+      <!-- diminishing returns -->
+      <path d="M430,180 L430,60 L660,60" stroke="none"/>
+      <path d="M430,170 C470,90 500,75 560,70 C610,66 640,65 660,64" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M430,180 L660,180" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <path d="M430,180 L430,55" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <circle cx="470" cy="105" r="3.5" fill="var(--accent)"/>
+      <circle cx="620" cy="66" r="3.5" fill="var(--accent)"/>
+      <text x="470" y="125" text-anchor="middle" font-size="9" fill="var(--ink-soft)">1st hr: huge gain</text>
+      <text x="615" y="86" text-anchor="middle" font-size="9" fill="var(--ink-soft)">4th hr: ~5 seconds</text>
+      <text x="545" y="195" text-anchor="middle" font-size="9" fill="var(--ink)">effort →</text>
+      <text x="422" y="60" text-anchor="end" font-size="9" fill="var(--ink)">return</text>
+    </svg>
+    <figcaption>Fig 3.1 — Reviews flatten the forgetting curve (left), but each extra hour of review buys less (right).</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 4 : FLASHCARDS ================= -->
+<section class="mod rv" id="m4">
+  <div class="mod-eyebrow">Chapter 1 · Retrieval</div>
+  <span class="mod-num">Module 04</span>
+  <h2>Flashcards, Done Right</h2>
+
+  <div class="core"><p class="drop">Flashcards are a tool, and like any tool they have a job. They're genuinely good at three things: triggering <strong>active retrieval</strong>, automating <strong>spacing at the individual-fact level</strong> (a digital scheduler is a small genius — tracking this by hand would be admin hell), and enabling <strong>microlearning</strong> — those 3–7 minute bursts in dead time (bus, queue, toilet) that add up to 20–30 focused minutes a day you never scheduled. A healthy volume is roughly <strong>100–150 cards a week</strong>; if you're doing more, your encoding is doing too little.</p>
+  <p>But flashcards test on a <strong>1:1 ratio</strong> — one prompt, one fact. That's fine for rote recall and useless for higher-order thinking, where you must draw on many concepts and their relationships. Three problems follow: they overwhelm fast (hundreds of daily cards), they build <em>isolated</em> facts rather than knowledge networks, and — sneakiest of all — repetition makes you <strong>memorise the card, not the knowledge</strong>. After enough reps of "What is the function of the mitochondria?" you recognise the card from its first three words and answer instantly, without ever retrieving the actual concept. In an exam, phrased differently, it's gone.</p>
+  <p>The fix is a three-part long study session. <strong>(1) Targeted review:</strong> during the week, flag cards you get right three times in a row and cards you get wrong three times in a row. In the session, take the wrong-3 cards out of the deck and spend 5–10 minutes each going deeper — connect, analogise, build network around them (or delete them if they're not needed). Take the right-3 cards and <strong>merge and upgrade</strong> them into a single higher-order question. <strong>(2) Consolidation &amp; preparation:</strong> encode new material, letting only what won't stick become new cards. <strong>(3) Preview:</strong> prime upcoming material — if you could only keep one part, keep this, because it stops the forgetting before it starts.</p></div>
+
+  <h3>The weekly flashcard loop</h3>
+  <ol class="steps">
+    <li><strong>Filter at creation.</strong> Only information that resists encoding becomes a card.</li>
+    <li><strong>Microlearn daily.</strong> ~100–150 cards/week in spare pockets of time.</li>
+    <li><strong>Flag.</strong> Right ×3 → one flag. Wrong ×3 → a different flag.</li>
+    <li><strong>Long session — review.</strong> Wrong-3: deepen (5–10 min each) or delete. Right-3: merge into higher-order cards.</li>
+    <li><strong>Long session — consolidate &amp; preview.</strong> Encode new material; preview what's coming.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">Vocabulary or anatomy facts.</span> Discrete, lower-order, needs direct recall — the exact job flashcards were made for.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">Merging two "easy" cards into one hard one.</span> "How does protein synthesis work?" + "How are hormones received by receptors?" becomes "How do hormones influence protein synthesis?" — fewer cards, deeper network, and you can't memorise it by rote.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">A card you keep getting wrong three times, every week.</span> Instead of repeating it forever, it's a signal to go <em>out of scope</em> — build more connecting knowledge around it. The time "wasted" is repaid in never seeing that card again.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Flashcards are excellent for a narrow job and harmful when over-applied.</p></div>
+    <div class="pane"><h4>The analogy — a screwdriver</h4><p>The best screwdriver in the world still can't build a house. Compared to your fingernails it's miraculous — for screws.</p></div>
+    <div class="bridge">Love your screwdriver for what it does. Just don't try to frame the whole house with it, or you'll spend ten years and blame the tool.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "Getting a flashcard right quickly means I know the material."</p>
+    <p><span class="truth">Truth:</span> Speed often means you've memorised the <em>card</em> — its shape, its opening words — not the knowledge. Real test: could you answer it phrased a completely different way, in a problem you've never seen?</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> A shrinking, upgrading deck turns flashcards from a treadmill into a ladder — each week the cards get fewer and harder in the best way.</p>
+  <p class="xlink">🔗 This connects to <a href="#m5">Module 05</a> because the cards you <em>don't</em> have to make depend entirely on how well you encode in the first place.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 210" aria-label="Three-part study session with card flagging and merging">
+      <rect x="20" y="40" width="200" height="60" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="120" y="64" text-anchor="middle" font-size="11.5" fill="var(--ink)" font-weight="700">1 · TARGETED REVIEW</text>
+      <text x="120" y="82" text-anchor="middle" font-size="9" fill="var(--ink-soft)">wrong×3 → deepen / delete</text>
+      <path d="M220,70 L260,70" stroke="var(--ink-soft)" stroke-width="1.5"/><path d="M256,66 L264,70 L256,74" fill="var(--ink-soft)"/>
+      <rect x="265" y="40" width="200" height="60" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="365" y="64" text-anchor="middle" font-size="11.5" fill="var(--ink)" font-weight="700">2 · CONSOLIDATE + PREP</text>
+      <text x="365" y="82" text-anchor="middle" font-size="9" fill="var(--ink-soft)">encode new; only leaks → cards</text>
+      <path d="M465,70 L505,70" stroke="var(--ink-soft)" stroke-width="1.5"/><path d="M501,66 L509,70 L501,74" fill="var(--ink-soft)"/>
+      <rect x="510" y="40" width="170" height="60" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="595" y="64" text-anchor="middle" font-size="11.5" fill="var(--ink)" font-weight="700">3 · PREVIEW</text>
+      <text x="595" y="82" text-anchor="middle" font-size="9" fill="var(--ink-soft)">prime what's next (biggest ROI)</text>
+      <!-- merge illustration -->
+      <rect x="60" y="130" width="120" height="34" rx="5" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <text x="120" y="151" text-anchor="middle" font-size="9" fill="var(--ink-soft)">card A · right×3</text>
+      <rect x="60" y="170" width="120" height="34" rx="5" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <text x="120" y="191" text-anchor="middle" font-size="9" fill="var(--ink-soft)">card B · right×3</text>
+      <path d="M185,150 C260,150 260,168 320,168" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M185,187 C260,187 260,168 320,168" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M316,164 L324,168 L316,172" fill="var(--accent)"/>
+      <rect x="330" y="148" width="200" height="42" rx="5" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="430" y="166" text-anchor="middle" font-size="9.5" fill="var(--ink)" font-weight="700">MERGED · higher-order card</text>
+      <text x="430" y="181" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">"How do A and B influence each other?"</text>
+    </svg>
+    <figcaption>Fig 4.1 — The three-part session (top) and the merge-and-upgrade move (bottom).</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 5 : ENCODING / HIGHER ORDER ================= -->
+<section class="mod rv" id="m5">
+  <div class="mod-eyebrow">Chapter 2 · Encoding</div>
+  <span class="mod-num">Module 05</span>
+  <h2>Encoding: Think Higher, Earlier</h2>
+
+  <div class="core"><p class="drop">Encoding isn't a note format or a reading trick — it's <em>how you think</em> when new information arrives. And the single most important move is to <strong>jump to higher-order thinking as early as possible</strong>. Two frameworks show the ladder. <strong>Bloom's taxonomy</strong> runs: remember → understand → apply → <em>analyze</em> → <em>evaluate</em>. <strong>SOLO taxonomy</strong> makes the same point: the power lives in <em>relational</em> thinking (ideas connected to each other) and <em>extended abstract</em> thinking (ideas connected to the bigger picture). Most students park at remember/understand — but understanding a fact in isolation is still weak encoding.</p>
+  <p>Here's the key insight people resist: <strong>you can't analyze or evaluate something you don't yet know — and that's the point.</strong> Set your goal at the higher level anyway, and your brain automatically fills in the remembering and understanding on the way up. If instead you do it step-by-step (memorise → understand → apply → connect), each fact gets consumed in isolation, and you later have to un-learn that organisation and rebuild it — like throwing everything into a messy room and <em>then</em> deciding to tidy. If you look at all your stationery first and decide where it goes, the pencil knows its place from the start.</p>
+  <p>So the encoding rule is: never commit anything to notes until you've figured out how it relates to other concepts and to the bigger picture. Done well, retention after two or three weeks can hit 80–90%, versus the 40–60% norm. It feels slow and confusing at first — that's the desirable difficulty doing its job. And if comparing everything is overwhelming, drop down one rung first: just ask "how could I <em>apply</em> this?" — still far above memorising — and graduate upward as your tolerance grows.</p></div>
+
+  <h3>The higher-order climb</h3>
+  <ol class="steps">
+    <li><strong>See the ladder.</strong> Remember → understand → apply → analyze → evaluate (Bloom); isolated → relational → big-picture (SOLO).</li>
+    <li><strong>Set your aim at the top.</strong> Your target is to compare, contrast, prioritise and relate to the big picture <em>immediately</em>.</li>
+    <li><strong>Let the lower rungs auto-fill.</strong> Memorising and understanding happen as a side effect of aiming higher.</li>
+    <li><strong>Organise before you record.</strong> Only write notes once you know where each idea lives.</li>
+    <li><strong>Build cognitive-load tolerance.</strong> Hold information a little longer before writing; work toward 15–30 minutes of reading with no notes, then produce one organised synthesis.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">Reading a definition and copying it into notes.</span> Zero relational processing — the classic low-order loop that leads to the forgetting curve.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">Deliberately trying to explain a brand-new concept to a 5-year-old before you fully "understand" it.</span> The attempt forces simplification and connection — and the struggle itself encodes. Experts sound simple because they did this work.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">A dense topic with so many relationships it feels paralyzing.</span> Step down to "apply": just ask how you'd <em>use</em> it. That rebuilds tolerance, then you climb back to analyze/evaluate.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Organise ideas relationally <em>before</em> storing them, or you store chaos and re-sort it later.</p></div>
+    <div class="pane"><h4>The analogy — the messy room</h4><p>Don't toss everything in and tidy later. Look at your pile, see you have lots of stationery, decide where stationery lives — then every item goes straight to its place.</p></div>
+    <div class="bridge">A little more thought per item up front saves the entire re-organisation later. Encoding is deciding where the pencil goes before you put it down.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "I have to understand a concept before I can connect or evaluate it."</p>
+    <p><span class="truth">Truth:</span> You can't — and you don't need to. Aiming at connection and evaluation is precisely what <em>produces</em> the understanding. Waiting to "understand first" keeps every fact isolated, which is the worst possible starting structure.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> This is the difference between studying 10 hours and retaining 1, versus studying 3 hours and retaining 9 — the encoding gap is where all the lost time goes.</p>
+  <p class="xlink">🔗 This connects to <a href="#m6">Module 06</a> because PACER gives you a concrete, per-sentence way to run this thinking while you read.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 200" aria-label="Bloom's taxonomy ladder with higher-order target zone">
+      <path d="M60,170 L150,170 L150,140 L240,140 L240,110 L330,110 L330,80 L420,80 L420,50 L520,50" stroke="var(--ink-soft)" stroke-width="1.5" fill="none"/>
+      <text x="105" y="185" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">remember</text>
+      <text x="195" y="155" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">understand</text>
+      <text x="285" y="125" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">apply</text>
+      <text x="375" y="95" text-anchor="middle" font-size="9.5" fill="var(--ink)">analyze</text>
+      <text x="470" y="65" text-anchor="middle" font-size="9.5" fill="var(--ink)">evaluate</text>
+      <rect x="320" y="38" width="210" height="60" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="425" y="30" text-anchor="middle" font-size="10" fill="var(--accent)" font-weight="700">aim here, from day one</text>
+      <path d="M560,150 C600,150 600,80 640,80" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3" fill="none"/>
+      <path d="M636,76 L644,80 L636,84" fill="var(--accent)"/>
+      <text x="600" y="170" text-anchor="middle" font-size="9" fill="var(--ink-soft)">lower rungs</text>
+      <text x="600" y="182" text-anchor="middle" font-size="9" fill="var(--ink-soft)">auto-fill on the way up</text>
+    </svg>
+    <figcaption>Fig 5.1 — Set your objective at analyze/evaluate; remembering and understanding follow as side effects.</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 6 : PACER ================= -->
+<section class="mod rv" id="m6">
+  <div class="mod-eyebrow">Chapter 2 · Encoding</div>
+  <span class="mod-num">Module 06</span>
+  <h2>PACER: Remember What You Read</h2>
+
+  <div class="core"><p class="drop">Reading has two stages: <strong>consumption</strong> (information in) and <strong>digestion</strong> (information processed into memory). Most people pour all their effort into consuming more — reading faster, 3× speed lectures, binge audiobooks — and almost none into digesting. But retention depends almost entirely on what <em>stays</em>, not what comes in. Studies suggest up to <strong>90% of what's consumed is forgotten</strong>. Consuming without digesting is the learning equivalent of overeating: it all comes back up, via the mental vomiting we call forgetting. The two stages must stay <em>balanced</em> — if you don't have time to process, consume less, not more.</p>
+  <p>The system is to sort everything you read into five categories — <strong>PACER</strong> — and give each its targeted process. <strong>P — Procedural</strong> (how to execute something, e.g. a clinical exam, code, grammar): the process is <em>practice, immediately</em>. If you can't practice now, stop consuming — don't memorise it on the spot. <strong>A — Analogous</strong> (relates to something you already know): the process is <em>critique</em> — where does the analogy hold, where does it break, can you improve it? <strong>C — Conceptual</strong> (the "what": facts, theories, principles, relationships): the process is <em>mapping</em> — non-linear, networked notes, because an expert's knowledge is a web you can enter from any point, not a sentence-by-sentence sequence. <strong>E — Evidence</strong> (specific facts/cases that prove a conceptual point) and <strong>R — Reference</strong> (nitty-gritty details that don't change your understanding): both get <em>store + rehearse</em> — capture them instantly in a second brain or flashcards, then rehearse later. Reference material, being pure fact-recall, is the one true home of Anki.</p>
+  <p>And remember: perfect recall isn't the goal. Kim Peak — the man with FG syndrome, a larger brain and no corpus callosum, who could recite any book word-for-word and give shortest-path directions between any two cities — couldn't reason or problem-solve. On a university-level exam, <em>you</em> would beat him. The goal is to remember what you need, in a form you can use.</p></div>
+
+  <h3>The PACER workflow</h3>
+  <ol class="steps">
+    <li><strong>Consume in small bites.</strong> Read/listen, then pause to digest — constantly, not at the end.</li>
+    <li><strong>Tag each item.</strong> Procedural, Analogous, Conceptual, Evidence, or Reference?</li>
+    <li><strong>Apply the matched process.</strong> Practice / critique / map / store+rehearse.</li>
+    <li><strong>Never memorise E or R on the spot.</strong> That time belongs to P, A and C — the foundation the details hang on.</li>
+    <li><strong>Keep the balance.</strong> If digestion can't keep up, slow consumption down.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">A swimmer learning muscle-contraction physiology and thinking "this looks like my stroke."</span> That's analogous material — now critique it: where does the swimming comparison hold, and where does it break down? That critique is what makes it stick.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">A date, a gene name, a math constant.</span> Don't reread it ten times. Tag it Reference, dump it into a flashcard in five seconds, and move on — rehearsal happens later, not now.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">Reading a "how to" book with no time to practice.</span> The correct move is to <em>stop reading</em> until you can practice. Consuming procedural knowledge you can't immediately use is guaranteed waste.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Consuming without digesting produces forgetting; the two stages must stay in balance.</p></div>
+    <div class="pane"><h4>The analogy — eating a meal</h4><p>You don't eat eleven courses and then "digest them all later." You eat a little, digest a little. Overeat and the body rejects it.</p></div>
+    <div class="bridge">Forgetting is mental vomiting. The cure isn't slower reading — it's frequent, small digestion sessions interleaved with consumption.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "If I read faster and cover more, I'll learn more."</p>
+    <p><span class="truth">Truth:</span> Consumption is never the bottleneck — digestion is. Doubling your reading speed while digestion stays fixed just doubles what you forget. Less consumed, fully digested, beats more consumed and lost.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> PACER turns "reading" from one vague activity into five precise operations — each with a process that actually produces memory.</p>
+  <p class="xlink">🔗 This connects to <a href="#m7">Module 07</a> because the Ladder Method is how you keep digesting even when your energy is too low for a full PACER pass.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 200" aria-label="PACER five categories and their processes">
+      <g font-size="11" text-anchor="middle">
+      <rect x="20" y="40" width="120" height="70" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="80" y="66" fill="var(--ink)" font-weight="700">P</text><text x="80" y="82" fill="var(--ink-soft)" font-size="9">Procedural</text><text x="80" y="98" fill="var(--accent)" font-size="9.5">→ practice now</text>
+      <rect x="155" y="40" width="120" height="70" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="215" y="66" fill="var(--ink)" font-weight="700">A</text><text x="215" y="82" fill="var(--ink-soft)" font-size="9">Analogous</text><text x="215" y="98" fill="var(--accent)" font-size="9.5">→ critique it</text>
+      <rect x="290" y="40" width="120" height="70" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="350" y="66" fill="var(--ink)" font-weight="700">C</text><text x="350" y="82" fill="var(--ink-soft)" font-size="9">Conceptual</text><text x="350" y="98" fill="var(--accent)" font-size="9.5">→ map it</text>
+      <rect x="425" y="40" width="120" height="70" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="485" y="66" fill="var(--ink)" font-weight="700">E</text><text x="485" y="82" fill="var(--ink-soft)" font-size="9">Evidence</text><text x="485" y="98" fill="var(--accent)" font-size="9.5">→ store + rehearse</text>
+      <rect x="560" y="40" width="120" height="70" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="620" y="66" fill="var(--ink)" font-weight="700">R</text><text x="620" y="82" fill="var(--ink-soft)" font-size="9">Reference</text><text x="620" y="98" fill="var(--accent)" font-size="9.5">→ store + flashcards</text>
+      </g>
+      <path d="M20,140 L680,140" stroke="var(--line)" stroke-width="1.2"/>
+      <text x="350" y="160" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">consume a little → digest a little → repeat. Balance the two stages.</text>
+      <text x="350" y="176" text-anchor="middle" font-size="9" fill="var(--accent)">P · A · C build the foundation that E · R hang on</text>
+    </svg>
+    <figcaption>Fig 6.1 — Five kinds of information, five targeted processes.</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 7 : LADDER ================= -->
+<section class="mod rv" id="m7">
+  <div class="mod-eyebrow">Chapter 2 · Encoding</div>
+  <span class="mod-num">Module 07</span>
+  <h2>The Ladder Method: Study When You're Exhausted</h2>
+
+  <div class="core"><p class="drop">Encoding is mentally expensive, and your brain — already spending 20% of your resting energy — is ruthlessly efficient at avoiding effort. That's why starting feels overwhelming. When you face a chapter with no structure yet, your brain must simultaneously do three costly things: <strong>understand</strong> what it's consuming, <strong>compare</strong> it with what you already know, and <strong>decide where it goes</strong>. Picture new facts as marbles and categories as cups: with cups already in place, each marble is a quick "which cup?" decision. With no cups, every marble forces a whole design process — how many cups? what options? what if I'm wrong? That uncertainty is the "I don't want to study" feeling.</p>
+  <p>The Ladder Method splits a topic into <strong>rungs of equal, low effort</strong>. On rung one, you skim for only what feels easy — ideas you can readily understand, compare, and organise — and you skip everything that doesn't. In 10–15 minutes you've built a rough scaffold: the major cups now exist. On rung two you do the same pass again, but now more of the topic feels familiar, so the same effort reaches deeper detail and refines the structure. By rung three, most topics are fully covered. The secret is that <strong>each rung takes the same effort as the last</strong> — you're not making studying easier, you're redistributing the total work across passes, and each pass makes the next one cheaper because the cups are already there.</p>
+  <p>If you're tired, stop after rung one — you've genuinely moved the topic forward, and your brain now files "studying isn't that bad," which quietly dismantles procrastination. The same principle works for projects and assignments: easy high-level planning first, then progressively deeper passes.</p></div>
+
+  <h3>Climbing a topic</h3>
+  <ol class="steps">
+    <li><strong>Rung 1 — scaffold.</strong> Low-effort pass: take only what's easy to understand, compare, organise. Skip the rest. ~10–15 min.</li>
+    <li><strong>Rung 2 — refine.</strong> Same effort, but now the scaffold makes more of the topic legible. Go one level deeper; correct your structure.</li>
+    <li><strong>Rung 3 — complete.</strong> Fill remaining detail into the now-stable cups; route items to map or flashcards by type.</li>
+    <li><strong>Stop when tired.</strong> Any rung is a legitimate stopping point — the work is never wasted.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">A dense textbook chapter at 9pm.</span> One easy pass for the big ideas, then bed. Tomorrow the chapter already has a skeleton, so the deep pass is faster.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">Deliberately <em>skipping</em> the hardest 60% on your first pass.</span> Feels wrong, but the skipped material becomes dramatically cheaper once the scaffold exists. Front-loading difficulty is what makes people quit.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">A three-month work project.</span> Rung 1 is a rough plan of the obvious pieces; each later pass adds detail. You never face the "blank page with no cups" paralysis again.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Organising information is the expensive part; pre-built structure makes each fact cheap to file.</p></div>
+    <div class="pane"><h4>The analogy — marbles and cups</h4><p>Drop a marble into the right cup: trivial. Invent the cup system while holding the marble: exhausting. Make the cups first.</p></div>
+    <div class="bridge">Rung one is nothing but cup-making. Every later marble then costs almost nothing to place.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "If I didn't finish the whole chapter, the session was a failure."</p>
+    <p><span class="truth">Truth:</span> A single low-effort rung permanently lowers the cost of the next pass. Partial, structured progress beats heroic, abandoned marathons every time — and it's what keeps you coming back.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> It converts "I can't face this" into a 15-minute action with a guaranteed payoff — the antidote to procrastination isn't willpower, it's structure.</p>
+  <p class="xlink">🔗 This connects to <a href="#m8">Module 08</a> because the Ladder is really a way to keep running the 12 encoding rules even on low battery.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 190" aria-label="Ladder of three equal-effort rungs building a scaffold">
+      <path d="M80,170 L80,40" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <path d="M200,170 L200,40" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <path d="M80,150 L200,150" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M80,105 L200,105" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M80,60 L200,60" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="215" y="153" font-size="9.5" fill="var(--ink)">rung 1 · scaffold (easy ideas only)</text>
+      <text x="215" y="108" font-size="9.5" fill="var(--ink)">rung 2 · refine (same effort, deeper)</text>
+      <text x="215" y="63" font-size="9.5" fill="var(--ink)">rung 3 · complete (detail fills the cups)</text>
+      <circle cx="480" cy="70" r="9" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <circle cx="500" cy="74" r="9" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <circle cx="490" cy="55" r="9" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <text x="490" y="100" text-anchor="middle" font-size="9" fill="var(--ink-soft)">marbles = new facts</text>
+      <path d="M560,50 L560,90 M545,90 L575,90" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M600,50 L600,90 M585,90 L615,90" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <circle cx="560" cy="82" r="7" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>
+      <circle cx="600" cy="82" r="7" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>
+      <text x="580" y="110" text-anchor="middle" font-size="9" fill="var(--ink-soft)">cups = categories (built on rung 1)</text>
+      <text x="350" y="175" text-anchor="middle" font-size="9.5" fill="var(--accent)">same effort per rung · each rung makes the next cheaper</text>
+    </svg>
+    <figcaption>Fig 7.1 — Equal-effort rungs (left) and why they work: the cups get made first (right).</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 8 : 12 RULES ================= -->
+<section class="mod rv" id="m8">
+  <div class="mod-eyebrow">Chapter 2 · Encoding</div>
+  <span class="mod-num">Module 08</span>
+  <h2>The 12 Rules of Encoding</h2>
+
+  <div class="core"><p class="drop">Strong encoding looks like genius from the outside — the classmate who never studied and remembered everything. In reality it's a set of repeatable thinking habits, and the research is clear: <strong>you can build them</strong>. The master principle is rule one: <em>stop fighting your brain</em>. Your brain is excellent at remembering things it can place — like a book on a library shelf with a logic to its position. It ruthlessly discards what fits nowhere. Rote memorisation is a shouting match with your brain: it throws the fact out, you shove it back, it throws it out again. Every rule below is a way to make information <em>fit</em> before it's stored.</p>
+  <p>The four tactical rules do the heavy lifting. <strong>Simplify everything</strong> — don't try to remember or understand; try to <em>simplify</em>, and memory and understanding arrive as side effects ("anaphylaxis = your immune system hitting the panic button"). <strong>Compare everything</strong> — meaning lives in relationships, so actively hunt similarities and differences with other new ideas and prior knowledge. <strong>Connect everything</strong> — trace the influences and implications until a network forms. <strong>Group everything</strong> — find patterns of shared similarity and collapse the tangled web into named clusters; the struggle of choosing groups <em>is</em> the encoding.</p>
+  <p>Supporting rules keep the system honest: prevent <strong>learning debt</strong> (making-it-relevant-later never happens); <strong>don't overeat</strong> — digest in small, frequent cycles so understanding snowballs, and pre-study so the snowball exists before the lecture; <strong>get used to thinking hard</strong> (there is no shortcut, only habit); <strong>do it all again</strong> — encoding is recursive, your structures get rebuilt as knowledge grows; make <strong>better analogies</strong> (comprehensive yet simple yet accurate — balancing all three is itself powerful encoding); use <strong>note-taking as offload</strong> ("hold this thought for me") so your notes become a mirror of your mind, gaps visible at a glance; and <strong>challenge your hypothesis constantly</strong> — every structure you build is provisional, and rigidity is where expertise goes to die.</p></div>
+
+  <h3>The four core tactics, in order</h3>
+  <ol class="steps">
+    <li><strong>Simplify</strong> — reframe it intuitively, even imperfectly; the attempt strengthens memory.</li>
+    <li><strong>Compare</strong> — similarities and differences against new ideas and old knowledge.</li>
+    <li><strong>Connect</strong> — influences, implications, consequences. Build the web.</li>
+    <li><strong>Group</strong> — collapse shared similarities into named clusters; re-group as you learn.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">A straggly fact sitting alone on your mind map, connected to nothing.</span> You don't even need a test to know you'll forget it — the note itself reveals the weakness. Connect it or delete it.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">Deliberately simplifying a definition <em>incorrectly</em> on purpose.</span> The work of simplifying still fires the right encoding processes — and the corrected version lands on stronger ground than a verbatim definition ever would.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">After weeks of study, realising your original grouping was wrong.</span> That's not failure — it's the recursive nature of deep learning. Experts rebuild structures constantly; beginners freeze theirs and build errors into the foundation.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Memory sticks when information has a place; it vanishes when it doesn't.</p></div>
+    <div class="pane"><h4>The analogy — a library shelf</h4><p>A book with a logical shelf position is findable forever. The same book dumped in a pile is lost the moment you look away.</p></div>
+    <div class="bridge">Encoding is shelving. Rote memorisation is re-dumping the same book a hundred times and hoping it stays.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "Some people are just born good at remembering."</p>
+    <p><span class="truth">Truth:</span> "Natural" encoders run simplify-compare-connect-group automatically — often without knowing it. The habits can be installed deliberately. Even if you're not built different, you can <em>build</em> differently.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> These twelve rules are the difference between learning that compounds (snowball) and learning that evaporates (debt) — the single highest-leverage upgrade in this whole lesson.</p>
+  <p class="xlink">🔗 This connects to <a href="#m9">Module 09</a> because mind mapping is the physical instrument for running simplify-compare-connect-group on paper.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 180" aria-label="The simplify-compare-connect-group encoding loop">
+      <circle cx="350" cy="90" r="62" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <rect x="120" y="66" width="110" height="48" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="175" y="86" text-anchor="middle" font-size="11" fill="var(--ink)" font-weight="700">SIMPLIFY</text>
+      <text x="175" y="101" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">make it intuitive</text>
+      <rect x="290" y="14" width="120" height="44" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="350" y="33" text-anchor="middle" font-size="11" fill="var(--ink)" font-weight="700">COMPARE</text>
+      <text x="350" y="47" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">same / different</text>
+      <rect x="470" y="66" width="110" height="48" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="525" y="86" text-anchor="middle" font-size="11" fill="var(--ink)" font-weight="700">CONNECT</text>
+      <text x="525" y="101" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">influence / implication</text>
+      <rect x="290" y="122" width="120" height="44" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="350" y="141" text-anchor="middle" font-size="11" fill="var(--ink)" font-weight="700">GROUP</text>
+      <text x="350" y="155" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">name the clusters</text>
+      <path d="M232,72 C260,40 280,36 288,34" stroke="var(--accent)" stroke-width="1.5" fill="none"/><path d="M284,28 L292,34 L283,39" fill="var(--accent)"/>
+      <path d="M412,36 C440,40 455,55 466,68" stroke="var(--accent)" stroke-width="1.5" fill="none"/><path d="M462,62 L470,70 L459,72" fill="var(--accent)"/>
+      <path d="M522,116 C505,140 470,150 414,148" stroke="var(--accent)" stroke-width="1.5" fill="none"/><path d="M420,142 L412,148 L421,153" fill="var(--accent)"/>
+      <path d="M288,142 C255,135 240,120 232,112" stroke="var(--accent)" stroke-width="1.5" fill="none"/><path d="M236,118 L230,110 L241,110" fill="var(--accent)"/>
+      <text x="350" y="94" text-anchor="middle" font-size="9.5" fill="var(--accent)">repeat with</text>
+      <text x="350" y="106" text-anchor="middle" font-size="9.5" fill="var(--accent)">every new idea</text>
+    </svg>
+    <figcaption>Fig 8.1 — The encoding loop. Run it on every idea, then run it again as knowledge grows.</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 9 : GRIND ================= -->
+<section class="mod rv" id="m9">
+  <div class="mod-eyebrow">Chapter 3 · Mind Mapping</div>
+  <span class="mod-num">Module 09</span>
+  <h2>GRIND: The Perfect Mind Map Is a Process</h2>
+
+  <div class="core"><p class="drop">Here's the reframe that makes everything work: <strong>the mind map is not the knowledge — mind <em>mapping</em> is the skill that forces the right thinking.</strong> Copying a top student's map into your notes does nothing, because you can't copy-paste the cognition that built it. The six-step <strong>GRIND</strong> checklist guarantees that cognition happens. <strong>G — Grouping:</strong> arrange related ideas, and choose the grouping deliberately — the same pens can be grouped by colour, ink level, or sentimental value, and the "right" grouping is the one that sticks for <em>you</em>. This is chunking, scaffolding, schema-building: both the product and the process strengthen memory. <strong>R — Relational:</strong> express how ideas connect — but beware: you can have too few relationships <em>or</em> too many. Decide which relationships (cause, influence, sequence) actually matter. <strong>I — Interconnected:</strong> the groups themselves must link into one overall structure. Dense clusters that don't talk to each other are the "islands" pattern — they compartmentalise understanding and strangle complex problem-solving.</p>
+  <p><strong>N — Non-verbal:</strong> cut words ruthlessly. Use arrows, spatial arrangement and simple abstract images — a "memory landmark" — instead of sentences ("the quick brown fox jumps over the lazy dog" becomes a sketch, and sketching it forces you to ask <em>why</em> the dog is lazy). Less on the page, more in the brain; this also triggers the <strong>generation effect</strong>. <strong>D — Directional:</strong> give the map flow. Arrows showing how ideas actually interact force you to examine the nature of each relationship and make the map legible at a glance. <strong>E — Emphasized:</strong> judge what matters most and make it visually dominant — the map's <strong>backbone</strong>. Being able to say what's important and why is the hallmark of expertise; knowing "a bunch of connected facts" is the hallmark of a beginner.</p>
+  <p>Two final notes. The steps are <em>recursive</em> — emphasizing often reveals your grouping was wrong, sending you back around; that back-and-forth is the documented nature of deep learning, not a mistake. And with AI: it <strong>harms</strong> you when it does the organising or bypasses your judgment (letting ChatGPT pick your groups skips the learning); it <strong>helps</strong> when it merely collects or summarises for you to process, or verifies a hypothesis you already built.</p></div>
+
+  <h3>The GRIND checklist</h3>
+  <ol class="steps">
+    <li><strong>Group</strong> related ideas — try alternative groupings, pick the stickiest.</li>
+    <li><strong>Relational</strong> — draw the important relationships, not every possible one.</li>
+    <li><strong>Interconnected</strong> — link the groups into one big picture; kill the islands.</li>
+    <li><strong>Non-verbal</strong> — fewer words, more arrows, space, and memory landmarks.</li>
+    <li><strong>Directional</strong> — arrows that show real flow and interaction.</li>
+    <li><strong>Emphasized</strong> — a backbone: visually mark what matters most and why.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">A disease topic mapped the textbook way (definition → causes → symptoms).</span> Valid — but the same information regrouped by <em>mechanism</em> may click far better for you. The act of choosing is the learning.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">A map with <em>fewer</em> arrows than you could draw.</span> Drawing every relationship creates spaghetti. Selecting the important ones forces evaluation — which is exactly the higher-order work.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">Using AI to verify your grouping.</span> You did the comparing and hypothesising; the AI just replaces a slow Google trawl. Helpful. But asking it to generate the groups for you? That outsources the learning itself.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>A finished map is a byproduct; the mapping process is what builds knowledge.</p></div>
+    <div class="pane"><h4>The analogy — a workout</h4><p>Buying a gym membership card doesn't build muscle; lifting does. The card is just the record. A beautiful map you didn't think through is the membership card.</p></div>
+    <div class="bridge">GRIND is the lifting programme. Each step forces one specific cognitive movement your brain must perform itself.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "Mind mapping didn't work for me."</p>
+    <p><span class="truth">Truth:</span> Almost always, they drew a pretty radial diagram without doing any grouping, relating, or judging — the thinking was skipped, so the learning was skipped. The technique didn't fail; the process was never run.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> GRIND turns a vague "make a mind map" instruction into six verifiable cognitive moves — the difference between drawing and learning.</p>
+  <p class="xlink">🔗 This connects to <a href="#m10">Module 10</a> because most people fail GRIND for one of two psychological reasons — and there's a graded path out.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 170" aria-label="GRIND six-step checklist with backbone emphasis">
+      <g font-size="10.5" text-anchor="middle">
+      <rect x="15" y="40" width="100" height="56" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="65" y="62" fill="var(--ink)" font-weight="700">G</text><text x="65" y="78" fill="var(--ink-soft)" font-size="8.5">group</text>
+      <rect x="128" y="40" width="100" height="56" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="178" y="62" fill="var(--ink)" font-weight="700">R</text><text x="178" y="78" fill="var(--ink-soft)" font-size="8.5">relational</text>
+      <rect x="241" y="40" width="100" height="56" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="291" y="62" fill="var(--ink)" font-weight="700">I</text><text x="291" y="78" fill="var(--ink-soft)" font-size="8.5">interconnected</text>
+      <rect x="354" y="40" width="100" height="56" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="404" y="62" fill="var(--ink)" font-weight="700">N</text><text x="404" y="78" fill="var(--ink-soft)" font-size="8.5">non-verbal</text>
+      <rect x="467" y="40" width="100" height="56" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="517" y="62" fill="var(--ink)" font-weight="700">D</text><text x="517" y="78" fill="var(--ink-soft)" font-size="8.5">directional</text>
+      <rect x="580" y="40" width="105" height="56" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="632" y="62" fill="var(--ink)" font-weight="700">E</text><text x="632" y="78" fill="var(--ink-soft)" font-size="8.5">emphasized</text>
+      </g>
+      <path d="M115,68 L128,68 M228,68 L241,68 M341,68 L354,68 M454,68 L467,68 M567,68 L580,68" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <path d="M632,96 C632,130 350,150 65,120" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3" fill="none"/>
+      <path d="M70,124 L63,118 L72,115" fill="var(--accent)"/>
+      <text x="350" y="150" text-anchor="middle" font-size="9" fill="var(--accent)">E sends you back to redo G·R·I — that recursion is deep learning</text>
+    </svg>
+    <figcaption>Fig 9.1 — The six GRIND moves, and the recursive loop that Emphasizing triggers.</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 10 : LEVELS ================= -->
+<section class="mod rv" id="m10">
+  <div class="mod-eyebrow">Chapter 3 · Mind Mapping</div>
+  <span class="mod-num">Module 10</span>
+  <h2>From Blank Page to Level 3</h2>
+
+  <div class="core"><p class="drop">Two mental barriers stop most people before they start. First, <strong>you don't trust your brain</strong> — you transcribe notes word-for-word like a human photocopier because you've never let your brain hold information long enough to prove it can synthesise. Second, <strong>you believe more notes = better</strong> — but long, wordy notes correlate with <em>worse</em> performance, because constant writing means constant bypassing of thought. That beautiful 30-page set of notes is the <strong>illusion of learning</strong>: it feels productive (like buying books you never read) while producing nothing durable.</p>
+  <p>The cure for barrier one is <strong>delayed note-taking</strong>: widen the gap between information coming in and going out. With a two-sentence delay you're in <em>juggle mode</em> — high effort, low learning, just desperately holding on. Push the delay past a minute or two and juggling becomes impossible… and your brain flips a <strong>cognitive switch</strong> into <em>organizing mode</em>: it stops trying to hold everything and starts grouping, simplifying, summarising so there's less to hold. Effort drops to a sustainable level while memory and understanding shoot up. Top learners routinely delay 3–5+ minutes. The cure for barrier two is <strong>dropping your word count</strong> in stages: sentences → bullets → arrows and spatial arrangement. Each step strips words and adds thinking — "less on the page, more in the brain."</p>
+  <p>With those in place, mind mapping skill climbs four levels. <strong>Level 0</strong>: linear, wordy, superficial, highlight-heavy — uselessly time-consuming. <strong>Level 1</strong>: non-linear with connections, but messy — the training wheels; it won't feel effective yet, and it isn't, but it breaks the linear mould. <strong>Level 2</strong>: real groups, relationships and flow — you now think 20–30 seconds before writing anything, engaging higher-order thinking (avoiding it is the <em>misinterpreted effort hypothesis</em>: effort feels like failure, so people flee the very thing that works). <strong>Level 3</strong>: clear structure, visual emphasis, and groups relabelled into <em>your</em> intuitive language — considering alternative structures and judging between them. This is roughly top-10% performance, and the thinking pattern of the top 1–2% — who run it mentally even if their notes look linear.</p></div>
+
+  <h3>The progression path</h3>
+  <ol class="steps">
+    <li><strong>Delay.</strong> Stretch note-taking from word-level to sentence-level to 3–5 minutes. Chase the switch into organizing mode.</li>
+    <li><strong>Drop words.</strong> Sentences → bullets → arrows/space. Keep all meaning, lose the filler.</li>
+    <li><strong>Level 1 → 2.</strong> Start grouping by similarity and building intentional flow; tolerate the mess.</li>
+    <li><strong>Level 2 → 3.</strong> Improve quality: test alternative structures, relabel groups intuitively, emphasize the backbone.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">Writing down every word a lecturer says.</span> Zero gap between input and output, zero brain involved — the photocopier mode.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">Deliberately letting yourself forget most of a 5-minute lecture segment.</span> The overload is the point: it forces the switch from juggling to organizing, where real memory forms.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">Someone with linear notes who still gets Level-3 results.</span> They're running all the higher-order thinking mentally, then writing a synthesized mini-essay. Possible — but 2–3× slower and far harder to review than a map. Use the essay as a later revision tool instead.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Holding every fact in your head is impossible; organising them into groups makes retention automatic.</p></div>
+    <div class="pane"><h4>The analogy — laundry</h4><p>You can't carry every piece of laundry at once. Fold and file it — socks in the sock drawer — and you always know where things are.</p></div>
+    <div class="bridge">Juggle mode is armfuls of loose laundry. Organizing mode is folded drawers: less effort to hold, instant to retrieve.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "If studying feels harder after switching techniques, the technique is failing."</p>
+    <p><span class="truth">Truth:</span> That's the misinterpreted effort hypothesis. The discomfort at Level 2 is higher-order thinking arriving — the exact mechanism of stronger memory. Fleeing it returns you to comfortable, ineffective Level 1 forever.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> This module converts "I can't mind map" into a graded, weeks-long climb — each level has a visible signature, so you always know what to practice next.</p>
+  <p class="xlink">🔗 This connects to <a href="#m11">Module 11</a> because climbing these levels is itself a complex skill — and RAIL tells you exactly which stage you're in.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 200" aria-label="Four levels of note-taking from linear to emphasized mind map">
+      <g>
+      <rect x="20" y="40" width="150" height="90" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <path d="M32,58 H158 M32,72 H150 M32,86 H155 M32,100 H140 M32,114 H152" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <text x="95" y="150" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">LEVEL 0 · linear, wordy</text>
+      <rect x="190" y="40" width="150" height="90" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <circle cx="265" cy="85" r="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <path d="M265,85 L225,60 M265,85 L305,58 M265,85 L228,112 M265,85 L308,110 M225,60 L210,48 M305,58 L322,50" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <circle cx="225" cy="60" r="4" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/><circle cx="305" cy="58" r="4" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <circle cx="228" cy="112" r="4" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/><circle cx="308" cy="110" r="4" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <text x="265" y="150" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">LEVEL 1 · messy connections</text>
+      <rect x="360" y="40" width="150" height="90" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <ellipse cx="400" cy="65" rx="26" ry="14" fill="var(--accent-soft)" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <ellipse cx="470" cy="65" rx="26" ry="14" fill="var(--accent-soft)" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <ellipse cx="435" cy="108" rx="30" ry="14" fill="var(--accent-soft)" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <path d="M420,72 L450,72 M408,78 L425,96 M462,78 L445,96" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <text x="435" y="150" text-anchor="middle" font-size="9.5" fill="var(--ink)">LEVEL 2 · groups + flow</text>
+      <rect x="530" y="40" width="150" height="90" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.2"/>
+      <ellipse cx="570" cy="65" rx="26" ry="14" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <ellipse cx="640" cy="65" rx="24" ry="13" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <ellipse cx="605" cy="108" rx="28" ry="13" fill="none" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <path d="M592,72 L620,72" stroke="var(--accent)" stroke-width="2.5"/>
+      <path d="M578,78 L595,96" stroke="var(--accent)" stroke-width="2.5"/>
+      <path d="M632,78 L615,96" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <text x="605" y="150" text-anchor="middle" font-size="9.5" fill="var(--accent)">LEVEL 3 · backbone + emphasis</text>
+      </g>
+      <text x="350" y="180" text-anchor="middle" font-size="9.5" fill="var(--ink-soft)">each level = different thinking · you cannot skip one</text>
+    </svg>
+    <figcaption>Fig 10.1 — The four levels, visible at a glance. Note the thick "backbone" arrows at Level 3.</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 11 : RAIL ================= -->
+<section class="mod rv" id="m11">
+  <div class="mod-eyebrow">Chapter 4 · Skill Acquisition</div>
+  <span class="mod-num">Module 11</span>
+  <h2>RAIL: Master Any Complex Skill</h2>
+
+  <div class="core"><p class="drop">Simple skills give instant feedback — tie your shoelaces wrong and you know in five seconds. Complex skills don't: between your action and the truth, there's a <strong>latent learning period</strong> (Edward Tolman, 1930s). Learn chess and it's weeks before real games reveal your mistakes; change your study technique and it may be months before an exam tells you anything — by which time a hundred other variables have intervened. The question that fast-tracks any complex skill is simply: <em>am I moving in the right direction?</em> RAIL answers it by matching the right action to the right stage — because doing stage-3 actions at stage 2 guarantees frustration and failure.</p>
+  <p><strong>R — Relevance.</strong> You don't know what you don't know; you can't even ask good questions yet. Progress means discovering which variables matter. Actions: <em>explore</em> (talk to people who are good, gather diverse views, learn the theory) and <em>challenge</em> (your assumptions about what's important are probably wrong). <strong>A — Awareness.</strong> The plateau period — you try and consistently fail, and most people quit here. But progress is literally a checklist of ~100 mistakes to make as fast as possible. Actions: <em>experiment</em> and <em>reflect</em>, plus external feedback, because you can't see your own blind spots. <strong>I — Iteration.</strong> You can now do it correctly — but slowly, effortfully, and maybe 2–3 times out of 10. Actions: <em>varied practice</em> (different subjects, contexts, difficulties, energy levels) and <em>adjust</em> (fine-tune so consistency survives imperfect conditions). Improve in this order only: consistency → ease → speed. Chase speed early and error rates spike. <strong>L — Lifelong.</strong> The skill is now a habit — it takes effort to do it the old way. Actions: refine, and keep using it, because <strong>skill decay</strong> drags neglected skills back down the rail.</p>
+  <p>RAIL is the practical version of the classic four stages of competence (unconscious incompetence → conscious incompetence → conscious competence → unconscious competence) — same journey, but with the actions spelled out.</p></div>
+
+  <h3>Interactive: walk the rail</h3>
+  <div class="rail-line" role="tablist" aria-label="RAIL stages">
+    <button class="rail-node active" data-stage="0" role="tab"><span class="dot">R</span><span class="lbl">Relevance</span></button>
+    <button class="rail-node" data-stage="1" role="tab"><span class="dot">A</span><span class="lbl">Awareness</span></button>
+    <button class="rail-node" data-stage="2" role="tab"><span class="dot">I</span><span class="lbl">Iteration</span></button>
+    <button class="rail-node" data-stage="3" role="tab"><span class="dot">L</span><span class="lbl">Lifelong</span></button>
+  </div>
+  <div class="rail-detail" id="railDetail">
+    <b style="color:var(--accent)">Stage 1 · Relevance</b> — You feel lost; everything or nothing seems worth working on. You're not getting better yet, but you <em>are</em> progressing by discovering variables. <b>Actions:</b> explore widely, challenge your assumptions. <b>Sign of progress:</b> things that seemed irrelevant become obviously important.
+  </div>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">Learning to drive.</span> Stage 2 is the stall-test era — you know <em>what</em> you're doing wrong, and each lesson knocks mistakes off the checklist.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">A student who "wastes" a week just reading about learning science without practising anything.</span> At Stage 1 (Relevance) that's exactly correct — they're learning what to care about. The error would be demanding Stage-2 performance from a Stage-1 learner.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">An expert who stops practising for a year.</span> Skill decay slides them back down the rail — Lifelong isn't a finish line, it's maintenance.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Each stage of a skill needs a different action; mismatched actions waste effort.</p></div>
+    <div class="pane"><h4>The analogy — gears on a bike</h4><p>You don't start a hill in top gear. First gear (relevance) feels slow but is the only one that gets you moving; forcing fourth gear at the bottom just grinds you to a halt.</p></div>
+    <div class="bridge">RAIL is your gear indicator. Most learners quit because they're grinding in the wrong gear, not because the hill is too steep.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "Making lots of mistakes means I'm bad at this."</p>
+    <p><span class="truth">Truth:</span> At the Awareness stage, mistakes <em>are</em> the curriculum — progress is measured by how fast you discover them. People who avoid mistakes to "get it right" paralyse themselves; people who collect them learn in days.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> RAIL removes the guesswork from struggle — you stop asking "am I failing?" and start asking "which stage am I in, and what's its action?"</p>
+  <p class="xlink">🔗 This connects to <a href="#m12">Module 12</a> because the most common way to derail any stage is theory overload.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 150" aria-label="RAIL four stages on a track with actions">
+      <path d="M40,90 L660,90" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <path d="M40,100 L660,100" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <path d="M60,90 L60,100 M120,90 L120,100 M180,90 L180,100 M240,90 L240,100 M300,90 L300,100 M360,90 L360,100 M420,90 L420,100 M480,90 L480,100 M540,90 L540,100 M600,90 L600,100 M660,90 L660,100" stroke="var(--ink-soft)" stroke-width="1.2"/>
+      <circle cx="120" cy="70" r="16" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="120" y="75" text-anchor="middle" font-size="12" fill="var(--accent)" font-weight="700">R</text>
+      <text x="120" y="45" text-anchor="middle" font-size="9.5" fill="var(--ink)">Relevance</text>
+      <text x="120" y="125" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">explore + challenge</text>
+      <circle cx="290" cy="70" r="16" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="290" y="75" text-anchor="middle" font-size="12" fill="var(--accent)" font-weight="700">A</text>
+      <text x="290" y="45" text-anchor="middle" font-size="9.5" fill="var(--ink)">Awareness</text>
+      <text x="290" y="125" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">experiment + reflect</text>
+      <circle cx="460" cy="70" r="16" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="460" y="75" text-anchor="middle" font-size="12" fill="var(--accent)" font-weight="700">I</text>
+      <text x="460" y="45" text-anchor="middle" font-size="9.5" fill="var(--ink)">Iteration</text>
+      <text x="460" y="125" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">varied practice + adjust</text>
+      <circle cx="620" cy="70" r="16" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="620" y="75" text-anchor="middle" font-size="12" fill="var(--accent)" font-weight="700">L</text>
+      <text x="620" y="45" text-anchor="middle" font-size="9.5" fill="var(--ink)">Lifelong</text>
+      <text x="620" y="125" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">refine + use it or lose it</text>
+      <text x="350" y="145" text-anchor="middle" font-size="9" fill="var(--accent)">order of improvement: consistency → ease → speed</text>
+    </svg>
+    <figcaption>Fig 11.1 — Four stages on a rail, each with its own pair of actions.</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 12 : THEORY OVERLOAD ================= -->
+<section class="mod rv" id="m12">
+  <div class="mod-eyebrow">Chapter 4 · Skill Acquisition</div>
+  <span class="mod-num">Module 12</span>
+  <h2>Theory Overload: The ~100% Failure Mode</h2>
+
+  <div class="core"><p class="drop">Every skill is learned through the <strong>experiential cycle</strong>: have an experience → observe the result → decide what to change → run the next experiment. Like archery: once the arrow leaves the bow you can't steer it — where it lands is entirely determined by your setup. A bad result only teaches you if you know which variable to change. Random practice without reflection is just firing arrows and hoping.</p>
+  <p>But here's the trap with a near-100% failure rate: <strong>theory overload</strong>. Your working brain has a fixed pool of cognitive resources — imagine wooden blocks in a bowl. Every new thing you must consciously think about takes blocks; performing an unfamiliar skill takes more still. In research terms this is <strong>multiple element interactivity</strong>, and when the bowl overflows you hit <strong>cognitive overload</strong> — no learning happens at all, however hard you try. Cognitive skills like learning-to-learn are the worst offenders, because the act of learning is <em>already</em> resource-hungry; adding a dozen new techniques tips you over almost instantly.</p>
+  <p>The proof is a tale of two students. <strong>Suresh</strong> covered 31% of a learning program in 5 weeks — a dozen techniques, 20–30 things to juggle at once — and his grades went <em>down</em>, from 80% to 71%. <strong>Enzo</strong> covered just 20%… over 54 weeks, matching theory to his slow habit-formation rate, and climbed from 62% to 92%. The rule: <strong>balance new theory with practice</strong> — roughly <strong>1 hour of theory per 5 hours of practice</strong>, adjusted to how fast habits actually form. The real signal isn't the clock: it's that things feel easier and faster <em>without</em> losing accuracy. When a skill becomes a habit, it returns its blocks to the bowl — and only then is there room for the next theory.</p></div>
+
+  <h3>The balancing act</h3>
+  <ol class="steps">
+    <li><strong>Run the experiential cycle.</strong> Experience → observe → decide the variable → experiment. Never fire blind.</li>
+    <li><strong>Cap your theory intake.</strong> ~1 hour of new theory per 5 hours of practice. Fewer practice hours → less theory.</li>
+    <li><strong>Watch for habit formation.</strong> Easier + faster + still accurate = blocks returning to the bowl.</li>
+    <li><strong>Only then add new theory.</strong> One or two variables at a time, always.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">Trying to fix your grip, stance, breathing, aim and release in one archery session.</span> Five new variables — the bowl overflows and every shot is worse than the last.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">The "slow" student who took a year to cover a fifth of the material — and crushed the "fast" one.</span> Speed of coverage is not speed of learning. Enzo never overloaded, so every hour of practice actually counted.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">A trivially simple skill, like a new way to tie shoelaces.</span> The 1:5 ratio is overkill — five minutes suffices. The ratio is a heuristic; habit-formation speed is the true governor.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Conscious skill execution draws from a fixed pool of cognitive resources; overload stops learning dead.</p></div>
+    <div class="pane"><h4>The analogy — a bowl of blocks</h4><p>Each new thought costs a block. Habits give blocks back. Overflow the bowl and nothing sticks — effort becomes noise.</p></div>
+    <div class="bridge">Fast learners aren't taking in more theory; they're converting it to habit faster, freeing blocks for the next thing. Slow is fast.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "If I'm not improving despite lots of practice, I need more techniques."</p>
+    <p><span class="truth">Truth:</span> Almost always the opposite — you're juggling too many techniques at once. The fix is subtraction: fewer variables, more deliberate cycles, and patience for habits to form.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> This single ratio explains why months of "hard work" can produce zero improvement — and why the fix is usually to learn <em>less</em>, not more.</p>
+  <p class="xlink">🔗 This connects to <a href="#m13">Module 13</a> because professionals face theory overload constantly — and need a operating system for learning on the job.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 170" aria-label="Cognitive resource bowl overflowing vs balanced theory-practice">
+      <path d="M60,60 C60,120 200,120 200,60" stroke="var(--ink-soft)" stroke-width="1.5" fill="none"/>
+      <rect x="85" y="40" width="22" height="16" rx="2" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>
+      <rect x="112" y="36" width="22" height="16" rx="2" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>
+      <rect x="140" y="42" width="22" height="16" rx="2" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>
+      <rect x="100" y="20" width="22" height="16" rx="2" fill="none" stroke="var(--bad)" stroke-width="1.2"/>
+      <rect x="128" y="16" width="22" height="16" rx="2" fill="none" stroke="var(--bad)" stroke-width="1.2"/>
+      <rect x="155" y="24" width="22" height="16" rx="2" fill="none" stroke="var(--bad)" stroke-width="1.2"/>
+      <text x="130" y="140" text-anchor="middle" font-size="9.5" fill="var(--bad)">overloaded: blocks spill, learning stops</text>
+      <path d="M300,60 L300,120 M280,120 L320,120" stroke="var(--ink-soft)" stroke-width="1.5" fill="none"/>
+      <text x="300" y="140" text-anchor="middle" font-size="9" fill="var(--ink-soft)">1 hr theory</text>
+      <path d="M380,40 L380,120 M350,120 L410,120" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M440,40 L440,120 M410,120 L470,120" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M500,40 L500,120 M470,120 L530,120" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M560,40 L560,120 M530,120 L590,120" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M620,40 L620,120 M590,120 L650,120" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <text x="500" y="140" text-anchor="middle" font-size="9.5" fill="var(--accent)">5 hrs practice — the sustainable ratio</text>
+      <text x="350" y="160" text-anchor="middle" font-size="9" fill="var(--ink-soft)">habits form → blocks return → room for the next theory</text>
+    </svg>
+    <figcaption>Fig 12.1 — The overflowing bowl (left) and the 1:5 balance that keeps learning alive (right).</figcaption>
+  </div>
+</section>
+
+<!-- ================= MODULE 13 : PROFESSIONAL ================= -->
+<section class="mod rv" id="m13">
+  <div class="mod-eyebrow">Chapter 4 · Skill Acquisition</div>
+  <span class="mod-num">Module 13</span>
+  <h2>The Professional Learner</h2>
+
+  <div class="core"><p class="drop">Learning at work is a different game: no curriculum, no syllabus, no scheduled exams — and immense time pressure. Paradoxically, the people easiest to coach are often the <em>former bad students</em>, because they have fewer fossilised habits. The ex-top-student usually imports university techniques that no longer serve them; the hard part isn't learning new methods, it's <strong>unlearning</strong> old ones. So start from zero: build your system from your actual goal and situation, not from what you did at 20.</p>
+  <p>The operating system has a few load-bearing rules. <strong>Learn in sprints</strong>: set an explicit goal (what, how well, by when), consume aggressively until you start losing the thread, then stop consuming and <em>apply</em> for weeks or months until the knowledge feels like your own — a professional's value is execution, not consumption. <strong>Lead, don't follow</strong>: adopt the expert's mindset, because the context you learn in shapes how knowledge is stored — aiming at "passing my current level" caps you there, while thinking like the person who'd lead the field consolidates knowledge at expert depth. <strong>Write less</strong> — notes are a cognitive offload that should mirror your thinking 1:1, not a transcript. <strong>Don't memorise</strong>: memorisation is the last resort for information that can't be connected; your first question is always "how do I make this so intuitive it doesn't need memorising?"</p>
+  <p>Then the efficiency levers: <strong>prep everything</strong> (10 minutes of familiarisation before dense input saves 10× later — your brain stops juggling and starts filing); <strong>don't overeat</strong> (two constant checks: "does this make sense?" and "do I feel like I'm about to forget this?" — either means stop and digest); <strong>map everything</strong> (the brain processes visuals orders of magnitude faster than text); <strong>judge everything</strong> (rank importance 1–10; importance = influence on other ideas); <strong>ask better questions</strong> (mapping-and-judging questions — having none is a red flag to any manager); <strong>hit the books tactically</strong> (studying is your <em>fourth</em> option after knowing it, looking it up, and searching deeper — deploy it only when you need expertise, aimed at a specific gap); <strong>delete the latent learning period</strong> (get your thinking validity-checked early and often, not months later); <strong>slow is fast</strong> (consumption is never the bottleneck — processing is); and <strong>bring everything to the table</strong>, every day, until the standard becomes a habit.</p></div>
+
+  <h3>The professional's checklist</h3>
+  <ol class="steps">
+    <li><strong>Start from zero.</strong> Audit habits; keep what works, discard the rest without sentiment.</li>
+    <li><strong>Sprint.</strong> Goal → aggressive consume → long apply. Repeat.</li>
+    <li><strong>Think like the expert</strong> you intend to become — it changes how knowledge is stored.</li>
+    <li><strong>Offload, don't transcribe.</strong> Notes = mirror of thought. Write less, think more.</li>
+    <li><strong>Compress feedback.</strong> Prep before, digest during, validate your understanding early.</li>
+  </ol>
+
+  <h3>Three examples</h3>
+  <div class="ex"><span class="tag">Obvious</span><p><span class="scen">A new grad who asks "which of these two findings matters more here, and how do they interact?"</span> That's a mapping-and-judging question — it signals expert-level thinking to every senior in the room.</p></div>
+  <div class="ex"><span class="tag">Counter-intuitive</span><p><span class="scen">Reading two books in a week, then consuming <em>nothing</em> for six months.</span> The apply-phase is where the value is created. Continuous consumption without application is professional overeating.</p></div>
+  <div class="ex"><span class="tag">Edge case</span><p><span class="scen">The brilliant student who was average at work.</span> He ran all his higher-order thinking only when "studying" — not in meetings or problem-solving. Excellence isn't a mode you switch on; it's a standard you hold everywhere until it's automatic.</p></div>
+
+  <div class="analogy">
+    <div class="pane"><h4>The concept</h4><p>Studying is a last-resort tool for knowledge gaps, not a default activity.</p></div>
+    <div class="pane"><h4>The analogy — a search ladder</h4><p>First you just <em>know</em> it. Then you look it up in seconds. Then you search deeply. Only when you need genuine <em>expertise</em> — not just an answer — do you open the books.</p></div>
+    <div class="bridge">Professionals who "study" everything are using a sledgehammer for tacks. Aim the sledgehammer only where expertise is required.</div>
+  </div>
+
+  <details class="miscon"><summary>What People Get Wrong</summary>
+    <div class="body"><p><span class="myth">Myth:</span> "I don't have time to prep, digest and map — I need to cover more."</p>
+    <p><span class="truth">Truth:</span> Covering more is exactly what's costing you. Ten minutes of prep and honest digestion beats three hours of page-flicking, because the bottleneck was never consumption — it was processing. Slow is fast.</p></div>
+  </details>
+
+  <p class="why"><b>Why this matters:</b> Your career is one long latent learning period. These rules compress it — turning every project, meeting and problem into deliberate reps at an expert standard.</p>
+  <p class="xlink">🔗 This connects back to <a href="#m1">Module 01</a> — everything here is an enabler, retrieval or encoding skill, now running at professional stakes.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 170" aria-label="Professional learning sprint cycle">
+      <circle cx="350" cy="85" r="55" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <rect x="120" y="60" width="130" height="50" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="185" y="82" text-anchor="middle" font-size="11" fill="var(--ink)" font-weight="700">SET GOAL</text>
+      <text x="185" y="97" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">what · how well · by when</text>
+      <rect x="290" y="8" width="120" height="44" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="350" y="27" text-anchor="middle" font-size="11" fill="var(--ink)" font-weight="700">CONSUME</text>
+      <text x="350" y="41" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">aggressively, briefly</text>
+      <rect x="450" y="60" width="130" height="50" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="515" y="82" text-anchor="middle" font-size="11" fill="var(--ink)" font-weight="700">APPLY</text>
+      <text x="515" y="97" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">weeks–months · validate early</text>
+      <rect x="290" y="118" width="120" height="44" rx="6" fill="none" stroke="var(--ink-soft)" stroke-width="1.5"/>
+      <text x="350" y="137" text-anchor="middle" font-size="11" fill="var(--ink)" font-weight="700">OWN IT</text>
+      <text x="350" y="151" text-anchor="middle" font-size="8.5" fill="var(--ink-soft)">knowledge feels like yours</text>
+      <path d="M252,68 C270,45 280,38 288,34" stroke="var(--accent)" stroke-width="1.5" fill="none"/><path d="M284,28 L292,33 L283,39" fill="var(--accent)"/>
+      <path d="M412,34 C430,40 442,52 448,60" stroke="var(--accent)" stroke-width="1.5" fill="none"/><path d="M444,54 L451,62 L440,63" fill="var(--accent)"/>
+      <path d="M510,112 C495,135 470,142 414,140" stroke="var(--accent)" stroke-width="1.5" fill="none"/><path d="M420,134 L412,140 L421,145" fill="var(--accent)"/>
+      <path d="M288,138 C265,132 252,118 248,110" stroke="var(--accent)" stroke-width="1.5" fill="none"/><path d="M252,116 L246,108 L257,108" fill="var(--accent)"/>
+      <text x="350" y="89" text-anchor="middle" font-size="9" fill="var(--accent)">next</text>
+      <text x="350" y="100" text-anchor="middle" font-size="9" fill="var(--accent)">sprint</text>
+    </svg>
+    <figcaption>Fig 13.1 — The sprint cycle: short, aggressive consumption; long, deliberate application.</figcaption>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============ INTERACTIVE PRACTICE ZONE ============ -->
+<section class="rv" id="practice">
+  <h2>Practice Zone</h2>
+  <p style="color:var(--ink-soft);font-size:15px">Six ways to make this stick. Work through whichever you need — your progress is saved.</p>
+
+  <h3>📝 Flashcards — core vocabulary</h3>
+  <p style="font-size:13.5px;color:var(--ink-soft)">Click a card to flip. Click "context" on the back for the deeper note.</p>
+  <div class="flashgrid" id="flashGrid"></div>
+
+  <h3>🧩 Match the PACER type to its process</h3>
+  <div class="dd" id="ddPacer">
+    <p style="font-size:13.5px;color:var(--ink-soft)">Drag each process onto the information type it belongs to.</p>
+    <div class="pool" id="ddPool"></div>
+    <div class="slots">
+      <div class="slot" data-ans="Practice it immediately">Procedural</div>
+      <div class="slot" data-ans="Critique the analogy">Analogous</div>
+      <div class="slot" data-ans="Map it non-linearly">Conceptual</div>
+      <div class="slot" data-ans="Store + rehearse">Evidence</div>
+      <div class="slot" data-ans="Store + flashcards">Reference</div>
+    </div>
+    <button class="btn" id="ddReset">Reset</button>
+  </div>
+
+  <h3>✅ Quick Quiz — the forgetting machinery</h3>
+  <div class="quiz" data-correct="1">
+    <div class="q">Roughly how much of newly learned material is forgotten within a week if you do nothing?</div>
+    <button class="opt">About 10–20%</button>
+    <button class="opt">About 50–60%</button>
+    <button class="opt">About 90% — everything</button>
+    <button class="opt">Nothing, if it was understood once</button>
+    <div class="fb"></div>
+  </div>
+  <div class="quiz" data-correct="2">
+    <div class="q">You keep getting a flashcard right in 3 words. In the exam, rephrased, you blank. What happened?</div>
+    <button class="opt">You need more repetitions of the same card.</button>
+    <button class="opt">The card is too hard — delete it.</button>
+    <button class="opt">You memorised the card, not the knowledge.</button>
+    <button class="opt">You should have highlighted the source text.</button>
+    <div class="fb"></div>
+  </div>
+  <div class="quiz" data-correct="0">
+    <div class="q">Cognitive load that feels like productive confusion is…</div>
+    <button class="opt">The engine of encoding — the inverted-U's sweet spot.</button>
+    <button class="opt">A sign you should switch to an easier technique.</button>
+    <button class="opt">Always harmful and to be minimised.</button>
+    <button class="opt">Irrelevant to memory formation.</button>
+    <div class="fb"></div>
+  </div>
+
+  <h3>🎯 Fill in the blank — GRIND</h3>
+  <div class="fillblank">
+    <p>The six GRIND steps: Grouping, Relational, Interconnected, Non-verbal, Directional, and
+      <input type="text" id="fbGrind" aria-label="Sixth GRIND step" placeholder="______"> .
+      <button class="btn" id="fbCheck">Check</button> <span id="fbMark"></span></p>
+    <button class="hintlink" data-hint="0">Hint</button>
+    <div class="reveal" id="fbHint"><p class="elab" id="fbHintText"></p></div>
+  </div>
+
+  <h3>🎮 Mini-challenge — the 800-card student</h3>
+  <div class="quiz" data-correct="2">
+    <div class="q">A student has 800 daily Anki reviews, is exhausted, and still forgetting. Best <em>first</em> move?</div>
+    <button class="opt">Add 2 more review hours to keep the deck current.</button>
+    <button class="opt">Switch to a different flashcard app with a better algorithm.</button>
+    <button class="opt">Stop making cards for everything; encode first, let only "leaks" become cards, and run the 3-part session.</button>
+    <button class="opt">Delete the deck entirely and rely on rereading.</button>
+    <div class="fb"></div>
+  </div>
+
+  <h3>✍️ Teach it back — explain encoding to a 5-year-old</h3>
+  <div class="teachback">
+    <p style="font-size:13.5px;color:var(--ink-soft)">Type your simplest explanation. Then reveal the model answer and check which keywords you hit.</p>
+    <textarea id="teachText" placeholder="Encoding is like…"></textarea>
+    <div style="margin-top:10px"><button class="btn" id="teachReveal">Reveal model answer</button></div>
+    <div id="teachKw" style="margin-top:10px"></div>
+    <div class="reveal" id="teachModel"><div class="model"><b>Model answer:</b> "Your brain is like a toy box. If you throw a new toy in with everything else, you'll never find it again. But if you decide which shelf it belongs on — next to the toys it's similar to — you'll find it any time. Encoding is choosing the shelf <em>while</em> you're still holding the toy."</div></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ============ QUICK RECALL (retrieval practice) ============ -->
+<section class="rv" id="recall">
+  <h2>Quick Recall</h2>
+  <p style="font-size:14.5px;color:var(--ink-soft)">Cumulative retrieval practice — answer from memory before flipping.</p>
+  <div class="flashgrid" id="recallGrid"></div>
+</section>
+
+<hr class="rule">
+
+<!-- ============ SUMMARY & CHEAT SHEET ============ -->
+<section class="rv" id="cheat">
+  <h2>Summary &amp; Cheat Sheet</h2>
+  <div class="cheat">
+    <p style="font-size:14.5px;color:var(--ink-soft)">One page to review. Everything else in this lesson is elaboration on these lines.</p>
+    <h3>The big picture</h3>
+    <div class="row"><span class="k">3 pillars</span><span>Enablers → Retrieval → Encoding. Build in that order; encoding is last because it's slowest, not because it matters least.</span></div>
+    <div class="row"><span class="k">Memory</span><span>Sensory → Working (seconds) → Long-term. Encoding runs on cognitive load (inverted-U). Confusion = learning; boredom = passive.</span></div>
+    <div class="row"><span class="k">Repetition trap</span><span>Spaced repetition works from bad→good, plateaus good→best. Patch the bucket (encoding), don't just refill it.</span></div>
+    <div class="row"><span class="k">Flashcards</span><span>100–150/week max. Wrong×3 → deepen or delete. Right×3 → merge into higher-order cards. Preview &gt; review.</span></div>
+    <div class="row"><span class="k">Encoding</span><span>Jump to analyze/evaluate immediately; lower rungs auto-fill. Simplify · Compare · Connect · Group, on everything, forever.</span></div>
+    <div class="row"><span class="k">PACER</span><span>Procedural→practice · Analogous→critique · Conceptual→map · Evidence/Reference→store+rehearse. Balance consume &amp; digest.</span></div>
+    <div class="row"><span class="k">Ladder</span><span>Equal-effort rungs. Rung 1 builds the cups; every rung makes the next cheaper. Any rung is a valid stopping point.</span></div>
+    <div class="row"><span class="k">GRIND</span><span>Group · Relational · Interconnected · Non-verbal · Directional · Emphasized. The map is a byproduct; the process is the learning.</span></div>
+    <div class="row"><span class="k">Levels</span><span>Delay note-taking into organizing mode; drop word count. L0 linear → L1 messy → L2 grouped → L3 backbone + intuitive labels.</span></div>
+    <div class="row"><span class="k">RAIL</span><span>Relevance (explore/challenge) → Awareness (experiment/reflect) → Iteration (varied practice/adjust) → Lifelong (refine/use). Consistency → ease → speed.</span></div>
+    <div class="row"><span class="k">Theory overload</span><span>~1 hr theory : 5 hrs practice. Habits return cognitive blocks to the bowl. Slow is fast.</span></div>
+    <div class="row"><span class="k">Professional</span><span>Start from zero · sprint · lead don't follow · write less · prep · map · judge · ask better questions · compress feedback.</span></div>
+  </div>
+</section>
+
+<!-- ============ MEMORY PLAN ============ -->
+<section class="rv" id="memory">
+  <h2>Your Memory Plan</h2>
+  <p style="font-size:14.5px;color:var(--ink-soft)">Practice what this lesson preaches — space your retrieval:</p>
+  <div class="sr">
+    <span class="pill"><b>+10 min</b> · name the 3 pillars in order</span>
+    <span class="pill"><b>+1 hr</b> · sketch the forgetting curve from memory</span>
+    <span class="pill"><b>+1 day</b> · recite PACER &amp; its 5 processes</span>
+    <span class="pill"><b>+3 days</b> · redraw GRIND without looking</span>
+    <span class="pill"><b>+1 week</b> · explain RAIL to someone out loud</span>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="rv" id="faq">
+  <h2>Still Confused?</h2>
+  <details class="faq"><summary>Is spaced repetition actually bad? Should I delete Anki?</summary>
+    <div class="a">No — it's a good <em>part</em> of a system and a poor <em>whole</em> system. Keep it for reference-type facts and anything that resists encoding. The failure mode is using it as your only strategy, which turns learning into endless re-filling of a leaky bucket. Fix the encoding, keep the cards as a safety net.</div></details>
+  <details class="faq"><summary>How long until better encoding "clicks"?</summary>
+    <div class="a">For most people, one to two months of deliberate practice; for some, a few hours; for deeply ingrained rote habits, several months even with guidance. The confusion you feel at the start isn't a sign it's failing — it's the mechanism working. The skill compounds: the more you learn, the easier learning gets.</div></details>
+  <details class="faq"><summary>I'm a professional with almost no time. Where do I start?</summary>
+    <div class="a">Two moves: (1) prep everything — 10 minutes before any dense input; (2) learn in sprints — consume briefly, then apply for much longer. Both cost almost nothing and attack the real bottleneck (processing, not coverage). Add the "does this make sense / am I about to forget it?" check to every learning moment.</div></details>
+  <details class="faq"><summary>Why did my mind maps feel useless before?</summary>
+    <div class="a">Almost certainly you reached Level 1 (non-linear but messy) and stopped — that level genuinely isn't effective yet; it's training wheels. The benefit arrives at Level 2, where you spend more time <em>thinking about arrangement</em> than writing. If it felt worse than linear notes, you were in the right place at the wrong level.</div></details>
+  <details class="faq"><summary>Can AI do my mind maps for me?</summary>
+    <div class="a">It can — and that's exactly why you shouldn't let it. The grouping/comparing/judging is the learning. Use AI to collect, summarise, or verify a hypothesis <em>you already built</em>. If it makes the organising cognitively easier or bypasses your judgment, it's costing you the very thing you're trying to build.</div></details>
+</section>
+
+<!-- ============ NEXT STEPS ============ -->
+<section class="rv" id="next">
+  <h2>Next Steps</h2>
+  <ul style="list-style:none;padding:0">
+    <li style="padding:6px 0 6px 24px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">→</span>Run one <strong>Ladder pass</strong> on your hardest current topic tonight (15 minutes, easy ideas only).</li>
+    <li style="padding:6px 0 6px 24px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">→</span>Audit your flashcard deck: flag right×3 and wrong×3, then run one merge-and-upgrade session.</li>
+    <li style="padding:6px 0 6px 24px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">→</span>Try <strong>delayed note-taking</strong> in your next lecture — stretch the gap by one sentence at a time.</li>
+    <li style="padding:6px 0 6px 24px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">→</span>Pick one complex skill you're learning and diagnose your RAIL stage; do only that stage's actions this week.</li>
+    <li style="padding:6px 0 6px 24px;position:relative"><span style="position:absolute;left:0;color:var(--accent)">→</span>Check your theory:practice ratio. If it's above 1:5, stop consuming and start cycling.</li>
+  </ul>
+</section>
+
+<div class="endbadge" id="endBadge">✓ You finished the lesson</div>
+
+</main>
+</div>
+
+<script>
+/* ============================================================
+   All interactivity — vanilla JS, no dependencies.
+   ============================================================ */
+
+/* ---------- boot: hide loading once content is ready ---------- */
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    document.getElementById('loading').classList.add('gone');
+  }, 350);
+});
+
+/* ---------- theme toggle (persisted) ---------- */
+var themeBtn = document.getElementById('themeToggle');
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  themeBtn.textContent = (t==='dark') ? '☀' : '☾';
+  try{ localStorage.setItem('lesson-theme', t); }catch(e){}
+}
+themeBtn.addEventListener('click', function(){
+  var cur = document.documentElement.getAttribute('data-theme');
+  setTheme(cur==='dark' ? 'light' : 'dark');
+});
+(function(){ var saved=null; try{ saved=localStorage.getItem('lesson-theme'); }catch(e){}
+  setTheme(saved || 'light'); })();
+
+/* ---------- thin progress bar ---------- */
+var fill = document.getElementById('progressFill');
+window.addEventListener('scroll', function(){
+  var h = document.documentElement;
+  var max = h.scrollHeight - h.clientHeight;
+  var pct = max>0 ? (h.scrollTop / max)*100 : 0;
+  fill.style.width = pct + '%';
+}, {passive:true});
+
+/* ---------- knowledge map: click to scroll ---------- */
+document.querySelectorAll('.knode').forEach(function(node){
+  node.addEventListener('click', function(){
+    var t = document.getElementById(node.getAttribute('data-target'));
+    if(t) t.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+  node.setAttribute('tabindex','0');
+  node.setAttribute('role','link');
+  node.addEventListener('keydown', function(e){
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); node.click(); }
+  });
+});
+
+/* ---------- scroll reveal (gentle) ---------- */
+var io = new IntersectionObserver(function(entries){
+  entries.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target);} });
+},{threshold:0.06});
+document.querySelectorAll('.rv').forEach(function(el){ io.observe(el); });
+
+/* ---------- module visit tracking (localStorage) ---------- */
+var visited = {};
+try{ visited = JSON.parse(localStorage.getItem('lesson-visited')||'{}'); }catch(e){}
+function paintVisited(){
+  var n = Object.keys(visited).length;
+  document.getElementById('sideProgress').textContent = n + ' / 13 modules visited';
+}
+paintVisited();
+var modIO = new IntersectionObserver(function(entries){
+  entries.forEach(function(en){
+    if(en.isIntersecting){
+      visited[en.target.id]=true;
+      try{ localStorage.setItem('lesson-visited', JSON.stringify(visited)); }catch(e){}
+      paintVisited();
+      modIO.unobserve(en.target);
+    }
+  });
+},{threshold:0.25});
+document.querySelectorAll('.mod').forEach(function(m){ modIO.observe(m); });
+
+/* ---------- end badge ---------- */
+var badgeIO = new IntersectionObserver(function(entries){
+  entries.forEach(function(en){ if(en.isIntersecting){ document.getElementById('endBadge').classList.add('show'); badgeIO.disconnect(); } });
+},{threshold:0.5});
+badgeIO.observe(document.getElementById('next'));
+
+/* ---------- "But why" elaborative reveals ---------- */
+document.querySelectorAll('.elab-toggle').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var target = document.getElementById(btn.getAttribute('data-for'));
+    target.classList.toggle('open');
+  });
+});
+
+/* ---------- FLASHCARDS (term / definition + extra context) ---------- */
+var flashData = [
+  {t:'Encoding', d:'The process of moving information from working memory into long-term memory.', c:'Powered by cognitive load. Weak encoding = a bucket full of holes.'},
+  {t:'Retrieval', d:'Pulling stored information back into working memory to use it.', c:'Each successful retrieval strengthens the trace AND reveals gaps.'},
+  {t:'Enablers', d:'Self-management + growth skills that let you show up and improve consistently.', c:'The rate limiter. Fix these before any technique.'},
+  {t:'Cognitive load', d:'The mental effort of processing; the engine of encoding (inverted-U).', c:'Feels like confusion. Too little = passive; too much = overload.'},
+  {t:'Desirable difficulty', d:'The productive discomfort that signals real learning is happening.', c:'Like a gym workout — the strain is the mechanism.'},
+  {t:'Forgetting curve', d:'The decay of memory over time; ~50–60% lost within a week unreviewed.', c:'Reviews flatten the slope; strong encoding flattens it from day one.'},
+  {t:'Microlearning', d:'Short 3–7 minute concentrated study bursts in dead time.', c:'Flashcards excel here: 20–30 min/day with zero scheduling.'},
+  {t:'Latent learning period', d:'The delay between practising a skill and getting true feedback on it.', c:'Long for complex skills. Professionals compress it with early validation.'}
+];
+var fg = document.getElementById('flashGrid');
+flashData.forEach(function(card, i){
+  var el = document.createElement('div');
+  el.className='fcard'; el.setAttribute('tabindex','0'); el.setAttribute('role','button');
+  el.setAttribute('aria-label','Flashcard: '+card.t+'. Press to flip.');
+  el.innerHTML = '<div class="inner">'+
+    '<div class="face front"><div class="k">Term '+(i+1)+'</div>'+card.t+'</div>'+
+    '<div class="face back"><div class="k">Definition</div>'+card.d+'<div class="ctx">▸ '+card.c+'</div></div>'+
+    '</div>';
+  function flip(){ el.classList.toggle('flip'); }
+  el.addEventListener('click', flip);
+  el.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){e.preventDefault();flip();} });
+  fg.appendChild(el);
+});
+
+/* ---------- DRAG & DROP: PACER matching ---------- */
+var processes = ['Practice it immediately','Critique the analogy','Map it non-linearly','Store + rehearse','Store + flashcards'];
+var pool = document.getElementById('ddPool');
+processes.slice().sort(function(){return 0.5-Math.random();}).forEach(function(p){
+  var chip=document.createElement('div');
+  chip.className='chip'; chip.textContent=p; chip.draggable=true; chip.dataset.val=p;
+  chip.addEventListener('dragstart',function(e){ e.dataTransfer.setData('text/plain',p); chip.classList.add('dragging'); });
+  chip.addEventListener('dragend',function(){ chip.classList.remove('dragging'); });
+  pool.appendChild(chip);
+});
+document.querySelectorAll('#ddPacer .slot').forEach(function(slot){
+  slot.addEventListener('dragover',function(e){ e.preventDefault(); slot.classList.add('over'); });
+  slot.addEventListener('dragleave',function(){ slot.classList.remove('over'); });
+  slot.addEventListener('drop',function(e){
+    e.preventDefault(); slot.classList.remove('over');
+    var val=e.dataTransfer.getData('text/plain');
+    var chip=document.querySelector('.chip[data-val="'+val+'"]');
+    if(!chip) return;
+    // if slot already filled, return old chip to pool
+    if(slot.dataset.filled){ var old=document.querySelector('.chip[data-val="'+slot.dataset.filled+'"]'); if(old) pool.appendChild(old); }
+    slot.textContent = slot.getAttribute('data-ans') ? (slot.dataset.label||slot.textContent) : slot.textContent;
+    slot.dataset.label = slot.dataset.label || slot.textContent;
+    slot.textContent = val;
+    slot.dataset.filled = val;
+    slot.classList.add('filled');
+    chip.remove(); // remove from pool; represented in slot
+    // grade
+    if(val===slot.getAttribute('data-ans')){ slot.classList.add('right'); slot.classList.remove('wrong'); }
+    else { slot.classList.add('wrong'); slot.classList.remove('right'); }
+  });
+});
+document.getElementById('ddReset').addEventListener('click', function(){
+  document.querySelectorAll('#ddPacer .slot').forEach(function(s){
+    s.classList.remove('filled','right','wrong'); s.textContent=s.dataset.label||s.textContent; s.dataset.filled='';
+  });
+  pool.innerHTML='';
+  processes.slice().sort(function(){return 0.5-Math.random();}).forEach(function(p){
+    var chip=document.createElement('div');
+    chip.className='chip'; chip.textContent=p; chip.draggable=true; chip.dataset.val=p;
+    chip.addEventListener('dragstart',function(e){ e.dataTransfer.setData('text/plain',p); chip.classList.add('dragging'); });
+    chip.addEventListener('dragend',function(){ chip.classList.remove('dragging'); });
+    pool.appendChild(chip);
+  });
+});
+
+/* ---------- QUIZZES with detailed feedback ---------- */
+var quizFB = {
+  ok:'That\u2019s right. ',
+  no:'Not quite. '
+};
+document.querySelectorAll('.quiz').forEach(function(qz){
+  var correct = parseInt(qz.getAttribute('data-correct'),10);
+  var fb = qz.querySelector('.fb');
+  var opts = qz.querySelectorAll('.opt');
+  // per-question explanations
+  var explain = {
+    '0':['The research puts it at roughly half — which is why unreviewed studying is largely wasted.','The correct answer is about 50\u201360%. The forgetting curve is steep at first; you may have confused it with the 90% figure, which refers to unprocessed reading overall. Let\u2019s review: first learning decays fast, each review flattens the slope.'],
+    '1':['Repetition of the same card is exactly what created the problem.','The correct answer is: you memorised the card, not the knowledge. Repetition builds an association with the card\u2019s wording, not the concept. Review: merge right\u00d73 cards into higher-order questions so rote recognition can\u2019t hide.'],
+    '2':['Correct \u2014 that\u2019s the inverted-U sweet spot where encoding happens.','The correct answer is that it\u2019s the engine of encoding. Productive confusion signals the brain is filing information; ease usually signals passive processing.'],
+    '3':['Exactly \u2014 the deck is a symptom of weak encoding, not the disease.','The correct answer is to encode first and let only leaks become cards. Adding review hours treats the symptom. Review Module 04\u2019s 3-part session.']
+  };
+  opts.forEach(function(opt, idx){
+    opt.addEventListener('click', function(){
+      opts.forEach(function(o){o.disabled=true;});
+      var isRight = (idx===correct);
+      opt.classList.add(isRight?'correct':'incorrect');
+      if(!isRight) opts[correct].classList.add('correct');
+      fb.className='fb show '+(isRight?'ok':'no');
+      fb.textContent = (isRight?explain[correct][0]:explain[correct][1]);
+      try{
+        var scores=JSON.parse(localStorage.getItem('lesson-quiz')||'{}');
+        scores[qz.querySelector('.q').textContent.slice(0,20)]=isRight;
+        localStorage.setItem('lesson-quiz', JSON.stringify(scores));
+      }catch(e){}
+    });
+  });
+});
+
+/* ---------- FILL IN THE BLANK: GRIND, 3-level hints ---------- */
+var hints=['It\u2019s the final step \u2014 the E in GRIND.','It\u2019s about judging what matters most and making it visually dominant.','It starts with "Em" \u2014 the backbone of the map.'];
+var hintIdx=0;
+document.querySelector('[data-hint]').addEventListener('click', function(){
+  var box=document.getElementById('fbHint');
+  document.getElementById('fbHintText').textContent = hints[Math.min(hintIdx,2)];
+  box.classList.add('open'); hintIdx++;
+});
+document.getElementById('fbCheck').addEventListener('click', function(){
+  var val=document.getElementById('fbGrind').value.trim().toLowerCase();
+  var mark=document.getElementById('fbMark');
+  if(val.indexOf('emphas')===0){ mark.innerHTML='<span class="mark-ok">✓ Correct — Emphasized.</span>'; }
+  else { mark.innerHTML='<span class="mark-no">Not quite. The answer is "Emphasized" — judging and visually marking what matters most.</span>'; }
+});
+
+/* ---------- RAIL interactive timeline ---------- */
+var railStages=[
+ '<b style="color:var(--accent)">Stage 1 · Relevance</b> — You feel lost; everything or nothing seems worth working on. You\u2019re not getting better yet, but you <em>are</em> progressing by discovering variables. <b>Actions:</b> explore widely, challenge your assumptions. <b>Sign of progress:</b> things that seemed irrelevant become obviously important.',
+ '<b style="color:var(--accent)">Stage 2 · Awareness</b> — The plateau. You try and consistently fail; most people quit here. Progress = collecting the ~100 mistakes as fast as possible. <b>Actions:</b> experiment, reflect, get external feedback. <b>Sign of progress:</b> fewer new mistakes each cycle.',
+ '<b style="color:var(--accent)">Stage 3 · Iteration</b> — You can do it right, but slowly and maybe 2–3 times in 10. <b>Actions:</b> varied practice across contexts and difficulties; adjust so consistency survives bad conditions. <b>Order:</b> consistency → ease → speed. Never chase speed first.',
+ '<b style="color:var(--accent)">Stage 4 · Lifelong</b> — The skill is a habit; doing it the old way now takes effort. <b>Actions:</b> refine where needed and keep using it — skill decay pulls neglected skills back down the rail.'
+];
+document.querySelectorAll('.rail-node').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('.rail-node').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    document.getElementById('railDetail').innerHTML = railStages[parseInt(btn.dataset.stage,10)];
+  });
+});
+
+/* ---------- TEACH-BACK with keyword coverage ---------- */
+var keywords=['shelf','organ','connect','fit','relat','simple','group','network','big picture','toy'];
+document.getElementById('teachReveal').addEventListener('click', function(){
+  document.getElementById('teachModel').classList.add('open');
+  var txt=document.getElementById('teachText').value.toLowerCase();
+  var wrap=document.getElementById('teachKw'); wrap.innerHTML='<b style="font-size:12px;color:var(--ink-soft)">Keyword coverage: </b>';
+  keywords.forEach(function(k){
+    var hit = txt.indexOf(k)>-1;
+    var span=document.createElement('span'); span.className='kw'+(hit?' hit':''); span.textContent=k;
+    wrap.appendChild(span);
+  });
+});
+</script>
+</body>
+</html>

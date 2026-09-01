@@ -1,0 +1,2747 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Starting Today — 15 Years of Mistakes, Compressed</title>
+<style>
+/* ============================================================
+   STARTING TODAY — self-contained interactive lesson
+   No external dependencies. Pure HTML/CSS/JS + inline SVG.
+   Color code: blue=primary/interactive · green=support/correct
+   orange=warning/myth · gray-dashed=connections
+   ============================================================ */
+
+/* ---------- 1. THEME TOKENS ---------- */
+:root{
+  --mono: ui-monospace,"Cascadia Code","SF Mono","JetBrains Mono","Fira Code",Menlo,Consolas,monospace;
+  --body: "Avenir Next","Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+}
+html[data-theme="light"]{
+  --bg:#eef2f8; --bg2:#e3eaf4; --surface:#ffffff; --surface2:#f5f8fc;
+  --ink:#16233b; --muted:#5a6b85; --line:#d4dcea;
+  --blue:#1c63d4; --blue-soft:#e2ecfd; --blue-ink:#144a9e;
+  --green:#178a5e; --green-soft:#ddf2e8;
+  --orange:#d97a1f; --orange-soft:#fdeeda;
+  --conn:#93a1b6; --code-bg:#101a2c; --code-ink:#d7e3f4;
+  --glow1:rgba(28,99,212,.10); --glow2:rgba(23,138,94,.08);
+  --shadow:0 10px 30px rgba(22,35,59,.10);
+}
+html[data-theme="dark"]{
+  --bg:#0c1322; --bg2:#0a101d; --surface:#141e33; --surface2:#182441;
+  --ink:#e7eefb; --muted:#94a5c2; --line:#263450;
+  --blue:#5b9bff; --blue-soft:#16294a; --blue-ink:#a8ccff;
+  --green:#3ecf8e; --green-soft:#12352a;
+  --orange:#f5a54a; --orange-soft:#3a2a12;
+  --conn:#5b6b87; --code-bg:#0a1120; --code-ink:#cfe0f5;
+  --glow1:rgba(91,155,255,.10); --glow2:rgba(62,207,142,.07);
+  --shadow:0 12px 34px rgba(0,0,0,.45);
+}
+
+/* ---------- 2. BASE ---------- */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--body); color:var(--ink); background:var(--bg);
+  line-height:1.65; font-size:16.5px; overflow-x:hidden;
+  transition:background .45s ease,color .45s ease;
+}
+/* layered ambient background: dot grid + two soft field glows */
+body::before{
+  content:""; position:fixed; inset:0; z-index:-2; pointer-events:none;
+  background-image:radial-gradient(var(--line) 1px, transparent 1.4px);
+  background-size:26px 26px; opacity:.5;
+}
+body::after{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(720px 480px at 8% -6%, var(--glow1), transparent 62%),
+    radial-gradient(680px 520px at 96% 104%, var(--glow2), transparent 60%);
+}
+h1,h2,h3,h4{font-family:var(--mono); line-height:1.18; letter-spacing:-.01em}
+p{max-width:68ch}
+a{color:var(--blue)}
+button{font-family:inherit; cursor:pointer}
+:focus-visible{outline:3px solid var(--blue); outline-offset:3px; border-radius:6px}
+code, .mono{font-family:var(--mono)}
+.term{font-family:var(--mono); font-size:.88em; background:var(--blue-soft); color:var(--blue-ink);
+  padding:.1em .45em; border-radius:6px; border:1px solid var(--line); white-space:nowrap}
+.wrap{max-width:1080px; margin:0 auto; padding:0 22px}
+section{padding:56px 0}
+.reveal{opacity:0; transform:translateY(26px); transition:opacity .7s ease,transform .7s ease}
+.reveal.inview{opacity:1; transform:none}
+
+/* ---------- 3. BOOT / LOADING OVERLAY ---------- */
+#boot{position:fixed; inset:0; z-index:200; background:var(--bg2);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+  transition:opacity .5s ease;}
+#boot.done{opacity:0; pointer-events:none}
+.boot-term{width:min(560px,94vw); background:var(--code-bg); color:var(--code-ink);
+  border-radius:12px; box-shadow:var(--shadow); overflow:hidden; border:1px solid var(--line)}
+.boot-bar{display:flex; gap:7px; padding:11px 14px; background:rgba(255,255,255,.05); border-bottom:1px solid rgba(255,255,255,.08)}
+.boot-bar i{width:11px;height:11px;border-radius:50%;display:block}
+.boot-bar i:nth-child(1){background:#ff5f57}.boot-bar i:nth-child(2){background:#febc2e}.boot-bar i:nth-child(3){background:#28c840}
+#bootlog{padding:18px 18px 22px; font-family:var(--mono); font-size:13.5px; min-height:190px; line-height:1.9}
+#bootlog .ok{color:#3ecf8e} #bootlog .dim{color:#7d90ad}
+.cursor{display:inline-block;width:9px;height:1.15em;background:var(--blue);vertical-align:text-bottom;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.boot-skip{margin-top:10px; text-align:center; font-family:var(--mono); font-size:11.5px; color:var(--muted)}
+
+/* ---------- 4. TOP BAR + PROGRESS ---------- */
+#topline{position:fixed; top:0; left:0; height:4px; width:0%; z-index:120;
+  background:linear-gradient(90deg,var(--blue),var(--green)); transition:width .6s ease}
+#topbar{position:sticky; top:0; z-index:110; background:var(--surface);
+  border-bottom:1px solid var(--line); transition:background .45s,border-color .45s}
+#topbar .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px}
+.logo{font-family:var(--mono); font-weight:700; font-size:14px}
+.logo b{color:var(--blue)}
+#pct{margin-left:auto; font-family:var(--mono); font-size:13px; color:var(--muted)}
+#pct b{color:var(--ink); font-size:15px}
+#themeBtn{background:var(--surface2); border:1px solid var(--line); color:var(--ink);
+  border-radius:9px; padding:7px 12px; font-size:15px; transition:transform .2s,background .3s}
+#themeBtn:hover{transform:rotate(18deg) scale(1.08)}
+
+.tracker{background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:20px 22px; box-shadow:var(--shadow)}
+.pbar{height:14px; background:var(--surface2); border:1px solid var(--line); border-radius:99px; overflow:hidden}
+.pbar i{display:block; height:100%; width:0%;
+  background:linear-gradient(90deg,var(--blue),var(--green)); transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.badges{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px}
+.badge{font-family:var(--mono); font-size:12px; padding:6px 12px; border-radius:99px;
+  border:1px dashed var(--conn); color:var(--muted); transition:all .35s}
+.badge.on{border-style:solid; border-color:var(--green); background:var(--green-soft); color:var(--ink);
+  animation:pop .45s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+
+/* ---------- 5. MASTHEAD ---------- */
+#masthead{padding:74px 0 30px}
+.mast-grid{display:grid; grid-template-columns:1.25fr .75fr; gap:38px; align-items:start}
+.kicker{font-family:var(--mono); font-size:12.5px; letter-spacing:.22em; color:var(--blue);
+  text-transform:uppercase; display:flex; align-items:center; gap:10px}
+.kicker::before{content:""; width:34px; height:2px; background:var(--blue)}
+h1.title{font-size:clamp(2.6rem,6.4vw,4.4rem); font-weight:800; margin:16px 0 14px}
+h1.title .cur{color:var(--blue); animation:blink 1.1s steps(1) infinite}
+.lede{color:var(--muted); font-size:1.08rem; max-width:56ch}
+.meta-chips{display:flex; flex-wrap:wrap; gap:9px; margin-top:20px}
+.chip{font-family:var(--mono); font-size:12px; padding:6px 12px; border-radius:8px;
+  background:var(--surface); border:1px solid var(--line)}
+.chip b{color:var(--blue)}
+.manifest{background:var(--code-bg); color:var(--code-ink); border-radius:14px; padding:20px 22px;
+  font-family:var(--mono); font-size:13.5px; line-height:1.95; box-shadow:var(--shadow);
+  border:1px solid var(--line); position:relative; overflow:hidden}
+.manifest::after{content:"manifest.json"; position:absolute; top:10px; right:14px; font-size:10.5px; opacity:.5}
+.manifest .k{color:#7fb2ff}.manifest .s{color:#7ee2b0}.manifest .n{color:#f5a54a}.manifest .c{color:#6d81a0}
+
+/* ---------- 6. SECTION HEADERS ---------- */
+.sec-head{margin-bottom:26px}
+.sec-head .tag{font-family:var(--mono); font-size:12px; letter-spacing:.2em; color:var(--muted); text-transform:uppercase}
+.sec-head h2{font-size:clamp(1.7rem,3.6vw,2.4rem); margin-top:6px}
+.sec-head h2 em{font-style:normal; color:var(--blue)}
+
+/* ---------- 7. KNOWLEDGE MAP ---------- */
+.map-box{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:18px;
+  box-shadow:var(--shadow); position:relative}
+.map-box svg{width:100%; height:auto; display:block}
+.mnode circle{fill:var(--surface2); stroke:var(--conn); stroke-width:2; transition:all .3s}
+.mnode text.lbl{font-family:var(--mono); font-size:12.5px; fill:var(--ink)}
+.mnode text.emo{font-size:21px}
+.mnode{cursor:pointer}
+.mnode:hover circle,.mnode:focus circle{stroke:var(--blue); fill:var(--blue-soft); transform:scale(1.07); transform-origin:center; transform-box:fill-box}
+.mnode.done circle{stroke:var(--blue); fill:var(--blue-soft)}
+.mnode.hot circle{stroke:var(--blue); fill:var(--blue-soft)}
+.medge{stroke:var(--conn); stroke-width:1.7; stroke-dasharray:6 6; fill:none; transition:stroke .3s,stroke-width .3s}
+.medge.hot{stroke:var(--blue); stroke-width:2.6; stroke-dasharray:none}
+.map-tip{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:10px; text-align:center}
+
+/* ---------- 8. MODULES ---------- */
+.module{border-top:1px dashed var(--conn); padding-top:52px}
+.mod-head{display:flex; gap:20px; align-items:flex-start; margin-bottom:22px}
+.mod-num{font-family:var(--mono); font-size:clamp(2.6rem,5vw,3.6rem); font-weight:800; color:var(--blue);
+  opacity:.28; line-height:1; min-width:86px}
+.mod-head h2{font-size:clamp(1.6rem,3.4vw,2.25rem)}
+.mod-kick{font-family:var(--mono); font-size:12.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--orange); margin-top:6px}
+.subtag{display:inline-block; font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--blue); background:var(--blue-soft); border:1px solid var(--line);
+  padding:4px 10px; border-radius:6px; margin:26px 0 12px}
+.module h4{font-size:1.02rem; margin-bottom:10px}
+.steps{counter-reset:st; list-style:none; display:grid; gap:12px}
+.steps li{counter-increment:st; background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--blue);
+  border-radius:10px; padding:14px 16px 14px 54px; position:relative; transition:transform .25s,box-shadow .25s}
+.steps li:hover{transform:translateX(5px); box-shadow:var(--shadow)}
+.steps li::before{content:counter(st,decimal-leading-zero); position:absolute; left:14px; top:13px;
+  font-family:var(--mono); font-weight:700; color:var(--blue); font-size:15px}
+.ex-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.ex-card{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:18px;
+  transition:transform .25s, box-shadow .25s}
+.ex-card:hover{transform:translateY(-4px); box-shadow:var(--shadow)}
+.ex-card .lab{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase}
+.ex-card.obv .lab{color:var(--green)} .ex-card.ctr .lab{color:var(--orange)}
+.ex-card h4{margin:8px 0 6px}
+/* analogy side-by-side card */
+.analogy{display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--line); border-radius:14px;
+  overflow:hidden; background:var(--surface); box-shadow:var(--shadow)}
+.analogy>div{padding:20px}
+.analogy .a-concept{border-right:1px dashed var(--conn); background:var(--blue-soft)}
+.analogy .why-works{grid-column:1/-1; border-top:1px dashed var(--conn); background:var(--surface2); font-size:.95rem}
+.analogy h4{font-family:var(--mono)}
+.mini-fig{margin:12px 0}
+.mini-fig svg{width:100%; max-width:300px; height:auto; display:block; margin:0 auto}
+/* misconceptions accordion */
+.acc{border:1px solid var(--line); border-left:4px solid var(--orange); border-radius:10px; background:var(--surface); margin-top:12px; overflow:hidden}
+.acc-btn{width:100%; text-align:left; background:none; border:none; color:var(--ink);
+  padding:15px 18px; font-size:1rem; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px}
+.acc-btn .car{transition:transform .3s; color:var(--orange)}
+.acc[open] .car{transform:rotate(90deg)}
+.acc-body{max-height:0; overflow:hidden; transition:max-height .45s ease}
+.acc[open] .acc-body{max-height:640px}
+.acc-inner{padding:0 18px 18px}
+.myth{color:var(--orange); font-weight:700} .truth{color:var(--green); font-weight:700}
+.acc-inner p{margin:6px 0; font-size:.96rem}
+/* why matters + links */
+.matters{background:var(--green-soft); border:1px solid var(--line); border-left:4px solid var(--green);
+  border-radius:10px; padding:16px 18px; font-weight:600}
+.links{display:flex; flex-wrap:wrap; gap:10px; margin-top:10px}
+.link-chip{font-family:var(--mono); font-size:12.5px; background:var(--surface); border:1px dashed var(--conn);
+  color:var(--ink); border-radius:99px; padding:8px 14px; transition:all .25s}
+.link-chip:hover{border-color:var(--blue); color:var(--blue); transform:translateY(-2px)}
+/* elaborative interrogation */
+.why-btn{font-family:var(--mono); font-size:12px; color:var(--blue); background:var(--blue-soft);
+  border:1px solid var(--line); border-radius:99px; padding:5px 12px; margin-top:10px; transition:transform .2s}
+.why-btn:hover{transform:scale(1.05)}
+.why-a{display:none; margin-top:10px; padding:12px 14px; background:var(--surface2);
+  border-left:3px solid var(--blue); border-radius:8px; font-size:.94rem}
+.why-a.show{display:block; animation:fadeUp .4s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+/* chunking */
+.chunk li.hide{display:none}
+.more-btn{font-family:var(--mono); font-size:12px; background:none; border:1px dashed var(--conn);
+  color:var(--muted); border-radius:8px; padding:6px 12px; margin-top:8px}
+.more-btn:hover{color:var(--blue); border-color:var(--blue)}
+
+/* ---------- 9. FIGURES / SVG ---------- */
+figure.fig{background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:20px; margin:22px 0; box-shadow:var(--shadow)}
+figure.fig svg{width:100%; height:auto; display:block}
+figcaption{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:12px; text-align:center}
+.draw{stroke-dasharray:1; stroke-dashoffset:1}
+.fig.inview .draw{animation:dash 1.3s ease forwards; animation-delay:calc(var(--i,0)*.28s)}
+@keyframes dash{to{stroke-dashoffset:0}}
+.fig .fade{opacity:0}
+.fig.inview .fade{animation:fadeUp .6s ease forwards; animation-delay:calc(var(--i,0)*.28s + .5s)}
+.bar-fill{transform:scaleX(0); transform-origin:left center; transition:transform 1.1s cubic-bezier(.2,.8,.2,1)}
+.fig.inview .bar-fill{transform:scaleX(1)}
+.bar-v{transform:scaleY(0); transform-origin:center bottom; transition:transform 1.1s cubic-bezier(.2,.8,.2,1)}
+.fig.inview .bar-v{transform:scaleY(1)}
+.ring{transform:scale(0); transform-origin:center; transform-box:fill-box; transition:transform .8s cubic-bezier(.2,1.4,.4,1)}
+.fig.inview .ring{transform:scale(1)}
+.svg-t{font-family:var(--mono); fill:var(--ink)} .svg-m{font-family:var(--mono); fill:var(--muted)}
+/* hotspots */
+.hs-wrap{position:relative}
+.hotspot{cursor:pointer}
+.hotspot circle.hs-ring{fill:var(--blue-soft); stroke:var(--blue); stroke-width:2; transition:all .25s}
+.hotspot:hover circle.hs-ring,.hotspot:focus circle.hs-ring{fill:var(--blue); }
+.hotspot:hover text,.hotspot:focus text{fill:#fff}
+.hotspot .pulse{fill:none; stroke:var(--blue); opacity:.5; animation:pulse 2.4s ease-out infinite; transform-origin:center; transform-box:fill-box}
+@keyframes pulse{0%{transform:scale(.7);opacity:.7}100%{transform:scale(1.5);opacity:0}}
+.hs-pop{position:absolute; inset:auto 12px 12px 12px; margin:auto; max-width:430px;
+  background:var(--surface2); border:1px solid var(--blue); border-radius:12px; padding:16px 18px;
+  box-shadow:var(--shadow); display:none; z-index:5}
+.hs-pop.show{display:block; animation:fadeUp .35s ease}
+.hs-pop h4{color:var(--blue)} .hs-pop p{font-size:.93rem; margin-top:6px}
+.hs-close{position:absolute; top:8px; right:10px; background:none; border:none; color:var(--muted); font-size:17px}
+/* timeline */
+.tnode{cursor:pointer}
+.tnode circle{fill:var(--surface2); stroke:var(--conn); stroke-width:2.5; transition:all .3s}
+.tnode:hover circle,.tnode:focus circle,.tnode.active circle{stroke:var(--blue); fill:var(--blue-soft)}
+.tnode.active circle{stroke-width:3.5}
+.t-detail{background:var(--surface2); border:1px solid var(--line); border-left:4px solid var(--blue);
+  border-radius:10px; padding:16px 18px; margin-top:14px; min-height:96px; animation:fadeUp .35s ease}
+
+/* ---------- 10. QUIZZES ---------- */
+.quiz{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px 22px; margin-top:26px; box-shadow:var(--shadow)}
+.quiz .qtag{font-family:var(--mono); font-size:11px; letter-spacing:.16em; color:var(--green); text-transform:uppercase}
+.quiz h4{margin:8px 0 14px; font-size:1.05rem}
+.qopts{display:grid; gap:9px}
+.qopt{text-align:left; background:var(--surface2); border:1.5px solid var(--line); border-radius:10px;
+  padding:12px 14px; color:var(--ink); font-size:.95rem; transition:all .22s; display:flex; gap:10px; align-items:flex-start}
+.qopt:hover:not(:disabled){border-color:var(--blue); transform:translateX(4px)}
+.qopt .key{font-family:var(--mono); font-weight:700; color:var(--muted); min-width:18px}
+.qopt.correct{border-color:var(--green); background:var(--green-soft)}
+.qopt.wrong{border-color:var(--orange); background:var(--orange-soft)}
+.qopt:disabled{cursor:default; opacity:.92}
+.qwhy{display:none; font-size:.86rem; color:var(--muted); margin-top:5px; width:100%}
+.qopt.answered .qwhy{display:block}
+.qopt.answered{flex-wrap:wrap}
+.qfb{margin-top:14px; padding:13px 15px; border-radius:10px; font-size:.94rem; display:none; animation:fadeUp .4s}
+.qfb.show{display:block}
+.qfb.good{background:var(--green-soft); border:1px solid var(--green)}
+.qfb.bad{background:var(--orange-soft); border:1px solid var(--orange)}
+.qscore{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:12px}
+
+/* ---------- 11. QUICK RECALL ---------- */
+.recall{border:2px dashed var(--green); border-radius:16px; padding:26px; background:var(--surface);
+  margin:44px 0}
+.recall .rtag{font-family:var(--mono); font-size:12px; letter-spacing:.18em; color:var(--green); text-transform:uppercase}
+
+/* ---------- 12. PRACTICE LAB ---------- */
+.lab{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:24px; margin-top:22px; box-shadow:var(--shadow)}
+.lab h3{font-size:1.25rem; margin-bottom:6px}
+.lab .ldesc{color:var(--muted); font-size:.95rem; margin-bottom:16px}
+/* drag & drop */
+.dnd-pool{display:flex; flex-wrap:wrap; gap:10px; padding:14px; background:var(--surface2);
+  border:1px dashed var(--conn); border-radius:12px; min-height:58px; margin-bottom:16px}
+.dnd-chip{font-family:var(--mono); font-size:13px; background:var(--blue-soft); color:var(--blue-ink);
+  border:1.5px solid var(--blue); border-radius:99px; padding:8px 15px; cursor:grab; user-select:none; transition:transform .2s}
+.dnd-chip:hover{transform:translateY(-2px)}
+.dnd-chip.sel{outline:3px solid var(--blue); outline-offset:2px}
+.dnd-chip.placed{cursor:pointer}
+.dnd-chip.right{background:var(--green-soft); border-color:var(--green); color:var(--ink)}
+.dnd-chip.wrongp{background:var(--orange-soft); border-color:var(--orange); color:var(--ink)}
+.dnd-slot{min-width:130px; min-height:38px; display:inline-flex; align-items:center; justify-content:center;
+  border:2px dashed var(--conn); border-radius:99px; padding:4px 10px; margin:0 4px; vertical-align:middle;
+  transition:all .25s; cursor:pointer}
+.dnd-slot.over{border-color:var(--blue); background:var(--blue-soft)}
+.dnd-slot.filled{border-style:solid}
+.dnd-def{background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; font-size:.95rem}
+/* fill in blank */
+.fib{background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px}
+.fib input{font-family:var(--mono); font-size:15px; background:var(--surface); color:var(--ink);
+  border:1.5px solid var(--line); border-radius:8px; padding:8px 12px; width:170px; transition:border-color .25s}
+.fib input:focus{border-color:var(--blue); outline:none}
+.fib input.ok{border-color:var(--green); background:var(--green-soft)}
+.fib input.no{border-color:var(--orange)}
+.btn{font-family:var(--mono); font-size:13px; background:var(--blue); color:#fff; border:none;
+  border-radius:9px; padding:9px 16px; transition:transform .2s, filter .2s}
+.btn:hover{transform:translateY(-2px); filter:brightness(1.1)}
+.btn.ghost{background:var(--surface2); color:var(--ink); border:1px solid var(--line)}
+.btn:disabled{opacity:.5; cursor:default; transform:none}
+.hint-line{font-size:.88rem; color:var(--muted); margin-top:8px; font-style:italic}
+/* challenge */
+.ch-decision{background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:18px; margin-top:12px}
+.ch-opt{display:block; width:100%; text-align:left; background:var(--surface); border:1.5px solid var(--line);
+  border-radius:10px; padding:12px 15px; margin-top:9px; color:var(--ink); font-size:.95rem; transition:all .22s}
+.ch-opt:hover:not(:disabled){border-color:var(--blue); transform:translateX(4px)}
+.ch-opt:disabled{opacity:.55; cursor:default}
+.ch-opt.picked{border-color:var(--blue); opacity:1}
+.ch-out{margin-top:12px; padding:13px 15px; border-radius:10px; font-size:.93rem; display:none; animation:fadeUp .4s}
+.ch-out.show{display:block}
+.ch-out.good{background:var(--green-soft); border:1px solid var(--green)}
+.ch-out.mid{background:var(--blue-soft); border:1px solid var(--blue)}
+.ch-out.bad{background:var(--orange-soft); border:1px solid var(--orange)}
+.ch-dots{display:flex; gap:8px; margin-top:14px}
+.ch-dots i{width:12px; height:12px; border-radius:50%; background:var(--surface2); border:1.5px solid var(--conn)}
+.ch-dots i.g{background:var(--green); border-color:var(--green)}
+.ch-dots i.m{background:var(--blue); border-color:var(--blue)}
+.ch-dots i.b{background:var(--orange); border-color:var(--orange)}
+
+/* ---------- 13. MEMORY STUDIO ---------- */
+.flash-stage{perspective:1200px; max-width:520px; margin:0 auto}
+.fcard{position:relative; width:100%; min-height:230px; cursor:pointer; transform-style:preserve-3d;
+  transition:transform .65s cubic-bezier(.3,.9,.3,1)}
+.fcard.flip{transform:rotateY(180deg)}
+.fface{position:absolute; inset:0; backface-visibility:hidden; border-radius:14px; padding:24px;
+  display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:10px}
+.fface.front{background:var(--blue-soft); border:2px solid var(--blue)}
+.fface.back{background:var(--green-soft); border:2px solid var(--green); transform:rotateY(180deg)}
+.fface h4{font-size:1.3rem}
+.fface p{font-size:.97rem}
+.fextra{display:none; font-size:.86rem; color:var(--muted); border-top:1px dashed var(--conn); padding-top:8px}
+.fextra.show{display:block}
+.fctrl{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:16px}
+.fcount{font-family:var(--mono); font-size:12.5px; color:var(--muted); text-align:center; margin-top:10px}
+.mastery{display:flex; gap:6px; justify-content:center; margin-top:8px}
+.mastery i{width:10px; height:10px; border-radius:50%; background:var(--surface2); border:1px solid var(--conn)}
+.mastery i.m1{background:var(--orange); border-color:var(--orange)}
+.mastery i.m2{background:var(--green); border-color:var(--green)}
+/* spaced repetition */
+.sr-item{display:flex; gap:14px; align-items:flex-start; background:var(--surface2); border:1px solid var(--line);
+  border-radius:10px; padding:13px 15px; margin-bottom:9px; transition:opacity .3s}
+.sr-item.locked{opacity:.45}
+.sr-when{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--blue);
+  background:var(--blue-soft); border-radius:8px; padding:5px 10px; min-width:74px; text-align:center}
+.sr-item input[type=checkbox]{width:19px; height:19px; accent-color:var(--green); margin-top:2px; cursor:pointer}
+.sr-item.donep{border-color:var(--green)}
+/* teach-back */
+.teach-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px}
+.teach-grid textarea{width:100%; min-height:150px; background:var(--surface2); color:var(--ink);
+  border:1.5px solid var(--line); border-radius:12px; padding:14px; font-family:var(--body); font-size:.96rem; resize:vertical}
+.teach-grid textarea:focus{border-color:var(--blue); outline:none}
+.model-ans{background:var(--green-soft); border:1px solid var(--green); border-radius:12px; padding:16px; font-size:.95rem; display:none}
+.model-ans.show{display:block; animation:fadeUp .45s}
+.kw-chips{display:flex; flex-wrap:wrap; gap:7px; margin-top:10px}
+.kw{font-family:var(--mono); font-size:11.5px; padding:4px 10px; border-radius:99px; border:1px solid var(--line); color:var(--muted)}
+.kw.hit{background:var(--green-soft); border-color:var(--green); color:var(--ink)}
+
+/* ---------- 14. CHEAT SHEET ---------- */
+.cheat{background:var(--code-bg); color:var(--code-ink); border-radius:16px; padding:26px 28px; box-shadow:var(--shadow); border:1px solid var(--line)}
+.cheat h3{color:#7fb2ff; margin-bottom:14px}
+.cheat ol{margin-left:20px; display:grid; gap:9px}
+.cheat li{font-family:var(--mono); font-size:13.5px; line-height:1.7}
+.cheat li::marker{color:#3ecf8e; font-weight:700}
+
+/* ---------- 15. ASSESSMENT ---------- */
+.ass-box{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:26px; box-shadow:var(--shadow)}
+.ass-progress{display:flex; gap:6px; margin-bottom:18px; flex-wrap:wrap}
+.ass-progress i{width:22px; height:7px; border-radius:4px; background:var(--surface2); border:1px solid var(--line)}
+.ass-progress i.cur{background:var(--blue); border-color:var(--blue)}
+.ass-progress i.g{background:var(--green); border-color:var(--green)}
+.ass-progress i.b{background:var(--orange); border-color:var(--orange)}
+.ass-result{text-align:center; padding:20px 0}
+.ass-score{font-family:var(--mono); font-size:3.4rem; font-weight:800; color:var(--blue)}
+.ass-tier{font-size:1.15rem; font-weight:700; margin:8px 0 4px}
+
+/* ---------- 16. FAQ / NEXT ---------- */
+.faq .acc{border-left-color:var(--blue)}
+.next-list{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.next-item{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:17px 19px;
+  transition:transform .25s, box-shadow .25s}
+.next-item:hover{transform:translateY(-4px); box-shadow:var(--shadow)}
+.next-item .n{font-family:var(--mono); color:var(--green); font-weight:700; font-size:13px}
+
+footer{border-top:1px dashed var(--conn); padding:34px 0 46px; color:var(--muted); font-size:.9rem}
+
+/* ---------- 17. RESPONSIVE ---------- */
+@media(max-width:900px){
+  .mast-grid,.ex-grid,.analogy,.teach-grid,.next-list{grid-template-columns:1fr}
+  .analogy .a-concept{border-right:none; border-bottom:1px dashed var(--conn)}
+  .mod-num{min-width:56px}
+}
+@media(max-width:600px){
+  body{font-size:15.5px}
+  section{padding:40px 0}
+  .mod-head{flex-direction:column; gap:6px}
+  .dnd-slot{display:flex; margin:8px 0; min-height:42px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001s!important; transition-duration:.001s!important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body aria-busy="true">
+
+<!-- ══════════ BOOT / LOADING STATE ══════════ -->
+<div id="boot" role="status" aria-label="Loading lesson">
+  <div>
+    <div class="boot-term">
+      <div class="boot-bar"><i></i><i></i><i></i></div>
+      <div id="bootlog"></div>
+    </div>
+    <div class="boot-skip">click anywhere or press any key to skip</div>
+  </div>
+</div>
+
+<div id="topline" aria-hidden="true"></div>
+
+<!-- ══════════ TOP BAR ══════════ -->
+<header id="topbar">
+  <div class="wrap">
+    <span class="logo">~/<b>starting-today</b></span>
+    <span id="pct"><b>0%</b> complete</span>
+    <button id="themeBtn" aria-pressed="false" aria-label="Toggle dark and light mode">🌙</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ══════════ MASTHEAD ══════════ -->
+  <section id="masthead">
+    <div class="mast-grid">
+      <div class="reveal">
+        <div class="kicker">Transcript → Lesson · 15 years → 6 modules</div>
+        <h1 class="title">STARTING<br>TODAY<span class="cur">_</span></h1>
+        <p class="lede">Everything a 15-year software engineer &amp; founder would do differently if he started
+          again in the AI era — the refusals to unlearn, the shortcuts to take, and the human edge to keep.</p>
+        <div class="meta-chips">
+          <span class="chip">📦 <b>6</b> modules</span>
+          <span class="chip">🎮 <b>9</b> interactives</span>
+          <span class="chip">⏱ ~<b>45</b> min</span>
+          <span class="chip">🔌 <b>0</b> dependencies</span>
+          <span class="chip">💾 progress saved locally</span>
+        </div>
+      </div>
+      <div class="manifest reveal" aria-label="Lesson manifest">
+<span class="c">// lesson.manifest</span><br>
+{<br>
+&nbsp;&nbsp;<span class="k">"source"</span>: <span class="s">"15 yrs, production"</span>,<br>
+&nbsp;&nbsp;<span class="k">"compiled"</span>: <span class="s">"mistakes → modules"</span>,<br>
+&nbsp;&nbsp;<span class="k">"modules"</span>: <span class="n">6</span>,<br>
+&nbsp;&nbsp;<span class="k">"quizzes"</span>: <span class="n">29</span>,<br>
+&nbsp;&nbsp;<span class="k">"flashcards"</span>: <span class="n">8</span>,<br>
+&nbsp;&nbsp;<span class="k">"regrets_reused"</span>: <span class="n">15</span>,<br>
+&nbsp;&nbsp;<span class="k">"excuses"</span>: <span class="n">0</span><br>
+}
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ WHAT YOU'LL LEARN + TRACKER ══════════ -->
+  <section id="overview">
+    <div class="sec-head reveal">
+      <div class="tag">// what you'll learn</div>
+      <h2>Six upgrades to your <em>operating system</em></h2>
+    </div>
+    <div class="ex-grid reveal">
+      <div class="ex-card obv"><span class="lab">By the end you will…</span>
+        <ul style="margin:10px 0 0 18px; display:grid; gap:8px">
+          <li>✅ Explain why <b>adaptation speed</b> beats years of experience</li>
+          <li>✅ Pair <b>fundamentals with AI agents</b> without becoming a vibe coder</li>
+          <li>✅ <b>Borrow decades</b> of experience from mentors &amp; applied content</li>
+        </ul>
+      </div>
+      <div class="ex-card obv"><span class="lab">…and be able to</span>
+        <ul style="margin:10px 0 0 18px; display:grid; gap:8px">
+          <li>✅ Shape skills as a <b>top hat</b> — broad brim, deep crown, learn the diff</li>
+          <li>✅ <b>Ship a real product</b>: domain, users, real data, live migrations</li>
+          <li>✅ <b>Expand your comfort zone</b> and stay human in an AI-saturated market</li>
+        </ul>
+      </div>
+    </div>
+    <div class="tracker reveal" style="margin-top:20px" aria-label="Progress tracker">
+      <div style="display:flex; justify-content:space-between; font-family:var(--mono); font-size:13px; margin-bottom:9px">
+        <span>📈 COURSE PROGRESS</span><span id="pct2">0 / 20 checkpoints</span>
+      </div>
+      <div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="pbarMain"><i></i></div>
+      <div class="badges" id="badges">
+        <span class="badge" data-at="25">🔥 25% · Warm-Up</span>
+        <span class="badge" data-at="50">⚙️ 50% · Half-Stack</span>
+        <span class="badge" data-at="75">🎩 75% · Senior Track</span>
+        <span class="badge" data-at="100">🚀 100% · Shipped</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ KNOWLEDGE MAP (start) ══════════ -->
+  <section id="map-start">
+    <div class="sec-head reveal">
+      <div class="tag">// interactive knowledge map</div>
+      <h2>How the modules <em>connect</em></h2>
+    </div>
+    <div class="map-box reveal">
+      <div id="mapA"></div>
+      <div class="map-tip">Hover a node to light up its connections · click (or Tab + Enter) to jump to that module · nodes fill blue as you complete them</div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       MODULE 1 — ADAPT OR DIVERGE
+       ══════════════════════════════════════════ -->
+  <section class="module" id="m1" data-mod="m1">
+    <div class="mod-head reveal">
+      <div class="mod-num">01</div>
+      <div>
+        <div class="mod-kick">⚡ The meta-skill · ~6 min</div>
+        <h2>Adapt or Diverge</h2>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">A · Core Explanation</span>
+      <p>Here is the frame for everything else in this lesson: <b>disruption moves very fast, and adaptation is typically slow.</b>
+        When you're early in your career you might be genuinely on track — but if you're not keeping up with trends,
+        new capabilities, and new approaches to work, you <em>slowly diverge</em> from the proper path. The danger is
+        that the divergence is invisible day to day. It only becomes visible at layoff time.</p>
+      <p style="margin-top:12px">This is why someone with <span class="term">10, 15, 30 years of experience</span> can be laid off
+        and lose interviews to entry-level engineers: those years don't automatically contain the experience that matters
+        <b>today</b>. Calendar time and relevant skill are different currencies. The newcomer in the transcript competes
+        with less <em>total</em> skill — but the <em>right slice</em> of it.</p>
+      <p style="margin-top:12px">The lever you control: <b>the speed at which you adapt.</b> Disruption you can't slow down;
+        your adaptation rate you can raise. Treat adaptation as a skill you train, not weather you endure.</p>
+      <button class="why-btn" aria-expanded="false">🤔 But why does demand matter more than total skill?</button>
+      <div class="why-a">Because a role pays for the slice of your skill set it can <em>use</em>. If a company is hiring for
+        AI capabilities — using LLMs, shipping AI features — your 15 years of unrelated depth simply don't get counted.
+        The market prices <em>relevant</em> surface area, not total volume.</div>
+    </div>
+
+    <div class="reveal"><span class="subtag">B · Step-by-Step</span>
+      <ol class="steps">
+        <li><b>Treat "on track" as a decaying state.</b> Being current is a snapshot, not a status. It expires on a schedule you don't control.</li>
+        <li><b>Schedule trend scans.</b> Weekly time boxed to: what's new in tools, capabilities, and workflows — even (especially) things that threaten your current stack.</li>
+        <li><b>Allocate deliberate hours to what's in demand now.</b> Not everything — but a fixed slice of every week goes to the disrupting force.</li>
+        <li><b>Measure adaptation speed, not years.</b> Ask monthly: "What can I do now that I couldn't do 90 days ago?"</li>
+      </ol>
+    </div>
+
+    <!-- M1 diagram: divergence chart + skill-composition bars -->
+    <figure class="fig" role="img" aria-label="Line chart showing an adapting career rising while a coasting career diverges downward, plus two skill-composition bars showing a veteran with a small AI slice versus a newcomer with a large AI slice">
+      <svg viewBox="0 0 620 300">
+        <line x1="60" y1="20" x2="60" y2="250" stroke="var(--conn)" stroke-width="1.5"/>
+        <line x1="60" y1="250" x2="600" y2="250" stroke="var(--conn)" stroke-width="1.5"/>
+        <text x="14" y="34" class="svg-m" font-size="11">market fit →</text>
+        <text x="540" y="270" class="svg-m" font-size="11">years →</text>
+        <path class="draw" style="--i:0" pathLength="1" d="M60,245 C180,225 320,150 590,60" fill="none" stroke="var(--blue)" stroke-width="3.5"/>
+        <path class="draw" style="--i:1" pathLength="1" d="M60,245 C180,238 340,240 590,262" fill="none" stroke="var(--orange)" stroke-width="3.5" stroke-dasharray="1" />
+        <path class="draw" style="--i:2" pathLength="1" d="M560,80 L560,245" fill="none" stroke="var(--conn)" stroke-width="1.5" stroke-dasharray="5 5"/>
+        <g class="fade" style="--i:2">
+          <text x="330" y="120" class="svg-t" font-size="13" fill="var(--blue)" font-weight="700">you, adapting weekly</text>
+          <text x="350" y="228" class="svg-t" font-size="13" fill="var(--orange)" font-weight="700">you, coasting</text>
+          <text x="568" y="165" class="svg-m" font-size="11">the gap</text>
+          <text x="70" y="240" class="svg-m" font-size="11">today: both "on track"</text>
+        </g>
+      </svg>
+      <svg viewBox="0 0 620 130" style="margin-top:8px">
+        <text x="10" y="30" class="svg-t" font-size="13">15-yr veteran</text>
+        <rect x="130" y="16" width="430" height="24" rx="5" fill="var(--surface2)" stroke="var(--conn)"/>
+        <rect class="bar-fill" x="520" y="16" width="40" height="24" rx="5" fill="var(--blue)"/>
+        <text x="10" y="86" class="svg-t" font-size="13">1-yr newcomer</text>
+        <rect x="130" y="72" width="180" height="24" rx="5" fill="var(--surface2)" stroke="var(--conn)"/>
+        <rect class="bar-fill" x="200" y="72" width="110" height="24" rx="5" fill="var(--blue)"/>
+        <text x="430" y="34" class="svg-m" font-size="11">total skill (gray) · AI slice (blue)</text>
+        <text x="330" y="90" class="svg-t" font-size="12" fill="var(--blue)" font-weight="700">← role requires AI capability. Who gets hired?</text>
+      </svg>
+      <figcaption>FIG 1.1 — The divergence is invisible day-to-day; the skill slice is what the market prices.</figcaption>
+    </figure>
+
+    <div class="reveal"><span class="subtag">C · Examples</span>
+      <div class="ex-grid">
+        <div class="ex-card obv"><span class="lab">✅ The obvious one</span>
+          <h4>The laid-off senior</h4>
+          <p>A senior engineer with decades on the resume gets laid off and struggles against entry-level candidates —
+          because those juniors spent their (shorter) careers focused on the stuff that's in demand <em>right now</em>.</p></div>
+        <div class="ex-card ctr"><span class="lab">🔀 The counter-intuitive one</span>
+          <h4>The newcomer wins with <em>less</em> total skill</h4>
+          <p>A brand-new developer with a smaller overall skill set — but the majority of it aimed at the disrupting
+          technology — beats the veteran for an AI-capability role. Smaller pie, bigger relevant slice.</p></div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">D · Visual Analogy</span>
+      <div class="analogy">
+        <div class="a-concept"><h4>🧭 The concept: silent divergence</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="Two paths starting together at a fork and slowly separating">
+            <circle cx="20" cy="55" r="7" fill="var(--blue)"/>
+            <path d="M30,55 C80,50 130,30 190,18" fill="none" stroke="var(--blue)" stroke-width="3"/>
+            <path d="M30,55 C80,60 130,80 190,95" fill="none" stroke="var(--orange)" stroke-width="3" stroke-dasharray="6 5"/>
+            <text x="120" y="12" class="svg-m" font-size="10">proper path</text>
+            <text x="130" y="106" class="svg-m" font-size="10">slow drift</text>
+          </svg></div>
+          <p>Two people start at the same point. One keeps correcting course; the other holds the original heading. Nothing dramatic happens for years — then the gap is a canyon.</p>
+        </div>
+        <div><h4>🏃 The analogy: the Red Queen's race</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="A runner on a treadmill that moves backwards">
+            <rect x="30" y="70" width="140" height="12" rx="6" fill="var(--surface2)" stroke="var(--conn)"/>
+            <path d="M150,76 L60,76" stroke="var(--orange)" stroke-width="2" marker-end="url(#arrR)"/>
+            <defs><marker id="arrR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--orange)"/></marker></defs>
+            <circle cx="100" cy="38" r="9" fill="var(--blue)"/>
+            <path d="M100,47 L100,62 M100,52 L88,58 M100,52 L112,58 M100,62 L92,72 M100,62 L108,72" stroke="var(--blue)" stroke-width="3" fill="none"/>
+            <text x="42" y="100" class="svg-m" font-size="10">ground moves backward</text>
+          </svg></div>
+          <p>In <em>Through the Looking-Glass</em>, the Red Queen tells Alice: <b>"It takes all the running you can do, to keep in the same place."</b> Your effort feels like standing still — because the landscape moves under your feet.</p>
+        </div>
+        <div class="why-works"><b>🧠 Why it works:</b> both pictures share the same hidden variable — a moving reference frame.
+          On a treadmill, "running hard" and "going nowhere" are the same event. In a career, "working hard on last decade's
+          stack" and "falling behind" are the same event. The analogy makes the invisible drift feel physical.</div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">E · ❌ What People Get Wrong</span>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "I have 15 years of experience, so I'm safe." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> years of experience = current expertise.</p>
+          <p><span class="truth">Truth:</span> it can be <em>one year of experience, repeated fifteen times</em>.</p>
+          <p><b>Reasoning:</b> experience only compounds if you keep updating the inputs. Otherwise it fossilizes — and the
+          market quietly reprices you while your resume stays the same length.</p>
+        </div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "I'm on track right now, so I'm fine." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> being on track is a durable status.</p>
+          <p><span class="truth">Truth:</span> it's a snapshot — and the track itself is moving.</p>
+          <p><b>Reasoning:</b> "on track" measures you against today's map. Disruption redraws the map on its own schedule,
+          so the only stable position is one that includes regular correction.</p>
+        </div></div></div>
+    </div>
+
+    <div class="reveal"><span class="subtag">F · Why This Matters</span>
+      <div class="matters">💚 This is the frame for the entire lesson. Every skill below — AI, mentors, depth, shipping —
+        only pays off if your adaptation engine is running. Adaptation speed is the one meta-skill that keeps all the others current.</div>
+    </div>
+
+    <div class="reveal"><span class="subtag">G · 🔗 Inter-Module Links</span>
+      <div class="links">
+        <button class="link-chip" data-goto="m2">🔗 → Module 2: AI is the disruption you're currently being tested on</button>
+        <button class="link-chip" data-goto="m3">🔗 → Module 3: experienced people are your early-warning radar</button>
+        <button class="link-chip" data-goto="m6">🔗 → Module 6: your network sets how fast you see trends</button>
+      </div>
+    </div>
+
+    <div class="quiz reveal" data-quiz="m1"><span class="qtag">✅ Check yourself · Module 1</span></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       MODULE 2 — AI AS TUTOR
+       ══════════════════════════════════════════ -->
+  <section class="module" id="m2" data-mod="m2">
+    <div class="mod-head reveal">
+      <div class="mod-num">02</div>
+      <div>
+        <div class="mod-kick">🤖 The refusal trap · ~8 min</div>
+        <h2>AI Is Your Tutor, Not Your Crutch</h2>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">A · Core Explanation</span>
+      <p>The author gets near-daily emails: <em>"What should I do to learn as fast as humanly possible?"</em> — and when he
+        answers <b>"use AI agents to enhance your progress,"</b> the reply is often: <em>"Whoa, I don't want to use AI,
+        it'll slow down my learning."</em> His reaction: you asked what I'd do in your position, then refused the answer.
+        The belief that AI "destroys your foundation" isn't a property of the tool — it's a flaw in the <b>approach</b> to the tool.</p>
+      <p style="margin-top:12px">The correct stance is <b>both/and</b>. Should you know how to code? Yes. Should you understand
+        the fundamentals? Absolutely — that's where you start. But pair it with AI-enhanced learning. There are times you
+        write everything by hand; times you let <span class="term">agents</span> write code; and times you use agents purely
+        to deepen understanding without letting them touch the code. Splitting these into "first learn, then use AI" forces
+        you into the structure of 20-year veterans who are <em>failing to adapt</em>.</p>
+      <p style="margin-top:12px">The evidence he offers: after using agents daily for six months, his learning was
+        <b>comparable to a couple of years of solo study</b>. Used correctly, agents don't make software worse — they
+        improve system design, architecture, bug-hunting, and security. The goal is
+        <span class="term">AI-enhanced software engineering</span>, not <span class="term">vibe coding</span>
+        (letting AI write everything while understanding nothing).</p>
+    </div>
+
+    <div class="reveal"><span class="subtag">B · Step-by-Step — The AI Learning Workflow</span>
+      <ol class="steps">
+        <li><b>Build a knowledge vault.</b> A folder of markdown notes about your project or study. AI helps structure your thoughts and flags incorrect claims. It becomes shared reference for you <em>and</em> the agents.</li>
+        <li><b>Write reusable AI "skills."</b> A skill is a prompt you define once and invoke like a function: <code>research</code>, <code>code-translation</code>, <code>design-alternatives</code>. The alternatives skill is the most valuable — more on that below.</li>
+        <li><b>Demand runnable examples.</b> Don't accept stated facts — have AI generate a quick example of overflow, rounding, or whatever the docs assert, then <em>run it and watch it happen</em>.</li>
+        <li><b>Fan out agents.</b> Spawn multiple agents for multiple approaches in parallel — it injects randomness and shows you the space of solutions, not one siloed answer.</li>
+        <li><b>Turn AI into your examiner.</b> Have it quiz you, review your notes for flaws, and write failing tests that <em>you</em> must implement to pass.</li>
+      </ol>
+      <button class="why-btn" aria-expanded="false">🤔 But why is "design alternatives" the most valuable skill?</button>
+      <div class="why-a">Because the biggest failure of modern learning is <b>siloed concepts</b>. Studying OOP, you may never
+        learn that functional patterns can replace many OOP design patterns, that trait-based languages skip formal classes,
+        or that some languages allow multiple inheritance and others don't. An alternatives skill attacks the same topic from
+        every angle — it can even challenge the category: <em>"do we need OOP here at all?"</em> That breadth used to require
+        years of exposure. Now it's one prompt.</div>
+    </div>
+
+    <!-- M2 diagram: interactive hotspot toolkit -->
+    <figure class="fig hs-wrap" role="img" aria-label="Interactive diagram of the AI learning toolkit with five clickable hotspots: knowledge vault, reusable skills, example generator, agent fan-out, and examiner">
+      <svg viewBox="0 0 640 300">
+        <rect x="20" y="20" width="600" height="260" rx="14" fill="var(--surface2)" stroke="var(--line)"/>
+        <text x="40" y="52" class="svg-t" font-size="15" font-weight="700">🧰 THE AI LEARNING TOOLKIT</text>
+        <text x="40" y="72" class="svg-m" font-size="11.5">click a hotspot to open its detail card</text>
+        <g class="hotspot" data-hs="vault" tabindex="0" role="button" aria-label="Hotspot: knowledge vault">
+          <circle class="pulse" cx="120" cy="160" r="34"/><circle class="hs-ring" cx="120" cy="160" r="30"/>
+          <text x="120" y="168" text-anchor="middle" font-size="22">📚</text>
+          <text x="120" y="218" text-anchor="middle" class="svg-m" font-size="11">knowledge vault</text>
+        </g>
+        <g class="hotspot" data-hs="skills" tabindex="0" role="button" aria-label="Hotspot: reusable skills">
+          <circle class="pulse" cx="255" cy="130" r="34"/><circle class="hs-ring" cx="255" cy="130" r="30"/>
+          <text x="255" y="138" text-anchor="middle" font-size="22">⚙️</text>
+          <text x="255" y="188" text-anchor="middle" class="svg-m" font-size="11">reusable skills</text>
+        </g>
+        <g class="hotspot" data-hs="examples" tabindex="0" role="button" aria-label="Hotspot: example generator">
+          <circle class="pulse" cx="390" cy="165" r="34"/><circle class="hs-ring" cx="390" cy="165" r="30"/>
+          <text x="390" y="173" text-anchor="middle" font-size="22">🧪</text>
+          <text x="390" y="223" text-anchor="middle" class="svg-m" font-size="11">example generator</text>
+        </g>
+        <g class="hotspot" data-hs="fanout" tabindex="0" role="button" aria-label="Hotspot: agent fan-out">
+          <circle class="pulse" cx="520" cy="125" r="34"/><circle class="hs-ring" cx="520" cy="125" r="30"/>
+          <text x="520" y="133" text-anchor="middle" font-size="22">🔀</text>
+          <text x="520" y="183" text-anchor="middle" class="svg-m" font-size="11">agent fan-out</text>
+        </g>
+        <g class="hotspot" data-hs="examiner" tabindex="0" role="button" aria-label="Hotspot: the examiner">
+          <circle class="pulse" cx="520" cy="228" r="30"/><circle class="hs-ring" cx="520" cy="228" r="26"/>
+          <text x="520" y="236" text-anchor="middle" font-size="19">❓</text>
+          <text x="430" y="262" text-anchor="middle" class="svg-m" font-size="11">examiner</text>
+        </g>
+      </svg>
+      <div class="hs-pop" id="hsPop" role="dialog" aria-label="Hotspot detail">
+        <button class="hs-close" aria-label="Close detail">✕</button>
+        <h4 id="hsTitle"></h4><p id="hsBody"></p>
+      </div>
+      <figcaption>FIG 2.1 — Five tools, one principle: you still do the lifting; AI multiplies the feedback.</figcaption>
+    </figure>
+
+    <div class="reveal"><span class="subtag">C · Examples</span>
+      <div class="ex-grid">
+        <div class="ex-card obv"><span class="lab">✅ The obvious one — concurrency</span>
+          <h4>Three tasks, three architectures</h4>
+          <p>Learning concurrency? Don't memorize one pattern. Have AI generate runnable code for: <b>serial</b>
+          (1→2→3→"done"), <b>parallel-wait</b> (all finish → "done"), and <b>fire-and-forget</b> ("done" now, tasks finish later) —
+          plus real-world cases for choosing each, and the trade-offs of runtime light-threads vs OS threads vs async/await.</p></div>
+        <div class="ex-card ctr"><span class="lab">🔀 The counter-intuitive one — attack the category</span>
+          <h4>"Do we even need OOP?"</h4>
+          <p>While studying object-oriented programming, his alternatives skill surfaces functional replacements,
+          trait-based designs without classes, and multiple-inheritance differences — then questions whether OOP is needed
+          at all in a language like Python. It breaks the "this is how it's always done" illusion.</p></div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">D · Visual Analogy</span>
+      <div class="analogy">
+        <div class="a-concept"><h4>🏋️ The concept: fundamentals + AI together</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="A lifter with a barbell and a coach beside them">
+            <circle cx="70" cy="35" r="9" fill="var(--blue)"/>
+            <path d="M70,44 L70,70 M70,50 L48,40 M70,50 L92,40 M70,70 L60,90 M70,70 L80,90" stroke="var(--blue)" stroke-width="3" fill="none"/>
+            <rect x="38" y="30" width="64" height="6" rx="3" fill="var(--conn)"/>
+            <circle cx="140" cy="38" r="9" fill="var(--green)"/>
+            <path d="M140,47 L140,75 M140,53 L120,60 M140,75 L132,95 M140,75 L148,95" stroke="var(--green)" stroke-width="3" fill="none"/>
+            <text x="118" y="20" class="svg-m" font-size="10">"lean left!"</text>
+          </svg></div>
+          <p>You still write code, still learn fundamentals — but an always-available reviewer corrects your form in real time and shows you angles you'd never find alone.</p>
+        </div>
+        <div><h4>🥊 The analogy: the sparring partner</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="A boxer sparring with a partner who throws controlled punches">
+            <circle cx="60" cy="40" r="9" fill="var(--blue)"/>
+            <path d="M60,49 L60,75 M60,55 L82,50 M60,75 L50,95 M60,75 L70,95" stroke="var(--blue)" stroke-width="3" fill="none"/>
+            <circle cx="140" cy="40" r="9" fill="var(--orange)"/>
+            <path d="M140,49 L140,75 M140,55 L118,50 M140,75 L130,95 M140,75 L150,95" stroke="var(--orange)" stroke-width="3" fill="none"/>
+            <path d="M84,48 L114,48" stroke="var(--conn)" stroke-width="2" stroke-dasharray="4 4"/>
+            <text x="55" y="106" class="svg-m" font-size="10">you throw the punches</text>
+          </svg></div>
+          <p>A coach never fights <em>for</em> you. They throw controlled challenges at exactly your level, point out the
+          telegraphed jab you can't see yourself, and make you repeat it right. Refusing the coach to "protect your fundamentals"
+          is… not how anyone gets good at boxing.</p>
+        </div>
+        <div class="why-works"><b>🧠 Why it works:</b> in both cases the <em>effort stays yours</em> — what multiplies is
+          feedback density. Six months of daily corrected reps beats two years of uncorrected ones. That's the whole arithmetic of AI-enhanced learning.</div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">E · ❌ What People Get Wrong</span>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "Using AI will slow down my learning." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> AI and strong fundamentals are enemies — pick one.</p>
+          <p><span class="truth">Truth:</span> a <em>bad approach</em> to AI slows learning. Used as examiner, example-generator,
+          and reviewer, it accelerates understanding — the author's own six months ≈ years of solo study.</p>
+          <p><b>Reasoning:</b> he admits he held this exact belief first ("I'm good with what I have"). The shift wasn't the
+          tools — it was forcing himself to use them <em>in every way possible, at high quality</em>.</p>
+        </div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "I'll wait until I'm a senior developer to use AI." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> AI is a reward for the experienced.</p>
+          <p><span class="truth">Truth:</span> waiting "makes zero sense" — you're voluntarily adopting the structure of
+          20-year veterans who are failing to adapt to current workflows.</p>
+          <p><b>Reasoning:</b> the people succeeding <em>right now</em> mix hand-written code, agent-written code, and
+          agent-assisted understanding — situationally. Copying the winners' mix beats copying the losers' purity.</p>
+        </div></div></div>
+    </div>
+
+    <div class="reveal"><span class="subtag">F · Why This Matters</span>
+      <div class="matters">💚 This is the wedge that separates you from every beginner saying "I'm not using AI."
+        While they protect an imaginary purity, you compound — same hours, radically more learning per hour.</div>
+    </div>
+
+    <div class="reveal"><span class="subtag">G · 🔗 Inter-Module Links</span>
+      <div class="links">
+        <button class="link-chip" data-goto="m1">🔗 → Module 1: this is today's adaptation test</button>
+        <button class="link-chip" data-goto="m4">🔗 → Module 4: pick ONE AI tool and go deep (he chose Claude Code)</button>
+        <button class="link-chip" data-goto="m3">🔗 → Module 3: AI can't replace experienced humans — verify big calls with people</button>
+        <button class="link-chip" data-goto="m5">🔗 → Module 5: direct agents to build real products without vibe-coding</button>
+      </div>
+    </div>
+
+    <div class="quiz reveal" data-quiz="m2"><span class="qtag">✅ Check yourself · Module 2</span></div>
+  </section>
+
+  <!-- ══════════ QUICK RECALL 1 (after 2 modules) ══════════ -->
+  <section class="recall reveal" id="qr1sec">
+    <span class="rtag">🧠 Quick Recall — cumulative retrieval · Modules 1–2</span>
+    <p style="color:var(--muted); font-size:.95rem; margin:8px 0 4px">Close your eyes first. Try to answer from memory — <em>then</em> click.</p>
+    <div class="quiz" data-quiz="qr1" style="box-shadow:none; border:none; padding:14px 0 0"></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       MODULE 3 — BORROW DECADES
+       ══════════════════════════════════════════ -->
+  <section class="module" id="m3" data-mod="m3">
+    <div class="mod-head reveal">
+      <div class="mod-num">03</div>
+      <div>
+        <div class="mod-kick">🧭 Collapse time · ~7 min</div>
+        <h2>Borrow Decades: Learn From People Ahead of You</h2>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">A · Core Explanation</span>
+      <p>If he restarted today, he'd find a mentor — someone with far more experience — <b>on day one</b>. When he started,
+        he was alone: wasting hours searching the internet and YouTube ("back in my day I wrote my code by hand — I feel
+        like a boomer"). His verdict: <b>there is something AI and solo practice cannot replace — the experience that takes
+        years and years to develop.</b> When you're the little guy trying to operate beyond your skill set (which is exactly
+        where learning happens), the best move is to <em>withdraw from the skills of others</em>.</p>
+      <p style="margin-top:12px">No mentor yet? "You probably haven't tried very hard." LinkedIn, Reddit, communities —
+        <b>peer-to-peer communication is still the biggest value</b> for skill, network, jobs, and opportunities. The
+        fallback tier is <span class="term">applied-experience content</span>: engineering blogs and practitioner podcasts —
+        content about <em>why decisions were made in production</em>, not tutorials. His claim: the basic tutorial era is
+        ending, because anything you'd once look up, an LLM can now explain with examples. What an LLM has never lived —
+        "we chose this database because…" — is where the remaining value sits.</p>
+      <p style="margin-top:12px">His image for it: tutorial-hopping collects <b>coins</b> — tiny findings that take forever
+        to add up — while the <b>treasure chest</b> of a few sentences from an experienced person sits ignored right in
+        front of you. And his pair-programming story proves it: the senior who forced him to rewrite everything was
+        infuriating in the moment — and in hindsight, <em>the most helpful period of his journey</em>, because he finally
+        learned <b>why</b>.</p>
+    </div>
+
+    <div class="reveal"><span class="subtag">B · Step-by-Step</span>
+      <ol class="steps">
+        <li><b>Find someone 2–20 years ahead of you — day one, not someday.</b> The goal is to collapse time.</li>
+        <li><b>Check important architectural decisions against experienced people.</b> AI can sanity-check; humans can say "I've watched that burn down."</li>
+        <li><b>Swap tutorial hours for applied-experience content.</b> Engineering blogs, practitioner podcasts — the "here's what happened when…" genre.</li>
+        <li><b>When someone makes you rewrite it, ask for the <em>why</em>.</b> The rewrite is the fee; the reasoning is the product.</li>
+        <li><b>Message creators after consuming their work.</b> "Hey, I read your book. Good stuff." — it works shockingly often (he's gotten replies from total strangers… including romance novelists).</li>
+      </ol>
+      <h4 style="margin-top:16px">📡 Where applied experience lives <span style="font-weight:400;color:var(--muted)">(chunked — expand for more)</span></h4>
+      <ul class="chunk" style="margin-left:20px; display:grid; gap:6px">
+        <li>🎙 Practitioner podcasts (e.g., the <b>Zero Knowledge Podcast</b> — every guest was doing cryptography in the field)</li>
+        <li>📝 Company engineering blogs (e.g., <b>Discord's NoSQL article</b> — the <em>why</em> behind a database choice)</li>
+        <li>💬 Communities &amp; forums where builders share production scars</li>
+        <li>🤝 Pair programming / code review from seniors</li>
+        <li>📚 Books — then message the author about them</li>
+        <li>🏗 Open-source maintainers' postmortems and RFCs</li>
+        <li>🎤 Conference talks focused on war stories, not syntax</li>
+      </ul>
+    </div>
+
+    <!-- M3 diagram: experience pyramid -->
+    <figure class="fig" role="img" aria-label="Pyramid of learning sources from highest value at the top: one-on-one mentor, pair programming and senior review, applied experience content, AI explanations and tutorials, random searching">
+      <svg viewBox="0 0 640 300">
+        <polygon class="draw" style="--i:0" pathLength="1" points="270,20 370,20 395,72 245,72" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="2.5"/>
+        <polygon class="draw" style="--i:1" pathLength="1" points="240,80 400,80 425,132 215,132" fill="var(--surface2)" stroke="var(--blue)" stroke-width="2"/>
+        <polygon class="draw" style="--i:2" pathLength="1" points="210,140 430,140 455,192 185,192" fill="var(--surface2)" stroke="var(--green)" stroke-width="2"/>
+        <polygon class="draw" style="--i:3" pathLength="1" points="180,200 460,200 485,252 155,252" fill="var(--surface2)" stroke="var(--conn)" stroke-width="2"/>
+        <polygon class="draw" style="--i:4" pathLength="1" points="150,260 490,260 510,288 130,288" fill="var(--surface2)" stroke="var(--conn)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <g class="fade" style="--i:1"><text x="320" y="52" text-anchor="middle" class="svg-t" font-size="13" font-weight="700">1-on-1 mentor</text></g>
+        <g class="fade" style="--i:2"><text x="320" y="112" text-anchor="middle" class="svg-t" font-size="13">pair programming / senior review</text></g>
+        <g class="fade" style="--i:3"><text x="320" y="172" text-anchor="middle" class="svg-t" font-size="13">applied content — blogs &amp; podcasts</text></g>
+        <g class="fade" style="--i:4"><text x="320" y="232" text-anchor="middle" class="svg-t" font-size="13">AI explanations &amp; tutorials</text></g>
+        <g class="fade" style="--i:5"><text x="320" y="280" text-anchor="middle" class="svg-t" font-size="12.5">random searching</text></g>
+        <text x="530" y="50" class="svg-m" font-size="11.5">← value per</text>
+        <text x="530" y="66" class="svg-m" font-size="11.5">&nbsp;&nbsp;&nbsp;minute</text>
+        <text x="530" y="270" class="svg-m" font-size="11.5">← time</text>
+        <text x="530" y="286" class="svg-m" font-size="11.5">&nbsp;&nbsp;&nbsp;consumed</text>
+      </svg>
+      <figcaption>FIG 3.1 — The Experience Pyramid: most people spend their hours at the bottom and their attention at the top. Invert it.</figcaption>
+    </figure>
+
+    <div class="reveal"><span class="subtag">C · Examples</span>
+      <div class="ex-grid">
+        <div class="ex-card obv"><span class="lab">✅ The obvious ones</span>
+          <h4>Zero Knowledge &amp; Discord's NoSQL article</h4>
+          <p>The podcast gave him practitioners' thinking, discoveries, and blind spots — he learned what was valuable and
+          what wasn't, <em>fast</em>. The Discord article showed <b>why</b> they needed that database — and "why choose one
+          approach over another" is the true skill, nearly impossible to learn alone as a beginner.</p></div>
+        <div class="ex-card ctr"><span class="lab">🔀 The counter-intuitive one</span>
+          <h4>He could teach database design at 16 — and couldn't warn you</h4>
+          <p>He could articulate structures for a store or a social network. What he <em>couldn't</em> say: "you never want
+          to do this in production, <b>because I did that once and this happened</b>." Concepts can be learned young;
+          scar tissue cannot. That gap is exactly what borrowing experience fills.</p></div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">D · Visual Analogy</span>
+      <div class="analogy">
+        <div class="a-concept"><h4>🪙 The concept: coins vs. the treasure chest</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="Scattered small coins on the left, a large treasure chest on the right">
+            <circle cx="25" cy="70" r="7" fill="var(--orange)" opacity=".8"/><circle cx="45" cy="85" r="7" fill="var(--orange)" opacity=".8"/>
+            <circle cx="60" cy="60" r="7" fill="var(--orange)" opacity=".8"/><circle cx="38" cy="45" r="7" fill="var(--orange)" opacity=".8"/>
+            <circle cx="75" cy="82" r="7" fill="var(--orange)" opacity=".8"/><circle cx="20" cy="95" r="7" fill="var(--orange)" opacity=".8"/>
+            <rect x="115" y="50" width="70" height="45" rx="6" fill="var(--green-soft)" stroke="var(--green)" stroke-width="2.5"/>
+            <path d="M115,62 L185,62" stroke="var(--green)" stroke-width="2.5"/>
+            <rect x="143" y="56" width="14" height="12" rx="2" fill="var(--green)"/>
+            <text x="45" y="25" class="svg-m" font-size="10">tutorial coins</text>
+            <text x="118" y="25" class="svg-m" font-size="10">the chest, ignored</text>
+          </svg></div>
+          <p>Each tutorial yields a coin — real, but tiny. Collecting them forever never sums to wealth, while the chest of veteran insight sits unopened because it doesn't <em>feel</em> like collecting.</p>
+        </div>
+        <div><h4>🏦 The analogy: a 30-year savings account</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="A bank building with an arrow of coins flowing out to a person">
+            <rect x="30" y="40" width="80" height="55" rx="4" fill="var(--surface2)" stroke="var(--blue)" stroke-width="2.5"/>
+            <path d="M25,40 L70,18 L115,40 Z" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="2.5"/>
+            <path d="M45,40 V95 M70,40 V95 M95,40 V95" stroke="var(--blue)" stroke-width="2"/>
+            <path d="M118,70 C140,70 145,60 165,60" stroke="var(--green)" stroke-width="2.5" fill="none" marker-end="url(#arrB)"/>
+            <defs><marker id="arrB" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--green)"/></marker></defs>
+            <circle cx="175" cy="60" r="9" fill="var(--blue)"/>
+            <text x="28" y="106" class="svg-m" font-size="10">30 yrs of deposits</text>
+          </svg></div>
+          <p>A mentor has been depositing hard-won lessons for decades. One honest conversation lets you <b>withdraw</b>
+          more than you could earn coin-by-coin in years. Compound interest, but for judgment.</p>
+        </div>
+        <div class="why-works"><b>🧠 Why it works:</b> both frames expose the same error — optimizing for <em>volume of input</em>
+          instead of <em>value per minute</em>. Coins feel like progress because counting is easy. Chests feel intimidating
+          because they require a conversation. The math says otherwise.</div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">E · ❌ What People Get Wrong</span>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "I can figure everything out myself — I have AI and YouTube." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> information access equals experience access.</p>
+          <p><span class="truth">Truth:</span> AI can explain anything it has never <em>lived</em>. Production judgment —
+          "never do X, because it corrupts data at 3 a.m." — only exists in people.</p>
+          <p><b>Reasoning:</b> his own 16-year-old database lectures prove it: flawless concepts, zero scars. You can either
+          earn the scars over a decade or borrow them over coffee.</p>
+        </div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "Mentorship means a formal, intimidating arrangement." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> you need to formally "ask someone to be your mentor."</p>
+          <p><span class="truth">Truth:</span> low-friction touches compound: a message about their book, a specific question
+          in a forum, showing up consistently where practitioners talk.</p>
+          <p><b>Reasoning:</b> he got replies from authors of <em>romance novels</em> with a two-line note. The barrier is
+          effort and specificity, not status.</p>
+        </div></div></div>
+    </div>
+
+    <div class="reveal"><span class="subtag">F · Why This Matters</span>
+      <div class="matters">💚 Judgment — knowing <em>why</em> one design wins in production — is the last thing AI can't
+        hand you, and the first thing that gets you trusted with real systems. Borrowing it is the single biggest time-collapse available.</div>
+    </div>
+
+    <div class="reveal"><span class="subtag">G · 🔗 Inter-Module Links</span>
+      <div class="links">
+        <button class="link-chip" data-goto="m1">🔗 → Module 1: two sides of one coin — adapt to the new, borrow the proven</button>
+        <button class="link-chip" data-goto="m2">🔗 → Module 2: verify AI's confident answers against scarred humans</button>
+        <button class="link-chip" data-goto="m6">🔗 → Module 6: networking is mentorship at scale</button>
+      </div>
+    </div>
+
+    <div class="quiz reveal" data-quiz="m3"><span class="qtag">✅ Check yourself · Module 3</span></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       MODULE 4 — THE TOP HAT
+       ══════════════════════════════════════════ -->
+  <section class="module" id="m4" data-mod="m4">
+    <div class="mod-head reveal">
+      <div class="mod-num">04</div>
+      <div>
+        <div class="mod-kick">🎩 Learn the diff · ~8 min</div>
+        <h2>The Top Hat: Broad Brim, Deep Crown</h2>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">A · Core Explanation</span>
+      <p>Start with <b>general learning</b>: cover a large base of fundamentals for a broad understanding — then build a
+        skyscraper on top. (In the video he draws a wide rectangle and deadpans: <em>"and I lied. This is actually a top hat."</em>)
+        The brim is your foundation; the tall crown is <b>becoming very good at a very few things</b>. Spread thin across
+        many topics and you become average at all of them — fine for a foundation, fatal for providing value nobody else can.</p>
+      <p style="margin-top:12px">The two failure modes: not knowing what to specialize in, and <span class="term">topic-hopping</span>.
+        His own early years were trash-efficiency: jQuery on Monday, Angular on Tuesday, Google Apps Script on Wednesday —
+        always stopping at the exact point where the new material met stuff he already knew. It <em>felt</em> like learning.
+        It wasn't, because <b>real learning is painful</b> — it demands focus, cross-referencing, note-taking. If it's easy,
+        you're just exercising what you already know.</p>
+      <p style="margin-top:12px">The efficiency weapon is the <span class="term">diff principle</span>: don't learn loops in
+        Python <em>and</em> loops in TypeScript — learn loops once, then learn how the two languages <b>differ</b>.
+        Translation is a low-value skill you pick up on demand via docs or AI. Go deep in one language until you hit
+        generators, OOP, async, architecture — <em>new</em> territory — and everything else becomes a diff. Same rule for
+        AI tools: being a surface user of five tools who's never written a skill or sub-agent isn't power. He picked
+        <b>Claude Code</b>, went deep, and let the patterns transfer.</p>
+    </div>
+
+    <div class="reveal"><span class="subtag">B · Step-by-Step</span>
+      <ol class="steps">
+        <li><b>Build the brim with non-overlapping fundamentals.</b> Networking, databases, backend, desktop apps, low-level programming — a little time in each buys ~80% of the benefit.</li>
+        <li><b>Pick ONE language and go end-to-end.</b> A crash course in one sitting gives you an anchor and "the way of thinking" — his 4-hour React course example. You won't master it; you'll own a map.</li>
+        <li><b>Push past the "I already know this" layer.</b> Loops → functions → generators → OOP → web dev → async. Depth is where undiscovered things live.</li>
+        <li><b>For the next language, learn only the diff.</b> OOP in Python → OOP in JavaScript <em>plus the delta</em>. Never pay full price twice.</li>
+        <li><b>Same for AI tools.</b> Master one deeply; the rest are translations of patterns you already own.</li>
+      </ol>
+      <button class="why-btn" aria-expanded="false">🤔 But why is "easy learning" nearly worthless?</button>
+      <div class="why-a">Because difficulty is the signal that you're at the edge of your current ability. His test: if you
+        walk away without concrete things you learned and it felt easy, you "exercised your brain on stuff you already know."
+        Depth is only reachable through the painful band — that's why topic-hoppers plateau forever: they always turn back
+        right before it starts to hurt.</div>
+    </div>
+
+    <!-- M4 diagram: top hat + diff venn -->
+    <figure class="fig" role="img" aria-label="Top hat diagram: a wide brim labeled with five fundamentals and a tall crown labeled with the depth stack from loops to architecture; plus a Venn diagram of Python and JavaScript where the overlap is learned once and the outer parts are the diff">
+      <svg viewBox="0 0 640 320">
+        <rect class="draw" style="--i:0" pathLength="1" x="245" y="30" width="150" height="170" rx="8" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="2.5"/>
+        <path class="draw" style="--i:1" pathLength="1" d="M180,200 h280 v26 a10,10 0 0 1 -10,10 h-260 a10,10 0 0 1 -10,-10 z" fill="var(--surface2)" stroke="var(--blue)" stroke-width="2.5"/>
+        <g class="fade" style="--i:1">
+          <text x="320" y="58" text-anchor="middle" class="svg-t" font-size="12">⬆ architecture</text>
+          <text x="320" y="84" text-anchor="middle" class="svg-t" font-size="12">async code</text>
+          <text x="320" y="110" text-anchor="middle" class="svg-t" font-size="12">web development</text>
+          <text x="320" y="136" text-anchor="middle" class="svg-t" font-size="12">OOP · generators</text>
+          <text x="320" y="162" text-anchor="middle" class="svg-t" font-size="12">functions</text>
+          <text x="320" y="188" text-anchor="middle" class="svg-t" font-size="12">loops</text>
+        </g>
+        <g class="fade" style="--i:2">
+          <text x="205" y="222" class="svg-m" font-size="10.5">networking</text>
+          <text x="280" y="222" class="svg-m" font-size="10.5">databases</text>
+          <text x="352" y="222" class="svg-m" font-size="10.5">backend</text>
+          <text x="420" y="222" class="svg-m" font-size="10.5">desktop</text>
+          <text x="238" y="250" class="svg-t" font-size="12" font-weight="700">THE BRIM — broad fundamentals (80/20 each)</text>
+        </g>
+        <text x="415" y="120" class="svg-t" font-size="12.5" fill="var(--blue)" font-weight="700">← THE CROWN</text>
+        <text x="415" y="138" class="svg-m" font-size="11">deep in very few things</text>
+        <text x="415" y="154" class="svg-m" font-size="11">where discovery lives</text>
+        <g class="fade" style="--i:3">
+          <circle cx="150" cy="285" r="26" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="2"/>
+          <circle cx="190" cy="285" r="26" fill="var(--green-soft)" stroke="var(--green)" stroke-width="2" opacity=".85"/>
+          <text x="128" y="289" class="svg-t" font-size="10.5">Py</text>
+          <text x="202" y="289" class="svg-t" font-size="10.5">JS</text>
+          <text x="170" y="289" text-anchor="middle" class="svg-m" font-size="9">once</text>
+          <text x="240" y="282" class="svg-m" font-size="11">learn the overlap ONCE,</text>
+          <text x="240" y="297" class="svg-m" font-size="11">then only the DIFF →</text>
+        </g>
+      </svg>
+      <figcaption>FIG 4.1 — Brim first, crown tall. And never pay full price for the same concept twice.</figcaption>
+    </figure>
+
+    <div class="reveal"><span class="subtag">C · Examples</span>
+      <div class="ex-grid">
+        <div class="ex-card obv"><span class="lab">✅ The obvious one</span>
+          <h4>Loops twice, value zero</h4>
+          <p>Learning loops in Python, then "learning" loops again in TypeScript with slightly different syntax — feels
+          productive, teaches nothing new. His Java class version: he wrote the code in C and just "Java-ified" it.
+          Translation should cost minutes, not weeks.</p></div>
+        <div class="ex-card ctr"><span class="lab">🔀 The counter-intuitive one</span>
+          <h4>The "AI power user" who's never gone deep</h4>
+          <p>Some experience with ChatGPT, some with Codex, some with Claude, Cursor, Anti-gravity… and never once written
+          a Claude Code skill or a sub-agent — "basic stuff." Five shallow holes, no water. Breadth across tools is not power;
+          depth in one tool is, because the patterns transfer.</p></div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">D · Visual Analogy</span>
+      <div class="analogy">
+        <div class="a-concept"><h4>🎩 The concept: the top hat</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="A top hat with a wide brim and tall crown">
+            <rect x="70" y="15" width="60" height="60" rx="5" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="2.5"/>
+            <rect x="40" y="75" width="120" height="12" rx="6" fill="var(--surface2)" stroke="var(--blue)" stroke-width="2.5"/>
+            <text x="100" y="50" text-anchor="middle" class="svg-m" font-size="9">deep</text>
+            <text x="100" y="103" text-anchor="middle" class="svg-m" font-size="9">broad</text>
+          </svg></div>
+          <p>Wide base of fundamentals, tall mastery of a few things. The shape itself is the strategy — the brim makes the crown possible, and the crown makes you valuable.</p>
+        </div>
+        <div><h4>⛏️ The analogy: one deep well vs. twenty holes</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="One deep well reaching water versus several shallow holes that stay dry">
+            <path d="M20,40 h160" stroke="var(--conn)" stroke-width="2"/>
+            <rect x="40" y="40" width="22" height="58" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="2"/>
+            <path d="M40,86 h22" stroke="var(--blue)" stroke-width="3"/>
+            <text x="51" y="106" text-anchor="middle" class="svg-m" font-size="9">💧 struck</text>
+            <path d="M100,40 v14 M130,40 v10 M160,40 v16" stroke="var(--orange)" stroke-width="8" opacity=".6"/>
+            <text x="140" y="106" text-anchor="middle" class="svg-m" font-size="9">dry holes</text>
+          </svg></div>
+          <p>Dig twenty shallow holes and you get twenty dry pits at the exact depth where you always quit. Dig one well
+          and you hit water — <em>discovery</em> — the layer below what everyone already knows. And once you own one deep
+          well, piping water to a new site (a new language) is cheap.</p>
+        </div>
+        <div class="why-works"><b>🧠 Why it works:</b> both images make the same hidden cost visible — the
+          <em>opportunity cost of the shallows</em>. Every hour re-learning loops in a new syntax is an hour not spent
+          below the waterline, where the genuinely new (and the genuinely valuable) concepts live.</div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">E · ❌ What People Get Wrong</span>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "Knowing many languages makes me more hireable." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> language count = value.</p>
+          <p><span class="truth">Truth:</span> depth in one language + cheap diffs beats shallow multi-lingualism. His note
+          to recruiters: a genuinely deep developer picks up your specific stack fast — that's the skill that matters.</p>
+          <p><b>Reasoning:</b> deep experience teaches <em>how to think in code</em>; the syntax of your internal framework
+          is a diff, learnable in days.</p>
+        </div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "If it feels easy, my learning method is working." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> smooth = effective.</p>
+          <p><span class="truth">Truth:</span> "Learning is actually painful… if it's super easy and you walk away with
+          nothing concrete, you exercised your brain on stuff you already know."</p>
+          <p><b>Reasoning:</b> the pain of focus, cross-referencing, and note-taking is the feeling of new neural territory.
+          Topic-hoppers flee that feeling and call it "finding their passion."</p>
+        </div></div></div>
+    </div>
+
+    <div class="reveal"><span class="subtag">F · Why This Matters</span>
+      <div class="matters">💚 Depth is where you discover things that aren't in any tutorial — which is precisely the zone
+        where you become hard to replace, and where adaptation gets cheap: new tools are just diffs against your crown.</div>
+    </div>
+
+    <div class="reveal"><span class="subtag">G · 🔗 Inter-Module Links</span>
+      <div class="links">
+        <button class="link-chip" data-goto="m2">🔗 → Module 2: apply the diff principle to AI tools — go deep in one</button>
+        <button class="link-chip" data-goto="m5">🔗 → Module 5: shipped projects are where depth gets proven</button>
+        <button class="link-chip" data-goto="m1">🔗 → Module 1: deep learners adapt faster — everything new is a small diff</button>
+      </div>
+    </div>
+
+    <div class="quiz reveal" data-quiz="m4"><span class="qtag">✅ Check yourself · Module 4</span></div>
+  </section>
+
+  <!-- ══════════ QUICK RECALL 2 (after 4 modules) ══════════ -->
+  <section class="recall reveal" id="qr2sec">
+    <span class="rtag">🧠 Quick Recall — cumulative retrieval · Modules 1–4</span>
+    <p style="color:var(--muted); font-size:.95rem; margin:8px 0 4px">Answer from memory first. Retrieval <em>is</em> the workout.</p>
+    <div class="quiz" data-quiz="qr2" style="box-shadow:none; border:none; padding:14px 0 0"></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       MODULE 5 — SHIP REAL THINGS
+       ══════════════════════════════════════════ -->
+  <section class="module" id="m5" data-mod="m5">
+    <div class="mod-head reveal">
+      <div class="mod-num">05</div>
+      <div>
+        <div class="mod-kick">🚀 From localhost to life · ~8 min</div>
+        <h2>Ship Something Real, Embarrassingly Early</h2>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">A · Core Explanation</span>
+      <p>Start building your own software <b>as soon as possible</b> — and don't let the projects be throwaways. A calculator
+        or to-do list is fine to learn a language's syntax, but then make something that takes real time, effort, and thought.
+        His biggest early downfall: tinkering with something for a day, getting bored or stuck, moving on. The turn came when
+        he committed to one ongoing project — <b>a cryptocurrency from scratch, in Rust</b> — figuring out wallets,
+        encryption, transactions, and a CLI, one piece at a time. Within a <em>week</em> of starting, a company reached out
+        wanting a Rust developer. Not even a crypto company. The project was provable evidence of complex work — and it
+        likely made the difference between getting that senior role and not.</p>
+      <p style="margin-top:12px">What building your own software actually buys you: <b>real provable experience</b>; a
+        <span class="term">product mindset</span> (what features do people want, need, and <em>pay for</em> — and what does
+        each cost to build?); work with <b>real data</b> — location &amp; latency, GDPR and privacy law, and
+        <span class="term">live migrations</span> that reshape data without corrupting it or alarming users; plus customers,
+        marketing, sales, support, and security learned firsthand. His verdict: that bundle is <b>100× more valuable</b>
+        than prototypes running on your local computer.</p>
+      <p style="margin-top:12px">Here's the AI-era twist: AI can generate basic CRUD apps — and increasingly complex ones.
+        What it struggles with is <b>piecing everything together into a valuable product</b> with real users, maybe income,
+        maybe an exit. That higher-level thinking is your job, and it only grows as a share of software engineering. So if
+        he restarted: real domain, real branding, real customers — do everything a real company does, not a subdomain on a
+        random host. Even directing agents to build strengthens the product muscle — as long as <em>you</em> are the one thinking.</p>
+    </div>
+
+    <div class="reveal"><span class="subtag">B · Step-by-Step</span>
+      <ol class="steps">
+        <li><b>Pick a medium-difficulty project.</b> Challenging every day, not crushing. (He'd now choose something easier than crypto-in-Rust.)</li>
+        <li><b>Stay on ONE project over time.</b> The tinker-abandon-repeat loop is the killer; continuity is where depth compounds.</li>
+        <li><b>Ship it live.</b> Domain, branding, deployment — treat it like a company from day one.</li>
+        <li><b>Get real users and real feedback.</b> Reviews, support, monetization, marketing, sales — these skills are becoming a larger part of software engineering.</li>
+        <li><b>Face real-data problems head-on.</b> Privacy/GDPR, latency and data location, live migrations that protect production data while the schema evolves.</li>
+      </ol>
+      <button class="why-btn" aria-expanded="false">🤔 But why does real data teach so much more?</button>
+      <div class="why-a">Because production raises stakes that localhost can't simulate. With real data you answer: where is
+        it legally allowed to live? How fast can it reach users? How do you reshape a live structure without corrupting a
+        single row — while users notice nothing? A beginner presenting only local demos signals <em>risk</em> to a company,
+        "not because you don't know how to code, but because you don't know how to code in the context of what that company
+        is trying to do — build production software."</div>
+    </div>
+
+    <!-- M5 diagram: interactive ship-it timeline -->
+    <figure class="fig" role="img" aria-label="Interactive timeline of the ship-it loop with six clickable stages: idea, build, ship live, real users, real data, iterate">
+      <svg viewBox="0 0 640 190">
+        <path class="draw" style="--i:0" pathLength="1" d="M60,95 H580" stroke="var(--conn)" stroke-width="3" fill="none"/>
+        <g class="tnode" data-tn="0" tabindex="0" role="button" aria-label="Stage 1: idea"><circle cx="60" cy="95" r="24"/><text x="60" y="102" text-anchor="middle" font-size="19">💡</text><text x="60" y="145" text-anchor="middle" class="svg-m" font-size="11">idea</text></g>
+        <g class="tnode" data-tn="1" tabindex="0" role="button" aria-label="Stage 2: build"><circle cx="164" cy="95" r="24"/><text x="164" y="102" text-anchor="middle" font-size="19">🛠️</text><text x="164" y="145" text-anchor="middle" class="svg-m" font-size="11">build</text></g>
+        <g class="tnode" data-tn="2" tabindex="0" role="button" aria-label="Stage 3: ship live"><circle cx="268" cy="95" r="24"/><text x="268" y="102" text-anchor="middle" font-size="19">🌐</text><text x="268" y="145" text-anchor="middle" class="svg-m" font-size="11">ship live</text></g>
+        <g class="tnode" data-tn="3" tabindex="0" role="button" aria-label="Stage 4: real users"><circle cx="372" cy="95" r="24"/><text x="372" y="102" text-anchor="middle" font-size="19">👥</text><text x="372" y="145" text-anchor="middle" class="svg-m" font-size="11">real users</text></g>
+        <g class="tnode" data-tn="4" tabindex="0" role="button" aria-label="Stage 5: real data"><circle cx="476" cy="95" r="24"/><text x="476" y="102" text-anchor="middle" font-size="19">🗄️</text><text x="476" y="145" text-anchor="middle" class="svg-m" font-size="11">real data</text></g>
+        <g class="tnode" data-tn="5" tabindex="0" role="button" aria-label="Stage 6: iterate"><circle cx="580" cy="95" r="24"/><text x="580" y="102" text-anchor="middle" font-size="19">🔁</text><text x="580" y="145" text-anchor="middle" class="svg-m" font-size="11">iterate</text></g>
+        <path d="M580,60 C580,20 60,20 60,60" stroke="var(--conn)" stroke-width="1.5" stroke-dasharray="5 5" fill="none" marker-end="url(#arrT)"/>
+        <defs><marker id="arrT" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--conn)"/></marker></defs>
+        <text x="320" y="22" text-anchor="middle" class="svg-m" font-size="11">the loop feeds the next idea</text>
+        <text x="320" y="178" text-anchor="middle" class="svg-m" font-size="11.5">click any stage for the deep-dive ↓</text>
+      </svg>
+      <div class="t-detail" id="tDetail" aria-live="polite"><b>💡 Idea</b> — pick medium difficulty: something that challenges you daily
+        without crushing you, and that you'll still care about in six months. Continuity beats brilliance.</div>
+      <figcaption>FIG 5.1 — The Ship-It Loop. Every stage past "build" teaches things localhost never will.</figcaption>
+    </figure>
+
+    <div class="reveal"><span class="subtag">C · Examples</span>
+      <div class="ex-grid">
+        <div class="ex-card obv"><span class="lab">✅ The obvious one</span>
+          <h4>The mobile-dev gauntlet</h4>
+          <p>Want mobile development? Build an app, push it to the store, get reviews, acquire users, figure out
+          monetization, advertising, marketing, and sales. Each of those is a "super, super valuable" skill — and together
+          they're the shape of modern software engineering.</p></div>
+        <div class="ex-card ctr"><span class="lab">🔀 The counter-intuitive one</span>
+          <h4>CurryCoin: the product flopped, the proof worked</h4>
+          <p>His crypto project "sucked — nobody was going to buy CurryCoin," and he abandoned it within a week… for a
+          senior engineering job it probably helped him land. The lesson: the artifact's market success matters far less
+          than the <em>provable complexity</em> you demonstrated building it.</p></div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">D · Visual Analogy</span>
+      <div class="analogy">
+        <div class="a-concept"><h4>🏖️ The concept: localhost vs. production</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="A sandbox box versus an open field with obstacles">
+            <rect x="20" y="40" width="70" height="50" rx="6" fill="var(--surface2)" stroke="var(--conn)" stroke-width="2"/>
+            <text x="55" y="70" text-anchor="middle" font-size="16">🧸</text>
+            <text x="55" y="104" text-anchor="middle" class="svg-m" font-size="9">localhost</text>
+            <path d="M110,90 h75 M115,60 l10,-14 M140,60 l10,-14 M165,60 l10,-14" stroke="var(--orange)" stroke-width="2.5"/>
+            <circle cx="130" cy="82" r="6" fill="var(--blue)"/><circle cx="158" cy="82" r="6" fill="var(--blue)"/>
+            <text x="148" y="104" text-anchor="middle" class="svg-m" font-size="9">production</text>
+          </svg></div>
+          <p>Locally, everything obeys you: no traffic, no weather, no laws, no one to disappoint. Production has all four, simultaneously, forever.</p>
+        </div>
+        <div><h4>🚗 The analogy: parking lot vs. the highway</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="A car alone in a parking lot versus a car on a rainy highway among traffic">
+            <rect x="15" y="35" width="75" height="55" rx="6" fill="var(--surface2)" stroke="var(--conn)" stroke-width="2" stroke-dasharray="5 4"/>
+            <text x="52" y="68" text-anchor="middle" font-size="15">🚙</text>
+            <text x="52" y="104" text-anchor="middle" class="svg-m" font-size="9">the lot (cones)</text>
+            <path d="M110,95 L190,95 M110,45 L190,45" stroke="var(--conn)" stroke-width="2.5"/>
+            <path d="M112,70 h76" stroke="var(--orange)" stroke-width="2" stroke-dasharray="8 7"/>
+            <text x="125" y="64" font-size="13">🚗</text><text x="158" y="90" font-size="13">🚕</text>
+            <path d="M120,20 l-4,12 M140,16 l-4,12 M160,20 l-4,12 M180,16 l-4,12" stroke="var(--blue)" stroke-width="1.5"/>
+            <text x="150" y="104" text-anchor="middle" class="svg-m" font-size="9">the highway (rain)</text>
+          </svg></div>
+          <p>The parking lot teaches pedals and cones. The highway teaches merging, judgment, and split-second risk — the
+          skills that actually define driving. Nobody hires you to parallel-park between cones.</p>
+        </div>
+        <div class="why-works"><b>🧠 Why it works:</b> both cases share the missing ingredient — <em>other agents with their
+          own intentions</em> (users, data, attackers, regulators, weather). You can only learn to negotiate with them by
+          being on the road. That's why a scrappy deployed app teaches more than a flawless local one.</div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">E · ❌ What People Get Wrong</span>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "I'll build real things after I finish learning." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> learning and building are sequential phases.</p>
+          <p><span class="truth">Truth:</span> building <em>is</em> the learning — the hard curriculum (migrations, security,
+          support, sales) only exists on the live side of the boundary.</p>
+          <p><b>Reasoning:</b> he got a job offer within a week of starting his project — before it was anywhere near
+          "finished." The market rewards trajectory and proof, not completion.</p>
+        </div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "My local demo proves I can build software." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> a working demo = working product.</p>
+          <p><span class="truth">Truth:</span> to a hiring manager, all-local demos introduce <em>high risk</em> — you've
+          never touched production data, real users, or real stakes.</p>
+          <p><b>Reasoning:</b> "You might not be getting opportunities not because you don't know how to code, but because
+          you don't know how to code in the context of what that company is trying to do."</p>
+        </div></div></div>
+    </div>
+
+    <div class="reveal"><span class="subtag">F · Why This Matters</span>
+      <div class="matters">💚 A shipped, imperfect product teaches you more in a month than a year of polished prototypes —
+        and it's the one artifact nobody can fake for you. In a world where AI generates apps, <em>having actually shipped</em> is the new proof of work.</div>
+    </div>
+
+    <div class="reveal"><span class="subtag">G · 🔗 Inter-Module Links</span>
+      <div class="links">
+        <button class="link-chip" data-goto="m4">🔗 → Module 4: projects are where your crown gets tested below the waterline</button>
+        <button class="link-chip" data-goto="m2">🔗 → Module 2: direct agents to build — you supply the product thinking</button>
+        <button class="link-chip" data-goto="m6">🔗 → Module 6: shipped products open doors — his job offer came from the project</button>
+      </div>
+    </div>
+
+    <div class="quiz reveal" data-quiz="m5"><span class="qtag">✅ Check yourself · Module 5</span></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       MODULE 6 — THE LONG GAME
+       ══════════════════════════════════════════ -->
+  <section class="module" id="m6" data-mod="m6">
+    <div class="mod-head reveal">
+      <div class="mod-num">06</div>
+      <div>
+        <div class="mod-kick">🤝 Mindset · network · staying human · ~8 min</div>
+        <h2>The Long Game: Expand Your Normal, Stay Human</h2>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">A · Core Explanation</span>
+      <p><b>Stop being tied up about a role, title, or company.</b> Six years ago the FAANG hysteria said: land at Google or
+        you're a failure. Reality: thousands — if not millions — of companies can use your skills lucratively, and the roles
+        go far beyond "software engineer." His own resume includes developer relations, technical workshops, marketing for
+        technical products — and a final offer to make technical videos <em>from his basement</em>: $240k ($180k base).
+        Those opportunities are "equally as good, if not better" — and pure SWE roles are becoming less common as AI-era
+        variants emerge.</p>
+      <p style="margin-top:12px"><b>Break out of your network fast</b> — because <em>you don't know what you don't know</em>.
+        As a co-founder, he sat with engineers from high-paying backgrounds and discovered salary numbers that were
+        "unheard of in rural Ohio, where my neighbor is a corn field." Seeing it made it claimable. Same with pricing: he
+        wanted to charge $500, forced himself to ask <b>$1,500</b> — and the client accepted without blinking. He nearly
+        undersold himself; the work ended up totaling <b>$28,000</b> over a couple of months, right out of high school.
+        Today he wouldn't consider that $1,500 job — his comfort zone <em>expanded</em> until $1,500 looks "irrationally low."
+        The breakthrough isn't leaving your comfort zone once; it's <b>expanding it permanently</b>. And discomfort is
+        trainable: sales, negotiating, pushing back — he avoided them early and now calls them "one of the greatest unlocks."
+        His secret: <em>"I'm always uncomfortable."</em></p>
+      <p style="margin-top:12px"><b>The mindset layer:</b> the single most valuable skill is <span class="term">resourcefulness</span> —
+        figuring anything out, alone, with AI, or through people. His university rant, condensed: the degree pipeline leaves
+        people unprepared, so "AI is destroying the entry-level market" misses the deeper rot — graduates arrive without
+        real-world value. If starting today he'd weigh the bachelor's honestly, but build real things through those four
+        years regardless. And his <b>final</b> advice: as AI makes everything less human, go the opposite direction on the
+        human parts. Automate with AI where you can — but in high-value moments (hiring, key clients, one-on-one support),
+        bring your actual human self. In a world saturated with AI, <b>human-to-human is the differentiator</b>.</p>
+    </div>
+
+    <div class="reveal"><span class="subtag">B · The Five Career Moves</span>
+      <ol class="steps">
+        <li><b>Loosen your grip on any single title or company.</b> Adjacent roles (dev rel, technical content, solutions) often pay better with better fit.</li>
+        <li><b>Get around people above you.</b> Their normal becomes your normal — for salaries, rates, and ambition.</li>
+        <li><b>Practice discomfort deliberately.</b> Ask for the higher number. Collect rejections. The tolerance compounds.</li>
+        <li><b>Build resourcefulness.</b> The go-getter stance: strong goals, and figure it out — solo, with AI, or through people.</li>
+        <li><b>Automate with AI, differentiate with humanity.</b> The more synthetic everything gets, the more your real human presence is worth.</li>
+      </ol>
+      <button class="why-btn" aria-expanded="false">🤔 But why does exposure change what you can earn?</button>
+      <div class="why-a">Because your bids are anchored to what you've <em>seen</em>. In rural Ohio, his anchor was the
+        factory. Around ex-FAANG co-founders, the anchor moved — and his behavior followed within months. You can't
+        negotiate what you can't imagine; imagination is a network effect.</div>
+    </div>
+
+    <!-- M6 diagram: comfort rings + pricing bars -->
+    <figure class="fig" role="img" aria-label="Concentric circles showing an expanding comfort zone from 500 dollars to 1500 to 28 thousand to a new normal, plus a bar chart of the pricing journey">
+      <svg viewBox="0 0 640 280">
+        <circle class="ring" style="--i:3; transition-delay:.9s" cx="170" cy="140" r="115" fill="none" stroke="var(--green)" stroke-width="2" stroke-dasharray="6 5"/>
+        <circle class="ring" style="--i:2; transition-delay:.6s" cx="170" cy="140" r="82" fill="none" stroke="var(--blue)" stroke-width="2"/>
+        <circle class="ring" style="--i:1; transition-delay:.3s" cx="170" cy="140" r="52" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="2"/>
+        <circle class="ring" style="--i:0" cx="170" cy="140" r="24" fill="var(--orange-soft)" stroke="var(--orange)" stroke-width="2"/>
+        <text x="170" y="144" text-anchor="middle" class="svg-t" font-size="11" font-weight="700">$500</text>
+        <text x="170" y="100" text-anchor="middle" class="svg-m" font-size="10.5">$1,500 ask</text>
+        <text x="170" y="66" text-anchor="middle" class="svg-m" font-size="10.5">$28k total</text>
+        <text x="170" y="272" text-anchor="middle" class="svg-m" font-size="10.5">new normal — $1,500 now looks "irrationally low"</text>
+        <line x1="380" y1="230" x2="610" y2="230" stroke="var(--conn)" stroke-width="1.5"/>
+        <rect class="bar-v" x="400" y="190" width="44" height="40" rx="4" fill="var(--orange)"/>
+        <rect class="bar-v" x="470" y="140" width="44" height="90" rx="4" fill="var(--blue)" style="transition-delay:.25s"/>
+        <rect class="bar-v" x="540" y="60" width="44" height="170" rx="4" fill="var(--green)" style="transition-delay:.5s"/>
+        <text x="422" y="252" text-anchor="middle" class="svg-m" font-size="10.5">feared</text>
+        <text x="492" y="252" text-anchor="middle" class="svg-m" font-size="10.5">asked</text>
+        <text x="562" y="252" text-anchor="middle" class="svg-m" font-size="10.5">earned / 2 mo</text>
+        <text x="422" y="182" text-anchor="middle" class="svg-t" font-size="11">$500</text>
+        <text x="492" y="132" text-anchor="middle" class="svg-t" font-size="11">$1.5k</text>
+        <text x="562" y="52" text-anchor="middle" class="svg-t" font-size="11">$28k</text>
+        <text x="495" y="24" text-anchor="middle" class="svg-t" font-size="12.5" font-weight="700">THE COMFORT-ZONE THERMOSTAT</text>
+      </svg>
+      <figcaption>FIG 6.1 — One brave ask reset the setpoint. The room regulates to whatever your normal says.</figcaption>
+    </figure>
+
+    <div class="reveal"><span class="subtag">C · Examples</span>
+      <div class="ex-grid">
+        <div class="ex-card obv"><span class="lab">✅ The obvious one</span>
+          <h4>The corn-field salary shock</h4>
+          <p>Co-founding with ex-big-tech engineers exposed him to compensation he literally didn't know was possible.
+          Result: he pushed for higher pay in later roles — "I've seen it in other people. What's preventing me?" The
+          information was free; the network was the gateway.</p></div>
+        <div class="ex-card ctr"><span class="lab">🔀 The counter-intuitive one</span>
+          <h4>The client who didn't blink</h4>
+          <p>He tripled his price through pure anxiety… and the client said "yeah, that's fine" without a moment's thought.
+          Tripling wasn't brave — it was <em>still too cheap</em>. The market was more generous than his comfort zone.
+          (Also: making technical videos from a basement outbid "real" engineering offers at $240k.)</p></div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">D · Visual Analogy</span>
+      <div class="analogy">
+        <div class="a-concept"><h4>🎯 The concept: expanding the comfort zone</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="A small circle expanding into a larger one">
+            <circle cx="70" cy="55" r="22" fill="none" stroke="var(--orange)" stroke-width="2" stroke-dasharray="5 4"/>
+            <circle cx="120" cy="55" r="45" fill="none" stroke="var(--green)" stroke-width="2.5"/>
+            <path d="M92,55 h30" stroke="var(--blue)" stroke-width="2.5" marker-end="url(#arrC)"/>
+            <defs><marker id="arrC" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--blue)"/></marker></defs>
+            <text x="70" y="92" text-anchor="middle" class="svg-m" font-size="9">old normal</text>
+            <text x="135" y="92" text-anchor="middle" class="svg-m" font-size="9">new normal</text>
+          </svg></div>
+          <p>A single brave act uses willpower. A shifted normal uses identity — the scary number becomes the boring number, and the boring number becomes "irrationally low."</p>
+        </div>
+        <div><h4>🌡️ The analogy: the thermostat</h4>
+          <div class="mini-fig"><svg viewBox="0 0 200 110" role="img" aria-label="A thermostat dial being turned up">
+            <circle cx="100" cy="58" r="38" fill="var(--surface2)" stroke="var(--blue)" stroke-width="3"/>
+            <path d="M72,78 A34,34 0 1 1 128,78" fill="none" stroke="var(--conn)" stroke-width="5" stroke-linecap="round"/>
+            <path d="M100,58 L122,38" stroke="var(--orange)" stroke-width="4" stroke-linecap="round"/>
+            <circle cx="100" cy="58" r="5" fill="var(--orange)"/>
+            <text x="100" y="106" text-anchor="middle" class="svg-m" font-size="9">reset the setpoint</text>
+          </svg></div>
+          <p>You don't fight a cold room forever by lighting matches (willpower). You turn the dial, and the system
+          <em>automatically</em> works to hold the new temperature. Exposure to higher-level people is dial-turning:
+          after enough time at the new setpoint, maintaining it costs nothing.</p>
+        </div>
+        <div class="why-works"><b>🧠 Why it works:</b> both pictures separate <em>effort</em> from <em>setpoint</em>.
+          Matches and one-off brave asks burn out; a reset normal self-maintains. That's why "networking up" isn't
+          schmoozing — it's infrastructure work on your own expectations.</div>
+      </div>
+    </div>
+
+    <div class="reveal"><span class="subtag">E · ❌ What People Get Wrong</span>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "AI is destroying entry-level jobs — the market is hopeless." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> AI is the root problem for new grads.</p>
+          <p><span class="truth">Truth:</span> there's some truth to it, but the <em>deeper</em> problem is the degree
+          pipeline graduating people without real-world value — "the problem really isn't AI necessarily."</p>
+          <p><b>Reasoning:</b> disruption is fast, institutions lag. What universities teach now isn't what gets you hired
+          now — and the "AI will hurt your learning" line drilled into students may protect the institution, not the student.</p>
+        </div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❌ "In an AI world, everything should be AI — including relationships." <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner">
+          <p><span class="myth">Myth:</span> full automation is the winning posture.</p>
+          <p><span class="truth">Truth:</span> the winning posture is the <em>opposite</em> where it counts: automate the
+          automatable, then go heavy on human-to-human where value is highest.</p>
+          <p><b>Reasoning:</b> when AI floods resumes, cover letters, and outreach, the inhuman volume makes genuine human
+          contact scarce — and scarcity is value. He personally handles his one-on-one support "above and beyond,"
+          deliberately refusing to hand it to AI.</p>
+        </div></div></div>
+    </div>
+
+    <div class="reveal"><span class="subtag">F · Why This Matters</span>
+      <div class="matters">💚 Your network sets your ceiling; your humanity sets your floor. Both compound for decades —
+        long after any specific framework, tool, or model is obsolete. Work as if the result 100% depends on your input… then strategize so the same input yields more.</div>
+    </div>
+
+    <div class="reveal"><span class="subtag">G · 🔗 Inter-Module Links</span>
+      <div class="links">
+        <button class="link-chip" data-goto="m3">🔗 → Module 3: networking is mentorship at scale</button>
+        <button class="link-chip" data-goto="m1">🔗 → Module 1: institutions lag disruption — never outsource adaptation to a university</button>
+        <button class="link-chip" data-goto="m5">🔗 → Module 5: a shipped product is your best networking artifact</button>
+      </div>
+    </div>
+
+    <div class="quiz reveal" data-quiz="m6"><span class="qtag">✅ Check yourself · Module 6</span></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       PRACTICE LAB
+       ══════════════════════════════════════════ -->
+  <section id="lab">
+    <div class="sec-head reveal">
+      <div class="tag">// practice lab — apply it</div>
+      <h2>Prove it to <em>yourself</em></h2>
+    </div>
+
+    <!-- Drag & drop -->
+    <div class="lab reveal" id="dndLab">
+      <h3>🧩 Match the concept to its meaning</h3>
+      <p class="ldesc">Drag a chip into the blank (or tap a chip, then tap a blank). Get all five to complete the lab.</p>
+      <div class="dnd-pool" id="dndPool" aria-label="Concept chips"></div>
+      <div id="dndDefs"></div>
+      <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+        <button class="btn" id="dndCheck">Check answers</button>
+        <button class="btn ghost" id="dndReset">Reset</button>
+        <span id="dndMsg" class="qscore" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <!-- Fill in the blank -->
+    <div class="lab reveal" id="fibLab">
+      <h3>🎯 Fill in the blank — earn it with hints</h3>
+      <p class="ldesc">Type your answer. Stuck? Each hint costs a little pride and unlocks the next level. Three hints, then the answer reveals itself.</p>
+      <div id="fibHost"></div>
+    </div>
+
+    <!-- Mini challenge -->
+    <div class="lab reveal" id="chLab">
+      <h3>🎮 Mini-challenge: you, six months from now</h3>
+      <p class="ldesc">Four decisions. Each choice has consequences — pick, read the outcome, move on. Your dots track the quality of your instincts.</p>
+      <div id="chHost"></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       MEMORY STUDIO
+       ══════════════════════════════════════════ -->
+  <section id="memory">
+    <div class="sec-head reveal">
+      <div class="tag">// memory studio — keep it</div>
+      <h2>Make it <em>stick</em></h2>
+    </div>
+
+    <!-- Flashcards -->
+    <div class="lab reveal">
+      <h3>📝 Flashcards — flip, reflect, rate</h3>
+      <p class="ldesc">Click the card (or press Enter) to flip. "Show extra context" deepens the encoding; rate yourself honestly — mastery is tracked and saved.</p>
+      <div class="flash-stage">
+        <div class="fcard" id="fcard" tabindex="0" role="button" aria-label="Flashcard. Press Enter to flip.">
+          <div class="fface front"><span class="mono" style="font-size:11px;color:var(--muted)">TERM</span><h4 id="fFront"></h4><span class="mono" style="font-size:11px;color:var(--muted)">tap to flip ↻</span></div>
+          <div class="fface back"><p id="fBack"></p><p class="fextra" id="fExtra"></p></div>
+        </div>
+      </div>
+      <div class="fctrl">
+        <button class="btn ghost" id="fFlipBtn">↻ Flip</button>
+        <button class="btn ghost" id="fExtraBtn">💡 Show extra context</button>
+        <button class="btn" id="fAgain" style="background:var(--orange)">😅 Still learning</button>
+        <button class="btn" id="fGot" style="background:var(--green)">✅ Got it</button>
+      </div>
+      <div class="fcount" id="fCount"></div>
+      <div class="mastery" id="fMastery" aria-label="Mastery per card"></div>
+    </div>
+
+    <!-- Spaced repetition -->
+    <div class="lab reveal">
+      <h3>⏰ Spaced repetition schedule</h3>
+      <p class="ldesc">Your review clock started when you opened this lesson. Items unlock as time passes — check them off after you've actually recalled the answer (out loud, no peeking).</p>
+      <div id="srHost"></div>
+      <p class="qscore" id="srNext"></p>
+    </div>
+
+    <!-- Teach-back -->
+    <div class="lab reveal">
+      <h3>✍️ Explain it to a 5-year-old <span class="mono" style="font-size:12px;color:var(--muted)">(Feynman teach-back)</span></h3>
+      <p class="ldesc">Prompt: <b>Why should a beginner learn coding fundamentals AND use AI — why isn't that cheating?</b>
+        Type your simplest explanation. The page scores your keyword coverage, then reveals a model answer side-by-side.</p>
+      <div class="teach-grid">
+        <div>
+          <textarea id="teachInput" placeholder="Well, imagine learning to ride a bike…" aria-label="Your explanation for a five year old"></textarea>
+          <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+            <button class="btn" id="teachScore">Score my explanation</button>
+            <span id="teachPct" class="qscore" aria-live="polite"></span>
+          </div>
+          <div class="kw-chips" id="teachKw"></div>
+        </div>
+        <div class="model-ans" id="teachModel">
+          <b>🧒 Model answer:</b>
+          <p style="margin-top:8px">"Imagine learning to ride a bike. You still have to pedal yourself — that's the
+          fundamentals; nobody can pedal for you. But a coach running beside you can shout <em>'lean left!'</em> right
+          before you crash, show you tricks from every angle, and quiz you at the end of the day. That's the AI.
+          The coach doesn't ride the bike for you — the coach makes you a rider <b>faster</b>. And one day, you ride alone."</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ SUMMARY & CHEAT SHEET ══════════ -->
+  <section id="summary">
+    <div class="sec-head reveal">
+      <div class="tag">// summary &amp; cheat sheet</div>
+      <h2>The whole lesson, <em>ten lines</em></h2>
+    </div>
+    <div class="cheat reveal">
+      <h3>$ cat cheat-sheet.txt</h3>
+      <ol>
+        <li>Disruption is fast, adaptation is slow → make <b>adaptation speed</b> your metric, not years.</li>
+        <li>Fundamentals + AI agents = <b>both/and</b>. Refusing AI "to protect learning" is self-sabotage.</li>
+        <li>Build a <b>knowledge vault</b> + reusable skills: research · translation · <b>design alternatives</b> (the best one).</li>
+        <li>Demand <b>runnable examples</b>; fan out agents for many approaches, not one siloed answer.</li>
+        <li>Find a mentor on <b>day one</b>. Coins &lt; treasure chest. Collapse time.</li>
+        <li>The tutorial era is ending → consume <b>applied experience</b> (blogs, practitioner podcasts).</li>
+        <li><b>Top hat</b>: broad brim of fundamentals, deep crown of few things. Learn the <b>diff</b>, never the duplicate.</li>
+        <li>Real learning is <b>painful</b>; easy feels like learning but isn't.</li>
+        <li>Ship real: domain, users, real data, live migrations — <b>100× localhost</b>. Product mindset is the AI-proof skill.</li>
+        <li>Expand your comfort zone; network up; <b>automate with AI, differentiate with humanity</b>.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ══════════ FINAL ASSESSMENT ══════════ -->
+  <section id="assess">
+    <div class="sec-head reveal">
+      <div class="tag">// final assessment — 15 questions</div>
+      <h2>Test your <em>knowledge</em></h2>
+    </div>
+    <div class="ass-box reveal" id="assBox">
+      <div class="ass-progress" id="assDots" aria-hidden="true"></div>
+      <div id="assQ"></div>
+    </div>
+  </section>
+
+  <!-- ══════════ FAQ ══════════ -->
+  <section id="faq" class="faq">
+    <div class="sec-head reveal">
+      <div class="tag">// still confused?</div>
+      <h2>Frequently asked <em>questions</em></h2>
+    </div>
+    <div class="reveal">
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❓ Is he seriously saying beginners should skip fundamentals? <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner"><p>No — the exact opposite. He's explicit: "Should you know how to
+        code? Yes. Should you understand all the fundamentals? Absolutely — that's what I recommend people start with."
+        The argument is about <em>pairing</em>: fundamentals alongside AI-enhanced learning, from the start — because
+        refusing the tools "until I'm senior" just copies the structure of veterans who are failing to adapt.</p></div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❓ What if I genuinely can't find a mentor? <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner"><p>His blunt take: "You probably haven't tried very hard." Concrete
+        moves: engage on LinkedIn and Reddit, join communities of builders, message authors after reading their books
+        (it works on romance novelists, for crying out loud). And the fallback tier is real: engineering blogs and
+        practitioner podcasts deliver applied experience that tutorials and LLMs can't recreate.</p></div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❓ Which programming language should I start with? <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner"><p>It genuinely doesn't matter — JavaScript, TypeScript, Python,
+        anything. Pick <em>one</em>, go deep past the point where it stops being new, and let the diff principle handle
+        every future language. Re-learning loops in a second language feels productive and teaches nothing; learning how
+        the languages differ teaches the transferable skill.</p></div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❓ So is a computer science degree worthless? <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner"><p>Not necessarily — he holds one and says the decision is yours to
+        weigh. His critique is of the <em>mindset pipeline</em>: "get the degree and jobs will be handed to you" is bogus,
+        because graduates often arrive without real-world value. Whether or not you go, build real products during those
+        four years — that's "way more real-world skill than most people there" will accumulate.</p></div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❓ Won't using AI agents make my software worse? <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner"><p>Used correctly, his experience says the opposite: agents improve
+        system design, architecture, bug detection, and security review. The failure mode is <em>vibe coding</em> —
+        letting AI write everything while understanding nothing. The fix isn't abstinence; it's AI-enhanced software
+        engineering, where you direct, verify, and learn from every output.</p></div></div></div>
+      <div class="acc"><button class="acc-btn" aria-expanded="false">❓ If I remember ONE thing from this lesson, what should it be? <span class="car">▶</span></button>
+        <div class="acc-body"><div class="acc-inner"><p>His own framing: "If you get nothing from this video except this
+        one tip, you're going to be much better off — <b>disruption moves very fast and adaptation is typically slow.</b>"
+        Everything else — AI, mentors, depth, shipping, humanity — is a lever for raising your adaptation speed.</p></div></div></div>
+    </div>
+  </section>
+
+  <!-- ══════════ NEXT STEPS ══════════ -->
+  <section id="next">
+    <div class="sec-head reveal">
+      <div class="tag">// next steps</div>
+      <h2>Do these <em>this week</em></h2>
+    </div>
+    <div class="next-list reveal">
+      <div class="next-item"><span class="n">STEP 01</span><h4>Write your first AI skill today</h4><p>A reusable "design alternatives" prompt: given any concept, surface 3+ different approaches and challenge the category itself.</p></div>
+      <div class="next-item"><span class="n">STEP 02</span><h4>Start your knowledge vault</h4><p>One folder of markdown notes. Every study session and project decision goes in; let AI structure and correct it.</p></div>
+      <div class="next-item"><span class="n">STEP 03</span><h4>Pick ONE AI tool and go deep</h4><p>Learn its skills, sub-agents, and advanced patterns. Depth in one translates; dabbling in five doesn't.</p></div>
+      <div class="next-item"><span class="n">STEP 04</span><h4>Message three people ahead of you</h4><p>LinkedIn or a community. Specific, low-friction, no ask — "I read your thing, here's what it changed for me."</p></div>
+      <div class="next-item"><span class="n">STEP 05</span><h4>Choose your medium-difficulty project</h4><p>Then buy the domain this week. The purchase is a commitment device — it makes the project real before you feel ready.</p></div>
+      <div class="next-item"><span class="n">STEP 06</span><h4>Queue the source material</h4><p>From the transcript's context: the Zero Knowledge Podcast, Discord's NoSQL engineering article, end-to-end crash courses in your chosen language — and the creator's free notes &amp; Agentic AI course linked with the video.</p></div>
+    </div>
+  </section>
+
+  <!-- ══════════ KNOWLEDGE MAP (end) ══════════ -->
+  <section id="map-end">
+    <div class="sec-head reveal">
+      <div class="tag">// the map, revisited</div>
+      <h2>Look how far the <em>connections</em> go</h2>
+    </div>
+    <div class="map-box reveal">
+      <div id="mapB"></div>
+      <div class="map-tip">Blue nodes = visited · green ring = module quiz passed · anything still gray is your next session</div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap" style="padding:0">
+      <p class="mono" style="font-size:12.5px">$ exit 0 — lesson compiled from a 15-year transcript · progress saved in your browser · no cookies, no servers, no excuses</p>
+      <p style="margin-top:8px">"Work as if the result 100% depends on you — then strategize so the same input yields more."</p>
+    </div>
+  </footer>
+</main>
+
+<script>
+/* ============================================================
+   STARTING TODAY — lesson engine
+   Sections: state · theme · boot · progress · knowledge map ·
+   quizzes · hotspots · timeline · lab · memory · observers
+   ============================================================ */
+'use strict';
+
+/* ---------- helpers ---------- */
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+/* ---------- persistent state (localStorage) ---------- */
+const KEY = 'starting_today_v1';
+let S;
+try { S = JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ S = {}; }
+S.visited = S.visited || {};          // {m1:true,...}
+S.quizzes = S.quizzes || {};          // {m1:{done:{0:true},correct:n},...}
+S.cards   = S.cards   || {};          // {index: 1|2 mastery}
+S.labs    = S.labs    || {dnd:false, fib:0, challenge:false, teach:false};
+S.assess  = S.assess  || {best:null};
+S.spaced  = S.spaced  || {};          // {index:true}
+S.t0      = S.t0 || Date.now();       // lesson-open timestamp for spaced repetition
+const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} };
+save();
+
+/* ---------- theme (dark/light toggle) ---------- */
+const root = document.documentElement;
+const themeBtn = $('#themeBtn');
+function applyTheme(t){
+  root.dataset.theme = t;
+  themeBtn.textContent = t === 'dark' ? '☀️' : '🌙';
+  themeBtn.setAttribute('aria-pressed', String(t === 'light'));
+  try{ localStorage.setItem(KEY + '_theme', t); }catch(e){}
+}
+let savedTheme = null;
+try{ savedTheme = localStorage.getItem(KEY + '_theme'); }catch(e){}
+applyTheme(savedTheme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+themeBtn.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
+
+/* ---------- boot / loading overlay ---------- */
+(function boot(){
+  const log = $('#bootlog'), overlay = $('#boot');
+  const lines = [
+    ['$ git clone 15-years-of-mistakes', ''],
+    ['$ npm run compress --years=15 --minutes=45', ''],
+    ['✓ 6 modules compiled', 'ok'],
+    ['✓ 29 quizzes linked · 8 flashcards shuffled', 'ok'],
+    ['✓ 0 external dependencies', 'ok'],
+    ['$ ./start_lesson', 'dim']
+  ];
+  let i = 0, finished = false;
+  function finish(){
+    if(finished) return; finished = true;
+    overlay.classList.add('done');
+    document.body.setAttribute('aria-busy','false');
+    setTimeout(() => overlay.remove(), 600);
+  }
+  function step(){
+    if(i >= lines.length){ setTimeout(finish, 450); return; }
+    const div = document.createElement('div');
+    div.className = lines[i][1];
+    div.textContent = lines[i][0];
+    log.appendChild(div);
+    const cur = document.createElement('span'); cur.className = 'cursor';
+    div.appendChild(cur);
+    i++; setTimeout(step, 300);
+  }
+  step();
+  overlay.addEventListener('click', finish);
+  document.addEventListener('keydown', finish, {once:true});
+  setTimeout(finish, 4200); // failsafe
+})();
+
+/* ============================================================
+   QUIZ DATA — every option carries its own "why".
+   Format: [text, isCorrect, why]
+   ============================================================ */
+const QUIZ = {
+m1: [
+ {q:'A senior engineer with 15 years of experience is laid off and loses interviews to a self-taught developer with one year. According to the lesson, the best explanation is…',
+  opts:[
+   ['Bad luck — the job market is random.', false, 'The lesson explicitly frames this as a skill-relevance problem, not chance: the years simply may not contain today\u2019s required experience.'],
+   ['The senior\u2019s 15 years may not include the experience that matters today, while the newcomer focused their effort on what\u2019s in demand.', true, 'Exactly. Total skill matters less than the relevant slice — a newcomer can have less overall skill yet the right skill, and win the AI-capability role.'],
+   ['Entry-level candidates always outperform seniors in interviews.', false, 'An overgeneralization the lesson never makes. The point is relevance of skill, not age or seniority.'],
+   ['The senior should have switched companies sooner.', false, 'Switching companies doesn\u2019t fix an outdated skill set — the divergence travels with you.']]},
+ {q:'"Disruption moves very fast, and adaptation is typically slow." What is the most valuable lever this implies?',
+  opts:[
+   ['Avoid disruptive fields and pick something stable.', false, 'Stability is an illusion in this frame — the track moves under every field. Avoidance just guarantees divergence.'],
+   ['Influence and raise the speed at which you adapt, because that\u2019s the variable you control.', true, 'Correct — he states it plainly: "if you can influence the speed at which you adapt, you\u2019re going to be much better off." It\u2019s the meta-skill the rest of the lesson hangs on.'],
+   ['Wait until a trend is proven before investing time.', false, 'Waiting is precisely how you diverge slowly while believing you\u2019re being prudent.'],
+   ['Accumulate years of experience as fast as possible.', false, 'Years are the wrong currency — 30 years can be one year repeated 30 times.']]
+ }],
+m2: [
+ {q:'A beginner says: "I won\u2019t use AI until I\u2019m a senior developer, so it doesn\u2019t hurt my fundamentals." The lesson\u2019s response is…',
+  opts:[
+   ['Smart — fundamentals first, tools later.', false, 'That\u2019s the exact belief he pushes back on daily: "you\u2019re refusing to acknowledge that because you\u2019ve adopted this belief that using AI is somehow going to destroy your foundation."'],
+   ['It makes zero sense — it forces you into the structure of 20-year veterans who are failing to adapt. Fundamentals and AI-enhanced learning should be paired from the start.', true, 'Correct. He\u2019s explicit: fundamentals, absolutely — but paired with agents used for understanding, review, and quality. The split is the error, not the tool.'],
+   ['AI tools are too advanced for beginners anyway.', false, 'The lesson argues the opposite — beginners gain the most, because agents accelerate understanding when used correctly.'],
+   ['They should pick a career where AI isn\u2019t relevant.', false, 'Nowhere in the lesson is retreat suggested; the entire premise is adapting to the disruption, not fleeing it.']]},
+ {q:'Why does he call the "design alternatives" AI skill the most valuable one?',
+  opts:[
+   ['It generates code the fastest.', false, 'Speed isn\u2019t the point of this skill — it\u2019s about breadth of perspective, not velocity.'],
+   ['It breaks siloed concepts by showing many approaches to the same topic — functional vs OOP vs trait-based — and can even challenge the whole category.', true, 'Correct. Modern learning\u2019s biggest flaw is siloed concepts; this skill conquers a topic from every angle and asks "do we even need OOP here?" — breadth that used to take years.'],
+   ['It\u2019s the only skill that works without an internet connection.', false, 'Nothing in the lesson suggests this — all agent workflows assume connectivity.'],
+   ['It stops the AI from writing any code at all.', false, 'It doesn\u2019t restrict code generation; it expands the solution space you\u2019re shown.']]
+ }],
+m3: [
+ {q:'In the coins-vs-treasure-chest metaphor, the treasure chest represents…',
+  opts:[
+   ['A complete playlist of tutorials.', false, 'A tutorial playlist is the pile of coins — many tiny findings that take forever to add up.'],
+   ['Insight from people with years of applied experience — a few sentences that outweigh hours of tutorial-hopping.', true, 'Correct. He\u2019d get "so much more value from just a couple of things somebody would say with more experience" than from countless hours of content.'],
+   ['A paid course certificate.', false, 'Certificates aren\u2019t in the metaphor at all — the chest is living human experience, not credentials.'],
+   ['An AI chatbot with a large context window.', false, 'AI is a coin-collector\u2019s tool in this frame — useful, but it has never lived the experience inside the chest.']]},
+ {q:'He could teach database design at 16 but couldn\u2019t warn students about production pitfalls. What does this demonstrate?',
+  opts:[
+   ['He was a natural prodigy who knew everything early.', false, 'The story is told as a limitation, not a flex — concepts without scars left his teaching incomplete.'],
+   ['You can know concepts without production scars — the "never do X in production, because I did it once" judgment must be lived or borrowed.', true, 'Correct. That judgment is exactly what mentors and applied-experience content transfer — and it\u2019s nearly impossible to acquire alone as a beginner.'],
+   ['Database design fundamentally cannot be taught.', false, 'He taught it successfully — the missing piece was experiential judgment, not teachability.'],
+   ['Teenagers shouldn\u2019t be teaching programming.', false, 'Not the point at all; the point is the gap between conceptual knowledge and scar tissue.']]
+ }],
+m4: [
+ {q:'According to the "diff principle", after mastering loops in Python, learning loops again in TypeScript is…',
+  opts:[
+   ['The best way to solidify the concept.', false, 'Re-learning the identical concept in new syntax "feels productive, but you really didn\u2019t learn anything new."'],
+   ['Low-value translation work — better to learn how the two languages differ and spend the saved time on genuinely new concepts.', true, 'Correct. Translation is a low-value skill you pick up on demand via docs or AI; only the diff deserves deliberate study.'],
+   ['Required before touching any real project.', false, 'The lesson says the opposite — pick up translations as needed, while going deep in one language.'],
+   ['Only useful if you plan to write compilers.', false, 'No such condition exists; the principle applies to every learner.']]},
+ {q:'The "top hat" says your skill shape should be…',
+  opts:[
+   ['Wide and flat — a little bit of everything.', false, 'That\u2019s the brim with no crown: "average at a bunch of stuff and not really great at anything."'],
+   ['A broad foundation of fundamentals with deep mastery of a very few things.', true, 'Correct — broad brim (networking, databases, backend, desktop, low-level) supporting a tall crown. Depth is where discovery and irreplaceability live.'],
+   ['One narrow spike with no foundation.', false, 'The brim matters: the 80/20 sweep of non-overlapping fundamentals is what the skyscraper stands on.'],
+   ['Whatever the latest job listing demands, week to week.', false, 'That\u2019s topic-hopping — his "efficiency was trash" period. The hat is a deliberate shape, not a reactive one.']]
+ }],
+m5: [
+ {q:'His cryptocurrency project "CurryCoin" failed as a product but was enormously valuable because…',
+  opts:[
+   ['Cryptocurrency was guaranteed to make money at the time.', false, 'He says plainly it "sucked" and nobody was going to buy it — the product was never the point.'],
+   ['It produced real, provable evidence of complex Rust work — likely the difference between getting the senior role and not.', true, 'Correct. A company reached out within a week of him starting; the project demonstrated he could build something "more complex than something you could build in an afternoon."'],
+   ['It taught him that products don\u2019t matter, only code does.', false, 'The lesson draws the exact opposite conclusion — product thinking is the AI-proof skill of the future.'],
+   ['It was quick and easy to finish.', false, 'It was hard, unfinished, and abandoned — the value came from the complexity attempted, not completion.']]},
+ {q:'Why is experience with live data migrations "100× more valuable" than building local prototypes?',
+  opts:[
+   ['Migrations are a trendy interview topic.', false, 'Trendiness isn\u2019t mentioned; the value is practical, not fashionable.'],
+   ['Because reshaping a live data structure — without corrupting data or alarming users — is a skill only real production stakes can teach.', true, 'Correct. "How do we make sure we don\u2019t corrupt data… while the end user doesn\u2019t realize anything changed?" — that question doesn\u2019t exist on localhost.'],
+   ['Because local computers are too slow for real testing.', false, 'Hardware speed is irrelevant; the missing ingredient is real users and real data, not CPU.'],
+   ['Because it requires a bigger cloud budget.', false, 'Cost isn\u2019t the point — judgment under production risk is.']]
+ }],
+m6: [
+ {q:'The real lesson of the $500 → $1,500 pricing story is…',
+  opts:[
+   ['Clients secretly enjoy being overcharged.', false, 'The client\u2019s reaction ("yeah, that\u2019s fine") showed the price was normal to them — not that overcharging is the goal.'],
+   ['Don\u2019t just leave your comfort zone — expand it permanently, until numbers that once terrified you look "irrationally low."', true, 'Correct. One brave ask used willpower; the lasting change was the setpoint moving. Today he wouldn\u2019t consider that $1,500 job at all.'],
+   ['Always triple your prices, no matter what.', false, 'The tripling was a tactic for that moment, not a universal rule — the lesson is about the internal setpoint, not the multiplier.'],
+   ['Money doesn\u2019t matter early in a career.', false, 'He treats compensation as a direct signal of expanded possibility — the whole story is about claiming it.']]},
+ {q:'In an AI-saturated world, his final advice is…',
+  opts:[
+   ['Automate everything — including client relationships.', false, 'Explicitly the opposite: "I would argue the opposite for certain things."'],
+   ['Use AI to automate where possible, but go heavy on human-to-human interaction where value is highest — that\u2019s how you stand out.', true, 'Correct. When everything is synthetic, genuine human contact becomes scarce and valuable; he personally keeps his one-on-one support far away from AI.'],
+   ['Avoid AI entirely so you seem more human.', false, 'He\u2019s adamant you should adopt AI fully — the human edge is additive, not a substitute for the tools.'],
+   ['Only apply for jobs AI can\u2019t do today.', false, 'That\u2019s a moving target — the lesson is about posture (automate + humanize), not hiding in AI-free niches.']]
+ }],
+qr1: [
+ {q:'Quick recall: the "two sides of the same coin" are adapting to what\u2019s new AND…',
+  opts:[
+   ['…avoiding all legacy approaches.', false, 'No — the coin\u2019s other side is learning from experienced people, not discarding the past.'],
+   ['…learning from experienced people and proven experience.', true, 'Correct. "Adapt fast, but also learn from experienced individuals — two different points of focus working toward the same goal."'],
+   ['…memorizing more tutorials.', false, 'Tutorial volume is the coin-pile trap, not the counterweight to adaptation.'],
+   ['…waiting for trends to stabilize.', false, 'Waiting is divergence; the coin has no "wait" side.']]},
+ {q:'Quick recall: which AI skill did he call the most valuable?',
+  opts:[
+   ['Code translation.', false, 'Useful, but translation is explicitly a cheap, on-demand skill.'],
+   ['Research.', false, 'Valuable — but not the one he singled out as most valuable.'],
+   ['Design alternatives.', true, 'Correct — it breaks siloed concepts, shows every angle of a topic, and can challenge the category itself.'],
+   ['Quiz generation.', false, 'Part of the examiner role, but not the top pick.']]},
+ {q:'Quick recall: "I won\u2019t use AI until I\u2019m senior" is, per the lesson…',
+  opts:[
+   ['A wise protective stance.', false, 'It\u2019s the refusal trap — it copies the structure of veterans failing to adapt.'],
+   ['Self-sabotage dressed as discipline: fundamentals and agents should be paired from day one.', true, 'Correct. There are times for hand-writing everything, times for agents to write, and times for agents to teach — splitting them by seniority "makes zero sense."'],
+   ['The official university recommendation to follow.', false, 'He suspects that advice protects institutions, not students.'],
+   ['Irrelevant — AI doesn\u2019t affect learning.', false, 'The whole module argues AI massively affects learning — for better, when used right.']]
+ }],
+qr2: [
+ {q:'Quick recall: the top hat = broad brim of fundamentals plus…',
+  opts:[
+   ['…a tall crown of deep mastery in very few things.', true, 'Correct — and depth is where you find what isn\u2019t in any tutorial.'],
+   ['…a second, slightly smaller brim.', false, 'More breadth isn\u2019t the crown — the crown is depth.'],
+   ['…decorative pins for every tool you\u2019ve touched.', false, 'Tool souvenirs are the shallow-holes version of a career.'],
+   ['…nothing; the brim alone is enough.', false, 'Brim-only = average at everything, special at nothing.']]},
+ {q:'Quick recall: when moving from Python to JavaScript, you deliberately learn…',
+  opts:[
+   ['Everything again, carefully, from loops up.', false, 'That\u2019s paying full price twice — it feels productive and teaches nothing new.'],
+   ['Only the differences between the two.', true, 'Correct — the overlap is already yours; the diff is the only new information.'],
+   ['A third language simultaneously.', false, 'Parallel shallowness — the exact topic-hopping pattern he regrets.'],
+   ['Nothing; languages are identical.', false, 'Real diffs exist (OOP works differently in JS!) — you just learn them cheaply.']]},
+ {q:'Quick recall: in the coins-vs-chest metaphor, tutorial-hopping is…',
+  opts:[
+   ['Opening the treasure chest.', false, 'The chest is veteran insight — tutorial-hopping is the distraction from it.'],
+   ['Collecting coins: real but tiny findings that take forever to compound.', true, 'Correct — "too busy distracted by this to go open the treasure chest."'],
+   ['A bank withdrawal.', false, 'Withdrawals are what mentorship gives you; coins are what tutorials give you.'],
+   ['The fastest path to skill wealth.', false, 'His own early years proved the opposite — countless hours, modest value.']]
+ }],
+assess: [
+ {q:'1. Best explanation for a laid-off senior losing to an entry-level candidate:',
+  opts:[['Market luck',false,'The lesson frames it as skill relevance, not chance.'],
+        ['Their years may lack the experience that matters today; the newcomer focused on in-demand skills',true,'Total skill < relevant slice. This is the Module 1 core.'],
+        ['Seniors interview worse by nature',false,'An overgeneralization the lesson never makes.'],
+        ['They changed companies too late',false,'A company change doesn\u2019t repair an outdated skill set.']]},
+ {q:'2. The most valuable lever amid fast disruption is…',
+  opts:[['Picking a stable field',false,'No field stays still; avoidance guarantees divergence.'],
+        ['Raising your adaptation speed — the variable you control',true,'"If you can influence the speed at which you adapt, you\u2019re much better off."'],
+        ['Waiting for trends to mature',false,'Waiting is slow divergence with a prudent alibi.'],
+        ['More calendar years of experience',false,'30 years can be one year repeated 30 times.']]},
+ {q:'3. "AI will slow my learning" is, per the lesson…',
+  opts:[['Correct caution',false,'It\u2019s the refusal trap he hears daily.'],
+        ['An approach problem — used as examiner/example-generator/reviewer, AI accelerates understanding',true,'His six months of daily agents ≈ years of solo study.'],
+        ['True only for seniors',false,'If anything, beginners gain the most.'],
+        ['Irrelevant to software',false,'It\u2019s the central adaptation test of the era.']]},
+ {q:'4. The most valuable reusable AI skill:',
+  opts:[['Research',false,'Valuable, not the top pick.'],
+        ['Code translation',false,'Explicitly a cheap, on-demand skill.'],
+        ['Design alternatives',true,'Breaks siloed concepts; can challenge the whole category ("do we need OOP at all?").'],
+        ['Note summarization',false,'Not the one he singled out.']]},
+ {q:'5. After 6 months of daily agent use, his learning was comparable to…',
+  opts:[['A couple of weeks of study',false,'Far too small — the claim is dramatic.'],
+        ['A couple of years of solo study',true,'The evidence he offers for AI-enhanced learning.'],
+        ['No measurable change',false,'He calls it the opposite.'],
+        ['One university semester',false,'Not his comparison.']]},
+ {q:'6. The treasure chest in the metaphor is…',
+  opts:[['A full tutorial playlist',false,'That\u2019s the coin pile.'],
+        ['A few sentences from someone with years of applied experience',true,'Worth more than countless hours of content-hopping.'],
+        ['A certification',false,'Credentials aren\u2019t in the metaphor.'],
+        ['A bigger context window',false,'AI collects coins; it hasn\u2019t lived the chest.']]},
+ {q:'7. The tutorial era is ending because…',
+  opts:[['Videos are too long',false,'Not the argument.'],
+        ['LLMs can now explain basics with examples — so applied experience is where value moves',true,'What ChatGPT has never lived is the remaining scarce content.'],
+        ['YouTube is declining',false,'Platform health is irrelevant to the point.'],
+        ['People stopped watching videos',false,'Consumption isn\u2019t the issue; value density is.']]},
+ {q:'8. The top hat skill shape is…',
+  opts:[['Wide and flat',false,'Brim without crown = average at everything.'],
+        ['Broad fundamentals + deep mastery of very few things',true,'Brim: networking, DBs, backend, desktop, low-level. Crown: depth.'],
+        ['One narrow spike, no base',false,'The brim is essential scaffolding.'],
+        ['Whatever\u2019s trending weekly',false,'That\u2019s the topic-hopping anti-pattern.']]},
+ {q:'9. After loops in Python, loops in TypeScript should be learned…',
+  opts:[['From scratch, thoroughly',false,'Feels productive, teaches nothing new.'],
+        ['As a diff — only the differences between the languages',true,'Translation is low-value; the diff is the only new information.'],
+        ['In three more languages at once',false,'Parallel shallowness.'],
+        ['Never — one language forever',false,'He\u2019s fine with more languages; just priced correctly.']]},
+ {q:'10. A reliable sign you\u2019re actually learning:',
+  opts:[['It feels effortless',false,'Easy means you\u2019re exercising what you already know.'],
+        ['It\u2019s somewhat painful — heavy focus, cross-referencing, note-taking',true,'"Deep learning is more painful than fun" — the pain marks new territory.'],
+        ['You finish quickly',false,'Speed is not the signal; newness is.'],
+        ['You can\u2019t name anything concrete you learned',false,'That\u2019s the signature of fake learning.']]},
+ {q:'11. CurryCoin\u2019s real value was…',
+  opts:[['Its market success',false,'It "sucked" — nobody was going to buy it.'],
+        ['Real, provable evidence of complex work — likely the difference in landing the role',true,'A company reached out within a week of him starting.'],
+        ['Teaching that products don\u2019t matter',false,'The opposite — product mindset is the AI-proof skill.'],
+        ['Being quick and easy',false,'Hard, unfinished, and abandoned for the job it helped win.']]},
+ {q:'12. Live-migration experience beats local prototypes because…',
+  opts:[['It\u2019s a trendy interview topic',false,'Its value is practical, not fashionable.'],
+        ['Protecting real production data through schema change is a skill only live stakes teach',true,'"100× more valuable" — the question doesn\u2019t exist on localhost.'],
+        ['Local machines are too slow',false,'The missing ingredient is stakes, not CPU.'],
+        ['Cloud budgets look impressive',false,'Cost is not the point.']]},
+ {q:'13. The $500 → $1,500 story teaches you to…',
+  opts:[['Overcharge everyone',false,'The tactic isn\u2019t the lesson.'],
+        ['Expand your comfort zone permanently, until scary numbers look irrationally low',true,'Willpower for one ask; identity for the setpoint.'],
+        ['Avoid money talk',false,'Avoidance kept him underselling.'],
+        ['Only work for big companies',false,'The story is about self-employment pricing.']]},
+ {q:'14. The deeper problem behind "AI is killing entry-level jobs":',
+  opts:[['AI itself',false,'"The problem really isn\u2019t AI necessarily."'],
+        ['A degree pipeline that graduates people without real-world value',true,'Institutions lag disruption; graduates arrive unprepared for production work.'],
+        ['Too many bootcamps',false,'Not discussed in the lesson.'],
+        ['Lazy students only',false,'He blames the pipeline and mindset, not just individuals.']]},
+ {q:'15. His FINAL advice for an AI-saturated world:',
+  opts:[['Automate every relationship too',false,'Explicitly the opposite.'],
+        ['Automate with AI, but go heavy on human-to-human where value is highest',true,'Scarcity creates value: genuine humanity stands out when everything else is synthetic.'],
+        ['Quit AI to appear human',false,'Adopt AI fully — the human edge is additive.'],
+        ['Hide in AI-free niches',false,'The posture matters, not the niche.']]
+ }]
+};
+
+/* ============================================================
+   QUIZ ENGINE — renders a quiz into any container with
+   data-quiz="key". Feedback follows the spec's exact format.
+   ============================================================ */
+function quizState(key, total){
+  if(!S.quizzes[key]) S.quizzes[key] = {done:{}, correct:0, total};
+  return S.quizzes[key];
+}
+function renderQuiz(host){
+  const key = host.dataset.quiz;
+  const qs = QUIZ[key];
+  const st = quizState(key, qs.length);
+  qs.forEach((q, qi) => {
+    const div = document.createElement('div');
+    div.style.marginTop = qi ? '22px' : '8px';
+    const h = document.createElement('h4');
+    h.textContent = q.q;
+    div.appendChild(h);
+    const opts = document.createElement('div');
+    opts.className = 'qopts';
+    q.opts.forEach((o, oi) => {
+      const b = document.createElement('button');
+      b.className = 'qopt';
+      b.innerHTML = '<span class="key">' + 'ABCD'[oi] + '</span><span style="flex:1">' + esc(o[0]) +
+                    '<span class="qwhy">' + esc(o[2]) + '</span></span>';
+      b.addEventListener('click', () => answer(host, key, qi, oi, b, opts, div));
+      opts.appendChild(b);
+    });
+    div.appendChild(opts);
+    const fb = document.createElement('div');
+    fb.className = 'qfb';
+    div.appendChild(fb);
+    host.appendChild(div);
+    // restore previously answered state
+    if(st.done[qi] !== undefined) replayAnswer(host, key, qi, st.done[qi], opts, fb, false);
+  });
+  host.appendChild(scoreLine(key));
+}
+function scoreLine(key){
+  const st = S.quizzes[key];
+  const el = document.createElement('div');
+  el.className = 'qscore';
+  el.dataset.scorefor = key;
+  el.textContent = 'score: ' + st.correct + ' / ' + st.total + (Object.keys(st.done).length === st.total ? ' · complete ✓' : '');
+  return el;
+}
+function answer(host, key, qi, oi, btn, opts, block){
+  const st = quizState(key, QUIZ[key].length);
+  if(st.done[qi] !== undefined) return;               // locked after first answer
+  st.done[qi] = oi;
+  const q = QUIZ[key][qi];
+  const correctIdx = q.opts.findIndex(o => o[1]);
+  if(q.opts[oi][1]) st.correct++;
+  save();
+  replayAnswer(host, key, qi, oi, opts, block.querySelector('.qfb'), true);
+  // update any score lines for this quiz
+  $$('[data-scorefor="' + key + '"]').forEach(el => {
+    el.textContent = 'score: ' + st.correct + ' / ' + st.total + (Object.keys(st.done).length === st.total ? ' · complete ✓' : '');
+  });
+  updateProgress();
+}
+function replayAnswer(host, key, qi, chosen, opts, fb, announce){
+  const q = QUIZ[key][qi];
+  const correctIdx = q.opts.findIndex(o => o[1]);
+  const buttons = $$('.qopt', opts);
+  buttons.forEach((b, i) => {
+    b.disabled = true;
+    b.classList.add('answered');
+    if(i === correctIdx) b.classList.add('correct');
+    if(i === chosen && chosen !== correctIdx) b.classList.add('wrong');
+  });
+  const isRight = chosen === correctIdx;
+  fb.className = 'qfb show ' + (isRight ? 'good' : 'bad');
+  if(isRight){
+    fb.innerHTML = '<b>✅ Correct.</b> ' + esc(q.opts[correctIdx][2]);
+  } else {
+    fb.innerHTML = '<b>❌ Not quite.</b> The right answer is <b>"' + esc(q.opts[correctIdx][0]) +
+      '</b>". Here\u2019s why: ' + esc(q.opts[correctIdx][2]) +
+      ' You might have confused ' + esc(q.mix || 'the surface detail with the underlying principle') +
+      '. Let\u2019s review: ' + esc(q.rec || 'reread the core explanation of this module — the answer is stated there directly') + '.';
+  }
+}
+// per-question mixup/recap strings (spec feedback template)
+QUIZ.m1[0].mix='luck with skill relevance'; QUIZ.m1[0].rec='disruption is fast, adaptation is slow — relevance is what gets priced';
+QUIZ.m1[1].mix='patience with adaptation'; QUIZ.m1[1].rec='the only variable you control is your adaptation speed';
+QUIZ.m2[0].mix='purity with fundamentals'; QUIZ.m2[0].rec='fundamentals and agents are paired from day one — the split is the error';
+QUIZ.m2[1].mix='speed with perspective'; QUIZ.m2[1].rec='alternatives breaks siloed concepts by showing every angle';
+QUIZ.m3[0].mix='content volume with experience'; QUIZ.m3[0].rec='the chest is lived experience; coins are tutorial findings';
+QUIZ.m3[1].mix='knowledge with judgment'; QUIZ.m3[1].rec='production scars are lived or borrowed — never read';
+QUIZ.m4[0].mix='translation with learning'; QUIZ.m4[0].rec='learn once, then only the diff';
+QUIZ.m4[1].mix='breadth with value'; QUIZ.m4[1].rec='broad brim, deep crown — depth is where discovery lives';
+QUIZ.m5[0].mix='product success with proof of work'; QUIZ.m5[0].rec='CurryCoin flopped but proved complex, real work';
+QUIZ.m5[1].mix='hardware with stakes'; QUIZ.m5[1].rec='migrations under live data teach what localhost cannot';
+QUIZ.m6[0].mix='the tactic with the setpoint'; QUIZ.m6[0].rec='expand the comfort zone permanently, not once';
+QUIZ.m6[1].mix='automation with differentiation'; QUIZ.m6[1].rec='automate with AI, differentiate with humanity';
+$$('.quiz').forEach(renderQuiz);
+
+/* ============================================================
+   KNOWLEDGE MAP — rendered twice (start & end), kept in sync.
+   Hover highlights connections; click/Enter scrolls to module.
+   ============================================================ */
+const MAP_NODES = [
+  {id:'m1', x:95,  y:210, e:'⚡', l:'Adapt or Diverge'},
+  {id:'m2', x:295, y:90,  e:'🤖', l:'AI as Tutor'},
+  {id:'m3', x:295, y:330, e:'🧭', l:'Borrow Decades'},
+  {id:'m4', x:515, y:90,  e:'🎩', l:'The Top Hat'},
+  {id:'m5', x:515, y:330, e:'🚀', l:'Ship Real Things'},
+  {id:'m6', x:720, y:210, e:'🤝', l:'The Long Game'}
+];
+const MAP_EDGES = [
+  ['m1','m2','Adaptation means adopting AI now'],
+  ['m1','m3','Two sides of the same coin'],
+  ['m2','m4','Go deep in ONE AI tool'],
+  ['m4','m5','Depth gets shipped'],
+  ['m2','m5','Agents help you build products'],
+  ['m3','m6','Mentors become your network'],
+  ['m5','m6','Products open doors']
+];
+function nodeById(id){ return MAP_NODES.find(n => n.id === id); }
+function renderMap(hostId){
+  const host = document.getElementById(hostId);
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS,'svg');
+  svg.setAttribute('viewBox','0 0 810 420');
+  svg.setAttribute('role','img');
+  svg.setAttribute('aria-label','Knowledge map of the six modules and their connections. Nodes are clickable.');
+  const defs = document.createElementNS(NS,'defs');
+  defs.innerHTML = '<marker id="arr-'+hostId+'" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="var(--conn)"/></marker>';
+  svg.appendChild(defs);
+  // edges first (under nodes)
+  MAP_EDGES.forEach(([a,b,label]) => {
+    const A = nodeById(a), B = nodeById(b);
+    const dx = B.x-A.x, dy = B.y-A.y, len = Math.hypot(dx,dy);
+    const sx = A.x + dx/len*42, sy = A.y + dy/len*42;
+    const ex = B.x - dx/len*46, ey = B.y - dy/len*46;
+    const p = document.createElementNS(NS,'path');
+    p.setAttribute('d', 'M'+sx+','+sy+' L'+ex+','+ey);
+    p.setAttribute('class','medge');
+    p.setAttribute('marker-end','url(#arr-'+hostId+')');
+    p.dataset.a = a; p.dataset.b = b;
+    const t = document.createElementNS(NS,'title');
+    t.textContent = label;
+    p.appendChild(t);
+    svg.appendChild(p);
+  });
+  // nodes
+  MAP_NODES.forEach(n => {
+    const g = document.createElementNS(NS,'g');
+    g.setAttribute('class','mnode');
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','link');
+    g.setAttribute('aria-label','Module: ' + n.l + ' — jump to section');
+    g.dataset.node = n.id;
+    g.innerHTML =
+      '<circle cx="'+n.x+'" cy="'+n.y+'" r="38"></circle>' +
+      '<text class="emo" x="'+n.x+'" y="'+(n.y+7)+'" text-anchor="middle">'+n.e+'</text>' +
+      '<text class="lbl" x="'+n.x+'" y="'+(n.y+62)+'" text-anchor="middle">'+n.l+'</text>';
+    const activate = () => { document.getElementById(n.id).scrollIntoView({behavior:'smooth', block:'start'}); };
+    g.addEventListener('click', activate);
+    g.addEventListener('keydown', ev => { if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); activate(); } });
+    // hover/focus: highlight connected edges + neighbor nodes
+    const hot = on => {
+      $$('.medge', svg).forEach(p => {
+        const match = p.dataset.a === n.id || p.dataset.b === n.id;
+        p.classList.toggle('hot', on && match);
+        if(on && match){
+          const other = p.dataset.a === n.id ? p.dataset.b : p.dataset.a;
+          const og = svg.querySelector('[data-node="'+other+'"]');
+          if(og) og.classList.add('hot');
+        }
+      });
+      if(!on) $$('.mnode', svg).forEach(x => x.classList.remove('hot'));
+    };
+    g.addEventListener('mouseenter', () => hot(true));
+    g.addEventListener('mouseleave', () => hot(false));
+    g.addEventListener('focus', () => hot(true));
+    g.addEventListener('blur', () => hot(false));
+    svg.appendChild(g);
+  });
+  host.appendChild(svg);
+}
+renderMap('mapA'); renderMap('mapB');
+function refreshMaps(){
+  $$('.mnode').forEach(g => {
+    const id = g.dataset.node;
+    g.classList.toggle('done', !!S.visited[id]);
+    const st = S.quizzes[id];
+    const passed = st && Object.keys(st.done).length === st.total;
+    const c = g.querySelector('circle');
+    c.setAttribute('stroke', passed ? 'var(--green)' : (S.visited[id] ? 'var(--blue)' : 'var(--conn)'));
+    c.setAttribute('stroke-width', passed ? '3.5' : '2');
+  });
+}
+
+/* ============================================================
+   PROGRESS — 20 checkpoints × 5%:
+   6 visits + 6 module quizzes + 2 quick recalls + 1 assessment
+   + 5 labs (cards, dnd, fib, challenge, teach-back)
+   ============================================================ */
+function updateProgress(){
+  let u = 0;
+  u += Math.min(6, Object.keys(S.visited).length);
+  ['m1','m2','m3','m4','m5','m6'].forEach(k => {
+    const st = S.quizzes[k];
+    if(st && Object.keys(st.done).length === st.total) u++;
+  });
+  ['qr1','qr2'].forEach(k => {
+    const st = S.quizzes[k];
+    if(st && Object.keys(st.done).length === st.total) u++;
+  });
+  if(S.assess.best !== null) u++;
+  if(S.cardsDone) u++;
+  if(S.labs.dnd) u++;
+  if(S.labs.fib >= 3) u++;
+  if(S.labs.challenge) u++;
+  if(S.labs.teach) u++;
+  const pct = Math.round(u / 20 * 100);
+  $('#topline').style.width = pct + '%';
+  $('#pct').innerHTML = '<b>' + pct + '%</b> complete';
+  $('#pct2').textContent = u + ' / 20 checkpoints';
+  const bar = $('#pbarMain');
+  bar.querySelector('i').style.width = pct + '%';
+  bar.setAttribute('aria-valuenow', pct);
+  $$('#badges .badge').forEach(b => b.classList.toggle('on', pct >= +b.dataset.at));
+  refreshMaps();
+  save();
+}
+
+/* ============================================================
+   HOTSPOTS (Module 2 toolkit)
+   ============================================================ */
+const HS_DATA = {
+  vault: ['📚 Knowledge Vault', 'A folder of markdown notes about your project or study — shared reference for you AND the AI. Agents help structure your thoughts and flag incorrect claims, so your understanding compounds instead of evaporating between sessions.'],
+  skills: ['⚙️ Reusable Skills', 'A skill is a prompt you define once and invoke like a function: research, code-translation, design-alternatives. The alternatives skill is the crown jewel — it shows you functional vs OOP vs trait-based approaches to the same problem, and can challenge the category entirely.'],
+  examples: ['🧪 Example Generator', 'Never accept a stated fact when you can run one. Docs say "this overflows"? Have AI generate the example, run it, watch it happen. It\u2019s slower to trust-and-move-on… and far deeper in memory.'],
+  fanout: ['🔀 Agent Fan-Out', 'Don\u2019t build one idea at a time. Spawn multiple agents for multiple approaches — serial vs parallel-wait vs fire-and-forget — with real-world cases for each. Injected randomness = new ideas you couldn\u2019t have prompted for.'],
+  examiner: ['❓ The Examiner', 'Have AI quiz you with Q&A, review your notes for flaws, and write failing software tests that YOU must implement to pass. This is the mode that turns AI from crutch into coach.']
+};
+(function initHotspots(){
+  const pop = $('#hsPop'), title = $('#hsTitle'), body = $('#hsBody');
+  function open(id){
+    const d = HS_DATA[id];
+    title.textContent = d[0]; body.textContent = d[1];
+    pop.classList.add('show');
+  }
+  $$('.hotspot').forEach(h => {
+    const act = () => open(h.dataset.hs);
+    h.addEventListener('click', act);
+    h.addEventListener('keydown', ev => { if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); act(); } });
+  });
+  $('.hs-close').addEventListener('click', () => pop.classList.remove('show'));
+  document.addEventListener('keydown', ev => { if(ev.key === 'Escape') pop.classList.remove('show'); });
+})();
+
+/* ============================================================
+   INTERACTIVE TIMELINE (Module 5 ship-it loop)
+   ============================================================ */
+const T_DATA = [
+  ['💡 Idea', 'Pick medium difficulty: challenging every day, not crushing. He\u2019d now choose something easier than crypto-in-Rust — the goal is sustained momentum, not heroics.'],
+  ['🛠️ Build', 'Fundamentals + agents together (Module 2). Keep ONE repo alive over time — the tinker-abandon-repeat loop was his biggest early downfall. Continuity is where depth compounds.'],
+  ['🌐 Ship Live', 'Real domain, real branding, real deployment — "not some subdomain of some random hosting company." Do everything a real company does; the purchase of the domain is a commitment device.'],
+  ['👥 Real Users', 'Reviews, customer support, marketing, sales, monetization. "As time goes on, that\u2019s going to become a larger part of software engineering" — can you do more than write basic code?'],
+  ['🗄️ Real Data', 'Where may the data legally live (GDPR, medical privacy)? How fast does it reach users (latency/location)? How do you run live migrations without corrupting a single row? This bundle is "100× more valuable" than localhost.'],
+  ['🔁 Iterate', 'Product mindset engaged: what features do people want, need, and pay for — and what does each cost? AI can build CRUD; piecing together a valuable product is your job, and the loop feeds your next idea.']
+];
+(function initTimeline(){
+  const detail = $('#tDetail');
+  function show(i, node){
+    $$('.tnode').forEach(n => n.classList.remove('active'));
+    node.classList.add('active');
+    detail.innerHTML = '<b>' + T_DATA[i][0] + '</b> — ' + T_DATA[i][1];
+  }
+  $$('.tnode').forEach(n => {
+    const i = +n.dataset.tn;
+    n.addEventListener('click', () => show(i, n));
+    n.addEventListener('keydown', ev => { if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); show(i, n); } });
+  });
+  const first = $('.tnode'); if(first) first.classList.add('active');
+})();
+
+/* ============================================================
+   PRACTICE LAB — drag & drop matching
+   ============================================================ */
+const DND_PAIRS = [
+  ['Adaptation lag', 'The gap between how fast the world changes and how fast you update.'],
+  ['Treasure chest', 'A few sentences from someone with decades of applied experience.'],
+  ['The diff', 'The only part of a second language worth studying deliberately.'],
+  ['Top hat brim', '80% of the benefit, from a little time in each non-overlapping fundamental.'],
+  ['Human-to-human', 'The differentiator that gets more valuable as everything else is automated.']
+];
+let dndSel = null;
+function initDnd(){
+  const pool = $('#dndPool'), defs = $('#dndDefs'), msg = $('#dndMsg');
+  pool.innerHTML = ''; defs.innerHTML = ''; msg.textContent = '';
+  dndSel = null;
+  // shuffled chips
+  const order = DND_PAIRS.map((_,i)=>i).sort(() => Math.random() - .5);
+  order.forEach(i => {
+    const c = document.createElement('span');
+    c.className = 'dnd-chip';
+    c.textContent = DND_PAIRS[i][0];
+    c.draggable = true;
+    c.dataset.key = i;
+    c.setAttribute('tabindex','0');
+    c.setAttribute('role','button');
+    c.setAttribute('aria-label','Concept chip: ' + DND_PAIRS[i][0] + '. Click to select, then click a blank.');
+    attachChip(c);
+    pool.appendChild(c);
+  });
+  // definition rows with slots
+  DND_PAIRS.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'dnd-def';
+    const slot = document.createElement('span');
+    slot.className = 'dnd-slot';
+    slot.dataset.key = i;
+    slot.setAttribute('tabindex','0');
+    slot.setAttribute('role','button');
+    slot.setAttribute('aria-label','Blank for definition ' + (i+1));
+    attachSlot(slot);
+    row.appendChild(slot);
+    row.appendChild(document.createTextNode(' ' + p[1]));
+    defs.appendChild(row);
+  });
+}
+function attachChip(c){
+  c.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', c.dataset.key));
+  c.addEventListener('click', () => {
+    if(c.classList.contains('placed')){ returnChip(c); return; }
+    $$('.dnd-chip').forEach(x => x.classList.remove('sel'));
+    c.classList.add('sel'); dndSel = c;
+  });
+  c.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); c.click(); } });
+}
+function attachSlot(slot){
+  slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('over'); });
+  slot.addEventListener('dragleave', () => slot.classList.remove('over'));
+  slot.addEventListener('drop', e => {
+    e.preventDefault(); slot.classList.remove('over');
+    const chip = $('.dnd-chip[data-key="' + e.dataTransfer.getData('text/plain') + '"]');
+    if(chip) placeChip(chip, slot);
+  });
+  slot.addEventListener('click', () => {
+    if(slot.classList.contains('filled')){ returnChip(slot.querySelector('.dnd-chip')); return; }
+    if(dndSel){ placeChip(dndSel, slot); dndSel = null; }
+  });
+  slot.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); slot.click(); } });
+}
+function placeChip(chip, slot){
+  if(slot.classList.contains('filled')) return;
+  chip.classList.remove('sel'); chip.classList.add('placed');
+  chip.classList.remove('right','wrongp');
+  chip.draggable = false;
+  slot.appendChild(chip);
+  slot.classList.add('filled');
+}
+function returnChip(chip){
+  if(!chip) return;
+  chip.classList.remove('placed','right','wrongp');
+  chip.draggable = true;
+  chip.parentElement.classList.remove('filled');
+  $('#dndPool').appendChild(chip);
+}
+$('#dndCheck').addEventListener('click', () => {
+  let right = 0, total = 0;
+  $$('#dndDefs .dnd-slot').forEach(slot => {
+    const chip = slot.querySelector('.dnd-chip');
+    if(!chip) return;
+    total++;
+    const ok = chip.dataset.key === slot.dataset.key;
+    chip.classList.toggle('right', ok);
+    chip.classList.toggle('wrongp', !ok);
+    if(ok) right++;
+  });
+  const msg = $('#dndMsg');
+  if(total < 5){ msg.textContent = '⚠️ Place all five chips first (' + total + '/5 placed).'; return; }
+  if(right === 5){
+    msg.textContent = '🎉 5/5 — concepts locked in. Lab complete!';
+    S.labs.dnd = true; updateProgress();
+  } else {
+    msg.textContent = right + '/5 correct — orange chips are misplaced. Click a placed chip to return it and try again.';
+  }
+});
+$('#dndReset').addEventListener('click', initDnd);
+initDnd();
+
+/* ============================================================
+   PRACTICE LAB — fill in the blank (3-level hints)
+   ============================================================ */
+const FIB_DATA = [
+  {s:'"Disruption moves very fast, and ___ is typically slow."', a:['adaptation'],
+   h:['It\u2019s what you do when the world changes around you.', 'Starts with "a". The opposite of standing still.', '_d_a_t_i_o_ — eight letters.']},
+  {s:'"Learn the ___ between two programming languages — not the duplicate."', a:['diff','difference'],
+   h:['Git users see one of these every merge.', 'Three letters (or its eleven-letter full name).', 'd_f_ — what a merge request shows you.']},
+  {s:'"In a world where everything is AI, ___-to-___ interaction becomes the differentiator."', a:['human'],
+   h:['It\u2019s what you are. AI is the other thing.', 'Not artificial. Five letters.', 'h_m_n — the scarce resource.']},
+];
+(function initFib(){
+  const host = $('#fibHost');
+  FIB_DATA.forEach((item, i) => {
+    const box = document.createElement('div');
+    box.className = 'fib';
+    box.innerHTML = '<p style="margin-bottom:10px"><b>' + (i+1) + '.</b> ' + item.s.replace('___','<input type="text" aria-label="Fill in the blank answer ' + (i+1) + '" autocomplete="off">') + '</p>' +
+      '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">' +
+      '<button class="btn">Check</button>' +
+      '<button class="btn ghost hint">💡 Hint <span class="hlvl">1</span>/3</button>' +
+      '<button class="btn ghost revealb">👁 Reveal answer</button></div>' +
+      '<div class="hint-line" aria-live="polite"></div>';
+    host.appendChild(box);
+    const input = box.querySelector('input');
+    const hintLine = box.querySelector('.hint-line');
+    let hints = 0, solved = false;
+    box.querySelector('.hint').addEventListener('click', function(){
+      if(solved || hints >= 3) return;
+      hintLine.textContent = '💡 Hint ' + (hints+1) + ': ' + item.h[hints];
+      hints++;
+      this.querySelector('.hlvl').textContent = Math.min(hints+1,3);
+      if(hints >= 3) this.disabled = true;
+    });
+    box.querySelector('.revealb').addEventListener('click', () => {
+      if(solved) return;
+      input.value = item.a[0];
+      input.classList.add('ok');
+      hintLine.textContent = '👁 Answer: "' + item.a[0] + '". Say it out loud once — then move on.';
+      solved = true; fibDone();
+    });
+    const check = () => {
+      if(solved) return;
+      const v = input.value.trim().toLowerCase();
+      if(item.a.includes(v)){
+        input.classList.remove('no'); input.classList.add('ok');
+        hintLine.textContent = '✅ Correct — "' + item.a[0] + '". Locked in.';
+        solved = true; fibDone();
+      } else {
+        input.classList.add('no');
+        hintLine.textContent = '❌ Not yet. ' + (hints < 3 ? 'Try a hint, or think about the module it came from.' : 'The hints have narrowed it — you\u2019ve got this.');
+      }
+    };
+    box.querySelector('.btn').addEventListener('click', check);
+    input.addEventListener('keydown', e => { if(e.key === 'Enter') check(); });
+  });
+  function fibDone(){
+    S.labs.fib = Math.min(3, (S.labs.fib || 0) + 1);
+    updateProgress();
+  }
+})();
+
+/* ============================================================
+   PRACTICE LAB — mini-challenge (4 decisions, consequences)
+   ============================================================ */
+const CH_DATA = [
+ {q:'Decision 1 — You\u2019re 6 months into self-teaching. A new agentic coding tool goes viral. You…',
+  o:[
+   ['Ignore it — fundamentals first, tools are distractions.', 'bad', 'That\u2019s the refusal trap (Module 2). While you guard "pure" learning, peers compound with AI-corrected feedback. Fundamentals and agents are not rivals.'],
+   ['Adopt it for everything and let it write all your code.', 'mid', 'Vibe-coder risk (Module 2): fast now, fragile later — everything collapses the moment something breaks and you can\u2019t debug it.'],
+   ['Keep a daily fundamentals block AND use agents as reviewer, examiner, and example-generator.', 'good', '✅ The both/and (Module 2). You still lift the weight; AI corrects your form. Six months of this ≈ years of solo study.']]},
+ {q:'Decision 2 — A senior dev in your community offers to review your architecture. You…',
+  o:[
+   ['Decline — your code isn\u2019t good enough to show yet.', 'bad', 'Rewrite demands are the gold (Module 3). His most valuable period was the infuriating pair-programmer who made him redo everything — he learned the WHY.'],
+   ['Accept, and ask "why?" on every single suggestion.', 'good', '✅ Borrowing decades (Module 3). You absorb reasoning, not just fixes — that\u2019s the treasure chest opening.'],
+   ['Accept, nod politely, then quietly ignore the feedback.', 'mid', 'Proximity isn\u2019t learning (Module 3). Coins only become treasure when you act on the reasoning behind them.']]},
+ {q:'Decision 3 — You know loops and functions in Python. A friend says "get serious" and restart in TypeScript from zero. You…',
+  o:[
+   ['Restart from loops in TypeScript — thoroughness matters.', 'bad', 'Feels productive, teaches nothing new (Module 4). That\u2019s translation, not learning — the exact low-value trap he warns about.'],
+   ['Keep going deep in Python; when you need TS, learn only the diff.', 'good', '✅ Depth is where discovery lives; the diff is cheap (Module 4). You\u2019ll hit async, generators, architecture — genuinely new ground.'],
+   ['Start three more languages in parallel to look versatile.', 'bad', 'Flat and wide — average at everything, special at nothing (Module 4). Twenty shallow holes, no water.']]},
+ {q:'Decision 4 — Your app works on localhost. You…',
+  o:[
+   ['Keep it local until it\u2019s perfect.', 'bad', 'Local-only demos read as production risk (Module 5). Perfection on localhost teaches you nothing about migrations, users, or sales.'],
+   ['Buy a domain, deploy this week, and ask ten people to use it.', 'good', '✅ Ship embarrassingly early (Module 5). Real users + real data = the 100× skill — and proof of work nobody can fake.'],
+   ['Rewrite it in a new framework, for fun.', 'bad', 'The tinker-and-abandon loop he regrets (Module 5). One ongoing project beats ten fresh starts.']]
+ }];
+(function initChallenge(){
+  const host = $('#chHost');
+  let step = 0, dots = [];
+  function render(){
+    host.innerHTML = '';
+    if(step >= CH_DATA.length){
+      const g = dots.filter(d=>d==='g').length;
+      const verdict = g === 4 ? '🏆 Senior trajectory — your instincts already match the lesson.' :
+                      g === 3 ? '💪 Solid instincts — one re-read and you\u2019re dangerous.' :
+                      '📖 Revisit the modules — the dots above show where your instincts diverged.';
+      host.innerHTML = '<div class="ch-decision"><h4>Journey complete</h4>' +
+        '<div class="ch-dots" style="margin:12px 0">' + dots.map(d=>'<i class="'+d+'"></i>').join('') + '</div>' +
+        '<p>' + verdict + '</p><button class="btn ghost" id="chRetry" style="margin-top:12px">↺ Replay decisions</button></div>';
+      $('#chRetry').addEventListener('click', () => { step = 0; dots = []; render(); });
+      S.labs.challenge = true; updateProgress();
+      return;
+    }
+    const d = CH_DATA[step];
+    const card = document.createElement('div');
+    card.className = 'ch-decision';
+    card.innerHTML = '<h4>' + d.q + '</h4>';
+    const out = document.createElement('div');
+    out.className = 'ch-out';
+    d.o.forEach(opt => {
+      const b = document.createElement('button');
+      b.className = 'ch-opt';
+      b.textContent = opt[0];
+      b.addEventListener('click', () => {
+        $$('.ch-opt', card).forEach(x => x.disabled = true);
+        b.classList.add('picked');
+        out.className = 'ch-out show ' + opt[1];
+        out.innerHTML = (opt[1]==='good' ? '✅ ' : opt[1]==='mid' ? '🔵 ' : '⚠️ ') + opt[2] +
+          '<br><button class="btn" id="chNext" style="margin-top:10px">' + (step === CH_DATA.length-1 ? 'See results →' : 'Next decision →') + '</button>';
+        dots.push(opt[1]);
+        out.querySelector('#chNext').addEventListener('click', () => { step++; render(); });
+      });
+      card.appendChild(b);
+    });
+    card.appendChild(out);
+    const dotsEl = document.createElement('div');
+    dotsEl.className = 'ch-dots';
+    dotsEl.innerHTML = dots.map(x=>'<i class="'+x+'"></i>').join('') + CH_DATA.slice(dots.length).map(()=>'<i></i>').join('');
+    host.appendChild(dotsEl);
+    host.appendChild(card);
+  }
+  render();
+})();
+
+/* ============================================================
+   MEMORY — flashcards with mastery tracking
+   ============================================================ */
+const CARDS = [
+ ['Adaptation lag', 'Disruption moves fast; human adaptation is slow and effortful — the gap where careers silently diverge.', 'The lever: you can influence your adaptation speed. That\u2019s the meta-skill the whole lesson hangs on.'],
+ ['Vibe coder', 'Someone who lets AI write everything without understanding it — the failure mode of agentic development he warns against.', 'Antidote: fundamentals + agents as reviewers and examiners, not ghostwriters.'],
+ ['Knowledge vault', 'A folder of markdown notes about your project or study — shared reference for you AND the AI, which helps structure and correct it.', 'Turns scattered learning into a compounding, queryable asset.'],
+ ['AI skill (reusable prompt)', 'A prompt defined once and invoked like a function — research, code-translation, design-alternatives.', 'Design alternatives is the most valuable: it breaks siloed concepts and can challenge the whole category.'],
+ ['The diff principle', 'Learn a concept deeply once; when moving to a new language or tool, study only the differences.', 'Translation is a low-value skill you pick up on demand — docs or AI handle it.'],
+ ['Top hat skill shape', 'Broad brim of fundamentals (networking, DBs, backend, desktop, low-level) + tall crown of deep mastery in very few things.', 'Flat-and-wide = average at everything, special at nothing. Depth is where discovery lives.'],
+ ['Collapse time', 'Compress decades of trial-and-error by borrowing from mentors and applied-experience content from day one.', 'Treasure chest > coins: a few veteran sentences beat hours of tutorial-hopping.'],
+ ['Product mindset', 'Thinking beyond code: what features do people want, need, and pay for — and what does each one cost?', 'AI can build CRUD apps; it can\u2019t piece together a valuable product. That\u2019s your job.']
+];
+(function initFlash(){
+  const card = $('#fcard'), front = $('#fFront'), back = $('#fBack'), extra = $('#fExtra');
+  const count = $('#fCount'), mastery = $('#fMastery');
+  let idx = 0;
+  function show(){
+    card.classList.remove('flip');
+    extra.classList.remove('show');
+    front.textContent = CARDS[idx][0];
+    back.textContent = CARDS[idx][1];
+    extra.textContent = '💡 ' + CARDS[idx][2];
+    count.textContent = 'card ' + (idx+1) + ' / ' + CARDS.length + ' · rated: ' + Object.keys(S.cards).length + '/' + CARDS.length;
+    mastery.innerHTML = CARDS.map((_, i) => {
+      const m = S.cards[i];
+      return '<i class="' + (m === 2 ? 'm2' : m === 1 ? 'm1' : '') + '" title="card ' + (i+1) + '"></i>';
+    }).join('');
+  }
+  function flip(){ card.classList.toggle('flip'); }
+  card.addEventListener('click', flip);
+  card.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); flip(); } });
+  $('#fFlipBtn').addEventListener('click', flip);
+  $('#fExtraBtn').addEventListener('click', () => { card.classList.add('flip'); extra.classList.add('show'); });
+  function rate(m){
+    S.cards[idx] = m;
+    if(Object.keys(S.cards).length >= CARDS.length) S.cardsDone = true;
+    save(); updateProgress();
+    idx = (idx + 1) % CARDS.length;
+    show();
+  }
+  $('#fGot').addEventListener('click', () => rate(2));
+  $('#fAgain').addEventListener('click', () => rate(1));
+  show();
+})();
+
+/* ============================================================
+   MEMORY — spaced repetition schedule
+   Intervals: 1 min · 10 min · 1 h · 1 d · 3 d · 1 w
+   ============================================================ */
+const SR = [
+ [60e3,    '1 min',  'Name four topics on the top-hat brim.'],
+ [600e3,   '10 min', 'State the diff principle in one sentence.'],
+ [3600e3,  '1 hour', 'Name the three modes of using AI on code (write all / write none / learn only).'],
+ [86400e3, '1 day',  'What\u2019s in the treasure chest — and where do most people look instead?'],
+ [259200e3,'3 days', 'List the six stages of the ship-it loop.'],
+ [604800e3,'1 week', 'Teach the entire lesson out loud in two minutes (Feynman).']
+];
+(function initSpaced(){
+  const host = $('#srHost'), next = $('#srNext');
+  function fmt(ms){
+    if(ms <= 0) return 'now';
+    const m = Math.floor(ms/60e3), h = Math.floor(m/60), d = Math.floor(h/24);
+    if(d) return d + 'd ' + (h%24) + 'h';
+    if(h) return h + 'h ' + (m%60) + 'm';
+    return m + 'm';
+  }
+  function draw(){
+    host.innerHTML = '';
+    const elapsed = Date.now() - S.t0;
+    let nextDue = null;
+    SR.forEach((item, i) => {
+      const due = elapsed >= item[0];
+      if(due && !S.spaced[i] && nextDue === null) nextDue = item;
+      const row = document.createElement('div');
+      row.className = 'sr-item' + (due ? '' : ' locked') + (S.spaced[i] ? ' donep' : '');
+      row.innerHTML = '<span class="sr-when">' + (S.spaced[i] ? '✓ ' : '') + item[1] + '</span>' +
+        '<div style="flex:1"><b>' + (due ? item[2] : '🔒 unlocks in ' + fmt(item[0] - elapsed)) + '</b>' +
+        (due ? '<div class="qscore">Recall it out loud — no peeking — then check off.</div>' : '') + '</div>' +
+        '<input type="checkbox" ' + (S.spaced[i] ? 'checked' : '') + ' ' + (due ? '' : 'disabled') +
+        ' aria-label="Mark review ' + item[1] + ' as done">';
+      row.querySelector('input').addEventListener('change', e => {
+        S.spaced[i] = e.target.checked; save(); draw();
+      });
+      host.appendChild(row);
+    });
+    const doneCount = Object.values(S.spaced).filter(Boolean).length;
+    next.textContent = nextDue ? '⏰ Next review due NOW: "' + nextDue[2] + '"' :
+      (doneCount === SR.length ? '🎉 All reviews complete — your future self says thanks.' : '⏳ Next review unlocks in ' + fmt(SR.find((s,i)=>!S.spaced[i])[0] - elapsed) + '.');
+  }
+  draw();
+  setInterval(draw, 30000); // keep unlock states fresh
+})();
+
+/* ============================================================
+   MEMORY — teach-back with keyword scoring
+   ============================================================ */
+const TEACH_KW = ['learn','fundamental','basic','practice','ai','help','understand','why','faster','better','together','both','question','mistake','coach','yourself','bike','pedal'];
+$('#teachScore').addEventListener('click', () => {
+  const txt = $('#teachInput').value.toLowerCase();
+  if(txt.trim().length < 20){
+    $('#teachPct').textContent = '✍️ Write a bit more first — a 5-year-old deserves at least two sentences.';
+    return;
+  }
+  const hits = TEACH_KW.filter(k => txt.includes(k));
+  const pct = Math.round(hits.length / 8 * 100); // 8+ hits = 100%
+  const verdict = pct >= 75 ? '🌟 Feynman would shake your hand.' :
+                  pct >= 45 ? '👍 Solid — weave in the missed keywords below.' :
+                  '🔧 Good start — simplify further and hit the missed ideas below.';
+  $('#teachPct').textContent = 'keyword coverage: ' + Math.min(100,pct) + '% · ' + verdict;
+  $('#teachKw').innerHTML = TEACH_KW.map(k =>
+    '<span class="kw' + (txt.includes(k) ? ' hit' : '') + '">' + k + '</span>').join('');
+  $('#teachModel').classList.add('show');
+  S.labs.teach = true; updateProgress();
+});
+
+/* ============================================================
+   FINAL ASSESSMENT — 15-question stepper
+   ============================================================ */
+(function initAssess(){
+  const qs = QUIZ.assess;
+  const dotsHost = $('#assDots'), qHost = $('#assQ');
+  let i = 0, score = 0, results = [];
+  function drawDots(){
+    dotsHost.innerHTML = qs.map((_, j) => {
+      const cls = j < results.length ? (results[j] ? 'g' : 'b') : j === i ? 'cur' : '';
+      return '<i class="' + cls + '"></i>';
+    }).join('');
+  }
+  function renderQ(){
+    drawDots();
+    if(i >= qs.length){ renderResult(); return; }
+    const q = qs[i];
+    qHost.innerHTML = '<span class="qtag">Question ' + (i+1) + ' of ' + qs.length + '</span><h4 style="margin:10px 0 14px">' + esc(q.q) + '</h4>';
+    const opts = document.createElement('div');
+    opts.className = 'qopts';
+    q.opts.forEach((o, oi) => {
+      const b = document.createElement('button');
+      b.className = 'qopt';
+      b.innerHTML = '<span class="key">' + 'ABCD'[oi] + '</span><span style="flex:1">' + esc(o[0]) +
+                    '<span class="qwhy">' + esc(o[2]) + '</span></span>';
+      b.addEventListener('click', () => {
+        const correctIdx = q.opts.findIndex(x => x[1]);
+        const ok = oi === correctIdx;
+        results.push(ok); if(ok) score++;
+        $$('.qopt', opts).forEach((x, xi) => {
+          x.disabled = true; x.classList.add('answered');
+          if(xi === correctIdx) x.classList.add('correct');
+          if(xi === oi && !ok) x.classList.add('wrong');
+        });
+        const fb = document.createElement('div');
+        fb.className = 'qfb show ' + (ok ? 'good' : 'bad');
+        fb.innerHTML = ok ? '<b>✅ Correct.</b> ' + esc(o[2])
+          : '<b>❌ Not quite.</b> The right answer is <b>"' + esc(q.opts[correctIdx][0]) + '</b>". Here\u2019s why: ' + esc(q.opts[correctIdx][2]);
+        qHost.appendChild(fb);
+        const nx = document.createElement('button');
+        nx.className = 'btn'; nx.style.marginTop = '14px';
+        nx.textContent = i === qs.length - 1 ? 'See final score →' : 'Next question →';
+        nx.addEventListener('click', () => { i++; renderQ(); });
+        qHost.appendChild(nx);
+        drawDots();
+      });
+      opts.appendChild(b);
+    });
+    qHost.appendChild(opts);
+  }
+  function renderResult(){
+    const pct = Math.round(score / qs.length * 100);
+    const tier = pct >= 90 ? '🏆 Agentic-AI Native — you could teach this lesson.' :
+                 pct >= 70 ? '🎩 Senior Track — a couple of re-reads from mastery.' :
+                 pct >= 50 ? '⚙️ Half-Stack — revisit the modules you missed, then retry.' :
+                 '🔥 Warm-Up — run the modules again; the cheat sheet is your friend.';
+    const best = S.assess.best === null ? pct : Math.max(S.assess.best, pct);
+    S.assess.best = best; S.assess.last = pct;
+    updateProgress();
+    qHost.innerHTML = '<div class="ass-result">' +
+      '<div class="ass-score">' + score + '/' + qs.length + '</div>' +
+      '<div class="ass-tier">' + tier + '</div>' +
+      '<p class="qscore">' + pct + '% this run · personal best: ' + best + '%</p>' +
+      '<button class="btn" id="assRetry" style="margin-top:16px">↺ Retake assessment</button></div>';
+    $('#assRetry').addEventListener('click', () => { i = 0; score = 0; results = []; renderQ(); });
+  }
+  renderQ();
+})();
+
+/* ============================================================
+   ACCORDIONS · WHY-BUTTONS · CHUNKING · LINK CHIPS
+   ============================================================ */
+$$('.acc-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const acc = btn.parentElement;
+    const open = acc.hasAttribute('open');
+    if(open) acc.removeAttribute('open'); else acc.setAttribute('open','');
+    btn.setAttribute('aria-expanded', String(!open));
+  });
+});
+$$('.why-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const panel = btn.nextElementSibling;
+    const show = !panel.classList.contains('show');
+    panel.classList.toggle('show', show);
+    btn.setAttribute('aria-expanded', String(show));
+  });
+});
+/* chunking: lists with class "chunk" show max 5 items */
+$$('ul.chunk').forEach(ul => {
+  const items = $$('li', ul);
+  if(items.length <= 5) return;
+  items.slice(5).forEach(li => li.classList.add('hide'));
+  const btn = document.createElement('button');
+  btn.className = 'more-btn';
+  btn.textContent = '▾ Show ' + (items.length - 5) + ' more';
+  btn.addEventListener('click', () => {
+    const hidden = $$('.hide', ul);
+    if(hidden.length){
+      hidden.forEach(li => li.classList.remove('hide'));
+      btn.textContent = '▴ Show less';
+    } else {
+      items.slice(5).forEach(li => li.classList.add('hide'));
+      btn.textContent = '▾ Show ' + (items.length - 5) + ' more';
+    }
+  });
+  ul.parentElement.insertBefore(btn, ul.nextSibling);
+});
+/* inter-module link chips scroll to target */
+$$('.link-chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.getElementById(c.dataset.goto).scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+
+/* ============================================================
+   OBSERVERS — scroll reveals, diagram draw triggers,
+   module-visit tracking
+   ============================================================ */
+const io = new IntersectionObserver(entries => {
+  entries.forEach(en => {
+    if(!en.isIntersecting) return;
+    en.target.classList.add('inview');
+    io.unobserve(en.target);
+  });
+}, {threshold: 0.18});
+$$('.reveal, .fig').forEach(el => io.observe(el));
+
+const modIO = new IntersectionObserver(entries => {
+  entries.forEach(en => {
+    if(en.isIntersecting && !S.visited[en.target.dataset.mod]){
+      S.visited[en.target.dataset.mod] = true;
+      updateProgress();
+    }
+  });
+}, {threshold: 0.35});
+$$('.module').forEach(m => modIO.observe(m));
+
+/* initial progress paint */
+updateProgress();
+</script>
+</body>
+</html>

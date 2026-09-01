@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Art & Science of Hooks — Captivate in 3 Seconds</title>
+    <style>
+        :root {
+            --bg: #fcfcf9;
+            --text: #1a1a1a;
+            --subtle: #6b6b6b;
+            --accent: #2c7a7b;
+            --border: #d9d9d6;
+            --surface: #f4f4f0;
+            --hover-bg: #eaeae5;
+            --notebg: #f8f8f5;
+            --progress-bg: #e0e0dc;
+            --margin-bg: #fafaf7;
+            --svg-stroke: #2c2c2c;
+            --svg-fill: rgba(44, 122, 123, 0.12);
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+            --line-height: 1.7;
+            --transition-speed: 0.3s;
+        }
+
+        .dark {
+            --bg: #1e1e1e;
+            --text: #e8e8e4;
+            --subtle: #a0a0a0;
+            --accent: #4db6ac;
+            --border: #3a3a38;
+            --surface: #2a2a28;
+            --hover-bg: #333330;
+            --notebg: #262624;
+            --progress-bg: #3a3a38;
+            --margin-bg: #222220;
+            --svg-stroke: #d0d0cc;
+            --svg-fill: rgba(77, 182, 172, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg);
+            color: var(--text);
+            line-height: var(--line-height);
+            font-size: 1.05rem;
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+            display: flex;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Progress bar (top, thin) */
+        #progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: var(--accent);
+            width: 0%;
+            z-index: 999;
+            transition: width 0.2s ease;
+        }
+
+        /* Dark/light toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 1rem;
+            right: 1.2rem;
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            width: 2.2rem;
+            height: 2.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text);
+            font-size: 1.2rem;
+            z-index: 1000;
+            transition: background var(--transition-speed);
+        }
+        .theme-toggle:hover {
+            background: var(--hover-bg);
+        }
+
+        /* NOTEBOOK MARGIN LAYOUT */
+        .notebook-margin {
+            width: 240px;
+            min-width: 240px;
+            background: var(--margin-bg);
+            border-right: 1px solid var(--border);
+            padding: 3rem 1rem 2rem;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            font-size: 0.85rem;
+            transition: background var(--transition-speed);
+        }
+        .margin-knowledge-map {
+            flex: 0 0 auto;
+        }
+        .map-node {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.6rem;
+            cursor: pointer;
+            color: var(--subtle);
+            transition: color 0.2s;
+            line-height: 1.3;
+        }
+        .map-node.active {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .map-node-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            margin-right: 0.5rem;
+            flex-shrink: 0;
+        }
+        .map-node.active .map-node-dot {
+            background: var(--accent);
+        }
+        .map-line {
+            position: relative;
+            left: 3px;
+            width: 2px;
+            background: var(--border);
+            height: 1rem;
+            margin-left: 0.25rem;
+            margin-bottom: 0.2rem;
+        }
+        .margin-keywords {
+            margin-top: 2rem;
+            font-style: italic;
+            color: var(--subtle);
+        }
+        .margin-keyword {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-size: 0.8rem;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 2.5rem 3rem 4rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+            letter-spacing: -0.5px;
+        }
+        .subtitle {
+            color: var(--subtle);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .overview {
+            margin-bottom: 3rem;
+            border-left: 3px solid var(--accent);
+            padding-left: 1.5rem;
+        }
+        .overview ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .overview li::before {
+            content: "→";
+            color: var(--accent);
+            margin-right: 0.5rem;
+        }
+
+        .module {
+            margin-bottom: 4rem;
+            scroll-margin-top: 2rem;
+        }
+        .module h2 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 0.8rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.4rem;
+        }
+        .module h3 {
+            font-size: 1.2rem;
+            margin: 1.5rem 0 0.6rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+        .module p,
+        .module li {
+            margin-bottom: 0.8rem;
+        }
+        .example-group {
+            background: var(--surface);
+            padding: 1rem 1.2rem;
+            border-left: 3px solid var(--accent);
+            margin: 1.2rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .example-group .example-title {
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .visual-analogy {
+            display: flex;
+            gap: 2rem;
+            margin: 2rem 0;
+            flex-wrap: wrap;
+            background: var(--notebg);
+            padding: 1.2rem;
+            border-radius: 6px;
+        }
+        .analogy-side {
+            flex: 1;
+            min-width: 200px;
+        }
+        .analogy-side figcaption {
+            font-size: 0.9rem;
+            color: var(--subtle);
+            margin-top: 0.5rem;
+        }
+
+        details {
+            margin: 1.2rem 0;
+            border: 1px solid var(--border);
+            padding: 0.8rem 1rem;
+            border-radius: 4px;
+            background: var(--surface);
+        }
+        summary {
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .why-matters {
+            font-style: italic;
+            color: var(--accent);
+            margin: 1rem 0;
+            font-weight: 500;
+        }
+        .interlink {
+            color: var(--subtle);
+            font-size: 0.95rem;
+            margin-top: 0.8rem;
+        }
+
+        svg {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 1.5rem 0;
+        }
+
+        /* Interactive elements */
+        .flashcard-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .flashcard {
+            width: 160px;
+            height: 100px;
+            perspective: 600px;
+            cursor: pointer;
+        }
+        .flashcard-inner {
+            width: 100%;
+            height: 100%;
+            transition: transform 0.4s;
+            transform-style: preserve-3d;
+            position: relative;
+        }
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-front,
+        .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+            font-size: 0.9rem;
+            text-align: center;
+            background: var(--surface);
+            border-radius: 4px;
+        }
+        .flashcard-back {
+            transform: rotateY(180deg);
+            background: var(--notebg);
+            font-size: 0.8rem;
+        }
+
+        .quiz-option {
+            display: block;
+            margin: 0.4rem 0;
+            cursor: pointer;
+            padding: 0.4rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--surface);
+            transition: background 0.2s;
+        }
+        .quiz-option:hover {
+            background: var(--hover-bg);
+        }
+        .quiz-option.selected-correct {
+            border-color: var(--accent);
+            background: var(--svg-fill);
+        }
+        .quiz-option.selected-wrong {
+            border-color: #c44;
+            background: rgba(200, 60, 60, 0.08);
+        }
+        .quiz-feedback {
+            margin-top: 0.5rem;
+            font-weight: 500;
+        }
+
+        .drag-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .drag-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 0.6rem 1rem;
+            border-radius: 4px;
+            cursor: grab;
+            user-select: none;
+        }
+        .drop-zone {
+            min-height: 3rem;
+            border: 1px dashed var(--border);
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            align-items: center;
+        }
+
+        .fill-blank-input {
+            border: 1px solid var(--border);
+            padding: 0.4rem;
+            font-family: inherit;
+            font-size: 1rem;
+            background: var(--bg);
+            color: var(--text);
+            width: 180px;
+        }
+
+        .mini-challenge textarea {
+            width: 100%;
+            height: 80px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            padding: 0.5rem;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .summary-cheatsheet {
+            background: var(--surface);
+            padding: 1.8rem;
+            border-radius: 6px;
+            margin-top: 3rem;
+        }
+
+        .faq details {
+            margin: 0.5rem 0;
+        }
+
+        .next-steps {
+            margin: 2rem 0;
+        }
+
+        @media (max-width: 900px) {
+            body {
+                flex-direction: column;
+            }
+            .notebook-margin {
+                width: 100%;
+                min-width: auto;
+                height: auto;
+                position: relative;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                padding: 1rem;
+                overflow-y: visible;
+            }
+            .map-line {
+                display: none;
+            }
+            .margin-keywords {
+                margin-top: 0;
+            }
+            .main-content {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="progress-bar"></div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">☀️</button>
+
+    <!-- Notebook margin (sidebar) -->
+    <aside class="notebook-margin">
+        <div class="margin-knowledge-map" id="knowledgeMap">
+            <div class="map-node" data-target="module1"><span class="map-node-dot"></span>Why Hooks Matter</div>
+            <div class="map-line"></div>
+            <div class="map-node" data-target="module2"><span class="map-node-dot"></span>Copy Viral Hooks</div>
+            <div class="map-line"></div>
+            <div class="map-node" data-target="module3"><span class="map-node-dot"></span>Decode Keywords</div>
+            <div class="map-line"></div>
+            <div class="map-node" data-target="module4"><span class="map-node-dot"></span>Maximize Impact</div>
+            <div class="map-line"></div>
+            <div class="map-node" data-target="module5"><span class="map-node-dot"></span>Consistency & Growth</div>
+        </div>
+        <div class="margin-keywords">
+            <span class="margin-keyword">retention graph</span>
+            <span class="margin-keyword">80/20 rule</span>
+            <span class="margin-keyword">format × niche</span>
+            <span class="margin-keyword">emotional keywords</span>
+            <span class="margin-keyword">purple cow</span>
+            <span class="margin-keyword">viral sense</span>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div id="loading">Preparing your lesson…</div>
+        <div id="lessonContent" style="display:none;">
+            <h1>The Art &amp; Science of Hooks</h1>
+            <p class="subtitle">Captivate in 3 seconds, then build a career. A deep lesson distilled from viral creator insights.</p>
+
+            <section class="overview">
+                <h2>What You’ll Learn</h2>
+                <p>You'll understand why the first three seconds of any video decide its fate, master a repeatable framework to write hooks that stop the scroll, learn to spot emotional keywords, and discover how to refine a good hook into a great one. Finally, you'll see why consistent practice is the only way to turn this skill into real growth.</p>
+                <ul>
+                    <li>The brutal math of viewer retention and the 80/20 rule of hooks</li>
+                    <li>How to ethically copy viral hooks (the C.U.M. framework)</li>
+                    <li>Keyword decoding: words that trigger emotion, not SEO spam</li>
+                    <li>Maximizing hooks with clarity, specificity, and the Purple Cow effect</li>
+                    <li>The long game: consistency, plateaus, and building viral sense</li>
+                </ul>
+            </section>
+
+            <!-- Interactive Knowledge Map (main inline SVG for visual overview) -->
+            <svg viewBox="0 0 600 120" aria-label="Knowledge map of hook mastery" style="width:100%; height:auto; margin:2rem 0;">
+                <circle cx="50" cy="60" r="18" fill="var(--svg-fill)" stroke="var(--svg-stroke)" stroke-width="1.5"/>
+                <text x="50" y="65" text-anchor="middle" font-size="9" fill="var(--text)">Hook</text>
+                <line x1="68" y1="60" x2="120" y2="60" stroke="var(--svg-stroke)" stroke-width="1.2" marker-end="url(#arrow)"/>
+                <circle cx="160" cy="60" r="18" fill="var(--svg-fill)" stroke="var(--svg-stroke)" stroke-width="1.5"/>
+                <text x="160" y="65" text-anchor="middle" font-size="9" fill="var(--text)">Copy</text>
+                <line x1="178" y1="60" x2="230" y2="60" stroke="var(--svg-stroke)" stroke-width="1.2" marker-end="url(#arrow)"/>
+                <circle cx="270" cy="60" r="18" fill="var(--svg-fill)" stroke="var(--svg-stroke)" stroke-width="1.5"/>
+                <text x="270" y="65" text-anchor="middle" font-size="9" fill="var(--text)">Decode</text>
+                <line x1="288" y1="60" x2="340" y2="60" stroke="var(--svg-stroke)" stroke-width="1.2" marker-end="url(#arrow)"/>
+                <circle cx="380" cy="60" r="18" fill="var(--svg-fill)" stroke="var(--svg-stroke)" stroke-width="1.5"/>
+                <text x="380" y="65" text-anchor="middle" font-size="9" fill="var(--text)">Maximize</text>
+                <line x1="398" y1="60" x2="450" y2="60" stroke="var(--svg-stroke)" stroke-width="1.2" marker-end="url(#arrow)"/>
+                <circle cx="490" cy="60" r="18" fill="var(--svg-fill)" stroke="var(--svg-stroke)" stroke-width="1.5"/>
+                <text x="490" y="65" text-anchor="middle" font-size="9" fill="var(--text)">Consistency</text>
+                <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--svg-stroke)"/></marker></defs>
+            </svg>
+
+            <!-- MODULE 1 -->
+            <article class="module" id="module1">
+                <h2>1. Why Hooks Matter — The Retention Cliff</h2>
+                <h3>Core Explanation</h3>
+                <p>A hook is the first 3–5 seconds of your video. If you don't earn attention there, the platform's algorithm sees a massive early drop-off and kills your reach—no matter how brilliant the rest is. Picture a viewer retention graph: at 0s you have 100% of viewers. By second 5, if you haven't sparked curiosity, you're often down to 10–20%. Even if the video becomes amazing after second 10, the damage is done. Instagram, TikTok, and YouTube judge your content by that early curve; they won't promote something that hemorrhages viewers instantly. The brutal truth: the hook is roughly 80% of your video's success. Audio quality, hashtags, posting time—those are the 20%. Obsessing over them while ignoring the hook is like polishing the silverware on a sinking ship.</p>
+                <h3>Step‑by‑Step Breakdown</h3>
+                <ol>
+                    <li><strong>Start at 100%.</strong> Every viewer begins watching.</li>
+                    <li><strong>The 3‑second cliff.</strong> Without a sharp hook, most leave.</li>
+                    <li><strong>Algorithm penalty.</strong> Low early retention signals "low quality" to the feed.</li>
+                    <li><strong>Rest doesn’t matter.</strong> Excellent middle/end can't rescue a dead start.</li>
+                </ol>
+                <div class="example-group">
+                    <div class="example-title">🔹 Obvious:</div> A talking‑head video starts with "Hey guys, today I want to talk about..." – retention drops 70% by second 4.
+                </div>
+                <div class="example-group">
+                    <div class="example-title">🔸 Counter‑intuitive:</div> A beautifully edited travel vlog opens with slow drone shots but no hook; even stunning visuals can't stop the scroll if the viewer doesn't know why they should care in 3 seconds.
+                </div>
+                <div class="example-group">
+                    <div class="example-title">🔺 Edge case:</div> Extremely niche content (e.g., rare plant care) might survive lower early retention because the remaining audience is hyper‑loyal, but the algorithm still caps reach far below potential.
+                </div>
+                <div class="visual-analogy">
+                    <div class="analogy-side">
+                        <svg viewBox="0 0 200 100" aria-label="Viewer retention dropping early"><polyline points="10,80 40,20 80,15 150,12" fill="none" stroke="var(--svg-stroke)" stroke-width="1.5"/><text x="90" y="40" font-size="8" fill="var(--subtle)">retention %</text></svg>
+                        <figcaption>Actual concept: viewer retention plummets without a hook.</figcaption>
+                    </div>
+                    <div class="analogy-side">
+                        <svg viewBox="0 0 200 100" aria-label="Restaurant queue analogy"><rect x="20" y="30" width="160" height="50" fill="none" stroke="var(--svg-stroke)" stroke-width="1.2"/><text x="30" y="60" font-size="8" fill="var(--text)">🚶‍♂️🚶‍♀️🚶</text><text x="80" y="20" font-size="8" fill="var(--subtle)">Queue leaves</text></svg>
+                        <figcaption>Analogy: If people leave the queue before seeing the menu, the restaurant fails.</figcaption>
+                    </div>
+                </div>
+                <details>
+                    <summary>❌ What People Get Wrong</summary>
+                    <p><strong>Myth:</strong> "The algorithm is against me." <strong>Truth:</strong> The algorithm simply reflects human behaviour. If 90% swipe away immediately, no platform will recommend that video. Fix the hook, not the hashtag.</p>
+                </details>
+                <p class="why-matters">Why this matters: If you can't hook in 3 seconds, nothing else you do will matter.</p>
+                <p class="interlink">🔗 This connects to Module 2 because copying proven hooks is the fastest way to stop that early drop.</p>
+            </article>
+
+            <!-- MODULE 2 -->
+            <article class="module" id="module2">
+                <h2>2. The C.U.M. Framework: Copy Viral Hooks</h2>
+                <h3>Core Explanation</h3>
+                <p>The fastest way to learn is to study what already works. The framework: <strong>C</strong>opy viral hooks, <strong>U</strong>nderstand why they went viral, <strong>M</strong>aximize your own. Start by going to TikTok (its search and FYP are hyper‑tuned). Filter for videos with 50K+ likes in your format (talking head, vlog, montage) and similar niche. Write down their exact first sentence. Build a bank. Then combine those hook structures with your own ideas. A hook from the fitness niche ("If you're tired of waking up sore…") can become a business hook ("If you're tired of running your business 24/7 alone…") by swapping keywords. This isn't plagiarism; it's learning the language of attention.</p>
+                <h3>Step‑by‑Step</h3>
+                <ol>
+                    <li>Open TikTok, search a broad niche term.</li>
+                    <li>Only watch videos with 50K+ likes.</li>
+                    <li>Identify format (talking, vlog, etc.).</li>
+                    <li>Copy the hook text into a swipe file.</li>
+                    <li>Mash with your niche: hook structure + your topic.</li>
+                </ol>
+                <div class="example-group"><span class="example-title">🔹 Obvious:</span> A day‑in‑the‑life college creator copies a hook from a 9‑5 office vlog that starts "I worked 14 hours straight and this is what happened…"</div>
+                <div class="example-group"><span class="example-title">🔸 Counter‑intuitive:</span> Even “original” viral hooks are often remixes; the creator just internalized patterns so deeply it feels spontaneous.</div>
+                <div class="example-group"><span class="example-title">🔺 Edge case:</span> A tiny niche (e.g., miniature painting) can borrow hook cadences from cooking videos ("You've been doing X wrong your whole life") because format transcends niche.</div>
+                <div class="visual-analogy">
+                    <div class="analogy-side"><svg viewBox="0 0 150 80"><rect x="10" y="10" width="130" height="60" fill="none" stroke="var(--svg-stroke)"/><text x="30" y="45" font-size="9" fill="var(--text)">Bank of hooks</text></svg><figcaption>Building a personal hook library.</figcaption></div>
+                    <div class="analogy-side"><svg viewBox="0 0 150 80"><circle cx="60" cy="40" r="20" fill="none" stroke="var(--svg-stroke)"/><text x="60" y="44" font-size="9" text-anchor="middle">Recipe</text></svg><figcaption>Like a chef studying recipes before inventing dishes.</figcaption></div>
+                </div>
+                <details><summary>❌ What People Get Wrong</summary><p><strong>Myth:</strong> Copying kills creativity. <strong>Truth:</strong> Originality emerges from remixing proven structures; every great artist started by imitation.</p></details>
+                <p class="why-matters">Why this matters: You shortcut years of trial and error by standing on the shoulders of viral videos.</p>
+                <p class="interlink">🔗 Next, Module 3 teaches you to decode <em>why</em> those copied hooks worked.</p>
+            </article>
+
+            <!-- Quick Recall after module 2 (retrieval practice) -->
+            <div style="margin:2rem 0; padding:1rem; border:1px solid var(--border);">
+                <strong>🧠 Quick Recall (Modules 1–2)</strong>
+                <p>1. What percentage of success does the hook roughly represent? <input class="fill-blank-input" id="recall1" placeholder="?"><button id="checkRecall1" style="margin-left:0.5rem;">Check</button><span id="recall1Feedback"></span></p>
+                <p>2. Name the three steps of the C.U.M. framework. <input class="fill-blank-input" id="recall2" placeholder="C, U, M"><button id="checkRecall2">Check</button><span id="recall2Feedback"></span></p>
+            </div>
+
+            <!-- MODULE 3 -->
+            <article class="module" id="module3">
+                <h2>3. Decoding Viral Hooks – Emotional Keywords</h2>
+                <h3>Core Explanation</h3>
+                <p>Virality isn't about SEO keywords; it's about words that trigger emotion. When you hear "scared of talking to women," "mental masturbation," or "academic assault rifle," certain words jump out—they resonate with the viewer's inner dialogue. Your job is to build a bank of niche‑specific emotional keywords. For productivity, terms like "dopamine detox," "lock in," or "shitty habits" hit harder than "improve yourself." Study viral hooks by asking: which specific word made me stop? Write it down. Then inject those words into your own hooks. A slight tweak from "build better habits" to "break your shitty habits" can be the difference between a scroll and a view.</p>
+                <h3>Step‑by‑Step</h3>
+                <ol><li>Watch a viral hook, pause at second 3.</li><li>Identify the most emotionally charged word.</li><li>Add it to your keyword bank.</li><li>Test swapping keywords in your hooks.</li></ol>
+                <div class="example-group"><span class="example-title">🔹 Obvious:</span> "Hate," "ruin," "broke" are universally negative and attention‑grabbing.</div>
+                <div class="example-group"><span class="example-title">🔸 Counter‑intuitive:</span> "Desexualize your brain" sounds bizarre but works because it's novel and sparks curiosity.</div>
+                <div class="example-group"><span class="example-title">🔺 Edge case:</span> Numbers become keywords: "$10K a month," "5 AM" – they add concrete specificity that triggers aspiration.</div>
+                <div class="visual-analogy">
+                    <div class="analogy-side"><svg viewBox="0 0 150 80"><circle cx="40" cy="30" r="12" fill="none" stroke="var(--svg-stroke)"/><text x="40" y="34" font-size="7">hate</text><circle cx="100" cy="50" r="14" fill="none" stroke="var(--svg-stroke)"/><text x="100" y="54" font-size="7">broke</text></svg><figcaption>Emotional keywords clustered.</figcaption></div>
+                    <div class="analogy-side"><svg viewBox="0 0 150 80"><text x="20" y="40" font-size="9">🎤 Comedian picks words that land</text></svg><figcaption>Like a stand‑up choosing punchline words.</figcaption></div>
+                </div>
+                <details><summary>❌ What People Get Wrong</summary><p><strong>Myth:</strong> Any strong word works. <strong>Truth:</strong> Words must mirror your audience's specific inner monologue; "desexualize" works in self‑improvement, not cooking.</p></details>
+                <p class="why-matters">Why this matters: The right word stops the thumb; the wrong word lets it scroll.</p>
+                <p class="interlink">🔗 Module 4 shows how to combine these keywords with clarity and specificity.</p>
+            </article>
+
+            <!-- MODULE 4 -->
+            <article class="module" id="module4">
+                <h2>4. Maximizing Your Hook – Clarity, Specificity, Purple Cow</h2>
+                <h3>Core Explanation</h3>
+                <p>Once you have a hook draft, refine it with a checklist: <strong>clarity</strong> (is it the most concise version?), <strong>specificity</strong> (numbers, concrete details), and the <strong>Purple Cow effect</strong> (a novel twist that stands out). Read it aloud; if it feels clunky, trim filler. Add numbers: "running your business alone" becomes "running your business 24/7 alone making $10K/month." Then make it a purple cow: "AI agents to build a passive income machine while you sleep." Avoid clickbait—the hook must align with the video content. This microscopic editing is what separates 1,000 views from 100,000.</p>
+                <h3>Step‑by‑Step</h3>
+                <ol><li>Write a rough hook.</li><li>Remove every unnecessary word.</li><li>Inject a specific number or result.</li><li>Add a unique, memorable angle (Purple Cow).</li><li>Read aloud 5 times; adjust until it flows.</li></ol>
+                <div class="example-group"><span class="example-title">🔹 Obvious:</span> "If you're burnt out running your business…" → refined with "$10K a month" and "AI agents."</div>
+                <div class="example-group"><span class="example-title">🔸 Counter‑intuitive:</span> Sometimes removing flashy words improves clarity more than adding them.</div>
+                <div class="example-group"><span class="example-title">🔺 Edge case:</span> Visual hooks (text overlay, camera movement) can amplify the verbal hook—same principles apply.</div>
+                <div class="visual-analogy">
+                    <div class="analogy-side"><svg viewBox="0 0 150 80"><rect x="10" y="20" width="60" height="40" fill="none" stroke="var(--svg-stroke)"/><text x="20" y="45" font-size="8">draft</text><text x="80" y="45" font-size="8">→</text><rect x="90" y="20" width="60" height="40" fill="none" stroke="var(--accent)"/><text x="100" y="45" font-size="8">refined</text></svg><figcaption>Refinement process.</figcaption></div>
+                    <div class="analogy-side"><svg viewBox="0 0 150 80"><text x="20" y="40" font-size="9">🗿 Sculptor chisels away excess</text></svg><figcaption>Like carving a statue until it stands out.</figcaption></div>
+                </div>
+                <details><summary>❌ What People Get Wrong</summary><p><strong>Myth:</strong> You need shock value or clickbait. <strong>Truth:</strong> Genuine specificity and a novel angle outperform empty sensationalism and maintain trust.</p></details>
+                <p class="why-matters">Why this matters: This is the difference between 1,000 and 100,000 views.</p>
+                <p class="interlink">🔗 Module 5 reveals that even perfect hooks need consistent iteration to build momentum.</p>
+            </article>
+
+            <!-- Quick Recall after module 4 -->
+            <div style="margin:2rem 0; padding:1rem; border:1px solid var(--border);">
+                <strong>🧠 Quick Recall (Modules 3–4)</strong>
+                <p>1. What's an example of an emotional keyword from the self‑improvement niche? <input class="fill-blank-input" id="recall3" placeholder="..."><button id="checkRecall3">Check</button><span id="recall3Feedback"></span></p>
+                <p>2. Name the three elements of the hook maximization checklist. <input class="fill-blank-input" id="recall4" placeholder="C, S, P"><button id="checkRecall4">Check</button><span id="recall4Feedback"></span></p>
+            </div>
+
+            <!-- MODULE 5 -->
+            <article class="module" id="module5">
+                <h2>5. The Long Game – Consistency &amp; Skill Building</h2>
+                <h3>Core Explanation</h3>
+                <p>Even the best hook knowledge is useless without consistent posting. The growth graph usually looks flat for months 1–2, then spikes as your viral sense clicks. During those early months, you're learning editing, camera confidence, and the rhythm of hooks. Many creators quit in the plateau, but those who push through 60–90 days of daily posting almost always break through. Each “bad” video teaches you what doesn't work; that's invaluable data. Think of it as building a muscle: you can't expect to lift heavy on day one. Your content skill compounds, and soon hooks become second nature.</p>
+                <h3>Step‑by‑Step</h3>
+                <ol><li>Commit to posting daily (or near‑daily) for 60–90 days.</li><li>After each video, note one hook lesson.</li><li>Iterate: use your hook bank and refine.</li><li>Embrace plateaus as learning, not failure.</li></ol>
+                <div class="example-group"><span class="example-title">🔹 Obvious:</span> Prosper posted daily while working 12‑hour door‑to‑door sales; growth came after 60 days.</div>
+                <div class="example-group"><span class="example-title">🔸 Counter‑intuitive:</span> Early "flop" videos often teach more about hooks than a random viral hit.</div>
+                <div class="example-group"><span class="example-title">🔺 Edge case:</span> Taking long breaks resets momentum; even if you return with better hooks, the algorithmic consistency signal is weaker.</div>
+                <div class="visual-analogy">
+                    <div class="analogy-side"><svg viewBox="0 0 200 80"><polyline points="20,60 60,58 100,55 140,30 180,20" fill="none" stroke="var(--svg-stroke)" stroke-width="1.5"/></svg><figcaption>Growth often flatlines then spikes.</figcaption></div>
+                    <div class="analogy-side"><svg viewBox="0 0 150 80"><text x="10" y="40" font-size="9">🎸 Learning guitar: daily practice → muscle memory</text></svg><figcaption>Like an instrument, daily reps build automatic skill.</figcaption></div>
+                </div>
+                <details><summary>❌ What People Get Wrong</summary><p><strong>Myth:</strong> You need to go viral immediately. <strong>Truth:</strong> Sustainable growth comes from compounding skills over months; overnight success is a myth.</p></details>
+                <p class="why-matters">Why this matters: Your hook skill is a muscle; reps make it automatic.</p>
+                <p class="interlink">🔗 Full circle: mastering hooks returns you to Module 1, where retention now stays high from second one.</p>
+            </article>
+
+            <!-- Interactive elements (6+) integrated throughout, plus additional ones here -->
+            <section style="margin-top:3rem;">
+                <h3>📝 Flashcards (Tap to flip)</h3>
+                <div class="flashcard-grid" id="flashcardContainer"></div>
+
+                <h3 style="margin-top:2rem;">🧩 Drag‑and‑Drop: Match Hook to Principle</h3>
+                <div id="dragDropArea"></div>
+
+                <h3 style="margin-top:2rem;">✅ Mini Quiz</h3>
+                <div id="miniQuiz"></div>
+
+                <h3 style="margin-top:2rem;">🔍 Click‑to‑Reveal Hotspot: Retention Graph</h3>
+                <svg viewBox="0 0 400 120" id="hotspotSvg" style="cursor:pointer;">
+                    <polyline points="20,90 80,40 120,30 300,25" fill="none" stroke="var(--svg-stroke)" stroke-width="1.5"/>
+                    <circle cx="80" cy="40" r="8" fill="var(--svg-fill)" stroke="var(--accent)" class="hotspot" data-info="At 3s, retention often drops below 50% without a hook."/>
+                    <circle cx="120" cy="30" r="8" fill="var(--svg-fill)" stroke="var(--accent)" class="hotspot" data-info="If hook works, curve stabilizes here."/>
+                    <text x="200" y="100" font-size="9" id="hotspotTooltip" fill="var(--text)"></text>
+                </svg>
+
+                <h3 style="margin-top:2rem;">🎯 Fill‑in‑the‑Blank</h3>
+                <p>The <input class="fill-blank-input" id="purpleCowBlank" placeholder="???"> effect describes something so novel it grabs attention. <button id="checkPurpleCow">Check</button><span id="purpleCowFeedback"></span></p>
+
+                <h3 style="margin-top:2rem;">✍️ Explain It to a 5‑Year‑Old</h3>
+                <p>How would you explain why the first few seconds of a video matter?</p>
+                <textarea id="teachBackArea" placeholder="Type your explanation..."></textarea>
+                <button id="revealModelAnswer" style="margin-top:0.5rem;">Show model answer</button>
+                <div id="modelAnswer" style="display:none; margin-top:0.5rem; background:var(--surface); padding:0.8rem;">Imagine you're telling a story to a friend. If you start with "uh, so, like…" they walk away. But if you say "Guess what happened?!" they lean in. Videos work the same way—people decide to watch or scroll in a heartbeat.</div>
+
+                <h3 style="margin-top:2rem;">🎮 Mini‑Challenge: Refine This Hook</h3>
+                <p>Raw hook: "How to get more views on Instagram." Use the checklist.</p>
+                <textarea id="challengeHook" placeholder="Your refined hook..."></textarea>
+                <button id="revealChallengeAnswer">Show expert version</button>
+                <div id="challengeAnswer" style="display:none; margin-top:0.5rem; background:var(--surface); padding:0.8rem;">"If you're stuck under 1,000 views, here's the exact 3‑second hook formula that took me to 1.2M average views."</div>
+            </section>
+
+            <!-- Summary & Cheat Sheet -->
+            <section class="summary-cheatsheet">
+                <h2>📋 Summary &amp; Cheat Sheet</h2>
+                <ul>
+                    <li><strong>Hook = first 3s.</strong> 80% of video success.</li>
+                    <li><strong>C.U.M.:</strong> Copy viral hooks → Understand keywords → Maximize with clarity/specificity/Purple Cow.</li>
+                    <li>Build a bank of format‑matched hooks and emotional keywords.</li>
+                    <li>Refine by reading aloud, injecting numbers, adding a unique twist.</li>
+                    <li>Post consistently for 60–90 days; plateaus are learning, not failure.</li>
+                </ul>
+                <p style="margin-top:1rem;"><strong>Spaced Repetition Schedule:</strong> Review this lesson in 1 min, 10 min, 1 hour, 1 day, 3 days, 1 week.</p>
+            </section>
+
+            <!-- FAQ -->
+            <section class="faq" style="margin-top:2rem;">
+                <h2>❓ Still Confused? FAQ</h2>
+                <details><summary>Do I have to copy hooks exactly?</summary><p>No. Use the structure and emotional rhythm, then swap in your niche's keywords. The goal is learning patterns, not plagiarism.</p></details>
+                <details><summary>What if my niche is tiny?</summary><p>Study adjacent niches with the same format. The principles of attention are universal.</p></details>
+                <details><summary>How long until I see results?</summary><p>Most creators hit a flow around 60–90 days of consistent posting, but it varies. Focus on skill, not views.</p></details>
+            </section>
+
+            <!-- Next Steps -->
+            <section class="next-steps">
+                <h2>🚀 Next Steps</h2>
+                <ul>
+                    <li>Audit your last 5 videos: where did retention drop?</li>
+                    <li>Create a swipe file of 20 viral hooks in your format.</li>
+                    <li>Write 10 hooks using the C.U.M. framework and post one daily.</li>
+                    <li>Join a feedback community to iterate faster.</li>
+                </ul>
+                <p style="margin-top:1rem;"><em>You finished the lesson.</em> 🏁</p>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        (function() {
+            // Loading state
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('lessonContent').style.display = 'block';
+                initAll();
+            }, 300);
+
+            function initAll() {
+                setupThemeToggle();
+                setupProgressBar();
+                setupKnowledgeMap();
+                buildFlashcards();
+                buildDragDrop();
+                buildMiniQuiz();
+                setupHotspots();
+                setupFillBlanks();
+                setupTeachBack();
+                setupMiniChallenge();
+                setupQuickRecalls();
+            }
+
+            // Theme toggle
+            function setupThemeToggle() {
+                const btn = document.getElementById('themeToggle');
+                const body = document.body;
+                const saved = localStorage.getItem('lessonTheme');
+                if (saved === 'dark') { body.classList.add('dark'); btn.textContent = '🌙'; }
+                btn.addEventListener('click', () => {
+                    body.classList.toggle('dark');
+                    const isDark = body.classList.contains('dark');
+                    btn.textContent = isDark ? '🌙' : '☀️';
+                    localStorage.setItem('lessonTheme', isDark ? 'dark' : 'light');
+                });
+            }
+
+            // Progress bar
+            function setupProgressBar() {
+                const bar = document.getElementById('progress-bar');
+                window.addEventListener('scroll', () => {
+                    const scrollTop = window.scrollY;
+                    const docHeight = document.body.scrollHeight - window.innerHeight;
+                    const scrolled = (scrollTop / docHeight) * 100;
+                    bar.style.width = Math.min(scrolled, 100) + '%';
+                });
+            }
+
+            // Knowledge map sidebar
+            function setupKnowledgeMap() {
+                const nodes = document.querySelectorAll('.map-node');
+                const modules = document.querySelectorAll('.module');
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        const id = entry.target.id;
+                        nodes.forEach(n => n.classList.remove('active'));
+                        if (entry.isIntersecting) {
+                            const activeNode = document.querySelector(`.map-node[data-target="${id}"]`);
+                            if (activeNode) activeNode.classList.add('active');
+                        }
+                    });
+                }, { threshold: 0.4 });
+                modules.forEach(m => observer.observe(m));
+                nodes.forEach(n => {
+                    n.addEventListener('click', () => {
+                        const target = document.getElementById(n.dataset.target);
+                        if (target) target.scrollIntoView({ behavior: 'smooth' });
+                    });
+                });
+            }
+
+            // Flashcards
+            function buildFlashcards() {
+                const cards = [
+                    { front: 'Viewer Retention Graph', back: '% of viewers still watching over time; sharp early drop kills reach.' },
+                    { front: 'Purple Cow Effect', back: 'A novel, unique element that stands out like a purple cow in a field.' },
+                    { front: 'Emotional Keyword', back: 'Word that triggers a feeling (e.g., "broke", "hate"), not SEO.' },
+                    { front: 'C.U.M. Framework', back: 'Copy, Understand, Maximize – the hook mastery process.' }
+                ];
+                const container = document.getElementById('flashcardContainer');
+                cards.forEach(c => {
+                    const card = document.createElement('div');
+                    card.className = 'flashcard';
+                    card.innerHTML = `<div class="flashcard-inner"><div class="flashcard-front">${c.front}</div><div class="flashcard-back">${c.back}</div></div>`;
+                    card.addEventListener('click', () => card.classList.toggle('flipped'));
+                    container.appendChild(card);
+                });
+            }
+
+            // Drag and drop
+            function buildDragDrop() {
+                const area = document.getElementById('dragDropArea');
+                area.innerHTML = `
+                    <p>Drag each hook example to its principle:</p>
+                    <div class="drag-container" id="dragItems">
+                        <div class="drag-item" draggable="true" data-match="clarity">"If you're burnt out running your business 24/7..."</div>
+                        <div class="drag-item" draggable="true" data-match="specificity">"...making $10K a month alone"</div>
+                        <div class="drag-item" draggable="true" data-match="purplecow">"AI agents to build a passive income machine while you sleep"</div>
+                    </div>
+                    <div style="display:flex; gap:1rem;">
+                        <div><strong>Clarity</strong><div class="drop-zone" data-accept="clarity"></div></div>
+                        <div><strong>Specificity</strong><div class="drop-zone" data-accept="specificity"></div></div>
+                        <div><strong>Purple Cow</strong><div class="drop-zone" data-accept="purplecow"></div></div>
+                    </div>
+                `;
+                const items = document.querySelectorAll('.drag-item');
+                const zones = document.querySelectorAll('.drop-zone');
+                items.forEach(item => {
+                    item.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', item.dataset.match); item.style.opacity = '0.6'; });
+                    item.addEventListener('dragend', e => { item.style.opacity = '1'; });
+                });
+                zones.forEach(zone => {
+                    zone.addEventListener('dragover', e => e.preventDefault());
+                    zone.addEventListener('drop', e => {
+                        e.preventDefault();
+                        const match = e.dataTransfer.getData('text/plain');
+                        if (match === zone.dataset.accept) {
+                            const dragged = document.querySelector(`.drag-item[data-match="${match}"]`);
+                            if (dragged && !zone.contains(dragged)) {
+                                zone.appendChild(dragged);
+                                dragged.style.opacity = '1';
+                                dragged.draggable = false;
+                            }
+                        }
+                    });
+                });
+            }
+
+            // Mini quiz
+            function buildMiniQuiz() {
+                const quiz = document.getElementById('miniQuiz');
+                quiz.innerHTML = `
+                    <p><strong>What is the primary reason early retention matters?</strong></p>
+                    <div class="quiz-option" data-correct="true">A. Algorithms kill reach if viewers leave immediately</div>
+                    <div class="quiz-option">B. It affects the color grading</div>
+                    <div class="quiz-option">C. Hashtags need time to load</div>
+                    <div class="quiz-option">D. Music sync depends on first seconds</div>
+                    <div class="quiz-feedback" id="quizFeedback"></div>
+                `;
+                const options = quiz.querySelectorAll('.quiz-option');
+                options.forEach(opt => {
+                    opt.addEventListener('click', function() {
+                        options.forEach(o => o.classList.remove('selected-correct', 'selected-wrong'));
+                        const feedback = document.getElementById('quizFeedback');
+                        if (this.dataset.correct === 'true') {
+                            this.classList.add('selected-correct');
+                            feedback.textContent = "That’s right. Platforms interpret early drop-off as low quality and suppress the video.";
+                        } else {
+                            this.classList.add('selected-wrong');
+                            feedback.textContent = "Not quite. The correct answer is A because early retention signals quality to the algorithm.";
+                        }
+                    });
+                });
+            }
+
+            // Hotspots
+            function setupHotspots() {
+                const hotspots = document.querySelectorAll('.hotspot');
+                const tooltip = document.getElementById('hotspotTooltip');
+                hotspots.forEach(h => {
+                    h.addEventListener('click', () => {
+                        tooltip.textContent = h.dataset.info;
+                    });
+                });
+            }
+
+            // Fill in blanks
+            function setupFillBlanks() {
+                document.getElementById('checkPurpleCow').addEventListener('click', () => {
+                    const input = document.getElementById('purpleCowBlank').value.trim().toLowerCase();
+                    const fb = document.getElementById('purpleCowFeedback');
+                    if (input === 'purple cow' || input === 'purplecow') {
+                        fb.textContent = "Correct! The Purple Cow effect makes your hook stand out.";
+                    } else {
+                        fb.textContent = "The answer is 'Purple Cow' – a metaphor for something uniquely attention-grabbing.";
+                    }
+                });
+            }
+
+            function setupTeachBack() {
+                document.getElementById('revealModelAnswer').addEventListener('click', () => {
+                    document.getElementById('modelAnswer').style.display = 'block';
+                });
+            }
+
+            function setupMiniChallenge() {
+                document.getElementById('revealChallengeAnswer').addEventListener('click', () => {
+                    document.getElementById('challengeAnswer').style.display = 'block';
+                });
+            }
+
+            function setupQuickRecalls() {
+                document.getElementById('checkRecall1').addEventListener('click', () => {
+                    const val = document.getElementById('recall1').value.trim();
+                    document.getElementById('recall1Feedback').textContent = val === '80%' || val === '80' ? '✓ Correct, roughly 80%.' : 'The hook is about 80% of the success.';
+                });
+                document.getElementById('checkRecall2').addEventListener('click', () => {
+                    const val = document.getElementById('recall2').value.trim().toLowerCase();
+                    document.getElementById('recall2Feedback').textContent = val.includes('copy') && val.includes('understand') && val.includes('maximize') ? '✓ Copy, Understand, Maximize.' : 'The framework: Copy, Understand, Maximize.';
+                });
+                document.getElementById('checkRecall3').addEventListener('click', () => {
+                    const val = document.getElementById('recall3').value.trim().toLowerCase();
+                    const ok = ['dopamine detox','lock in','shitty habits','desexualize'].some(k=>val.includes(k));
+                    document.getElementById('recall3Feedback').textContent = ok ? '✓ Good example.' : 'Examples: dopamine detox, lock in, shitty habits.';
+                });
+                document.getElementById('checkRecall4').addEventListener('click', () => {
+                    const val = document.getElementById('recall4').value.trim().toLowerCase();
+                    document.getElementById('recall4Feedback').textContent = val.includes('clarity') && val.includes('specificity') && val.includes('purple') ? '✓ Clarity, Specificity, Purple Cow.' : 'Clarity, Specificity, Purple Cow effect.';
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

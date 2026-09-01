@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Designing an AI Chat System from Scratch — Interactive Lesson</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/ibm-plex-sans@latest/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/ibm-plex-mono@latest/index.css">
+<style>
+:root{
+  --bg:#faf9f6; --panel:#fffefb; --ink:#201e1a; --muted:#6f6a60; --line:#e4e0d6;
+  --accent:#0e7a6f; --accent-ink:#0b5f57; --soft:rgba(14,122,111,.09);
+  --bad:#a84a2e; --bad-soft:rgba(168,74,46,.08);
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --sans:"IBM Plex Sans",-apple-system,"Segoe UI",Helvetica,sans-serif;
+}
+html[data-theme="dark"]{
+  --bg:#171613; --panel:#1d1c18; --ink:#e9e6dd; --muted:#98927f; --line:#2e2c25;
+  --accent:#57b3a5; --accent-ink:#7ecdc1; --soft:rgba(87,179,165,.12);
+  --bad:#d08668; --bad-soft:rgba(208,134,104,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans); background:var(--bg); color:var(--ink);
+  font-size:17px; line-height:1.72;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Ccircle cx='1.2' cy='1.2' r='1.2' fill='%23888071' fill-opacity='0.07'/%3E%3C/svg%3E");
+  transition:background-color .3s ease,color .3s ease;
+}
+::selection{background:var(--soft)}
+a{color:var(--accent-ink)}
+button{font-family:inherit;cursor:pointer}
+h1,h2,h3,h4{line-height:1.18;letter-spacing:-.015em;font-weight:700}
+code,.mono{font-family:var(--mono)}
+#loader{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;color:var(--muted);z-index:200;transition:opacity .45s ease}
+#loader.hide{opacity:0;pointer-events:none}
+#loader .dots::after{content:"";animation:dots 1.2s steps(4) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+#pbar{position:fixed;top:0;left:0;height:3px;width:0%;background:var(--accent);z-index:120;transition:width .12s linear}
+#themeBtn{position:fixed;top:14px;right:16px;z-index:130;width:36px;height:36px;border:1px solid var(--line);
+  border-radius:8px;background:var(--panel);color:var(--ink);font-size:15px;line-height:1;
+  transition:background-color .3s ease,color .3s ease,border-color .2s ease}
+#themeBtn:hover{border-color:var(--accent)}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:242px;border-right:1px solid var(--line);
+  background:var(--panel);padding:26px 18px;display:flex;flex-direction:column;gap:18px;z-index:110;
+  transition:background-color .3s ease;overflow-y:auto}
+.brand .kicker{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink)}
+.brand .btitle{font-weight:700;font-size:15px;line-height:1.3;margin-top:6px;letter-spacing:-.01em}
+.brand .bsub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px}
+#miniMap{flex:0 0 auto;width:100%}
+#miniMap svg{display:block;width:100%;height:auto}
+.mm-node{cursor:pointer}
+.mm-node circle{fill:var(--panel);stroke:var(--muted);stroke-width:1.5;transition:stroke .2s,fill .2s}
+.mm-node text{font-family:var(--mono);font-size:10px;fill:var(--muted);transition:fill .2s}
+.mm-node:hover circle,.mm-node:focus circle{stroke:var(--accent)}
+.mm-node:hover text,.mm-node:focus text{fill:var(--ink)}
+.mm-node.done circle{fill:var(--soft);stroke:var(--accent)}
+.mm-node.active circle{fill:var(--accent);stroke:var(--accent)}
+.mm-node.active text{fill:var(--ink);font-weight:600}
+.mm-line{stroke:var(--line);stroke-width:1.5}
+.side-foot{margin-top:auto;font-family:var(--mono);font-size:10px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+main{margin-left:242px;max-width:900px;padding:64px 52px 140px}
+.kicker{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink)}
+h1{font-size:clamp(2.4rem,5vw,3.5rem);letter-spacing:-.03em;line-height:1.04;margin:14px 0 18px}
+.lede{font-size:19px;color:var(--muted);max-width:640px}
+.meta-row{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:22px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.meta-row b{color:var(--ink);font-weight:600}
+.chat-demo{margin-top:34px;border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden;max-width:640px}
+.chat-demo .cd-head{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em}
+.cd-live{display:inline-flex;align-items:center;gap:6px}
+.cd-live i{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.6s ease infinite}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+.cd-body{padding:16px 18px 12px;font-size:15.5px}
+.cd-user{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.cd-asst{min-height:52px;word-wrap:break-word;overflow-wrap:break-word}
+.cd-caret{display:inline-block;width:7px;height:1.05em;background:var(--accent);vertical-align:text-bottom;margin-left:2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.cd-evt{border-top:1px dashed var(--line);padding:8px 14px;font-family:var(--mono);font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd-evt b{color:var(--accent-ink);font-weight:500}
+section.block{margin-top:96px}
+h2.sec-title{font-size:1.55rem;margin:10px 0 14px}
+.rule{border:none;border-top:1px solid var(--line);margin:0}
+.wyl{display:grid;grid-template-columns:1fr 1fr;gap:8px 40px;margin-top:16px}
+.wyl li{list-style:none;padding:7px 0;border-bottom:1px solid var(--line);font-size:15.5px}
+.wyl li .mono{font-size:11px;color:var(--accent-ink);margin-right:8px}
+.kmap-wrap{margin-top:22px;overflow-x:auto}
+.kmap-wrap svg{width:100%;height:auto;display:block;min-width:600px}
+.km-node{cursor:pointer}
+.km-node .km-box{fill:var(--panel);stroke:var(--muted);stroke-width:1.5;transition:stroke .2s,fill .2s}
+.km-node text{font-family:var(--mono);font-size:10px;fill:var(--muted);transition:fill .2s}
+.km-node:hover .km-box,.km-node:focus .km-box{stroke:var(--ink);fill:var(--soft)}
+.km-node:hover text,.km-node:focus text{fill:var(--ink)}
+.km-link{stroke:var(--line);stroke-width:1.5;transition:stroke .2s}
+.km-link.hot{stroke:var(--accent)}
+.km-center .km-box{fill:var(--soft);stroke:var(--accent)}
+.km-center text{fill:var(--ink)}
+.module{margin-top:110px;scroll-margin-top:30px}
+.mod-head{display:flex;gap:18px;align-items:baseline;border-top:1px solid var(--line);padding-top:22px}
+.mod-no{font-family:var(--mono);font-size:13px;color:var(--accent-ink);letter-spacing:.1em;white-space:nowrap}
+.mod-head h2{font-size:clamp(1.5rem,3vw,2.05rem);letter-spacing:-.02em}
+.mod-sub{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin:8px 0 0 0}
+.core{margin-top:26px}
+.core p+p{margin-top:14px}
+.h-label{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink);
+  margin:40px 0 14px;font-weight:600}
+ol.steps{counter-reset:st;margin-left:0}
+ol.steps li{list-style:none;counter-increment:st;display:grid;grid-template-columns:34px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+ol.steps li::before{content:counter(st,decimal-leading-zero);font-family:var(--mono);font-size:12px;color:var(--accent-ink);padding-top:4px}
+ol.steps li b{display:block;font-size:15.5px}
+ol.steps li span{font-size:14.5px;color:var(--muted)}
+.ex{border-left:2px solid var(--line);padding:6px 0 6px 18px;margin:16px 0;transition:border-color .25s}
+.ex:hover{border-color:var(--accent)}
+.ex .tag{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ex.c .tag{color:var(--accent-ink)} .ex.e .tag{color:var(--bad)}
+.ex h4{font-size:16px;margin:3px 0 4px}
+.ex p{font-size:15px;color:var(--muted)}
+figure.diagram{margin:34px 0 0;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:18px;overflow:hidden}
+figure.diagram svg{width:100%;height:auto;display:block}
+figcaption{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6}
+.d-ink{stroke:var(--ink);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.d-mut{stroke:var(--muted);fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+.d-acc{stroke:var(--accent);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.d-fill{fill:var(--soft);stroke:var(--accent);stroke-width:1.5}
+.d-lab{font-family:var(--mono);font-size:10.5px;fill:var(--muted)}
+.d-lab.b{fill:var(--ink);font-weight:600}
+.d-lab.a{fill:var(--accent-ink)}
+.d-soft{fill:var(--soft)}
+.draw{stroke-dasharray:1;stroke-dashoffset:1}
+.in .draw{transition:stroke-dashoffset 1.1s ease .15s;stroke-dashoffset:0}
+.analogy{margin-top:34px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.analogy .an-head{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+  padding:10px 16px;border-bottom:1px solid var(--line)}
+.an-grid{display:grid;grid-template-columns:1fr 1fr}
+.an-side{padding:16px}
+.an-side+.an-side{border-left:1px dashed var(--line)}
+.an-side h4{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);margin-bottom:10px;font-weight:600}
+.an-side p{font-size:14.5px;color:var(--muted);margin-top:10px}
+.an-bridge{border-top:1px solid var(--line);padding:13px 16px;font-size:15px;font-style:italic}
+details.myth{margin-top:30px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+details.myth summary{padding:13px 16px;font-weight:600;font-size:15.5px;cursor:pointer;list-style:none;display:flex;gap:10px;align-items:center}
+details.myth summary::-webkit-details-marker{display:none}
+details.myth summary::before{content:"❌";font-size:14px}
+details.myth summary::after{content:"+";margin-left:auto;font-family:var(--mono);color:var(--muted);transition:transform .25s}
+details.myth[open] summary::after{transform:rotate(45deg)}
+.myth-body{padding:0 16px 16px;font-size:15px}
+.myth-body p{margin-top:8px}
+.myth-body .lab{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.myth-body .truth{color:var(--ink)}
+.matters{margin-top:26px;font-size:16.5px}
+.matters em{font-style:italic}
+.matters::before{content:"◆ ";color:var(--accent);font-size:11px;vertical-align:2px}
+.mlink{margin-top:14px;font-size:14.5px;color:var(--muted);border-left:2px solid var(--soft);padding-left:14px}
+.why-link{background:none;border:none;border-bottom:1px dashed var(--accent);color:var(--accent-ink);
+  font-size:13.5px;font-family:var(--mono);padding:0 0 1px;margin-left:6px}
+.why-body{display:none;margin-top:10px;padding:12px 16px;border:1px dashed var(--line);border-radius:6px;font-size:14.5px;color:var(--muted)}
+.why-body.open{display:block;animation:fadein .35s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.panel{margin-top:30px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:18px}
+.panel .p-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.panel .p-title{font-weight:700;font-size:16px}
+.panel .p-kind{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink)}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;
+  padding:7px 14px;font-size:13.5px;transition:border-color .2s,background-color .2s}
+.btn:hover{border-color:var(--accent)}
+.btn.acc{border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.opt:focus-visible,.mm-node:focus-visible,.km-node:focus-visible,.hs:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.quiz .q{font-size:16.5px;font-weight:600;margin-bottom:14px}
+.opt{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel);
+  border-radius:6px;padding:10px 14px;margin:7px 0;font-size:14.5px;color:var(--ink);transition:border-color .2s,background-color .2s}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt.correct{border-color:var(--accent);background:var(--soft)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.opt:disabled{cursor:default}
+.q-fb{margin-top:12px;padding:12px 14px;border-left:2px solid var(--accent);font-size:14.5px;display:none;animation:fadein .3s ease}
+.q-fb.bad{border-color:var(--bad)}
+.q-fb.show{display:block}
+.q-score{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.scn .scn-intro{font-size:15px;color:var(--muted);margin-bottom:14px}
+.scn .dec-count{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.scn .dec-q{font-weight:600;font-size:15.5px;margin:10px 0}
+.scn-fb{margin-top:10px;padding:11px 14px;font-size:14.5px;border-left:2px solid var(--accent);display:none;animation:fadein .3s}
+.scn-fb.bad{border-color:var(--bad)}
+.scn-fb.show{display:block}
+.scn-next{margin-top:12px;display:none}
+.scn-next.show{display:inline-block}
+.scn-done{margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--accent-ink);display:none}
+.fc-stage{perspective:none;margin:8px 0 14px}
+.fc-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);min-height:150px;padding:22px;
+  cursor:pointer;transition:border-color .25s}
+.fc-card:hover{border-color:var(--accent)}
+.fc-face{display:none}
+.fc-card .front{display:block}
+.fc-card.flip .front{display:none}
+.fc-card.flip .back{display:block}
+.fc-side{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.fc-front-t{font-size:20px;font-weight:700;letter-spacing:-.01em}
+.fc-back-t{font-size:16px}
+.fc-extra{margin-top:12px;font-size:14px;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px;display:none}
+.fc-extra.show{display:block}
+.fc-ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fc-count{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto}
+.fc-mastered{font-family:var(--mono);font-size:10.5px;color:var(--accent-ink)}
+.dd-pool{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 18px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 12px;font-size:13.5px;
+  cursor:grab;transition:border-color .2s,opacity .2s;user-select:none}
+.chip:hover{border-color:var(--accent)}
+.chip.sel{border-color:var(--accent);background:var(--soft)}
+.chip.placed{opacity:.35;cursor:default}
+.slot{border:1px dashed var(--line);border-radius:6px;padding:10px 14px;margin:8px 0;font-size:14px;
+  display:flex;justify-content:space-between;gap:14px;align-items:center;transition:border-color .2s,background-color .2s;cursor:pointer}
+.slot .ans{font-family:var(--mono);font-size:11.5px;color:var(--accent-ink);white-space:nowrap}
+.slot.filled{border-style:solid;border-color:var(--accent);background:var(--soft);cursor:default}
+.slot.flash{border-color:var(--bad);background:var(--bad-soft)}
+.dd-msg{font-size:13.5px;color:var(--muted);min-height:20px;margin-top:8px}
+.fib-sent{font-size:16.5px;line-height:2.1}
+.fib{font-family:var(--mono);font-size:14px;width:96px;border:none;border-bottom:1.5px solid var(--muted);
+  background:transparent;color:var(--ink);padding:2px 4px;transition:border-color .2s}
+.fib:focus{outline:none;border-color:var(--accent)}
+.fib.ok{border-color:var(--accent);color:var(--accent-ink)}
+.fib.no{border-color:var(--bad)}
+.fib-hint{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-left:2px}
+.fib-note{font-size:13.5px;color:var(--muted);margin-top:12px}
+.mc-case{border:1px solid var(--line);border-radius:6px;padding:14px;margin:12px 0}
+.mc-case .cc{font-size:14.5px}
+.mc-opts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.mc-fb{margin-top:10px;font-size:14px;display:none;border-left:2px solid var(--accent);padding:8px 12px;animation:fadein .3s}
+.mc-fb.bad{border-color:var(--bad)}
+.mc-fb.show{display:block}
+.tb-area{width:100%;min-height:110px;border:1px solid var(--line);border-radius:6px;background:var(--panel);
+  color:var(--ink);font-family:inherit;font-size:15px;padding:12px;resize:vertical}
+.tb-area:focus{outline:none;border-color:var(--accent)}
+.tb-res{margin-top:12px;font-size:14.5px;display:none}
+.tb-res.show{display:block;animation:fadein .3s}
+.tb-kw{font-family:var(--mono);font-size:11.5px}
+.tb-kw .hit{color:var(--accent-ink)} .tb-kw .miss{color:var(--muted)}
+.tb-model{margin-top:12px;border-top:1px dashed var(--line);padding-top:12px;font-size:14.5px;color:var(--muted)}
+.hs{cursor:pointer}
+.hs .hs-box{transition:stroke .2s}
+.hs:hover .hs-box,.hs:focus .hs-box{stroke:var(--accent);stroke-dasharray:3 3}
+.hs.on .hs-box{stroke:var(--accent);fill:var(--soft)}
+.hs-panel{margin-top:12px;border:1px dashed var(--line);border-radius:6px;padding:12px 14px;font-size:14.5px;min-height:64px}
+.hs-panel b{color:var(--accent-ink)}
+.pnode{cursor:pointer}
+.pnode .p-box{fill:var(--panel);stroke:var(--muted);stroke-width:1.5;transition:stroke .2s,fill .2s}
+.pnode:hover .p-box,.pnode:focus .p-box{stroke:var(--accent)}
+.pnode.on .p-box{stroke:var(--accent);fill:var(--soft)}
+.pnode text{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+.pnode.on text{fill:var(--ink)}
+.reveal-panel{margin-top:12px;font-size:14.5px;color:var(--muted);border-left:2px solid var(--soft);padding-left:14px;min-height:44px}
+.flow{margin-top:8px}
+.flow li{list-style:none;display:flex;gap:12px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line);font-size:15px}
+.flow .stepno{font-family:var(--mono);font-size:11px;color:var(--muted);width:20px}
+.chip-r,.chip-w{font-family:var(--mono);font-size:10px;border-radius:4px;padding:2px 7px;letter-spacing:.08em;white-space:nowrap}
+.chip-r{background:var(--soft);color:var(--accent-ink)}
+.chip-w{background:var(--bad-soft);color:var(--bad)}
+.flow .desc{color:var(--muted);font-size:13.5px}
+.show-more{margin-top:10px}
+.chunk{display:none}
+.chunk.open{display:block;animation:fadein .3s}
+.scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 34px;margin-top:14px}
+.scope-grid h4{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px;font-weight:600}
+.scope-grid .in-h{color:var(--accent-ink)} .scope-grid .out-h{color:var(--muted)}
+.scope-grid li{list-style:none;font-size:14.5px;padding:5px 0;border-bottom:1px solid var(--line)}
+.scope-grid .out li{color:var(--muted)}
+.scope-grid .out li::before{content:"— "}
+.scope-grid .inn li::before{content:"+ ";color:var(--accent)}
+details.faq{border-bottom:1px solid var(--line)}
+details.faq summary{padding:14px 4px;font-weight:600;font-size:15.5px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:12px}
+details.faq summary::-webkit-details-marker{display:none}
+details.faq summary::after{content:"+";font-family:var(--mono);color:var(--muted);transition:transform .25s}
+details.faq[open] summary::after{transform:rotate(45deg)}
+details.faq .faq-b{padding:0 4px 16px;font-size:15px;color:var(--muted)}
+.cheat{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:26px 28px;margin-top:18px}
+.cheat h3{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink);margin:20px 0 8px;font-weight:600}
+.cheat h3:first-child{margin-top:0}
+.cheat table{width:100%;border-collapse:collapse;font-size:14px}
+.cheat td{padding:5px 8px 5px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.cheat td:first-child{font-family:var(--mono);font-size:12px;color:var(--accent-ink);white-space:nowrap;width:150px}
+.cheat ul{margin-left:18px;font-size:14.5px}
+.cheat li{margin:4px 0}
+.sr-list{margin-top:14px}
+.sr-list li{list-style:none;display:grid;grid-template-columns:88px 1fr;gap:14px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.sr-list .when{font-family:var(--mono);font-size:12px;color:var(--accent-ink)}
+#endBadge{display:none;margin-top:70px;text-align:center;font-family:var(--mono);font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent-ink);border:1px solid var(--accent);border-radius:6px;padding:14px}
+#endBadge.show{display:block;animation:fadein .6s ease}
+footer{margin-top:90px;border-top:1px solid var(--line);padding-top:18px;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.rv{opacity:0;transform:translateY(10px);transition:opacity .55s ease,transform .55s ease}
+.rv.in{opacity:1;transform:none}
+@media (max-width:980px){
+  #sidebar{position:static;width:auto;border-right:none;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap;align-items:center;gap:14px;padding:16px 18px}
+  #miniMap{display:none}
+  .side-foot{margin:0 0 0 auto;border:none;padding:0}
+  main{margin-left:0;padding:40px 22px 120px}
+  .wyl,.an-grid,.scope-grid{grid-template-columns:1fr}
+  .an-side+.an-side{border-left:none;border-top:1px dashed var(--line)}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .rv{opacity:1;transform:none}
+  .draw{stroke-dashoffset:0}
+}
+</style>
+</head>
+<body>
+
+<div id="loader"><span>Preparing your lesson<span class="dots"></span></span></div>
+<div id="pbar" role="progressbar" aria-label="Reading progress"></div>
+<button id="themeBtn" aria-label="Toggle dark mode" title="Toggle theme">☾</button>
+
+<aside id="sidebar">
+  <div class="brand">
+    <div class="kicker">System Design</div>
+    <div class="btitle">AI Chat System at ChatGPT Scale</div>
+    <div class="bsub">interactive lesson · 8 modules</div>
+  </div>
+  <div id="miniMap" aria-label="Module map"></div>
+  <div class="side-foot">progress saved locally<br>☾ / ☀ top-right</div>
+</aside>
+
+<main>
+  <header>
+    <div class="kicker">From first principles · Senior / Staff interview depth</div>
+    <h1>Designing an AI chat system from scratch</h1>
+    <p class="lede">800 million weekly users. 2.5 billion prompts a day. 20 million concurrent connections. One unsharded database. This lesson rebuilds the full architecture — requirements, streaming, microservices, data, costs — the way a senior engineer defends it in the room.</p>
+    <div class="meta-row">
+      <span><b>8</b> modules</span><span><b>~45</b> min</span><span><b>Source:</b> system-design walkthrough on OpenAI's Jan 2026 numbers</span>
+    </div>
+
+    <div class="chat-demo" aria-label="Animated demonstration of token-by-token streaming">
+      <div class="cd-head"><span>chat · text/event-stream</span><span class="cd-live"><i></i>streaming</span></div>
+      <div class="cd-body">
+        <div class="cd-user">› explain react hooks</div>
+        <div class="cd-asst"><span id="cdText"></span><span class="cd-caret" aria-hidden="true"></span></div>
+      </div>
+      <div class="cd-evt" id="cdEvt">event: <b>token</b> · data: {"t":"React"}</div>
+    </div>
+  </header>
+
+  <section class="block rv" id="wyl">
+    <div class="kicker">Overview</div>
+    <h2 class="sec-title">What you'll learn</h2>
+    <p>This lesson takes one prompt — <em>"design an AI chat system like ChatGPT"</em> — and walks it the way a senior candidate does: scope first, numbers second, architecture third, and every non-functional requirement traced home at the end. By the finish you can defend every box on the diagram and every number on the bill.</p>
+    <ul class="wyl">
+      <li><span class="mono">01</span>Scope the problem and internalize the real scale numbers</li>
+      <li><span class="mono">02</span>Choose streaming over waiting — and SSE over WebSocket, with reasons</li>
+      <li><span class="mono">03</span>Run capacity math: 70K msgs/sec, 550 TB/yr, 6 Gbps</li>
+      <li><span class="mono">04</span>Assemble the three-layer microservice architecture</li>
+      <li><span class="mono">05</span>See why 2.5B writes/day is still a 90% read system</li>
+      <li><span class="mono">06</span>Defend OpenAI's controversial unsharded database choice</li>
+      <li><span class="mono">07</span>Design the REST API and two-axis rate limiting</li>
+      <li><span class="mono">08</span>Price the machine (~$58M/mo) and map every NFR to a decision</li>
+    </ul>
+  </section>
+
+  <section class="block rv" id="mapTopSec">
+    <div class="kicker">Knowledge map</div>
+    <h2 class="sec-title">How the eight modules connect</h2>
+    <p style="color:var(--muted);font-size:15px">Click any node to jump there. Hover to see its tie back to the center.</p>
+    <div class="kmap-wrap" id="mapTop"></div>
+  </section>
+
+  <hr class="rule" style="margin-top:90px">
+
+  <section class="module rv" id="m1">
+    <div class="mod-head"><span class="mod-no">MODULE 01</span>
+      <div><h2>Scope &amp; Scale: agree on the game before playing it</h2>
+      <p class="mod-sub">requirements questions · in/out scope · 800M WAU → 1B design target</p></div>
+    </div>
+    <div class="core">
+      <p>Every strong system design starts before the first box is drawn. The walkthrough opens with a volley of clarifying questions, because "design an AI chat system like ChatGPT" could mean a hundred different scopes. First: are we building the LLM itself, or integrating an existing one? Almost always <strong>integrating</strong>. Second: do responses stream word-by-word or arrive whole? We choose streaming — it's what every major product does, and it transforms perceived speed. Third: what scale? OpenAI's January 2026 announcement put ChatGPT at 700M weekly actives by July 2025, already past 800M today; we round to <strong>1 billion</strong> for headroom and clean math, which collapses to ~200M daily actives, 2.5B prompts a day, and 20M concurrent conversations at peak (10% concurrency).</p>
+      <p>Then come the feature cuts: accounts and full conversation history — yes; shareable links and web publishing — no; English only; text only; tiered rate limits on both requests <em>and</em> tokens — yes; basic content moderation — required. Even the front end gets scoped by staring at the real UI: the input box and the history sidebar are in; projects, custom GPTs, code tools and image generation are out. Stating these trade-offs out loud — and being ready to defend pros and cons if the interviewer pushes back — is precisely the behavior that separates senior candidates from mid-level ones.</p>
+    </div>
+
+    <h3 class="h-label">Step by step — opening an ambiguous design prompt</h3>
+    <ol class="steps">
+      <li><b>Ask what you're building vs. integrating.</b><span>Model training is out; LLM integration is in for nearly every interview and most startups.</span></li>
+      <li><b>Set the UX contract.</b><span>Streaming or wait-for-complete? Decide now — it reshapes the transport layer later.</span></li>
+      <li><b>Pin the scale numbers.</b><span>WAU → DAU → prompts/day → concurrency. Cite the source and round for headroom.</span></li>
+      <li><b>Cut features explicitly.</b><span>History yes, sharing no, text only, English only — and say why each cut is safe.</span></li>
+      <li><b>Mirror the scope back.</b><span>One paragraph the interviewer can veto. Silence means consent.</span></li>
+    </ol>
+
+    <h3 class="h-label">Three examples</h3>
+    <div class="ex o"><span class="tag">Obvious</span><h4>The streaming question, asked in minute two</h4>
+      <p>"Do responses stream or arrive complete?" is a single question that restructures the entire transport and client design. The walkthrough answers it before any architecture exists — that ordering is the lesson.</p></div>
+    <div class="ex c"><span class="tag">Counter-intuitive</span><h4>Cutting features makes the answer stronger</h4>
+      <p>Declining shareable links, images and multilingual support isn't laziness — it buys depth on the core. Interviewers grade defended cuts, not feature counts; a shallow "everything" design loses to a deep scoped one.</p></div>
+    <div class="ex e"><span class="tag">Edge case</span><h4>The interviewer forces image support anyway</h4>
+      <p>Don't restart the design. Note it as an extension: uploads go to object storage, generation becomes an async job with a completion callback, and the chat core stays untouched. Scope pressure handled without panic.</p></div>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 820 240" role="img" aria-label="Bar chart of ChatGPT weekly active users: 700 million in July 2025, over 800 million in January 2026, design target rounded to 1 billion">
+        <line x1="60" y1="200" x2="780" y2="200" class="d-mut"/>
+        <line x1="60" y1="200" x2="60" y2="30" class="d-mut"/>
+        <line x1="60" y1="60" x2="780" y2="60" class="d-mut" stroke-dasharray="3 5"/>
+        <text x="784" y="63" class="d-lab" text-anchor="end">1B design target</text>
+        <rect x="140" y="74" width="90" height="126" class="d-soft draw" pathLength="1"/>
+        <rect x="140" y="74" width="90" height="126" class="d-acc" fill="none"/>
+        <text x="185" y="64" class="d-lab b" text-anchor="middle">700M</text>
+        <text x="185" y="218" class="d-lab" text-anchor="middle">Jul 2025</text>
+        <rect x="360" y="56" width="90" height="144" class="d-soft"/>
+        <rect x="360" y="56" width="90" height="144" class="d-acc" fill="none"/>
+        <text x="405" y="46" class="d-lab b" text-anchor="middle">800M+</text>
+        <text x="405" y="218" class="d-lab" text-anchor="middle">Jan 2026</text>
+        <rect x="580" y="60" width="90" height="140" fill="none" class="d-acc" stroke-dasharray="4 4"/>
+        <text x="625" y="50" class="d-lab a" text-anchor="middle">1B (rounded)</text>
+        <text x="625" y="218" class="d-lab" text-anchor="middle">design target</text>
+      </svg>
+      <figcaption>Weekly active users per OpenAI's January 2026 announcement — 700M by July 2025, past 800M since. We round to 1B: future headroom plus cleaner arithmetic (→ 200M DAU).</figcaption>
+      <div class="scope-grid">
+        <div><h4 class="in-h">In scope</h4><ul class="inn">
+          <li>Accounts, auth, private conversations</li><li>Full message history, sidebar retrieval</li>
+          <li>Token-by-token streaming (SSE)</li><li>Tiered rate limits — requests + tokens</li><li>Basic content moderation</li></ul></div>
+        <div><h4 class="out-h">Out of scope (stated aloud)</h4><ul class="out">
+          <li>Building/training the model</li><li>Shareable links &amp; web publishing</li>
+          <li>Images, files, image generation</li><li>Projects, custom GPTs, code tools</li><li>Non-English languages</li></ul></div>
+      </div>
+    </figure>
+
+    <div class="analogy">
+      <div class="an-head">Visual analogy</div>
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><rect x="20" y="14" width="160" height="82" rx="4" class="d-ink"/><line x1="100" y1="14" x2="100" y2="96" class="d-mut"/><text x="58" y="32" class="d-lab b" text-anchor="middle">IN</text><text x="140" y="32" class="d-lab" text-anchor="middle">OUT</text><line x1="32" y1="46" x2="88" y2="46" class="d-acc"/><line x1="32" y1="60" x2="88" y2="60" class="d-acc"/><line x1="32" y1="74" x2="80" y2="74" class="d-acc"/><line x1="112" y1="46" x2="168" y2="46" class="d-mut"/><line x1="112" y1="60" x2="160" y2="60" class="d-mut"/></svg>
+          <p>A scope board: two columns, decided in the first five minutes, referenced for the rest of the hour.</p></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><rect x="24" y="12" width="70" height="86" rx="3" class="d-ink"/><line x1="34" y1="30" x2="84" y2="30" class="d-mut"/><line x1="34" y1="44" x2="84" y2="44" class="d-mut"/><line x1="34" y1="58" x2="78" y2="58" class="d-mut"/><line x1="34" y1="72" x2="84" y2="72" class="d-mut"/><text x="59" y="24" class="d-lab" text-anchor="middle">menu</text><path d="M104 55 L126 55" class="d-acc"/><path d="M122 51 L127 55 L122 59" class="d-acc"/><rect x="134" y="30" width="46" height="56" rx="3" class="d-fill"/><text x="157" y="52" class="d-lab b" text-anchor="middle">order</text><text x="157" y="68" class="d-lab" text-anchor="middle">×1</text></svg>
+          <p>A menu lists everything a kitchen <em>can</em> do; an order is what it <em>will</em> do tonight.</p></div>
+      </div>
+      <div class="an-bridge">Scope questions turn the product's menu into your design's order ticket. Nobody grades the menu.</div>
+    </div>
+
+    <details class="myth"><summary>What People Get Wrong</summary>
+      <div class="myth-body">
+        <p><span class="lab">Myth</span><br>"I should design everything the real product has — projects, GPTs, images — to show range."</p>
+        <p class="truth"><span class="lab">Truth</span><br>Real products accreted features over years. A 60-minute design that covers everything covers nothing deeply. Seniors cut loudly and defend the cuts.</p>
+        <p><span class="lab">Why it happens</span><br>Range feels like competence. But depth on a bounded scope — with explicit trade-offs — is what staff-level interviews actually measure.</p>
+      </div>
+    </details>
+    <p class="matters"><em>Why this matters: a design graded on scope discipline beats one graded on box count — in interviews and in production.</em></p>
+    <p class="mlink">🔗 This connects to Module 2 because the streaming decision made here becomes the entire transport design there.</p>
+
+    <div class="panel scn" data-s="s1"></div>
+    <div class="panel quiz" data-q="q1"></div>
+  </section>
+
+  <section class="module rv" id="m2">
+    <div class="mod-head"><span class="mod-no">MODULE 02</span>
+      <div><h2>Streaming UX: SSE beats WebSocket here — and it's not close</h2>
+      <p class="mod-sub">wait vs stream · WebSocket vs SSE · EventSource · stop/cancel semantics</p></div>
+    </div>
+    <div class="core">
+      <p>There are two universes for delivering an LLM's answer, and the choice defines how the product feels. Option one: a plain HTTP POST that returns only when the full response exists. The user stares at a spinner for 10–30 seconds — longer with thinking models — and you can't even render an honest skeleton, because you don't know the shape of what's coming. It feels slow because it <em>is</em> slow to first paint. Option two: open a persistent connection and stream tokens the moment the model produces them. The first word appears almost immediately; the rest type themselves out while the user reads. Streaming doesn't make generation faster — it makes waiting invisible.
+      <button class="why-link" data-why="w1">But why does that feel faster?</button></p>
+      <div class="why-body" id="w1">Perceived latency is dominated by time-to-first-byte of content, not total completion time. A response whose first token lands in 800ms but finishes in 20s reads as "instant and thorough"; a perfect answer that arrives whole after 20s reads as a hang. Streaming converts one long silence into continuous progress.</div>
+      <p>For the transport, the instinct is WebSocket — but WebSocket upgrades the protocol to full bidirectional communication, which is exactly what collaborative editors and typing indicators need, and exactly what token streaming doesn't. A user who sends a prompt and switches tabs still holds a live WebSocket open, burning server resources for silence. Server-Sent Events stay on plain HTTP: one-way server-to-client, a built-in <code>EventSource</code> API in every major browser, automatic reconnection, far less overhead, far easier debugging. That's why the major AI chat products standardized on it. While a stream is live, the send button is disabled and a Stop button lets the user cut the answer short and open a new query.</p>
+    </div>
+
+    <h3 class="h-label">Step by step — one streamed answer</h3>
+    <ol class="steps">
+      <li><b>User submits "explain react hooks".</b><span>A POST opens the request; the response becomes a stream instead of a payload.</span></li>
+      <li><b>First token arrives at the server.</b><span>"React" is pushed to the browser immediately — nothing waits for the full sentence.</span></li>
+      <li><b>Tokens flow one by one.</b><span>"hooks", "are", "functions", "that"… each event appends to the visible bubble.</span></li>
+      <li><b>Send is disabled; Stop is offered.</b><span>The user can cancel mid-stream and start a fresh query.</span></li>
+      <li><b>Completion signal.</b><span>The stream closes, the full response is finalized, the send button re-enables.</span></li>
+    </ol>
+
+    <h3 class="h-label">Three examples</h3>
+    <div class="ex o"><span class="tag">Obvious</span><h4>ChatGPT's typing effect</h4>
+      <p>The words appearing as if someone is typing them are SSE events being appended token by token — the exact mechanic this module teaches.</p></div>
+    <div class="ex c"><span class="tag">Counter-intuitive</span><h4>Streaming changes nothing about generation speed</h4>
+      <p>A 20-second answer still takes 20 seconds end to end. Streaming only moves the first word from second 20 to second 1. The win is perceptual — and perception is the product.</p></div>
+    <div class="ex e"><span class="tag">Edge case</span><h4>Stop pressed at token 47</h4>
+      <p>The client aborts the stream, the server stops generation, the partial answer can still be persisted, and the send button re-enables immediately. Cancellation is a first-class state, not an error.</p></div>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 820 300" role="img" aria-label="Comparison diagram: WebSocket is bidirectional and marked overkill for token streaming; SSE is one-way over plain HTTP with tokens flowing server to browser">
+        <text x="20" y="30" class="d-lab b">Option A — WebSocket (bidirectional)</text>
+        <rect x="60" y="50" width="150" height="60" rx="4" class="d-ink"/>
+        <text x="135" y="84" class="d-lab b" text-anchor="middle">browser</text>
+        <rect x="600" y="50" width="150" height="60" rx="4" class="d-ink"/>
+        <text x="675" y="84" class="d-lab b" text-anchor="middle">server</text>
+        <path d="M215 70 H595" class="d-mut draw" pathLength="1"/><path d="M588 66 L596 70 L588 74" class="d-mut"/>
+        <path d="M595 92 H215" class="d-mut draw" pathLength="1"/><path d="M222 88 L214 92 L222 96" class="d-mut"/>
+        <text x="405" y="60" class="d-lab" text-anchor="middle">protocol upgrade · both directions</text>
+        <text x="405" y="112" class="d-lab" text-anchor="middle" fill="var(--bad)">✕ idle connections linger when users tab away — overkill for one-way tokens</text>
+        <line x1="20" y1="150" x2="800" y2="150" class="d-mut" stroke-dasharray="2 6"/>
+        <text x="20" y="178" class="d-lab b">Option B — Server-Sent Events (one-way, plain HTTP)</text>
+        <rect x="60" y="196" width="150" height="60" rx="4" class="d-ink"/>
+        <text x="135" y="230" class="d-lab b" text-anchor="middle">browser</text>
+        <rect x="600" y="196" width="150" height="60" rx="4" class="d-ink"/>
+        <text x="675" y="230" class="d-lab b" text-anchor="middle">server</text>
+        <path d="M595 226 H230" class="d-acc draw" pathLength="1"/><path d="M238 222 L229 226 L238 230" class="d-acc"/>
+        <circle cx="520" cy="226" r="3" class="d-fill"/><circle cx="450" cy="226" r="3" class="d-fill"/><circle cx="380" cy="226" r="3" class="d-fill"/><circle cx="310" cy="226" r="3" class="d-fill"/>
+        <text x="520" y="212" class="d-lab a" text-anchor="middle">React</text>
+        <text x="450" y="212" class="d-lab a" text-anchor="middle">hooks</text>
+        <text x="380" y="212" class="d-lab a" text-anchor="middle">are</text>
+        <text x="310" y="212" class="d-lab a" text-anchor="middle">functions</text>
+        <text x="405" y="278" class="d-lab" text-anchor="middle">✓ EventSource API built in · auto-reconnect · trivial debugging · standard HTTP</text>
+      </svg>
+      <figcaption>Both carry tokens. Only one matches the actual shape of the traffic: a single sender, a single reader, no return channel needed.</figcaption>
+    </figure>
+
+    <div class="analogy">
+      <div class="an-head">Visual analogy</div>
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept — SSE</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><rect x="130" y="30" width="50" height="50" rx="4" class="d-ink"/><text x="155" y="58" class="d-lab" text-anchor="middle">srv</text><rect x="18" y="38" width="44" height="34" rx="4" class="d-ink"/><path d="M128 55 H70" class="d-acc"/><path d="M76 51 L69 55 L76 59" class="d-acc"/><circle cx="112" cy="55" r="2.5" class="d-fill"/><circle cx="96" cy="55" r="2.5" class="d-fill"/><circle cx="80" cy="55" r="2.5" class="d-fill"/></svg>
+          <p>One-way token stream over ordinary HTTP. The client listens; the server talks.</p></div>
+        <div class="an-side"><h4>The analogy — radio broadcast</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><line x1="155" y1="88" x2="155" y2="40" class="d-ink"/><path d="M140 40 L155 26 L170 40" class="d-ink"/><path d="M130 52 a34 34 0 0 1 -20 -14" class="d-mut"/><path d="M120 62 a48 48 0 0 1 -28 -20" class="d-mut"/><rect x="20" y="60" width="52" height="30" rx="4" class="d-ink"/><circle cx="36" cy="75" r="7" class="d-mut"/><line x1="50" y1="70" x2="64" y2="70" class="d-mut"/><line x1="50" y1="78" x2="64" y2="78" class="d-mut"/></svg>
+          <p>You don't call the radio station back. One transmitter, many listeners, no return channel.</p></div>
+      </div>
+      <div class="an-bridge">WebSocket is a phone call — perfect when both sides talk, wasteful when only one does. Token streaming is a broadcast.</div>
+    </div>
+
+    <details class="myth"><summary>What People Get Wrong</summary>
+      <div class="myth-body">
+        <p><span class="lab">Myth</span><br>"Real-time means WebSocket, always. It's the modern choice."</p>
+        <p class="truth"><span class="lab">Truth</span><br>Match the transport to the traffic shape. One-way streams over HTTP (SSE) give you auto-reconnect, simpler debugging and no idle-connection tax — which is why the major AI chat products actually ship it.</p>
+        <p><span class="lab">Why it happens</span><br>WebSocket is more famous, so it springs to mind first. Fame ≠ fit.</p>
+      </div>
+    </details>
+    <p class="matters"><em>Why this matters: perceived speed is a product feature, and streaming is how you ship it.</em></p>
+    <p class="mlink">🔗 This connects to Module 4 because long-lived SSE connections constrain how the load balancer, gateway and message service must behave.</p>
+
+    <div class="panel tb" id="teachback">
+      <div class="p-head"><span class="p-title">✍️ Explain it to a 5-year-old</span><span class="p-kind">teach-back</span></div>
+      <p style="font-size:14.5px;color:var(--muted);margin-bottom:10px">In your own words: why does ChatGPT show words one at a time instead of making you wait for the whole answer?</p>
+      <textarea class="tb-area" id="tbText" placeholder="Type your explanation…" aria-label="Your explanation"></textarea>
+      <div style="margin-top:10px"><button class="btn acc" id="tbCheck">Check my explanation</button></div>
+      <div class="tb-res" id="tbRes"></div>
+    </div>
+
+    <div class="panel scn" data-s="s2"></div>
+    <div class="panel quiz" data-q="q2"></div>
+  </section>
+
+  <section class="block rv" id="qr1wrap"><div class="panel">
+    <div class="p-head"><span class="p-title">⚡ Quick Recall — modules 1–2</span><span class="p-kind">retrieval practice</span></div>
+    <div class="quiz" data-q="qr1a"></div><hr class="rule" style="margin:18px 0"><div class="quiz" data-q="qr1b"></div>
+  </div></section>
+
+  <section class="module rv" id="m3">
+    <div class="mod-head"><span class="mod-no">MODULE 03</span>
+      <div><h2>Requirements &amp; Capacity: do the arithmetic before the architecture</h2>
+      <p class="mod-sub">functional + non-functional reqs · 70K msgs/s · 550 TB/yr · 6 Gbps</p></div>
+    </div>
+    <div class="core">
+      <p>Functional requirements say what the system <em>does</em>; non-functional requirements say <em>how well</em> it must perform — and both must be committed to before any architecture. Functionally: users register and authenticate; they create and manage conversations; they send messages and receive streamed answers over SSE; every exchange — prompt and reply — is stored with full history and retrievable later in the sidebar; rate limits apply per tier on both requests and tokens; and basic content moderation screens harmful content.</p>
+      <p>Non-functionally we pin numbers we will later prove the design meets: 99.9% availability (≈43 minutes of downtime a month, ~500 a year), first token in under 2 seconds for mini models, zero message loss, end-to-end encryption for private conversations, cost efficiency, and scale to 200M daily actives. Then the arithmetic. 1B weekly actives ≈ 200M daily. 2.5B prompts a day ≈ 12–13 per user. With ~20% extra at peak, that's ~70,000 messages per second — doubled once you count the AI's replies being written too. Storage: a 100-byte prompt plus a 500-byte answer is 600 bytes per exchange; ×12.5 exchanges is 7.5KB per user per day; ×200M users is 1.5TB daily, ~550TB a year. Metadata is a rounding error — 1TB of profiles, 5TB of conversation headers. Twenty million connections lasting 10–30 seconds each, and ~750 bytes streamed per response over ~20 seconds, works out to ~750MB/s, or 6Gbps of sustained throughput. Conclusion: no single machine survives anywhere near this; distribution and multiple regions are mandatory.</p>
+    </div>
+
+    <h3 class="h-label">The requirement ledger</h3>
+    <ol class="steps">
+      <li><b>Functional — accounts &amp; auth.</b><span>Register, log in, per-user private storage.</span></li>
+      <li><b>Functional — conversations &amp; history.</b><span>Create, list, load full message threads; prompts and replies both persisted.</span></li>
+      <li><b>Functional — streaming + limits + moderation.</b><span>SSE responses; two-axis rate limits by tier; safety screening.</span></li>
+      <li><b>Non-functional — availability &amp; latency.</b><span>99.9% uptime; first token &lt;2s for mini models (thinking models exempt).</span></li>
+      <li><b>Non-functional — consistency, cost, security.</b><span>Zero message loss; cost efficiency; E2E encryption for private chats.</span></li>
+    </ol>
+    <button class="btn show-more" data-chunk="reqChunk">Show the detailed NFR breakdown</button>
+    <div class="chunk" id="reqChunk">
+      <ul style="margin:12px 0 0 18px;font-size:14.5px;color:var(--muted)">
+        <li>99.9% → ≤ ~43 min downtime/month, ~500 min/year — and each minute must later be budgeted against failover design.</li>
+        <li>&lt;2s first token applies to mini models; thinking models legitimately need longer to reason.</li>
+        <li>Zero message loss → every write must be all-or-nothing (ACID), never partially persisted.</li>
+        <li>20M concurrent conversations = 10% of DAU chatting at peak.</li>
+        <li>Cost efficiency is an NFR here, not an afterthought — Module 8 prices it.</li>
+      </ul>
+    </div>
+
+    <h3 class="h-label">Three examples</h3>
+    <div class="ex o"><span class="tag">Obvious</span><h4>The storage multiplication</h4>
+      <p>7.5KB per user per day × 200M users = 1.5TB/day. Every storage decision in Module 6 inherits this number.</p></div>
+    <div class="ex c"><span class="tag">Counter-intuitive</span><h4>Metadata is 1% of the problem</h4>
+      <p>All the "scary" auxiliary data — 1B user profiles, every conversation header — totals ~6TB against ~550TB of chat content. Spend your design energy on the content.</p></div>
+    <div class="ex e"><span class="tag">Edge case</span><h4>Thinking models break the latency NFR</h4>
+      <p>A reasoning model can't emit a first token in under 2 seconds. That's exactly why the requirement is scoped to mini models — precise NFRs survive contact with reality.</p></div>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 820 150" role="img" aria-label="Interactive capacity pipeline: 1 billion weekly active users to 200 million daily, 2.5 billion prompts per day, 70 thousand messages per second at peak, 1.5 terabytes per day or 550 per year, 20 million connections at 6 gigabits per second">
+        <g class="pnode" data-p="p1" tabindex="0" role="button" aria-label="1 billion weekly active users becomes 200 million daily"><rect x="10" y="40" width="140" height="64" rx="6" class="p-box"/><text x="80" y="66" text-anchor="middle">1B WAU</text><text x="80" y="84" text-anchor="middle">→ 200M DAU</text></g>
+        <path d="M152 72 H170" class="d-mut"/><path d="M166 68 L171 72 L166 76" class="d-mut"/>
+        <g class="pnode" data-p="p2" tabindex="0" role="button" aria-label="2.5 billion prompts per day, about 12.5 per user"><rect x="172" y="40" width="140" height="64" rx="6" class="p-box"/><text x="242" y="66" text-anchor="middle">2.5B prompts/day</text><text x="242" y="84" text-anchor="middle">≈ 12.5 / user</text></g>
+        <path d="M314 72 H332" class="d-mut"/><path d="M328 68 L333 72 L328 76" class="d-mut"/>
+        <g class="pnode" data-p="p3" tabindex="0" role="button" aria-label="About 70 thousand messages per second at peak, times two for writes"><rect x="334" y="40" width="140" height="64" rx="6" class="p-box"/><text x="404" y="66" text-anchor="middle">≈70K msgs/s peak</text><text x="404" y="84" text-anchor="middle">×2 writes</text></g>
+        <path d="M476 72 H494" class="d-mut"/><path d="M490 68 L495 72 L490 76" class="d-mut"/>
+        <g class="pnode" data-p="p4" tabindex="0" role="button" aria-label="1.5 terabytes per day, 550 terabytes per year"><rect x="496" y="40" width="140" height="64" rx="6" class="p-box"/><text x="566" y="66" text-anchor="middle">1.5 TB/day</text><text x="566" y="84" text-anchor="middle">→ 550 TB/yr</text></g>
+        <path d="M638 72 H656" class="d-mut"/><path d="M652 68 L657 72 L652 76" class="d-mut"/>
+        <g class="pnode" data-p="p5" tabindex="0" role="button" aria-label="20 million concurrent connections streaming at 6 gigabits per second"><rect x="658" y="40" width="150" height="64" rx="6" class="p-box"/><text x="733" y="66" text-anchor="middle">20M connections</text><text x="733" y="84" text-anchor="middle">6 Gbps sustained</text></g>
+        <text x="410" y="20" class="d-lab" text-anchor="middle">click any stage for the derivation ↓</text>
+      </svg>
+      <div class="reveal-panel" id="pipePanel">Derivations appear here. Example: 2.5B ÷ 86,400s ≈ 29K msgs/s average; +~20% peak headroom and rounding → ≈70K/s once you include the heavier peak window, then ×2 because every prompt also writes the AI's reply.</div>
+      <figcaption>Capacity pipeline — every number downstream (servers, replicas, bandwidth bill) traces back to one of these five nodes.</figcaption>
+    </figure>
+
+    <div class="panel fib-panel">
+      <div class="p-head"><span class="p-title">🎯 Lock the numbers in</span><span class="p-kind">fill in the blank</span></div>
+      <p class="fib-sent">At peak the system absorbs about
+        <input class="fib" data-a="70000" data-accept="70000|70,000|70k" aria-label="messages per second"> msgs/s<button class="why-link fib-hint-btn" data-fib="0">hint</button><span class="fib-hint" id="fh0"></span>,
+        stores ≈ <input class="fib" data-a="550" data-accept="550" aria-label="terabytes per year"> TB/yr<button class="why-link fib-hint-btn" data-fib="1">hint</button><span class="fib-hint" id="fh1"></span>,
+        and streams at ≈ <input class="fib" data-a="6" data-accept="6" aria-label="gigabits per second"> Gbps<button class="why-link fib-hint-btn" data-fib="2">hint</button><span class="fib-hint" id="fh2"></span>.</p>
+      <div style="margin-top:12px"><button class="btn acc" id="fibCheck">Check answers</button></div>
+      <p class="fib-note" id="fibNote"></p>
+    </div>
+
+    <div class="analogy">
+      <div class="an-head">Visual analogy</div>
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><path d="M30 20 H170 L120 55 V90 H80 V55 Z" class="d-ink"/><text x="100" y="40" class="d-lab" text-anchor="middle">users → TB → Gbps</text></svg>
+          <p>A capacity pipeline: each stage narrows raw user counts into infrastructure quantities.</p></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><rect x="24" y="50" width="26" height="22" class="d-ink"/><rect x="52" y="50" width="26" height="22" class="d-ink"/><rect x="38" y="26" width="26" height="22" class="d-ink"/><rect x="110" y="40" width="70" height="34" rx="4" class="d-ink"/><circle cx="126" cy="80" r="7" class="d-mut"/><circle cx="162" cy="80" r="7" class="d-mut"/><path d="M84 61 H104" class="d-acc"/><path d="M100 57 L105 61 L100 65" class="d-acc"/></svg>
+          <p>Count the boxes before renting the truck — not after the movers arrive.</p></div>
+      </div>
+      <div class="an-bridge">Estimating messages, terabytes and gigabits before choosing servers is how you avoid paying for a moving convoy to ship three suitcases.</div>
+    </div>
+
+    <details class="myth"><summary>What People Get Wrong</summary>
+      <div class="myth-body">
+        <p><span class="lab">Myth</span><br>"2.5 billion prompts a day means this is a write-heavy system."</p>
+        <p class="truth"><span class="lab">Truth</span><br>Prompts are writes, yes — but each one triggers a pile of reads (account, quota, limits, history, memory). The system runs ~90% reads, 10% writes. Module 5 proves it.</p>
+        <p><span class="lab">Why it happens</span><br>The headline number (2.5B) is a write, so it anchors intuition. Ratios live one layer deeper.</p>
+      </div>
+    </details>
+    <p class="matters"><em>Why this matters: estimates don't need to be exact — they need to be decision-sized, big enough to rule out single-server architectures.</em></p>
+    <p class="mlink">🔗 This connects to Modules 4 and 6 because 550TB/yr and 6Gbps are the inputs that force a distributed, multi-region data layer.</p>
+
+    <div class="panel scn" data-s="s3"></div>
+    <div class="panel quiz" data-q="q3"></div>
+  </section>
+
+  <section class="module rv" id="m4">
+    <div class="mod-head"><span class="mod-no">MODULE 04</span>
+      <div><h2>High-level architecture: three layers, seven services, one open connection</h2>
+      <p class="mod-sub">client / edge / service / data layers · LB vs gateway · multi-cloud · hotspots</p></div>
+    </div>
+    <div class="core">
+      <p>The architecture settles into three layers. The <strong>client layer</strong> is web and mobile apps, and crucially it holds the long-lived SSE connections. The <strong>edge layer</strong> serves static assets from a CDN and fronts everything with a load balancer. The <strong>service layer</strong> begins at the API gateway — SSL termination and URL-path routing (<code>/auth</code> here, <code>/messages</code> there) — and behind it sits the cast: the <strong>message service</strong>, the orchestrator that shepherds a prompt through its whole journey and writes tokens back into the response stream; the <strong>auth service</strong> that validates JWTs; the <strong>rate limiter</strong> tracking request and token usage in Redis; a <strong>moderation service</strong> that screens the prompt; the <strong>conversation service</strong> owning all CRUD for chats and history; and an <strong>LLM gateway</strong> that routes requests to GPU clusters and handles model streaming, so the message service never talks to models directly.
+      <button class="why-link" data-why="w2">But why is the load balancer in front of the gateway?</button></p>
+      <div class="why-body" id="w2">Because they do different jobs at different layers. The load balancer is deliberately dumb: it spreads raw TCP/HTTP connections across gateway instances without understanding them. The gateway is smart: it terminates SSL, reads the URL path, and routes to the right service. Putting intelligence behind dumb distribution keeps each component replaceable and independently scalable.</div>
+      <p>The <strong>data layer</strong> holds a SQL primary with read replicas, the Redis cluster for limits, cold blob storage for the long tail of old conversations — a user with 1,000 chats only needs the recent 10–20 hot — and the GPU clusters themselves. And the streaming response rides the <em>same open HTTP connection</em> all the way back — message service → gateway → LB → browser — which is why every hop must keep the connection alive and unbuffered. Cloud-wise, the real-world pattern is multi-cloud with Azure as the lead (the Microsoft partnership), AWS second for GPU workloads, plus GCP and Oracle.</p>
+    </div>
+
+    <h3 class="h-label">A prompt's path through the layers</h3>
+    <ol class="steps">
+      <li><b>Client → edge.</b><span>Static assets from CDN; the POST hits the load balancer, which picks a gateway instance.</span></li>
+      <li><b>Gateway terminates and routes.</b><span>SSL ends here; the URL path selects the message service.</span></li>
+      <li><b>Message service orchestrates.</b><span>Auth → rate limit → moderation → conversation context, in that order.</span></li>
+      <li><b>LLM gateway generates.</b><span>Prompt goes to a GPU cluster; tokens stream back to the message service.</span></li>
+      <li><b>Tokens ride home.</b><span>Each token is written into the open response stream: service → gateway → LB → browser.</span></li>
+    </ol>
+
+    <h3 class="h-label">Three examples</h3>
+    <div class="ex o"><span class="tag">Obvious</span><h4>Path-based routing 101</h4>
+      <p><code>POST /auth/login</code> → LB → gateway reads "/auth" → auth service. No service ever sees traffic that isn't addressed to it.</p></div>
+    <div class="ex c"><span class="tag">Counter-intuitive</span><h4>The dumb box guards the smart box</h4>
+      <p>Placing the "dumb" load balancer in front of the "smart" gateway is intentional layering, not redundancy — connection spreading and meaning-making are separate concerns.</p></div>
+    <div class="ex e"><span class="tag">Edge case</span><h4>One buffering timeout kills the stream</h4>
+      <p>SSE only works if every hop — LB, gateway, service — disables response buffering and raises idle timeouts. A single 60-second default somewhere silently murders long answers.</p></div>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 820 470" role="img" aria-label="Interactive architecture diagram with three layers: client with browser and CDN, edge with load balancer, API gateway, six microservices, and the data layer with PostgreSQL primary and replicas, Redis, cold blob storage and GPU clusters. Click any component for details.">
+        <text x="14" y="34" class="d-lab">CLIENT</text>
+        <g class="hs" data-hs="client" tabindex="0" role="button" aria-label="Web and mobile client"><rect x="70" y="16" width="190" height="52" rx="5" class="d-ink hs-box"/><text x="165" y="38" class="d-lab b" text-anchor="middle">web / mobile client</text><text x="165" y="54" class="d-lab" text-anchor="middle">EventSource · SSE render</text></g>
+        <g class="hs" data-hs="cdn" tabindex="0" role="button" aria-label="CDN for static assets"><rect x="560" y="16" width="180" height="52" rx="5" class="d-mut hs-box" stroke-dasharray="4 3"/><text x="650" y="38" class="d-lab b" text-anchor="middle">CDN</text><text x="650" y="54" class="d-lab" text-anchor="middle">static assets</text></g>
+        <path d="M560 42 H262" class="d-mut" stroke-dasharray="4 3"/>
+        <text x="14" y="112" class="d-lab">EDGE</text>
+        <g class="hs" data-hs="lb" tabindex="0" role="button" aria-label="Load balancer"><rect x="300" y="92" width="200" height="48" rx="5" class="d-ink hs-box"/><text x="400" y="113" class="d-lab b" text-anchor="middle">load balancer</text><text x="400" y="129" class="d-lab" text-anchor="middle">dumb: spreads connections</text></g>
+        <path d="M165 68 V150 H390" class="d-mut"/><path d="M400 140 V172" class="d-mut"/><path d="M396 166 L400 173 L404 166" class="d-mut"/>
+        <text x="14" y="200" class="d-lab">SERVICES</text>
+        <g class="hs" data-hs="gateway" tabindex="0" role="button" aria-label="API gateway"><rect x="280" y="176" width="240" height="48" rx="5" class="d-fill hs-box"/><text x="400" y="197" class="d-lab b" text-anchor="middle">API gateway</text><text x="400" y="213" class="d-lab a" text-anchor="middle">SSL termination · path routing</text></g>
+        <g class="hs" data-hs="auth" tabindex="0" role="button" aria-label="Auth service"><rect x="24" y="262" width="118" height="46" rx="5" class="d-ink hs-box"/><text x="83" y="282" class="d-lab b" text-anchor="middle">auth</text><text x="83" y="297" class="d-lab" text-anchor="middle">JWT · tier</text></g>
+        <g class="hs" data-hs="ratelimiter" tabindex="0" role="button" aria-label="Rate limiter service"><rect x="156" y="262" width="118" height="46" rx="5" class="d-ink hs-box"/><text x="215" y="282" class="d-lab b" text-anchor="middle">rate limiter</text><text x="215" y="297" class="d-lab" text-anchor="middle">req + token</text></g>
+        <g class="hs" data-hs="moderation" tabindex="0" role="button" aria-label="Moderation service"><rect x="288" y="262" width="118" height="46" rx="5" class="d-ink hs-box"/><text x="347" y="282" class="d-lab b" text-anchor="middle">moderation</text><text x="347" y="297" class="d-lab" text-anchor="middle">safety check</text></g>
+        <g class="hs" data-hs="messagesvc" tabindex="0" role="button" aria-label="Message service orchestrator"><rect x="420" y="256" width="118" height="56" rx="5" class="d-fill hs-box"/><text x="479" y="278" class="d-lab b" text-anchor="middle">message svc</text><text x="479" y="294" class="d-lab a" text-anchor="middle">orchestrator</text></g>
+        <g class="hs" data-hs="conversation" tabindex="0" role="button" aria-label="Conversation service"><rect x="552" y="262" width="118" height="46" rx="5" class="d-ink hs-box"/><text x="611" y="282" class="d-lab b" text-anchor="middle">conversation</text><text x="611" y="297" class="d-lab" text-anchor="middle">CRUD · history</text></g>
+        <g class="hs" data-hs="llmgateway" tabindex="0" role="button" aria-label="LLM gateway"><rect x="684" y="262" width="118" height="46" rx="5" class="d-ink hs-box"/><text x="743" y="282" class="d-lab b" text-anchor="middle">LLM gateway</text><text x="743" y="297" class="d-lab" text-anchor="middle">GPU routing</text></g>
+        <path d="M400 224 V244" class="d-mut"/><path d="M83 244 H743" class="d-mut"/><path d="M83 244 V260 M215 244 V260 M347 244 V260 M479 244 V254 M611 244 V260 M743 244 V260" class="d-mut"/>
+        <text x="14" y="368" class="d-lab">DATA</text>
+        <g class="hs" data-hs="postgres" tabindex="0" role="button" aria-label="PostgreSQL primary and replicas"><rect x="24" y="386" width="160" height="54" rx="5" class="d-ink hs-box"/><text x="104" y="408" class="d-lab b" text-anchor="middle">PostgreSQL primary</text><text x="104" y="424" class="d-lab" text-anchor="middle">+ read replicas (~50)</text></g>
+        <g class="hs" data-hs="redis" tabindex="0" role="button" aria-label="Redis cluster"><rect x="216" y="386" width="120" height="54" rx="5" class="d-ink hs-box"/><text x="276" y="408" class="d-lab b" text-anchor="middle">Redis cluster</text><text x="276" y="424" class="d-lab" text-anchor="middle">limit counters</text></g>
+        <g class="hs" data-hs="blob" tabindex="0" role="button" aria-label="Cold blob storage"><rect x="368" y="386" width="150" height="54" rx="5" class="d-mut hs-box" stroke-dasharray="4 3"/><text x="443" y="408" class="d-lab b" text-anchor="middle">blob storage</text><text x="443" y="424" class="d-lab" text-anchor="middle">cold archive</text></g>
+        <g class="hs" data-hs="gpu" tabindex="0" role="button" aria-label="GPU clusters"><rect x="560" y="386" width="220" height="54" rx="5" class="d-fill hs-box"/><text x="670" y="408" class="d-lab b" text-anchor="middle">GPU clusters</text><text x="670" y="424" class="d-lab a" text-anchor="middle">models served directly</text></g>
+        <path d="M83 308 V384" class="d-mut"/><path d="M611 308 V384" class="d-mut"/><path d="M215 308 V350 H276 V384" class="d-mut"/><path d="M743 308 V384" class="d-mut"/>
+        <path d="M611 340 H443 V384" class="d-mut" stroke-dasharray="4 3"/>
+        <text x="536" y="334" class="d-lab" text-anchor="middle">cold tail</text>
+        <path d="M479 256 C 479 160, 240 160, 240 68" class="d-acc draw" pathLength="1" stroke-dasharray="5 4"/>
+        <path d="M244 76 L240 67 L234 74" class="d-acc"/>
+        <text x="252" y="140" class="d-lab a">SSE tokens stream back</text>
+        <text x="252" y="154" class="d-lab a">on the same open connection</text>
+      </svg>
+      <div class="hs-panel" id="hsPanel"><b>Click any component</b> — services and data stores reveal their single job. The dashed accent path is the token stream riding home on the original HTTP connection.</div>
+      <figcaption>Three layers, one orchestrator. Multi-cloud in reality: Azure leads (Microsoft partnership), AWS second for GPU workloads, plus GCP and Oracle.</figcaption>
+    </figure>
+
+    <div class="analogy">
+      <div class="an-head">Visual analogy</div>
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><rect x="80" y="12" width="40" height="26" rx="3" class="d-fill"/><text x="100" y="29" class="d-lab" text-anchor="middle">gw</text><path d="M100 38 V56 M100 56 H40 V74 M100 56 V74 M100 56 H160 V74" class="d-mut"/><rect x="22" y="74" width="36" height="22" rx="3" class="d-ink"/><rect x="82" y="74" width="36" height="22" rx="3" class="d-ink"/><rect x="142" y="74" width="36" height="22" rx="3" class="d-ink"/></svg>
+          <p>The gateway reads the request path and walks it to the service that owns that job.</p></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><rect x="70" y="40" width="60" height="34" rx="3" class="d-ink"/><text x="100" y="61" class="d-lab" text-anchor="middle">desk</text><circle cx="100" cy="28" r="9" class="d-mut"/><path d="M40 96 H160" class="d-mut"/><path d="M70 57 H30 M130 57 H170" class="d-mut" stroke-dasharray="3 3"/><text x="24" y="52" class="d-lab">kitchen</text><text x="176" y="52" class="d-lab" text-anchor="end">spa</text></svg>
+          <p>A hotel concierge doesn't cook dinner or fix showers — they know exactly who does.</p></div>
+      </div>
+      <div class="an-bridge">The front desk routes; the departments do. A gateway that tries to do the work itself has become a monolith with extra steps.</div>
+    </div>
+
+    <details class="myth"><summary>What People Get Wrong</summary>
+      <div class="myth-body">
+        <p><span class="lab">Myth</span><br>"Load balancer and API gateway are the same box — pick one."</p>
+        <p class="truth"><span class="lab">Truth</span><br>The LB spreads connections without understanding them; the gateway terminates SSL and routes by path with full application awareness. Both exist because the jobs are different.</p>
+        <p><span class="lab">Why it happens</span><br>Both sit "at the front," so they blur together. Ask what each one <em>knows</em> about the request and the blur disappears.</p>
+      </div>
+    </details>
+    <p class="matters"><em>Why this matters: every component earns its place by owning one job; the moment a box does two jobs, the incident begins.</em></p>
+    <p class="mlink">🔗 This connects to Module 5 because the message service's journey through auth, limits, moderation and history is exactly the read/write trace we count next.</p>
+
+    <div class="panel dd" id="ddServices">
+      <div class="p-head"><span class="p-title">🧩 Match each service to its one job</span><span class="p-kind">drag &amp; drop · or click-chip then click-slot</span></div>
+      <div class="dd-pool" id="ddPool"></div>
+      <div id="ddSlots"></div>
+      <div class="dd-msg" id="ddMsg" aria-live="polite"></div>
+    </div>
+
+    <div class="panel scn" data-s="s4"></div>
+    <div class="panel quiz" data-q="q4"></div>
+  </section>
+
+  <section class="block rv" id="qr2wrap"><div class="panel">
+    <div class="p-head"><span class="p-title">⚡ Quick Recall — modules 3–4</span><span class="p-kind">retrieval practice</span></div>
+    <div class="quiz" data-q="qr2a"></div><hr class="rule" style="margin:18px 0"><div class="quiz" data-q="qr2b"></div>
+  </div></section>
+
+  <section class="module rv" id="m5">
+    <div class="mod-head"><span class="mod-no">MODULE 05</span>
+      <div><h2>The 90/10 rule: a "write monster" that's actually read-heavy</h2>
+      <p class="mod-sub">read vs write trace · schema · the three indexes that do the heavy lifting</p></div>
+    </div>
+    <div class="core">
+      <p>Here's the number that rewires most engineers' intuition: a system absorbing 2.5B writes a day is still <strong>~90% reads</strong>. Trace one prompt. It lands at the gateway and the message service, which immediately starts <em>reading</em> — the user's account and tier from the auth service, subscription quota and tokens consumed, the rate limiter's request and token counters, the moderation verdict, then the conversation service loading recent messages for context — or, even for a brand-new chat, the user's stored preferences and memory. Only after this pile of reads does the prompt reach the LLM gateway. When generation finishes, the SSE connection closes and exactly two writes land: the AI's message, plus an updated quota counter (the user's own message was written at the start). Reads: account, quota, limits, metadata, history, memory, feature flags. Writes: two, maybe three.
+      <button class="why-link" data-why="w3">But why does the ratio matter so much?</button></p>
+      <div class="why-body" id="w3">Because reads and writes scale differently. Reads scale almost freely — add another replica and another slice of traffic disappears. Writes on a strongly-consistent relational system all funnel through one primary. A 90/10 system therefore scales by replicating the cheap side, which is precisely why an unsharded primary can survive 800M weekly users.</div>
+      <p>That asymmetry is the whole ballgame, because reads scale trivially by adding replicas while writes all funnel into one primary. The schema mirrors the product's natural hierarchy: <strong>users</strong> (email, password hash, tier) own <strong>conversations</strong> (AI-generated title, pinned/archived flags, timestamps) which own <strong>messages</strong> (role — user or assistant — content, token count, created_at). Three indexes do the heavy lifting: <code>users(email)</code> for login lookups; <code>conversations(user_id, created_at DESC)</code> so the sidebar pulls just the 10–20 newest of a thousand chats in one seek; <code>messages(conversation_id, created_at ASC)</code> so a conversation's messages load in perfect order. Storing <code>token_count</code> per message looks optional today and pays off the moment you need billing or per-message usage views.</p>
+    </div>
+
+    <h3 class="h-label">One prompt, counted honestly</h3>
+    <ul class="flow">
+      <li><span class="stepno">01</span><span>POST /conversations/:id/messages — user prompt written</span><span class="chip-w">W</span></li>
+      <li><span class="stepno">02</span><span>Auth: account, tier, subscription quota, tokens consumed <span class="desc">— four reads before a single GPU spins</span></span><span class="chip-r">R ×4</span></li>
+      <li><span class="stepno">03</span><span>Rate limiter: request counter + token counter vs tier limits</span><span class="chip-r">R ×2</span></li>
+      <li><span class="stepno">04</span><span>Moderation: rule check on the prompt</span><span class="chip-r">R</span></li>
+      <li><span class="stepno">05</span><span>Conversation service: recent messages for context — or preferences/memory for a new chat</span><span class="chip-r">R ×2</span></li>
+      <li><span class="stepno">06</span><span>LLM gateway streams tokens back over SSE <span class="desc">— no database involvement mid-stream</span></span><span class="chip-r">—</span></li>
+      <li><span class="stepno">07</span><span>Stream closes: AI response persisted, quota counter updated</span><span class="chip-w">W ×2</span></li>
+    </ul>
+
+    <h3 class="h-label">Three examples</h3>
+    <div class="ex o"><span class="tag">Obvious</span><h4>The sidebar loads 20 of 1,000 chats</h4>
+      <p><code>(user_id, created_at DESC)</code> turns "show my recent conversations" into a single index seek instead of a scan of a thousand rows.</p></div>
+    <div class="ex c"><span class="tag">Counter-intuitive</span><h4>A brand-new chat still reads the database</h4>
+      <p>No history to load? There's still the user's preferences and memory to fetch before the first token. "New chat" ≠ "no reads."</p></div>
+    <div class="ex e"><span class="tag">Edge case</span><h4>token_count looks like clutter — until billing day</h4>
+      <p>Per-message token counts seem bureaucratic right up until the moment an invoice, a usage dashboard or a Cursor-style cost view needs them. Cheap to write now, brutal to backfill later.</p></div>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 820 150" role="img" aria-label="Stacked bar showing roughly 90 percent reads versus 10 percent writes, with reads listed as account, quota, limits, metadata, history, memory and flags, and writes as user message, AI response and quota update">
+        <text x="20" y="30" class="d-lab b">Share of database operations per prompt</text>
+        <rect x="20" y="50" width="700" height="42" class="d-soft"/>
+        <rect x="20" y="50" width="700" height="42" fill="none" class="d-acc"/>
+        <rect x="720" y="50" width="80" height="42" fill="var(--bad-soft)"/>
+        <rect x="720" y="50" width="80" height="42" fill="none" class="d-mut"/>
+        <text x="370" y="76" class="d-lab a" text-anchor="middle">READS ≈ 90% — account · quota · limits · metadata · history · memory · flags</text>
+        <text x="760" y="76" class="d-lab" text-anchor="middle" fill="var(--bad)">W ≈10%</text>
+        <text x="20" y="118" class="d-lab">reads scale by adding replicas →</text>
+        <text x="800" y="118" class="d-lab" text-anchor="end">writes funnel to one primary</text>
+      </svg>
+      <figcaption>Writes per prompt: the user message, the AI response, a quota update. Everything else on the journey is a read — that's the 90%.</figcaption>
+      <div class="cheat" style="border:none;padding:18px 0 0;margin-top:6px">
+        <h3 style="margin-top:0">Schema &amp; indexes</h3>
+        <table>
+          <tr><td>users</td><td>id · email · password_hash · <b>tier</b> · timestamps — index on <code>email</code></td></tr>
+          <tr><td>conversations</td><td>id · user_id → users · title (AI-generated) · pinned/archived · timestamps — index on <code>(user_id, created_at DESC)</code></td></tr>
+          <tr><td>messages</td><td>id · conversation_id → conversations · <b>role</b> (user/assistant) · content · token_count · created_at — index on <code>(conversation_id, created_at ASC)</code></td></tr>
+        </table>
+      </div>
+    </figure>
+
+    <div class="analogy">
+      <div class="an-head">Visual analogy</div>
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><circle cx="40" cy="55" r="16" class="d-fill"/><text x="40" y="59" class="d-lab" text-anchor="middle">W</text><path d="M58 48 H92 M58 55 H92 M58 62 H92" class="d-mut"/><rect x="96" y="30" width="14" height="50" class="d-ink"/><rect x="116" y="30" width="14" height="50" class="d-ink"/><rect x="136" y="30" width="14" height="50" class="d-ink"/><rect x="156" y="30" width="14" height="50" class="d-ink"/><text x="130" y="98" class="d-lab" text-anchor="middle">replicas</text></svg>
+          <p>One primary takes every write; any number of replicas serve the reads.</p></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><circle cx="42" cy="40" r="10" class="d-mut"/><path d="M42 50 V78 M42 58 L28 70 M42 58 L56 70" class="d-mut"/><rect x="24" y="78" width="36" height="6" class="d-ink"/><path d="M66 60 H96" class="d-acc"/><path d="M92 56 L97 60 L92 64" class="d-acc"/><rect x="104" y="40" width="16" height="34" class="d-ink"/><rect x="124" y="40" width="16" height="34" class="d-ink"/><rect x="144" y="40" width="16" height="34" class="d-ink"/><text x="132" y="92" class="d-lab" text-anchor="middle">printed copies</text></svg>
+          <p>One author writes every word once; readers everywhere hold printed copies.</p></div>
+      </div>
+      <div class="an-bridge">Writes funnel to a single source of truth; reads scale by printing more copies. That's replication — and it's why 90/10 systems don't need sharding to survive.</div>
+    </div>
+
+    <details class="myth"><summary>What People Get Wrong</summary>
+      <div class="myth-body">
+        <p><span class="lab">Myth</span><br>"Billions of writes a day means a write-heavy system that must be sharded."</p>
+        <p class="truth"><span class="lab">Truth</span><br>Count operations, not headlines. Each prompt triggers ~8 reads and ~2–3 writes → ~90/10 read-heavy. Replicas absorb the reads; one primary comfortably absorbs the writes.</p>
+        <p><span class="lab">Why it happens</span><br>"2.5B prompts" is a write-shaped number, so people stop counting there.</p>
+      </div>
+    </details>
+    <p class="matters"><em>Why this matters: design for the ratio you actually have, not the ratio you assume — 90/10 changes everything downstream.</em></p>
+    <p class="mlink">🔗 This connects to Module 6 because the 90/10 ratio is the central argument for replicas-over-sharding in the database decision.</p>
+
+    <div class="panel scn" data-s="s5"></div>
+    <div class="panel quiz" data-q="q5"></div>
+  </section>
+
+  <section class="module rv" id="m6">
+    <div class="mod-head"><span class="mod-no">MODULE 06</span>
+      <div><h2>The database decision: why OpenAI didn't shard — and when you would</h2>
+      <p class="mod-sub">PostgreSQL vs MongoDB vs Neon vs sharding · the four-stage roadmap</p></div>
+    </div>
+    <div class="core">
+      <p>Four candidates, one decision. <strong>MongoDB</strong> brings built-in sharding and schema flexibility, but its eventual-consistency default and weak multi-document transactions risk the unforgivable sin in chat — message five appearing before message four — and its query planner is decades behind SQL for joins. <strong>Sharded PostgreSQL</strong> dissolves the write bottleneck by hashing user_id across primaries, but OpenAI itself says it would touch hundreds of application endpoints, take months or years, add routing overhead to every query, and make distributed transactions routine. <strong>Neon</strong>, a serverless Postgres, keeps the exact single-primary-plus-replicas architecture but makes it managed: no replication, backup or failover plumbing; real Postgres semantics; autoscaling compute; storage that grows independently of compute; and instant branches — git for your database, with TTL branches that self-destruct after the test. Its honest cons: scale-to-zero is meaningless at 200M DAU, a learning curve (compute–storage separation, branch lifecycles), and today's compute ceiling (~56 vCPUs / 224GB RAM vs Azure's 128 / 512 — though ceilings move).
+      <button class="why-link" data-why="w4">But why is branching such a big deal?</button></p>
+      <div class="why-body" id="w4">Because a risky migration against production data is the scariest operation in backend engineering. With branches, you copy the entire production database in seconds, run the migration on the copy, verify, then merge — and a TTL branch can expire itself after 24 hours so nobody pays for forgotten staging environments. Traditional Postgres staging copies can take ~20 minutes and live forever.</div>
+      <p>And then the actual OpenAI answer: <strong>one unsharded PostgreSQL primary with read replicas — around 50 of them</strong>. It works because ACID gives zero message loss, strong consistency guarantees ordering, the relational model fits users→conversations→messages perfectly, and the 90% read load scales by adding replicas. The write bottleneck (~30K writes/s) is real but deferred: offload write-heavy workloads to something like Cosmos DB and keep a dedicated team tuning the primary — timeouts, indexes, write batching. The staged playbook: <strong>0–5M DAU</strong> start on Neon and ship 10× faster; <strong>5–100M</strong> stay put and offload write-heavy paths; <strong>100–200M</strong> either go self-managed with 20–50 replicas or stay until you hit the compute ceiling; <strong>beyond 200M</strong> sharding finally enters the chat — though OpenAI at 800M weekly users still hasn't needed it. The meta-lesson: don't over-engineer early.</p>
+    </div>
+
+    <h3 class="h-label">The four options, weighed</h3>
+    <ol class="steps">
+      <li><b>PostgreSQL, single primary + replicas (OpenAI's choice).</b><span>ACID, ordering, proven at 200M DAU in production; writes bottleneck at ~30K/s → offload to Cosmos DB, dedicate a team.</span></li>
+      <li><b>MongoDB.</b><span>Sharding and flexibility for free — paid for in eventual consistency, painful multi-doc transactions, and out-of-order message risk.</span></li>
+      <li><b>Neon serverless Postgres.</b><span>Same architecture, fully managed, autoscaling, branching; ceilings and learning curve are the trade.</span></li>
+      <li><b>Sharded PostgreSQL.</b><span>Right tool — wrong decade of your company. Hundreds of endpoint changes, per-query routing, distributed transactions.</span></li>
+    </ol>
+
+    <h3 class="h-label">Three examples</h3>
+    <div class="ex o"><span class="tag">Obvious</span><h4>Three engineers, zero users → Neon</h4>
+      <p>Managed infrastructure, instant branches, scale-to-zero. The team ships product instead of configuring replication and backup schedules.</p></div>
+    <div class="ex c"><span class="tag">Counter-intuitive</span><h4>The "obviously scalable" answer is the one OpenAI refused</h4>
+      <p>Sharding sounds like the senior answer in the abstract. At 800M weekly users, the team that would know best calls it months-to-years of endpoint surgery they'd rather not perform.</p></div>
+    <div class="ex e"><span class="tag">Edge case</span><h4>When sharding IS right</h4>
+      <p>A telemetry ingest system where writes equal or exceed reads? There, a single primary drowns and sharding is the correct first choice. The rule depends on the read/write ratio, not on company size.</p></div>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 820 170" role="img" aria-label="Interactive staged roadmap: 0 to 5 million daily active users start on Neon, 5 to 100 million stay and offload write-heavy workloads, 100 to 200 million self-managed PostgreSQL with 20 to 50 replicas, beyond 200 million shard only if writes force it">
+        <path d="M30 100 H790" class="d-mut draw" pathLength="1"/>
+        <g class="pnode" data-p="st1" tabindex="0" role="button" aria-label="Stage 1: 0 to 5 million DAU"><circle cx="110" cy="100" r="7" class="p-box"/><text x="110" y="80" text-anchor="middle">0–5M DAU</text><text x="110" y="126" text-anchor="middle">Neon</text></g>
+        <g class="pnode" data-p="st2" tabindex="0" role="button" aria-label="Stage 2: 5 to 100 million DAU"><circle cx="310" cy="100" r="7" class="p-box"/><text x="310" y="80" text-anchor="middle">5–100M DAU</text><text x="310" y="126" text-anchor="middle">stay + offload</text></g>
+        <g class="pnode" data-p="st3" tabindex="0" role="button" aria-label="Stage 3: 100 to 200 million DAU"><circle cx="510" cy="100" r="7" class="p-box"/><text x="510" y="80" text-anchor="middle">100–200M DAU</text><text x="510" y="126" text-anchor="middle">self-managed PG</text></g>
+        <g class="pnode" data-p="st4" tabindex="0" role="button" aria-label="Stage 4: beyond 200 million DAU"><circle cx="710" cy="100" r="7" class="p-box"/><text x="710" y="80" text-anchor="middle">200M+ DAU</text><text x="710" y="126" text-anchor="middle">shard if forced</text></g>
+        <text x="410" y="24" class="d-lab" text-anchor="middle">click a stage for the reasoning ↓</text>
+        <text x="410" y="158" class="d-lab" text-anchor="middle">OpenAI sits past stage 4's threshold — 800M WAU — still on one primary + ~50 replicas</text>
+      </svg>
+      <div class="reveal-panel" id="stagePanel">Stage details appear here. The through-line: each stage only pays for the complexity the previous stage proved necessary.</div>
+      <figcaption>The staged database roadmap. Complexity is a cost you defer, not a virtue you collect early.</figcaption>
+    </figure>
+
+    <div class="analogy">
+      <div class="an-head">Visual analogy</div>
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><path d="M20 90 H60 V70 H100 V50 H140 V30 H180" class="d-acc"/><text x="40" y="104" class="d-lab">0–5M</text><text x="80" y="104" class="d-lab">5–100M</text><text x="122" y="104" class="d-lab">100–200M</text><text x="162" y="104" class="d-lab">200M+</text></svg>
+          <p>A staged roadmap: the right database for the traffic you have, with a clear trigger for the next step.</p></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><path d="M30 70 q10 -18 34 -18 q18 0 22 18 z" class="d-ink"/><path d="M110 78 q14 -26 48 -26 q26 0 32 26 z" class="d-ink"/><text x="55" y="96" class="d-lab" text-anchor="middle">fits now</text><text x="145" y="96" class="d-lab" text-anchor="middle">room to grow</text></svg>
+          <p>You buy shoes for today's feet with room to grow — not adult boots for a toddler.</p></div>
+      </div>
+      <div class="an-bridge">Neon at zero users, replicas at millions, sharding only when the writes truly demand it. Oversized infrastructure chafes exactly like oversized shoes.</div>
+    </div>
+
+    <details class="myth"><summary>What People Get Wrong</summary>
+      <div class="myth-body">
+        <p><span class="lab">Myth</span><br>"MongoDB is the default for chat-scale systems — it was literally built for web scale."</p>
+        <p class="truth"><span class="lab">Truth</span><br>Chat has two properties MongoDB handles poorly: strict message ordering and multi-row consistency. SQL's ACID gives both for free, and its read scaling (replicas) matches the 90/10 profile.</p>
+        <p><span class="lab">Why it happens</span><br>"Web scale" marketing from a decade ago outlived the trade-off analysis. Scale alone never picks a database; access patterns do.</p>
+      </div>
+    </details>
+    <p class="matters"><em>Why this matters: the best database decision is often the one you don't make yet.</em></p>
+    <p class="mlink">🔗 This connects to Module 8 because the unsharded choice is why the entire database estate costs just $138K of a $58M monthly bill.</p>
+
+    <div class="panel scn" data-s="s6"></div>
+    <div class="panel quiz" data-q="q6"></div>
+  </section>
+
+  <section class="block rv" id="qr3wrap"><div class="panel">
+    <div class="p-head"><span class="p-title">⚡ Quick Recall — modules 5–6</span><span class="p-kind">retrieval practice</span></div>
+    <div class="quiz" data-q="qr3a"></div><hr class="rule" style="margin:18px 0"><div class="quiz" data-q="qr3b"></div>
+  </div></section>
+
+  <section class="module rv" id="m7">
+    <div class="mod-head"><span class="mod-no">MODULE 07</span>
+      <div><h2>API design &amp; two-axis rate limiting: where subscriptions go to die</h2>
+      <p class="mod-sub">REST endpoints · SSE event shape · EventSource client · requests + tokens</p></div>
+    </div>
+    <div class="core">
+      <p>The API stays deliberately boring REST — nothing here demands GraphQL. Auth exposes <code>POST /auth/register</code> and <code>POST /auth/login</code> (email/password or a Google-style provider) returning a JWT plus tier, and a logout route. The conversation service fronts <code>GET /conversations</code> — the sidebar list of titles, previews and timestamps — <code>GET /conversations/:id</code> with the full message array (role plus content), <code>POST</code> to create, <code>DELETE</code> to remove. Those two GETs are the physical embodiment of the 90% read stat. Messaging lives at <code>POST /conversations/:id/messages</code>: the request carries the prompt, the response becomes an SSE stream, and events arrive token by token — "React", "hooks", "are" — until the completion signal. On the client, the native <code>EventSource</code> API (or the eventsource library) attaches a listener that appends each token to the bubble; the send button stays disabled until the stream completes or the user hits Stop.</p>
+      <p>Rate limiting is where naïve designs leak money, so we limit on <strong>two axes</strong>. A single request can carry a pasted codebase — one request, tens of thousands of tokens, enormous compute — and a request-only limit waves it through while your $20-per-user subscription burns. Conversely, a bot firing 100 tiny "explain react hooks" prompts costs little per token but hammers the system, which only a request limit catches. So tiers get both dials: free might be 25 requests and 50,000 tokens a day; paid $20 around 500 requests and 2M tokens — whichever exhausts first triggers the "come back after the reset, or upgrade" message, exactly the pattern Claude's Free / Pro / Max ladder uses (heavy Max users can run $200–300). Implementation is a <code>checkRateLimit(userId, tier)</code> call: build a request key and a token key, read both counters from Redis, compare against the tier's limits, and gate the prompt.
+      <button class="why-link" data-why="w5">But why Redis for the counters?</button></p>
+      <div class="why-body" id="w5">Because limit checks sit on the hot path of every single request — 70K/s at peak. Counters need sub-millisecond reads, atomic increments, and natural expiry (TTLs reset daily quotas for free). A relational row update per request would add latency and write load to the very primary you're trying to protect.</div>
+    </div>
+
+    <h3 class="h-label">The endpoint surface</h3>
+    <ol class="steps">
+      <li><b>Auth.</b><span><code>POST /auth/register</code>, <code>POST /auth/login</code> → JWT + tier · logout.</span></li>
+      <li><b>Conversations.</b><span><code>GET /conversations</code> (sidebar) · <code>GET /conversations/:id</code> (full thread) · <code>POST</code> · <code>DELETE</code>.</span></li>
+      <li><b>Messaging.</b><span><code>POST /conversations/:id/messages</code> → response upgrades to an SSE stream.</span></li>
+      <li><b>Stream events.</b><span><code>event: token</code> with each fragment, then a completion event; client appends and re-enables send.</span></li>
+      <li><b>Limits.</b><span><code>checkRateLimit(userId, tier)</code> against Redis counters before the LLM is ever invoked.</span></li>
+    </ol>
+
+    <h3 class="h-label">Three examples</h3>
+    <div class="ex o"><span class="tag">Obvious</span><h4>Message #26 on the free tier</h4>
+      <p>The request counter trips at 25/day. The user gets a clear message: resets tomorrow, or upgrade. Simple, predictable, enforceable.</p></div>
+    <div class="ex c"><span class="tag">Counter-intuitive</span><h4>One message can out-cost a hundred</h4>
+      <p>A single prompt with a 40K-token codebase is <em>one request</em> — invisible to a request limit — yet incinerates the token budget and the GPU time behind it. The token axis is the one that protects the business.</p></div>
+    <div class="ex e"><span class="tag">Edge case</span><h4>Tokens gone at 3 p.m.</h4>
+      <p>The correct UX isn't a bare 429: tell the user exactly when the quota resets ("back in 9 hours") and offer the upgrade path. Limit enforcement is a retention surface, not just a guardrail.</p></div>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 820 220" role="img" aria-label="Two bucket diagram: requests per day bucket with free tier at 25 and paid at 500, and tokens per day bucket with free tier at 50 thousand and paid at 2 million. Whichever empties first blocks the user.">
+        <text x="20" y="26" class="d-lab b">Two-axis limiting — both buckets must have room</text>
+        <path d="M120 60 L135 190 H265 L280 60" class="d-ink"/>
+        <line x1="139" y1="150" x2="261" y2="150" class="d-acc" stroke-dasharray="4 3"/>
+        <text x="200" y="144" class="d-lab a" text-anchor="middle">free: 25 req/day</text>
+        <line x1="128" y1="80" x2="272" y2="80" class="d-mut" stroke-dasharray="4 3"/>
+        <text x="200" y="74" class="d-lab" text-anchor="middle">paid: 500 req/day</text>
+        <text x="200" y="210" class="d-lab" text-anchor="middle">bucket 1 — requests</text>
+        <path d="M520 60 L535 190 H665 L680 60" class="d-ink"/>
+        <line x1="539" y1="150" x2="661" y2="150" class="d-acc" stroke-dasharray="4 3"/>
+        <text x="600" y="144" class="d-lab a" text-anchor="middle">free: 50K tokens/day</text>
+        <line x1="528" y1="80" x2="672" y2="80" class="d-mut" stroke-dasharray="4 3"/>
+        <text x="600" y="74" class="d-lab" text-anchor="middle">paid: 2M tokens/day</text>
+        <text x="600" y="210" class="d-lab" text-anchor="middle">bucket 2 — tokens</text>
+        <path d="M290 120 H510" class="d-mut" stroke-dasharray="2 6"/>
+        <text x="400" y="110" class="d-lab" text-anchor="middle">whichever empties first</text>
+        <text x="400" y="134" class="d-lab" text-anchor="middle">blocks the prompt</text>
+      </svg>
+      <figcaption>Counters live in Redis, keyed per user: one key for requests, one for tokens, both expiring on the tier's reset window.</figcaption>
+    </figure>
+
+    <div class="analogy">
+      <div class="an-head">Visual analogy</div>
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><path d="M30 30 L38 88 H78 L86 30" class="d-ink"/><path d="M114 30 L122 88 H162 L170 30" class="d-ink"/><line x1="36" y1="60" x2="80" y2="60" class="d-acc" stroke-dasharray="3 3"/><line x1="120" y1="60" x2="164" y2="60" class="d-acc" stroke-dasharray="3 3"/><text x="58" y="102" class="d-lab" text-anchor="middle">requests</text><text x="142" y="102" class="d-lab" text-anchor="middle">tokens</text></svg>
+          <p>Two independent budgets per tier; exhaustion of either one pauses the user.</p></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><ellipse cx="52" cy="76" rx="26" ry="7" class="d-ink"/><ellipse cx="52" cy="66" rx="26" ry="7" class="d-ink"/><ellipse cx="52" cy="56" rx="26" ry="7" class="d-ink"/><text x="52" y="100" class="d-lab" text-anchor="middle">plate limit</text><path d="M120 82 h56 M148 82 v-8 M136 74 h24" class="d-ink"/><circle cx="148" cy="60" r="10" class="d-mut"/><text x="148" y="100" class="d-lab" text-anchor="middle">weight limit</text></svg>
+          <p>A buffet limits both how many trips you make and how much you carry per trip.</p></div>
+      </div>
+      <div class="an-bridge">One trip with a tower of plates costs the kitchen more than ten modest trips. Two axes catch two different kinds of appetite.</div>
+    </div>
+
+    <details class="myth"><summary>What People Get Wrong</summary>
+      <div class="myth-body">
+        <p><span class="lab">Myth</span><br>"A request rate limit is enough — one request, one unit of cost."</p>
+        <p class="truth"><span class="lab">Truth</span><br>LLM cost scales with tokens, not requests. One prompt can carry a whole codebase. Limit requests to stop spam; limit tokens to stop bankruptcy.</p>
+        <p><span class="lab">Why it happens</span><br>Traditional APIs really do cost roughly the same per request. LLM APIs broke that assumption.</p>
+      </div>
+    </details>
+    <p class="matters"><em>Why this matters: one unbounded axis is enough to bankrupt a subscription business.</em></p>
+    <p class="mlink">🔗 This connects back to Module 5 because the GET endpoints designed here generate most of the read traffic counted there.</p>
+
+    <div class="panel mc" id="miniChallenge">
+      <div class="p-head"><span class="p-title">🎮 Rate Limit Referee</span><span class="p-kind">mini-challenge · free tier: 25 req + 50K tokens/day · paid: 500 req + 2M</span></div>
+      <div id="mcCases"></div>
+    </div>
+
+    <div class="panel scn" data-s="s7"></div>
+    <div class="panel quiz" data-q="q7"></div>
+  </section>
+
+  <section class="module rv" id="m8">
+    <div class="mod-head"><span class="mod-no">MODULE 08</span>
+      <div><h2>The $58M/month machine: costs, availability, and closing the NFR loop</h2>
+      <p class="mod-sub">GPU economics · 6 regions · 99.9% · scaling to 1B WAU</p></div>
+    </div>
+    <div class="core">
+      <p>Time to price the machine. If you're a wrapper startup calling an LLM API at this volume, the bill is brutal — roughly <strong>$5M a day</strong> for mini models — which is precisely why OpenAI and friends run their own GPU clusters: you pay for compute per token instead of API markup. The monthly stack at 200M DAU: GPU infrastructure dominates at ~$52M (with smart batching improving utilization). API servers come next — 20M concurrent sessions ÷ 2,500 per server = 8,000 machines, spread across six regions at ~1,300 each, ≈ $4.6M. Bandwidth, the 6Gbps we computed in Module 3, ≈ $1M. Monitoring and logging $150K; the entire PostgreSQL estate — one primary, 20+ replicas, ~600TB — just $138K; Redis $130K; load balancers and CDN $75K each; moderation $15K. Total ≈ <strong>$58M a month</strong>, and the database everyone debates is 0.2% of it.
+      <button class="why-link" data-why="w6">But why do owned GPUs change the economics?</button></p>
+      <div class="why-body" id="w6">API pricing bundles the provider's margin, redundancy and demand-smoothing into every token. At 2.5B prompts a day you are the demand. Owning the clusters means each token costs raw compute — and techniques like smart batching (packing many users' prompts onto one GPU pass) push utilization up and per-token cost down. The fixed cost is enormous; the marginal cost collapses.</div>
+      <p>Finally, close the loop on the non-functional requirements, because interviews and production reviews both demand you trace each number back to a decision. <strong>99.9% availability</strong> comes from six regions, read replicas and failover — with a 43-minute monthly budget. <strong>Sub-2-second first tokens</strong> come from streaming plus regionally-placed GPU capacity and mini-model routing. <strong>Zero message loss</strong> comes from ACID writes committed after generation completes. <strong>Cost efficiency</strong> comes from owned GPUs, cold storage tiering and scale-to-zero where traffic allows. <strong>Security</strong> comes from end-to-end encryption of private conversations. And scaling to <strong>1B weekly users</strong> — the rounding we did back in Module 3 — is mostly adding replicas, regions and offloaded write paths while the single primary holds the line. That's the whole craft: every requirement has an owner, and every component can explain why it exists.</p>
+    </div>
+
+    <h3 class="h-label">Closing the loop — NFR → decision</h3>
+    <ol class="steps">
+      <li><b>99.9% availability.</b><span>Six regions, ~50 read replicas, failover budgets ≈ 43 min/month.</span></li>
+      <li><b>&lt;2s first token.</b><span>SSE streaming + regional GPU placement + mini-model routing.</span></li>
+      <li><b>Zero message loss.</b><span>ACID writes; persist the response after generation completes.</span></li>
+      <li><b>Cost efficiency.</b><span>Owned GPU clusters, cold tiering, batching — the $58M is the price of not paying $150M+ in API markup.</span></li>
+      <li><b>Security &amp; scale.</b><span>E2E encryption for private chats; the 1B-WAU plan is "more replicas, more regions, same primary."</span></li>
+    </ol>
+
+    <h3 class="h-label">Three examples</h3>
+    <div class="ex o"><span class="tag">Obvious</span><h4>GPUs are the headline</h4>
+      <p>~$52M/month, roughly 90% of the bill. Every cost-optimization conversation at this scale starts and ends with GPU utilization.</p></div>
+    <div class="ex c"><span class="tag">Counter-intuitive</span><h4>The database is a rounding error</h4>
+      <p>The component that dominates design debates costs $138K of $58M. Argue about it for reliability, never for the money.</p></div>
+    <div class="ex e"><span class="tag">Edge case</span><h4>The wrapper startup's inverted bill</h4>
+      <p>Same architecture, but the GPU line becomes a ~$5M/day API invoice. At that point owning infrastructure stops being an option and becomes survival — or you raise prices and shrink.</p></div>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 820 300" role="img" aria-label="Horizontal bar chart of monthly infrastructure cost: GPU infrastructure 52 million dollars dominates; API servers 4.6 million; bandwidth 1 million; monitoring 150 thousand; database 138 thousand; Redis 130 thousand; load balancers 75 thousand; CDN 75 thousand; moderation 15 thousand. Total about 58 million per month.">
+        <text x="20" y="24" class="d-lab b">Monthly infrastructure cost — click a bar</text>
+        <g class="pnode" data-p="c1" tabindex="0" role="button" aria-label="GPU infrastructure, 52 million dollars per month"><text x="150" y="54" text-anchor="end" class="d-lab">GPU infra</text><rect x="160" y="42" width="600" height="16" class="d-fill p-box"/><text x="766" y="54" class="d-lab b">$52M</text></g>
+        <g class="pnode" data-p="c2" tabindex="0" role="button" aria-label="API servers, 4.6 million"><text x="150" y="80" text-anchor="end" class="d-lab">API servers</text><rect x="160" y="68" width="53" height="16" class="d-soft p-box" stroke="var(--muted)"/><text x="222" y="80" class="d-lab">$4.6M</text></g>
+        <g class="pnode" data-p="c3" tabindex="0" role="button" aria-label="Bandwidth, 1 million"><text x="150" y="106" text-anchor="end" class="d-lab">Bandwidth</text><rect x="160" y="94" width="12" height="16" class="d-soft p-box" stroke="var(--muted)"/><text x="180" y="106" class="d-lab">~$1M</text></g>
+        <g class="pnode" data-p="c4" tabindex="0" role="button" aria-label="Monitoring and logging, 150 thousand"><text x="150" y="132" text-anchor="end" class="d-lab">Monitoring</text><rect x="160" y="120" width="4" height="16" class="d-soft p-box" stroke="var(--muted)"/><text x="172" y="132" class="d-lab">$150K</text></g>
+        <g class="pnode" data-p="c5" tabindex="0" role="button" aria-label="PostgreSQL estate, 138 thousand"><text x="150" y="158" text-anchor="end" class="d-lab">PostgreSQL</text><rect x="160" y="146" width="4" height="16" class="d-soft p-box" stroke="var(--muted)"/><text x="172" y="158" class="d-lab">$138K</text></g>
+        <g class="pnode" data-p="c6" tabindex="0" role="button" aria-label="Redis, 130 thousand"><text x="150" y="184" text-anchor="end" class="d-lab">Redis</text><rect x="160" y="172" width="4" height="16" class="d-soft p-box" stroke="var(--muted)"/><text x="172" y="184" class="d-lab">$130K</text></g>
+        <g class="pnode" data-p="c7" tabindex="0" role="button" aria-label="Load balancers, 75 thousand"><text x="150" y="210" text-anchor="end" class="d-lab">Load balancers</text><rect x="160" y="198" width="3" height="16" class="d-soft p-box" stroke="var(--muted)"/><text x="172" y="210" class="d-lab">$75K</text></g>
+        <g class="pnode" data-p="c8" tabindex="0" role="button" aria-label="CDN, 75 thousand"><text x="150" y="236" text-anchor="end" class="d-lab">CDN</text><rect x="160" y="224" width="3" height="16" class="d-soft p-box" stroke="var(--muted)"/><text x="172" y="236" class="d-lab">$75K</text></g>
+        <g class="pnode" data-p="c9" tabindex="0" role="button" aria-label="Moderation, 15 thousand"><text x="150" y="262" text-anchor="end" class="d-lab">Moderation</text><rect x="160" y="250" width="2" height="16" class="d-soft p-box" stroke="var(--muted)"/><text x="172" y="262" class="d-lab">$15K</text></g>
+        <text x="160" y="290" class="d-lab">total ≈ $58M/month — the tiny bars are real costs, but the GPU bar is the story</text>
+      </svg>
+      <div class="reveal-panel" id="costPanel">Cost details appear here. Server math: 20M concurrent ÷ 2,500 sessions/server = 8,000 servers ÷ 6 regions ≈ 1,300 per region.</div>
+      <figcaption>Rough estimates from Azure-class pricing. Precision isn't the point — the shape of the bill is.</figcaption>
+    </figure>
+
+    <div class="analogy">
+      <div class="an-head">Visual analogy</div>
+      <div class="an-grid">
+        <div class="an-side"><h4>The concept</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><rect x="30" y="20" width="120" height="14" class="d-fill"/><rect x="30" y="42" width="14" height="14" class="d-soft" stroke="var(--muted)"/><rect x="30" y="64" width="6" height="14" class="d-soft" stroke="var(--muted)"/><text x="90" y="100" class="d-lab" text-anchor="middle">GPU · servers · everything else</text></svg>
+          <p>One line item is 90% of the bill; eight others share the rest.</p></div>
+        <div class="an-side"><h4>The analogy</h4>
+          <svg viewBox="0 0 200 110" aria-hidden="true"><rect x="40" y="14" width="120" height="80" rx="3" class="d-ink"/><line x1="52" y1="30" x2="148" y2="30" class="d-fill" stroke="var(--accent)" stroke-width="6"/><line x1="52" y1="46" x2="80" y2="46" class="d-mut"/><line x1="52" y1="58" x2="72" y2="58" class="d-mut"/><line x1="52" y1="70" x2="76" y2="70" class="d-mut"/><text x="100" y="86" class="d-lab" text-anchor="middle">ingredients vs rent</text></svg>
+          <p>A restaurant where ingredients are 90% of costs — the landlord is a footnote.</p></div>
+      </div>
+      <div class="an-bridge">When ingredients dominate the bill, you negotiate with farmers, not the landlord. At ChatGPT scale you optimize GPUs; the database argument is about reliability, not money.</div>
+    </div>
+
+    <details class="myth"><summary>What People Get Wrong</summary>
+      <div class="myth-body">
+        <p><span class="lab">Myth</span><br>"At this scale the database is the expensive, scary part."</p>
+        <p class="truth"><span class="lab">Truth</span><br>The database is $138K of $58M — about 0.2%. GPUs are ~90%. Senior engineers optimize where the money actually goes.</p>
+        <p><span class="lab">Why it happens</span><br>Database design is where interviews live, so it feels like the center of gravity. The P&amp;L disagrees.</p>
+      </div>
+    </details>
+    <p class="matters"><em>Why this matters: cost literacy is a senior skill — knowing the GPU bill is 90% tells you where optimization actually lives.</em></p>
+    <p class="mlink">🔗 This connects to every earlier module because each decision now has to justify its cost and its NFR in the same sentence.</p>
+
+    <div class="panel scn" data-s="s8"></div>
+    <div class="panel quiz" data-q="q8"></div>
+  </section>
+
+  <hr class="rule" style="margin-top:110px">
+
+  <section class="block rv" id="review">
+    <div class="kicker">Review</div>
+    <h2 class="sec-title">Make it stick</h2>
+
+    <h3 class="h-label">Spaced repetition schedule</h3>
+    <ul class="sr-list">
+      <li><span class="when">in 1 min</span><span>Name the three layers and the seven services — out loud, no peeking.</span></li>
+      <li><span class="when">in 10 min</span><span>Recompute 550TB/yr from raw assumptions (bytes × exchanges × users).</span></li>
+      <li><span class="when">in 1 hour</span><span>Redraw the architecture diagram on paper, including the SSE return path.</span></li>
+      <li><span class="when">in 1 day</span><span>Explain the 90/10 read-write split to a colleague or a rubber duck.</span></li>
+      <li><span class="when">in 3 days</span><span>Rebuild the four-stage database roadmap and defend each trigger.</span></li>
+      <li><span class="when">in 1 week</span><span>Run the full 60-minute design cold: scope → estimates → HLD → one deep dive.</span></li>
+    </ul>
+
+    <div class="panel">
+      <div class="p-head"><span class="p-title">📝 Flashcards</span><span class="p-kind">click card to flip · mastery saved locally</span></div>
+      <div class="fc-stage"><div class="fc-card" id="fcCard" tabindex="0" role="button" aria-label="Flashcard, press to flip">
+        <div class="fc-face front"><div class="fc-side">term</div><div class="fc-front-t" id="fcFront"></div><div style="margin-top:14px;font-size:13px;color:var(--muted)">tap / Enter to reveal</div></div>
+        <div class="fc-face back"><div class="fc-side">definition</div><div class="fc-back-t" id="fcBack"></div><div class="fc-extra" id="fcExtra"></div></div>
+      </div></div>
+      <div class="fc-ctl">
+        <button class="btn" id="fcPrev">← prev</button>
+        <button class="btn" id="fcFlip">flip</button>
+        <button class="btn" id="fcNext">next →</button>
+        <button class="btn acc" id="fcGot">✓ got it</button>
+        <button class="btn" id="fcExtraBtn">show extra context</button>
+        <span class="fc-mastered" id="fcMastered"></span>
+        <span class="fc-count" id="fcCount"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="block rv" id="mapEndSec">
+    <div class="kicker">Knowledge map — revisited</div>
+    <h2 class="sec-title">The whole system, one glance</h2>
+    <div class="kmap-wrap" id="mapEnd"></div>
+  </section>
+
+  <section class="block rv" id="summary">
+    <div class="kicker">Summary</div>
+    <h2 class="sec-title">Summary &amp; cheat sheet</h2>
+    <div class="cheat">
+      <h3>The numbers</h3>
+      <table>
+        <tr><td>800M+ WAU</td><td>OpenAI's Jan 2026 figure (700M by Jul 2025); design target rounded to 1B → 200M DAU</td></tr>
+        <tr><td>2.5B prompts/day</td><td>≈12.5/user/day · peak ≈70K msgs/s · ×2 writes counting AI replies</td></tr>
+        <tr><td>20M concurrent</td><td>10% of DAU · connections lasting 10–30s each</td></tr>
+        <tr><td>550 TB/yr</td><td>600B/exchange × 12.5 × 200M users × 365 · metadata only ~6TB</td></tr>
+        <tr><td>6 Gbps</td><td>~750B responses over ~20s × 20M concurrent ≈ 750MB/s sustained</td></tr>
+        <tr><td>90 / 10</td><td>reads vs writes per prompt — the number that justifies replicas over sharding</td></tr>
+        <tr><td>1 + ~50</td><td>unsharded primary + read replicas at OpenAI's current scale · ~30K writes/s ceiling</td></tr>
+        <tr><td>99.9% / &lt;2s</td><td>≈43 min downtime/month · first token under 2s for mini models</td></tr>
+        <tr><td>≈$58M/mo</td><td>GPUs ~$52M (90%) · servers $4.6M · bandwidth ~$1M · DB $138K</td></tr>
+      </table>
+      <h3>The decisions</h3>
+      <ul>
+        <li>Integrate LLMs, don't build them · stream with SSE, not WebSocket · private, text-only, English-only scope</li>
+        <li>Three layers: client/edge → gateway + six services → data (PG primary+replicas, Redis, cold blob, GPUs)</li>
+        <li>LB in front of gateway: dumb distribution before smart routing · SSE rides the same open connection home</li>
+        <li>Unsharded PostgreSQL + replicas; offload write-heavy workloads (Cosmos DB); shard only past 200M+ DAU if writes force it</li>
+        <li>REST API · two-axis rate limiting (requests + tokens) in Redis, tiered free/paid · moderation before the LLM</li>
+        <li>Own GPU clusters over API pricing · six regions for 99.9% · every NFR traced to a decision</li>
+      </ul>
+      <h3>The formulas</h3>
+      <ul>
+        <li>DAU ≈ WAU ÷ 5 · concurrency ≈ DAU × 10%</li>
+        <li>storage/yr = bytes/exchange × exchanges/user/day × DAU × 365</li>
+        <li>throughput = concurrent × bytes/response ÷ stream duration</li>
+        <li>servers = concurrent ÷ sessions/server ÷ regions</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="block rv" id="faq">
+    <div class="kicker">Still confused?</div>
+    <h2 class="sec-title">FAQ</h2>
+    <details class="faq"><summary>Why not WebSocket if it's "more modern"?</summary>
+      <div class="faq-b">Because modernity isn't a requirement — fit is. Token streaming is strictly one-way: server talks, browser listens. SSE delivers that over plain HTTP with a built-in browser API, automatic reconnection and trivial debugging, while WebSocket adds a protocol upgrade, bidirectional machinery you'll never use, and idle connections that linger when users tab away. Every major AI chat product landed on SSE for exactly this reason.</div></details>
+    <details class="faq"><summary>How does OpenAI get away without sharding at 800M weekly users?</summary>
+      <div class="faq-b">Three reasons stack up. First, the workload is ~90% reads, and reads scale almost freely with replicas — they run around 50. Second, ~30K writes per second, while large, fits a single beefy primary (Azure-class: up to 128 vCPUs / 512GB RAM) with careful tuning: timeouts, index management, write batching. Third, genuinely write-heavy operations were offloaded to Cosmos DB rather than forced through the primary. Sharding would "work" too — at the price of rewriting hundreds of endpoints, which they've publicly said they'd rather not do.</div></details>
+    <details class="faq"><summary>What if my interviewer insists I design sharding anyway?</summary>
+      <div class="faq-b">Give them the trade-off, not the surrender: sharding earns its complexity when writes rival or exceed reads, or when a single primary demonstrably saturates. Show the shard key choice (hash user_id → each shard owns a user range), mention resharding and cross-shard transaction pain, then cite the counterexample — the company with the most incentive to shard hasn't needed to at 800M WAU. That answer reads as senior judgment, not resistance.</div></details>
+    <details class="faq"><summary>Is 550TB/year supposed to be precise?</summary>
+      <div class="faq-b">No — it's decision-sized. Within a factor of two it still yields the same conclusions: you need distributed storage, a cold tier for the long tail, and a replication strategy; a single instance is off the table. Interviewers grade the reasoning chain (assumptions stated → arithmetic shown → decision follows), not the fourth significant digit.</div></details>
+    <details class="faq"><summary>Why store token_count per message?</summary>
+      <div class="faq-b">Because three future features depend on it and all are expensive to backfill: per-user billing and invoices, usage dashboards (the Cursor-style "this message cost N tokens" view), and per-tier analytics. One integer column written at insert time buys all of them.</div></details>
+    <details class="faq"><summary>Where does the "complete" signal come from?</summary>
+      <div class="faq-b">The LLM gateway emits a completion event when the model finishes generating. The message service then closes the SSE stream, persists the full response as one ACID write, updates the token quota in Redis, and the client re-enables the send button. Nothing is marked complete until the write lands — that's the zero-message-loss contract in action.</div></details>
+  </section>
+
+  <section class="block rv" id="next">
+    <div class="kicker">Keep going</div>
+    <h2 class="sec-title">Next steps</h2>
+    <ul style="margin-left:18px">
+      <li><b>Replication deep dive</b> — streaming vs logical replication, replica lag, read-your-writes consistency.</li>
+      <li><b>Sharding mechanics</b> — hash vs range keys, resharding, hotspot mitigation (the natural sequel to Module 6).</li>
+      <li><b>Write-offload patterns</b> — how Cosmos DB-style stores absorb the write-heavy tail beside a relational primary.</li>
+      <li><b>Build a toy SSE chat</b> — one evening: a token emitter on the server, <code>EventSource</code> on the client, a Stop button.</li>
+      <li><b>Cost modeling lab</b> — recompute the $58M with different GPU prices, batching rates and tier mixes.</li>
+      <li><b>Run the 60-minute version cold</b> — scope → estimates → HLD → one deep dive. Time yourself.</li>
+    </ul>
+    <div id="endBadge">You finished the lesson.</div>
+  </section>
+
+  <footer>Interactive lesson · built from a system-design walkthrough on OpenAI's January 2026 figures · progress, scores and mastery are saved in your browser</footer>
+</main>
+
+<script>
+"use strict";
+
+var QUIZZES = {
+  q1:{q:"You're asked to design a ChatGPT-like system in 60 minutes. What is the strongest opening move?",opts:[
+    {t:"Start drawing the full microservice architecture immediately",ok:false,fb:"Not quite. The correct answer is to clarify scope first, because boxes drawn before scope is agreed usually describe the wrong system. You may have confused momentum with progress. Let's review: requirements and scale come first, diagrams second."},
+    {t:"Clarify scope: which features are in, which are out, and what scale to design for",ok:true,fb:"That's right. The walkthrough opens with scope questions — build vs integrate, streaming, scale, history, tiers — precisely because you cannot design 'everything ChatGPT does' in one session. Scope discipline is the senior tell."},
+    {t:"Ask which programming language the backend should use",ok:false,fb:"Not quite. The correct answer is clarifying scope, because language is an implementation detail that comes near the end. You may have confused tooling with design. Let's review: what you're building precedes how you write it."},
+    {t:"Begin with the database schema",ok:false,fb:"Not quite. The correct answer is scope first — the schema derives from the features and flows you haven't agreed on yet. You may have confused the foundation of code with the foundation of design. Let's review: requirements → flows → schema."}]},
+  q2:{q:"Why do ChatGPT-style products stream responses instead of waiting for the full answer?",opts:[
+    {t:"Streaming makes the model generate answers faster",ok:false,fb:"Not quite. The correct answer is perceived speed: generation time is unchanged, but the first token lands almost immediately. You may have confused perceived latency with actual compute time. Let's review: streaming moves the first word from second 20 to second 1 — nothing more, and that's enough."},
+    {t:"It reduces the total compute on the server",ok:false,fb:"Not quite. The correct answer is user experience — compute is identical either way. You may have confused transport efficiency with model efficiency. Let's review: the win is perceptual, not computational."},
+    {t:"Users see the first tokens immediately, so the wait feels dramatically shorter",ok:true,fb:"That's right. A spinner for 10–30 seconds feels like a hang; words appearing immediately feel like speed. Streaming converts one long silence into continuous progress — and perception is the product."},
+    {t:"Streaming avoids having to store messages in the database",ok:false,fb:"Not quite. The correct answer is perceived speed — messages are persisted either way, after generation completes. You may have confused transport with persistence. Let's review: the stream closes, then the ACID write lands."}]},
+  q3:{q:"Roughly how much chat content does the system store per year at 200M DAU?",opts:[
+    {t:"~6 TB",ok:false,fb:"Not quite. The correct answer is ~550TB — 6TB is only the metadata (profiles + conversation headers). You may have confused the rounding-error layer with the main storage load. Let's review: 7.5KB/user/day × 200M × 365 ≈ 550TB."},
+    {t:"~550 TB",ok:true,fb:"That's right. 600 bytes per exchange × ~12.5 exchanges/day = 7.5KB per user daily; × 200M users = 1.5TB/day; × 365 ≈ 550TB a year. Metadata adds a barely visible ~6TB on top."},
+    {t:"~55 TB",ok:false,fb:"Not quite. The correct answer is ~550TB — you're a factor of ten low. You may have dropped a zero in the per-user multiplication. Let's review: 7.5KB × 200M users is 1.5TB every single day."},
+    {t:"~5 PB",ok:false,fb:"Not quite. The correct answer is ~550TB — a factor of ten high. You may have multiplied by total WAU instead of DAU, or doubled the exchange size. Let's review: 1.5TB/day × 365 ≈ 550TB/yr."}]},
+  q4:{q:"Why does the load balancer sit in front of the API gateway rather than behind it?",opts:[
+    {t:"The LB is deliberately 'dumb' — it spreads raw connections; the gateway adds application logic like path routing",ok:true,fb:"That's right. Connection-spreading and meaning-making are separate jobs at separate layers. Dumb distribution in front keeps the smart tier replaceable and independently scalable."},
+    {t:"API gateways can't terminate SSL",ok:false,fb:"Not quite. The correct answer is the separation of dumb distribution from smart routing — gateways terminate SSL just fine, that's one of their listed jobs. You may have confused capability with layering. Let's review: LB spreads, gateway decides."},
+    {t:"Load balancers are cheaper than gateways",ok:false,fb:"Not quite. The correct answer is about roles, not price: the LB spreads TCP/HTTP connections without understanding them; the gateway routes by path. You may have confused cost with architecture. Let's review: each hop owns exactly one concern."},
+    {t:"It's arbitrary — either order works the same",ok:false,fb:"Not quite. The correct answer is intentional layering: dumb in front, smart behind. You may have confused two boxes that sit nearby with two boxes that do the same job. Let's review: the LB knows nothing about URLs; the gateway knows nothing about connection spreading."}]},
+  q5:{q:"Despite 2.5B prompts a day, the system is ~90% reads. Why?",opts:[
+    {t:"Responses are cached forever, so reads never hit the database",ok:false,fb:"Not quite. The correct answer is that each prompt triggers a pile of reads — account, quota, limits, history, memory — against only ~2–3 writes. You may have confused 'read-heavy' with 'cached'. Let's review: the reads are fresh lookups on the hot path, not cache hits."},
+    {t:"Each prompt triggers many reads — account, quota, limits, history, user memory — but only ~2–3 writes",ok:true,fb:"That's right. Trace one prompt and count: auth reads, limiter reads, moderation, conversation context or memory — then two writes when the stream closes. The ratio falls out of the user flow itself."},
+    {t:"Users rarely open old conversations",ok:false,fb:"Not quite. The correct answer is the per-prompt read pile — sidebar loads are only part of it. You may have confused one read source with the whole accounting. Let's review: even a brand-new chat reads preferences and memory before the first token."},
+    {t:"The LLM generates responses without any database involvement",ok:false,fb:"Not quite — half right, but the conclusion misses. The LLM itself doesn't read the DB, yet the message service performs ~8 reads around it per prompt. Let's review: count operations around the model, not inside it."}]},
+  q6:{q:"At 800M weekly users, what does OpenAI actually run for its main chat database?",opts:[
+    {t:"A sharded PostgreSQL cluster with hundreds of shards",ok:false,fb:"Not quite. The correct answer is a single unsharded primary with read replicas — their own posts say load grew 10× in a year without sharding. You may have confused the textbook answer with the production answer. Let's review: sharding is deferred complexity, and they've deferred it past 800M WAU."},
+    {t:"A single unsharded PostgreSQL primary with read replicas (~50)",ok:true,fb:"That's right. One primary takes all writes (~30K/s), ~50 replicas absorb the 90% read traffic, and write-heavy workloads are offloaded to Cosmos DB. It works because of the read/write ratio, not despite it."},
+    {t:"MongoDB with automatic sharding",ok:false,fb:"Not quite. The correct answer is unsharded PostgreSQL — MongoDB's eventual consistency and weak multi-doc transactions risk out-of-order messages, the unforgivable sin in chat. Let's review: ordering and ACID are why SQL won this fight."},
+    {t:"Cosmos DB for everything",ok:false,fb:"Not quite. The correct answer is PostgreSQL primary + replicas; Cosmos DB only absorbs the offloaded write-heavy workloads. You may have confused the sidecar with the main store. Let's review: relational core, specialized offload."}]},
+  q7:{q:"Why rate-limit on tokens as well as on requests?",opts:[
+    {t:"Tokens are easier to count than requests",ok:false,fb:"Not quite. The correct answer is cost shape: one huge prompt is one request but massive compute, which request counts can't see. You may have confused counting convenience with economic reality. Let's review: limits must mirror what actually consumes resources."},
+    {t:"One huge prompt is a single request but can consume massive compute — request counts alone can't see it",ok:true,fb:"That's right. A pasted codebase is one request and tens of thousands of tokens. The token axis is what stops a $20 subscription from being drained by a single message; the request axis separately stops tiny-message spam."},
+    {t:"Token limits remove the need for user tiers",ok:false,fb:"Not quite. The correct answer is about catching hidden cost — tiers still set both dials (free: 25 req + 50K tokens; paid: 500 req + 2M). You may have confused a mechanism with a pricing model. Let's review: tiers configure the limits; the two axes enforce them."},
+    {t:"Browsers can only count tokens",ok:false,fb:"Not quite. The correct answer is economic: token volume, not request volume, drives GPU cost. You may have confused client capability with server policy. Let's review: both counters live server-side in Redis."}]},
+  q8:{q:"What dominates the ~$58M/month infrastructure bill?",opts:[
+    {t:"The PostgreSQL fleet ($138K/month)",ok:false,fb:"Not quite. The correct answer is GPU infrastructure at ~$52M/month — the database is 0.2% of the bill. You may have confused the most-debated component with the most-expensive one. Let's review: argue about Postgres for reliability, never for money."},
+    {t:"GPU infrastructure (~$52M/month, roughly 90% of the total)",ok:true,fb:"That's right. 8,000 API servers come in a distant second at $4.6M, bandwidth ~$1M, and everything else is noise. Cost optimization at this scale is a GPU-utilization conversation, full stop."},
+    {t:"Load balancers ($75K/month)",ok:false,fb:"Not quite. The correct answer is GPUs at ~$52M — load balancers are three orders of magnitude smaller. You may have confused visibility in the diagram with weight in the budget. Let's review: small boxes, small bills."},
+    {t:"Bandwidth (~$1M/month)",ok:false,fb:"Not quite. The correct answer is GPUs at ~$52M — bandwidth is real (~$1M) but 2% of the story. You may have confused the 6Gbps headline with the cost headline. Let's review: streaming is cheap next to generation."}]},
+  qr1a:{q:"Quick recall: which transport do the major AI chat products use for streaming, and why?",opts:[
+    {t:"WebSocket — bidirectional and real-time",ok:false,fb:"Not quite. The correct answer is SSE — one-way over plain HTTP with auto-reconnect; WebSocket keeps idle connections alive when users tab away. Let's review: match the transport to the traffic shape."},
+    {t:"Server-Sent Events — one-way over plain HTTP, built-in EventSource, auto-reconnect",ok:true,fb:"That's right. One sender, one reader, no return channel needed — SSE fits perfectly and debugs trivially."},
+    {t:"Long-polling every second",ok:false,fb:"Not quite. The correct answer is SSE — polling adds latency and overhead with no upside here. Let's review: the server pushes as tokens are born."},
+    {t:"gRPC streaming",ok:false,fb:"Not quite. The correct answer is SSE — gRPC is viable in backends, but browsers get EventSource for free. Let's review: the browser-native API won."}]},
+  qr1b:{q:"Quick recall: with wait-for-complete responses, how long does a user typically stare at a spinner?",opts:[
+    {t:"Under a second",ok:false,fb:"Not quite. The correct answer is 10–30 seconds (longer for thinking models) — which is exactly why that UX is dead. Let's review: first-token streaming exists to kill this wait."},
+    {t:"10–30 seconds, sometimes more with thinking models",ok:true,fb:"That's right — and you can't even render an honest skeleton, because the response's shape is unknown until it exists."},
+    {t:"2–3 seconds",ok:false,fb:"Not quite. The correct answer is 10–30 seconds. You may have confused mini-model first-token latency (<2s) with full completion. Let's review: generation is slow; streaming just hides the silence."},
+    {t:"Minutes",ok:false,fb:"Not quite. The correct answer is 10–30 seconds — bad, but not minutes. Let's review: bad enough that every major product switched to streaming."}]},
+  qr2a:{q:"Quick recall: which service orchestrates a prompt's full journey?",opts:[
+    {t:"The CDN",ok:false,fb:"Not quite. The correct answer is the message service — the CDN only serves static assets. Let's review: edge caches bytes; the orchestrator moves requests."},
+    {t:"The message service",ok:true,fb:"That's right. It pulls auth, limits, moderation and context together, then writes returning tokens into the SSE stream."},
+    {t:"The auth service",ok:false,fb:"Not quite. The correct answer is the message service — auth only validates the JWT and returns the tier. Let's review: one step of the journey, not the conductor."},
+    {t:"The moderation service",ok:false,fb:"Not quite. The correct answer is the message service — moderation is a single gate it passes through. Let's review: the orchestrator calls the gatekeepers."}]},
+  qr2b:{q:"Quick recall: where do old, rarely-opened conversations live?",opts:[
+    {t:"In cold blob storage, with only the recent 10–20 kept hot",ok:true,fb:"That's right. A user with 1,000 chats needs the recent few instantly; the long tail archives cheaply to blob storage."},
+    {t:"On the primary database's hot tables",ok:false,fb:"Not quite. The correct answer is cold blob storage — keeping 1,000 chats hot per user wastes the primary's IOPS. Let's review: hot path small, cold path cheap."},
+    {t:"In Redis",ok:false,fb:"Not quite. The correct answer is blob storage — Redis holds ephemeral limit counters, not archives. Let's review: memory is for hot, tiny, expiring data."},
+    {t:"They're deleted after 30 days",ok:false,fb:"Not quite. The correct answer is cold archival — history is a core feature, deletion would break the product promise. Let's review: tier the storage, keep the data."}]},
+  qr3a:{q:"Quick recall: at 0–5M DAU, the recommended database strategy is…",opts:[
+    {t:"Neon (serverless Postgres) — managed, branchable, scale-to-zero",ok:true,fb:"That's right. Same single-primary + replica architecture as OpenAI, minus the operational plumbing — ship 10× faster at the stage where speed is survival."},
+    {t:"Sharded PostgreSQL from day one",ok:false,fb:"Not quite. The correct answer is Neon — sharding at zero users is paying for complexity you haven't earned. Let's review: the staged roadmap defers complexity until traffic proves it necessary."},
+    {t:"MongoDB for flexibility",ok:false,fb:"Not quite. The correct answer is Neon — message ordering and ACID favor SQL from the start. Let's review: flexibility isn't worth out-of-order messages."},
+    {t:"SQLite on one server",ok:false,fb:"Not quite. The correct answer is Neon — fine for a toy, not for a product with auth, history and tiers. Let's review: managed Postgres costs almost nothing at this stage."}]},
+  qr3b:{q:"Quick recall: the index on conversations(user_id, created_at DESC) exists to speed up…",opts:[
+    {t:"Message ordering inside a chat",ok:false,fb:"Not quite. The correct answer is the sidebar's recent-conversations fetch — message ordering is the messages(conversation_id, created_at ASC) index. Let's review: one index per access pattern."},
+    {t:"The sidebar fetching the 10–20 most recent of possibly 1,000 conversations",ok:true,fb:"That's right. DESC on created_at means 'my newest chats' is a single index seek, not a scan-and-sort of a thousand rows."},
+    {t:"Login lookups by email",ok:false,fb:"Not quite. The correct answer is the sidebar fetch — email lookups use the users(email) index. Let's review: match each query to its own index."},
+    {t:"Moderation rule checks",ok:false,fb:"Not quite. The correct answer is the sidebar fetch — moderation doesn't query conversations this way. Let's review: indexes serve read patterns, not write paths."}]}
+};
+
+var SCENARIOS = {
+  s1:{title:"Field scenario — the kickoff",intro:"Interviewer: 'Design an AI chat system like ChatGPT.' The clock starts.",decs:[
+    {d:"Your first move?",opts:[
+      {t:"Ask clarifying questions about scope and scale",ok:true,fb:"That's right. The walkthrough's opening is a volley of scope questions — build vs integrate, streaming, scale, history, tiers — before a single diagram."},
+      {t:"Start sketching the architecture immediately",ok:false,fb:"Not quite. The best opening is clarifying questions, because scope determines everything downstream; drawing first risks designing the wrong system. You may have confused momentum with progress. Let's review: requirements first, diagrams second."},
+      {t:"Ask which database they prefer",ok:false,fb:"Not quite. The best opening is scope questions — database choice derives from access patterns you haven't established yet. Let's review: the tool follows the problem."}]},
+    {d:"Interviewer: 'Do we need shareable conversation links?'",opts:[
+      {t:"Yes — add publishing and share infrastructure",ok:false,fb:"Not quite. The stronger move is proposing to cut it: sharing adds publishing, permissions and abuse surfaces that crowd out depth on the core in a 60-minute session. Let's review: defended cuts beat shallow completeness."},
+      {t:"Propose cutting it: private conversations only, noted as a future extension",ok:true,fb:"That's right. The walkthrough does exactly this — private only — and stating the cut out loud is what makes it a decision instead of an omission."},
+      {t:"Refuse to discuss it",ok:false,fb:"Not quite. The stronger move is cutting it with reasoning — silence reads as avoidance, a reasoned cut reads as judgment. Let's review: name the trade-off, then move on."}]},
+    {d:"What scale do you design for?",opts:[
+      {t:"The exact current figure, 800M WAU",ok:false,fb:"Not quite. The cleaner move is rounding to 1B WAU — future headroom plus arithmetic that divides evenly into 200M DAU. Let's review: estimates serve decisions, not audit trails."},
+      {t:"1B WAU — headroom for growth and clean math (→ 200M DAU)",ok:true,fb:"That's right. The walkthrough rounds 800–900M up to 1B for exactly these two reasons, and every later number inherits the rounding."},
+      {t:"10K users — start small",ok:false,fb:"Not quite. The brief is ChatGPT scale; designing for 10K produces a monolith that answers a different question. Let's review: match the stated ambition — 200M DAU."}]}]},
+  s2:{title:"Field scenario — choosing the delivery model",intro:"Your team is deciding how LLM answers reach the browser.",decs:[
+    {d:"The delivery model?",opts:[
+      {t:"Wait for the complete response via plain POST",ok:false,fb:"Not quite. Streaming is the right call — 10–30 seconds of spinner (worse for thinking models) with no honest skeleton is a UX non-starter today. Let's review: first token immediately, rest progressively."},
+      {t:"Stream tokens over SSE",ok:true,fb:"That's right. Perceived speed is the product: words appear as they're generated, and the user reads while the machine thinks."},
+      {t:"Client polls every second",ok:false,fb:"Not quite. Streaming is the right call — polling adds latency, wastes requests, and still can't deliver mid-response progress. Let's review: push beats poll for token flow."}]},
+    {d:"A teammate pushes WebSocket: 'it's real-time, so it's better.'",opts:[
+      {t:"Agree — WebSocket is strictly more capable",ok:false,fb:"Not quite. The right counter is fit over capability: SSE is one-way over plain HTTP with auto-reconnect and less overhead, while WebSocket holds idle connections open when users tab away. Let's review: bidirectionality you never use is cost, not feature."},
+      {t:"Counter with the fit argument: one-way traffic, plain HTTP, auto-reconnect, no idle-connection tax",ok:true,fb:"That's right. Capability isn't the criterion — traffic shape is. Every major AI chat product made this same call."},
+      {t:"Flip a coin to keep the peace",ok:false,fb:"Not quite. This decision shapes the whole connection layer — it deserves the fit argument, not chance. Let's review: SSE for one-way streams, WebSocket for genuinely bidirectional apps like collaborative editing."}]},
+    {d:"While a stream is live, the send button should…",opts:[
+      {t:"Stay enabled — users multitask",ok:false,fb:"Not quite. The right behavior is disable + offer Stop: overlapping streams on one connection corrupt the UX and the protocol state. Let's review: one live stream per conversation; Stop cancels, then send re-enables."},
+      {t:"Be disabled, with a Stop button to cancel and start fresh",ok:true,fb:"That's right. Cancellation is a first-class state: abort the stream, optionally persist the partial answer, re-enable send."},
+      {t:"Disappear entirely until the stream ends",ok:false,fb:"Not quite. Disabling with a visible Stop beats hiding — the user needs an explicit escape hatch mid-answer. Let's review: control surfaces stay visible during long operations."}]}]},
+  s3:{title:"Field scenario — whiteboarding capacity",intro:"Marker in hand: nail down the numbers before the architecture.",decs:[
+    {d:"What time horizon for the storage estimate?",opts:[
+      {t:"One month",ok:false,fb:"Not quite. The standard is at least 12 months — storage decisions (replication, tiering, archival) must survive a year of accumulation. Let's review: 1.5TB/day compounds to 550TB/yr."},
+      {t:"Twelve months",ok:true,fb:"That's right. A year is the horizon where the number (≈550TB) forces the right infrastructure conclusions without pretending to prophecy."},
+      {t:"Ten years",ok:false,fb:"Not quite. Ten-year precision is theater — assumptions rot long before the math does. Let's review: one year, decision-sized."}]},
+    {d:"Peak messages per second lands at…",opts:[
+      {t:"≈70,000",ok:true,fb:"That's right. 2.5B/day averages ~29K/s; peak headroom pushes toward ~70K/s — and remember to double writes for the AI's replies."},
+      {t:"≈700",ok:false,fb:"Not quite. The correct figure is ~70K/s — you're two orders of magnitude low, which would produce a single-server design at ChatGPT scale. Let's review: 2.5B ÷ 86,400 ≈ 29K average, then peak on top."},
+      {t:"≈7 million",ok:false,fb:"Not quite. The correct figure is ~70K/s — two orders high, which would conjure infrastructure nobody needs. Let's review: do the division; let the arithmetic set the ambition."}]},
+    {d:"6Gbps sustained streaming throughput implies…",opts:[
+      {t:"One beefy server can handle it",ok:false,fb:"Not quite. The right conclusion is distributed, multi-region infrastructure — 20M long-lived connections and 750MB/s of egress are far beyond one machine. Let's review: the numbers rule out hero hardware."},
+      {t:"Distributed infrastructure across multiple regions",ok:true,fb:"That's right. Millions of long-lived connections plus gigabit-scale egress force horizontal distribution and regional placement — the conclusion the walkthrough draws explicitly."},
+      {t:"No load balancer is needed at that scale",ok:false,fb:"Not quite. Distribution makes the load balancer more necessary, not less — it's how 20M connections get spread. Let's review: scale multiplies the need for dumb, reliable spreading."}]}]},
+  s4:{title:"Field scenario — traffic is arriving",intro:"A real prompt just left a real browser. Walk it through.",decs:[
+    {d:"POST /auth/login reaches the load balancer. Next hop?",opts:[
+      {t:"The API gateway",ok:true,fb:"That's right. The LB spreads the connection; the gateway terminates SSL, reads the /auth path, and routes to the auth service."},
+      {t:"Straight to the database",ok:false,fb:"Not quite. The correct path is LB → gateway → auth service — no request touches storage without authentication and routing first. Let's review: layers exist so nothing skips a gate."},
+      {t:"The GPU cluster",ok:false,fb:"Not quite. GPUs generate tokens; they don't authenticate. The correct path is LB → gateway → auth service. Let's review: each component owns one job."}]},
+    {d:"Who validates the JWT and returns the user's tier?",opts:[
+      {t:"The rate limiter",ok:false,fb:"Not quite. The correct answer is the auth service — the rate limiter consumes the tier to look up limits but doesn't validate tokens. Let's review: identity first, policy second."},
+      {t:"The auth service",ok:true,fb:"That's right. Validate the JWT, return identity + tier; everything downstream (limits, moderation, context) depends on that verdict."},
+      {t:"The CDN",ok:false,fb:"Not quite. The correct answer is the auth service — the CDN serves static assets and knows nothing about users. Let's review: edge caches bytes, services know people."}]},
+    {d:"A user has 1,000 conversations. Where do the 980 cold ones live?",opts:[
+      {t:"Cold blob storage, archived",ok:true,fb:"That's right. Only the recent 10–20 stay hot; the long tail archives to blob storage at a fraction of database cost."},
+      {t:"In Redis for speed",ok:false,fb:"Not quite. The correct answer is blob storage — Redis is memory-priced and meant for tiny, hot, expiring counters, not archives. Let's review: tier by access frequency, price by medium."},
+      {t:"Hot tables on the primary",ok:false,fb:"Not quite. The correct answer is blob storage — 1,000 hot chats per user × 200M users would drown the primary in dead rows. Let's review: keep the hot path small."}]}]},
+  s5:{title:"Field scenario — trace one prompt",intro:"Follow a single message and count what actually touches the database.",decs:[
+    {d:"Before the LLM is ever called, what has happened?",opts:[
+      {t:"Nothing — the prompt goes straight to the GPUs",ok:false,fb:"Not quite. The correct answer is a pile of reads: quota and tier, rate-limit counters, moderation, conversation context or memory. Let's review: the GPU is the last stop before the stream, not the first."},
+      {t:"A series of reads — quota, rate limits, moderation, history/memory",ok:true,fb:"That's right. Roughly eight reads surround every prompt; this is the mechanical reason a 2.5B-write system is still 90% reads."},
+      {t:"The AI response is written first, then generated",ok:false,fb:"Not quite. The correct order is reads → generation → write on completion. You can't persist an answer that doesn't exist yet. Let's review: the ACID write lands after the stream closes."}]},
+    {d:"The sidebar shows 1,000 chats but loads ~20. What makes that cheap?",opts:[
+      {t:"The (user_id, created_at DESC) index",ok:true,fb:"That's right. Newest-first ordering lives in the index itself — one seek returns exactly the recent slice."},
+      {t:"A full table scan sorted in memory",ok:false,fb:"Not quite. The correct answer is the composite DESC index — scanning and sorting a thousand rows per sidebar load, 70K times a second, is how primaries die. Let's review: let the index do the sorting."},
+      {t:"Caching every user's entire history in Redis",ok:false,fb:"Not quite. The correct answer is the index — caching everything for 200M users is memory-bankrupt and unnecessary when a seek costs microseconds. Let's review: index the pattern, cache only the genuinely hot."}]},
+    {d:"When is the AI's response written to the database?",opts:[
+      {t:"After generation completes and the stream closes",ok:true,fb:"That's right. One ACID write at the end — all-or-nothing, then the quota counter updates. That's the zero-message-loss contract."},
+      {t:"Before generation starts, as a placeholder",ok:false,fb:"Not quite. The correct timing is after completion — placeholders complicate ordering and partial-state cleanup for no gain. Let's review: persist the finished artifact atomically."},
+      {t:"It isn't written — streams are ephemeral",ok:false,fb:"Not quite. History is a core requirement; the correct behavior is an ACID write after the stream closes. Let's review: ephemeral transport, durable result."}]}]},
+  s6:{title:"Field scenario — the sharding pressure",intro:"Board meeting: 'We're approaching 50M DAU. Shouldn't we shard Postgres like everyone says?'",decs:[
+    {d:"Your recommendation?",opts:[
+      {t:"Yes — shard immediately, before it's forced",ok:false,fb:"Not quite. The stronger answer is staying on one primary + replicas and offloading write-heavy workloads — OpenAI's own stance past 800M WAU, citing months-to-years of endpoint changes. Let's review: complexity is a debt; take it only when the ratio demands it."},
+      {t:"No — keep the single primary, add replicas, offload write-heavy paths",ok:true,fb:"That's right. Reads scale with replicas; the ~30K/s write ceiling is managed by offloading (Cosmos DB-style) and dedicated tuning — not by rewriting hundreds of endpoints."},
+      {t:"Switch to MongoDB for built-in sharding",ok:false,fb:"Not quite. That trades a non-problem (write scale) for a real one (eventual consistency, out-of-order messages). Let's review: never migrate away from ordering guarantees to solve a bottleneck you don't have."}]},
+    {d:"Separately: a 3-engineer startup at zero users asks what to run.",opts:[
+      {t:"Neon serverless Postgres — managed, branchable, scale-to-zero",ok:true,fb:"That's right. Same architecture OpenAI uses, none of the plumbing; instant branches replace 20-minute staging copies; you pay for what you use while you find product-market fit."},
+      {t:"Self-sharded PostgreSQL, to be ready",ok:false,fb:"Not quite. The correct answer is Neon — sharding at zero users is a full-time job with no users. Let's review: stage one is about shipping 10× faster, not pre-paying for stage four."},
+      {t:"Whatever the biggest company uses, verbatim",ok:false,fb:"Not quite. The correct answer is Neon — copying a 200M-DAU architecture at 0 DAU imports costs without the traffic that justifies them. Let's review: match the stage, not the logo."}]},
+    {d:"So when does sharding genuinely make sense?",opts:[
+      {t:"Always, eventually — it's the endgame of every database",ok:false,fb:"Not quite. The correct answer is: when writes rival or exceed reads, or a single primary demonstrably saturates — many systems never get there. Let's review: the trigger is a ratio, not a milestone."},
+      {t:"When writes rival or exceed reads and the single primary saturates",ok:true,fb:"That's right. Telemetry ingest, event firehoses — write-dominant systems. Chat at 90/10 reads simply doesn't qualify, which is the whole twist of this module."},
+      {t:"Never, under any circumstances",ok:false,fb:"Not quite. Sharding is a real tool for write-dominant workloads — the lesson is timing, not abstinence. Let's review: defer, don't deny."}]}]},
+  s7:{title:"Field scenario — shipping limits",intro:"Launch week. The tier table is yours to set.",decs:[
+    {d:"Free tier spec?",opts:[
+      {t:"Unlimited — growth first",ok:false,fb:"Not quite. The correct shape is bounded on both axes (e.g., 25 requests + 50K tokens/day) — unlimited free LLM usage is a GPU-powered money fire. Let's review: every tier gets both dials."},
+      {t:"25 requests + 50K tokens per day, whichever runs out first",ok:true,fb:"That's right. Two axes, one reset window, and a clear message when either trips: come back tomorrow or upgrade."},
+      {t:"One request per month",ok:false,fb:"Not quite. Limits should be tight but usable — a free tier this punitive kills the funnel the paid tier feeds from. Let's review: 25/50K is restrictive but demonstrable."}]},
+    {d:"A user pastes a 40K-token codebase in a single message. Which limit protects you?",opts:[
+      {t:"The token limit",ok:true,fb:"That's right. One request, forty thousand tokens — the request counter doesn't blink, but the token bucket slams shut. This is exactly why the second axis exists."},
+      {t:"The request limit",ok:false,fb:"Not quite. The correct answer is the token limit — the request counter sees exactly one well-behaved request. You may have confused volume with cost. Let's review: tokens mirror compute; requests don't."},
+      {t:"Neither — one message can't hurt you",ok:false,fb:"Not quite. The correct answer is the token limit — a single message can out-cost a hundred normal ones. Let's review: cost per message varies by orders of magnitude."}]},
+    {d:"Where do the usage counters live?",opts:[
+      {t:"Redis — sub-millisecond, atomic, TTL-based resets",ok:true,fb:"That's right. Limit checks sit on the hot path of 70K requests/second; they need microsecond reads and natural expiry, which is Redis's home turf."},
+      {t:"The PostgreSQL primary",ok:false,fb:"Not quite. The correct answer is Redis — a row update per request would add latency and write load to the very primary you're protecting. Let's review: keep hot counters off the system of record."},
+      {t:"The CDN",ok:false,fb:"Not quite. The correct answer is Redis — CDNs cache static bytes at the edge; they can't do atomic per-user increments. Let's review: counters need compute near the request path."}]}]},
+  s8:{title:"Field scenario — defending the budget",intro:"The CFO slides a printout across the table: $58M/month. Explain it.",decs:[
+    {d:"Which line do you open with?",opts:[
+      {t:"GPU infrastructure — ~$52M, roughly 90% of the total",ok:true,fb:"That's right. Own the headline number first: generation is the business, everything else is supporting cast. The conversation then becomes GPU utilization and batching, where the leverage actually lives."},
+      {t:"The database — $138K",ok:false,fb:"Not quite. The correct opener is GPUs at ~$52M — leading with 0.2% of the bill misdirects the entire conversation. Let's review: present costs in the shape they actually take."},
+      {t:"Load balancers — $75K",ok:false,fb:"Not quite. The correct opener is GPUs — starting with the smallest visible line reads as deflection. Let's review: credibility comes from owning the big number first."}]},
+    {d:"'Why not just call an LLM API instead of owning GPUs?'",opts:[
+      {t:"Because at this volume API pricing runs ~$5M/day — owned clusters price tokens at compute cost",ok:true,fb:"That's right. At 2.5B prompts a day you are the demand; API markup on top of that is a larger bill than the entire owned infrastructure. Fixed cost enormous, marginal cost collapsing — that's the trade."},
+      {t:"APIs are too slow for streaming",ok:false,fb:"Not quite. The correct answer is economics — APIs stream fine; they just charge retail for what you can produce at wholesale. Let's review: the transport isn't the issue, the markup is."},
+      {t:"APIs can't handle our traffic at all",ok:false,fb:"Not quite. Providers would happily sell you the tokens — at ~$5M/day. The correct answer is the price difference versus owned compute. Let's review: capability exists; affordability doesn't."}]},
+    {d:"'And the 99.9% availability — what are we paying for?'",opts:[
+      {t:"Six regions, read replicas and failover — a 43-minute monthly downtime budget",ok:true,fb:"That's right. Availability is purchased with geography and redundancy: six regions of ~1,300 servers each, ~50 replicas, and failover paths that fit inside 43 minutes a month."},
+      {t:"One enormous, extremely reliable server",ok:false,fb:"Not quite. The correct answer is multi-region redundancy — a single point of failure, however large, can't offer 99.9% because its failures are total. Let's review: availability is a property of systems, not machines."},
+      {t:"A very dedicated on-call rotation",ok:false,fb:"Not quite. Humans patch failures; architecture prevents them. The correct answer is six regions, replicas and failover. Let's review: pager heroics are a bug report, not a design."}]}]}
+};
+
+var FLASHCARDS = [
+  {f:"Server-Sent Events (SSE)",b:"One-way server→client streaming over standard HTTP. The browser's EventSource API receives events and auto-reconnects.",x:"Chosen over WebSocket by major AI chat products: less overhead, no idle-connection tax, trivial debugging."},
+  {f:"First-token latency",b:"Time until the first streamed token reaches the user. NFR: <2 seconds for mini models.",x:"Thinking models are explicitly exempt — reasoning takes longer before the first token can exist."},
+  {f:"The 90/10 read-write split",b:"Each prompt triggers ~8 reads (account, quota, limits, history, memory) against ~2–3 writes — the system is ~90% reads.",x:"This single ratio is the argument for replicas over sharding at ChatGPT scale."},
+  {f:"Unsharded primary",b:"OpenAI runs one PostgreSQL primary for all writes plus ~50 read replicas at 800M WAU; ~30K writes/s.",x:"Write-heavy workloads are offloaded to Cosmos DB instead of sharding the primary."},
+  {f:"Two-axis rate limiting",b:"Limits per tier on BOTH requests/day and tokens/day; whichever exhausts first blocks the user.",x:"Free: 25 req + 50K tokens. Paid $20: 500 req + 2M tokens. Counters live in Redis."},
+  {f:"API gateway",b:"SSL termination + URL-path routing to backend services. Sits behind the deliberately dumb load balancer.",x:"The LB spreads connections; the gateway understands them. Different jobs, different layers."},
+  {f:"Cold storage tier",b:"Old conversations archive to blob storage; only the recent 10–20 of possibly 1,000 stay hot in the database.",x:"Users rarely open ancient chats — paying database prices to store them is waste."},
+  {f:"LLM gateway",b:"Routes prompts to GPU clusters and handles model-level streaming, emitting a completion event when done.",x:"Keeps model plumbing out of the message service — one more job owned by exactly one box."},
+  {f:"The capacity numbers",b:"200M DAU · 2.5B prompts/day · ~70K msgs/s peak · 1.5TB/day · ~550TB/yr · 20M conns · 6Gbps.",x:"Every infrastructure decision in the design traces back to this line."},
+  {f:"ACID transactions",b:"All-or-nothing writes: a message is fully saved or not saved at all. Guarantees zero message loss and correct ordering.",x:"The reason message 5 can never appear before message 4 — and why SQL beat MongoDB here."}
+];
+
+var MATCH = [
+  {a:"API gateway",j:"SSL termination + path routing"},
+  {a:"Message service",j:"Orchestrates the prompt's journey; writes tokens to the stream"},
+  {a:"Auth service",j:"Validates JWTs; returns identity and tier"},
+  {a:"Rate limiter",j:"Tracks request + token counters in Redis"},
+  {a:"Moderation",j:"Screens the prompt against safety rules"},
+  {a:"Conversation service",j:"CRUD for chats and full history — owner of the read traffic"},
+  {a:"LLM gateway",j:"Routes to GPU clusters; streams tokens back; emits completion"}
+];
+
+var FIB_HINTS = [
+  ["Order of magnitude: tens of thousands.","Between 50K and 100K.","70,000"],
+  ["Order of magnitude: hundreds of terabytes.","Between 400 and 700.","550"],
+  ["Single-digit gigabits per second.","More than 2, less than 10.","6"]
+];
+
+var MC_CASES = [
+  {c:"A free-tier user has sent 20 requests today, then submits one prompt containing 60,000 tokens of pasted code.",ok:"tok",
+   fb:{allow:"Not quite. The request counter has room (20/25), but 60K tokens exceeds the 50K daily token budget — the token limit blocks it. You may have looked at only one axis. Let's review: whichever bucket empties first rules.",req:"Not quite. Requests are fine at 20/25 — the trip wire here is tokens: 60K > 50K/day. You may have defaulted to the more familiar axis. Let's review: big payloads are a token problem.",tok:"That's right. One request, but 60K tokens against a 50K daily budget — the token bucket empties first. This exact case is why the second axis exists."}},
+  {c:"A free-tier user fires off 30 tiny prompts ('explain X', 'sort Y') in one hour — about 6,000 tokens total.",ok:"req",
+   fb:{allow:"Not quite. Tokens are fine (6K/50K), but 30 requests exceeds the 25/day request budget — the request limit blocks it. You may have looked at only one axis. Let's review: spam is a request problem.",req:"That's right. 30 > 25 requests/day even though tokens barely moved. The request axis is what catches high-frequency, low-payload abuse.",tok:"Not quite. Tokens are comfortably inside budget (6K/50K) — the trip wire is 30 requests against 25/day. You may have anchored on the flashy axis. Let's review: tiny-message spam is a request problem."}},
+  {c:"A paid user ($20 tier) has used 400 requests and 1.9M tokens today, and now sends a 50,000-token prompt.",ok:"allow",
+   fb:{allow:"That's right. 401/500 requests and 1.95M/2M tokens — both buckets still have room, so the prompt proceeds. Limits are gates, not walls: heavy-but-paying usage flows.",req:"Not quite. Requests stand at 401/500 — inside budget. Tokens land at 1.95M/2M — also inside. The prompt is allowed. Let's review: check both axes against the PAID tier's limits before blocking.",tok:"Not quite. 1.9M + 50K = 1.95M tokens, still under the 2M paid budget (and requests are fine too). The prompt is allowed. Let's review: do the addition before reaching for the block."}}
+];
+
+var TB_KEYS = ["token","stream","first","wait","fast","read","word","progress","immediate","feel","see","slow"];
+
+var HS_INFO = {
+  client:"<b>Web / mobile client</b> — holds the long-lived EventSource connection and renders tokens as they arrive. Send button disabled mid-stream; Stop aborts and re-enables it.",
+  cdn:"<b>CDN</b> — serves static assets (JS, CSS, images) from edge locations so the origin only ever sees API traffic.",
+  lb:"<b>Load balancer</b> — deliberately dumb: spreads TCP/HTTP connections across gateway instances with no application logic. That restraint is the design.",
+  gateway:"<b>API gateway</b> — SSL termination + path routing: /auth → auth service, /conversations → conversation service, /messages → message service. The SSE stream flows back through it.",
+  auth:"<b>Auth service</b> — validates JWTs and returns user details plus tier. Every request passes this gate first.",
+  ratelimiter:"<b>Rate limiter</b> — tracks request and token counters per user in Redis, compares against tier limits, and blocks or allows the prompt.",
+  moderation:"<b>Moderation</b> — screens the prompt (and later responses) against safety rules. A failed verdict ends the journey here.",
+  messagesvc:"<b>Message service</b> — the orchestrator: pulls quota, limits, history and memory, hands the prompt to the LLM gateway, and writes returning tokens into the SSE stream.",
+  conversation:"<b>Conversation service</b> — CRUD for chats: sidebar list, full history load, create, delete. Owner of the 90% read traffic.",
+  llmgateway:"<b>LLM gateway</b> — routes prompts to GPU clusters, handles model-level streaming, emits the completion event. Keeps model plumbing out of the message service.",
+  postgres:"<b>PostgreSQL</b> — one unsharded primary for writes + read replicas (~50 at OpenAI scale). ACID = zero message loss, guaranteed order.",
+  redis:"<b>Redis cluster</b> — hot counters for rate limiting: requests and tokens per user, with TTL-based resets. Sub-millisecond reads on the hot path.",
+  blob:"<b>Blob storage</b> — cold archive for the long tail: users with 1,000 chats only need the recent 10–20 hot.",
+  gpu:"<b>GPU clusters</b> — owned infrastructure serving the models directly: pay per compute-token, not API markup. The $52M/month line."
+};
+
+var PANELS = {
+  p1:"1B weekly actives ÷ 5 ≈ 200M daily actives. The ÷5 ratio comes from observed WAU→DAU engagement at this product class — and rounding 800–900M up to 1B buys headroom plus clean arithmetic.",
+  p2:"2.5B prompts ÷ 200M users ≈ 12.5 messages per user per day. This per-user figure is what makes storage estimation possible.",
+  p3:"2.5B ÷ 86,400s ≈ 29K msgs/s on average; peak windows add ~20%+ headroom, landing near 70K/s. Then ×2 for database writes, because the AI's reply is persisted too.",
+  p4:"600 bytes per exchange (100B prompt + 500B reply) × 12.5 exchanges = 7.5KB/user/day. × 200M users = 1.5TB/day. × 365 ≈ 550TB/yr. Metadata adds only ~6TB.",
+  p5:"20M concurrent connections (10% of DAU) lasting 10–30s each. ~750B responses streamed over ~20s × 20M = 15GB per 20s window = 750MB/s = 6Gbps sustained.",
+  st1:"Stage 1 (0–5M DAU): Neon. Managed infrastructure — no replication, backup or failover plumbing. Same single-primary + replica architecture OpenAI uses. Instant branches replace ~20-minute staging copies, and scale-to-zero actually helps at this stage. Ship 10× faster.",
+  st2:"Stage 2 (5–100M DAU): stay put. Traffic growth auto-adds read replicas. Meanwhile, identify write-heavy workloads and offload them (Cosmos DB-style) so the primary never becomes the bottleneck. A small team keeps owning product, not plumbing.",
+  st3:"Stage 3 (100–200M DAU): if absolute control is worth the team cost, migrate to self-managed PostgreSQL on Azure/AWS — one primary, 20–50 replicas — with write-heavy paths already offloaded. Otherwise stay on managed until you hit the compute ceiling (~56 vCPU / 224GB RAM today; ceilings move).",
+  st4:"Stage 4 (200M+ DAU): sharding finally enters the conversation — hash user_id, each shard owns a user range. But OpenAI at 800M WAU still hasn't needed it: one primary, ~50 replicas. 99% of companies never reach this stage. Don't over-engineer early.",
+  c1:"GPU infrastructure ≈ $52M/month — ~90% of the bill. Smart batching (packing many users' prompts per GPU pass) is the primary utilization lever. This is also why owning clusters beats API pricing (~$5M/day at this volume).",
+  c2:"API servers: 20M concurrent sessions ÷ 2,500 sessions per server = 8,000 servers. Spread across 6 regions ≈ 1,300 per region → ≈ $4.6M/month at Azure-class pricing.",
+  c3:"Bandwidth ≈ $1M/month — the direct price of the 6Gbps sustained streaming throughput computed in Module 3.",
+  c4:"Monitoring & logging ≈ $150K/month — observability at 70K requests/second is not optional, but it's 0.3% of the bill.",
+  c5:"PostgreSQL estate ≈ $138K/month — one primary + 20+ replicas holding ~600TB. The most-debated component is 0.2% of the cost.",
+  c6:"Redis ≈ $130K/month — every rate-limit check on the hot path, sub-millisecond, TTL-resetting.",
+  c7:"Load balancers ≈ $75K/month — the cheapest insurance in the building.",
+  c8:"CDN ≈ $75K/month — static assets never touch the origin.",
+  c9:"Content moderation ≈ $15K/month — the smallest line, and a non-negotiable one."
+};
+
+var MAP_NODES = [
+  {id:"m1",n:"01",t:"Scope & Scale"},{id:"m2",n:"02",t:"Streaming & SSE"},
+  {id:"m3",n:"03",t:"Requirements & Capacity"},{id:"m4",n:"04",t:"Architecture"},
+  {id:"m5",n:"05",t:"The 90/10 Rule"},{id:"m6",n:"06",t:"Database Decision"},
+  {id:"m7",n:"07",t:"API & Rate Limits"},{id:"m8",n:"08",t:"Costs & HA"}
+];
+
+function $(s,c){return (c||document).querySelector(s);}
+function $$(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));}
+function store(k,v){try{localStorage.setItem("aichat-"+k,JSON.stringify(v));}catch(e){}}
+function readStore(k,d){try{var v=localStorage.getItem("aichat-"+k);return v?JSON.parse(v):d;}catch(e){return d;}}
+var visited = readStore("visited",[]);
+var scores = readStore("scores",{});
+var mastered = readStore("mastery",[]);
+
+var themeBtn = $("#themeBtn");
+function applyTheme(t){
+  document.documentElement.setAttribute("data-theme",t);
+  themeBtn.textContent = (t==="dark") ? "☀" : "☾";
+  store("theme",t);
+}
+applyTheme(readStore("theme","light"));
+themeBtn.addEventListener("click",function(){
+  applyTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark");
+});
+
+(function(){
+  var tokens=["React"," hooks"," are"," functions"," that"," let"," you"," use"," state"," and"," lifecycle"," features"," in"," function"," components","."];
+  var el=$("#cdText"),evt=$("#cdEvt"),i=0;
+  var reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduced){el.textContent=tokens.join("");evt.innerHTML='event: <b>done</b> · stream complete';return;}
+  function tick(){
+    if(i<tokens.length){
+      el.textContent+=tokens[i];
+      evt.innerHTML='event: <b>token</b> · data: {"t":"'+tokens[i].trim()+'"}';
+      i++; setTimeout(tick,230);
+    }else{
+      evt.innerHTML='event: <b>done</b> · data: {"status":"complete"} — send button re-enabled';
+      setTimeout(function(){el.textContent="";i=0;tick();},3200);
+    }
+  }
+  tick();
+})();
+
+function buildFullMap(container){
+  var w=860,h=300,cx=w/2,cy=150;
+  var svg='<svg viewBox="0 0 '+w+' '+h+'" role="img" aria-label="Knowledge map: eight modules connected to the central system design topic">';
+  var pos=[];
+  MAP_NODES.forEach(function(m,idx){
+    var col=idx%4,row=Math.floor(idx/4);
+    var x=110+col*215, y=(row===0)?46:254;
+    pos.push({x:x,y:y});
+  });
+  pos.forEach(function(p,idx){
+    svg+='<line class="km-link" data-l="m'+(idx+1)+'" x1="'+cx+'" y1="'+cy+'" x2="'+p.x+'" y2="'+p.y+'"/>';
+  });
+  svg+='<g class="km-node km-center" data-target="wyl" tabindex="0" role="button" aria-label="Overview">';
+  svg+='<rect class="km-box" x="'+(cx-95)+'" y="'+(cy-24)+'" width="190" height="48" rx="6"/>';
+  svg+='<text x="'+cx+'" y="'+(cy-4)+'" text-anchor="middle">AI CHAT SYSTEM</text>';
+  svg+='<text x="'+cx+'" y="'+(cy+12)+'" text-anchor="middle">at ChatGPT scale</text></g>';
+  MAP_NODES.forEach(function(m,idx){
+    var p=pos[idx];
+    svg+='<g class="km-node" data-target="'+m.id+'" data-l="m'+(idx+1)+'" tabindex="0" role="button" aria-label="Module '+m.n+': '+m.t+'">';
+    svg+='<rect class="km-box" x="'+(p.x-80)+'" y="'+(p.y-20)+'" width="160" height="40" rx="6"/>';
+    svg+='<text x="'+p.x+'" y="'+(p.y-3)+'" text-anchor="middle">'+m.n+' · '+m.t+'</text>';
+    svg+='<text x="'+p.x+'" y="'+(p.y+12)+'" text-anchor="middle" style="font-size:9px">click to jump</text></g>';
+  });
+  svg+='</svg>';
+  container.innerHTML=svg;
+  $$(".km-node",container).forEach(function(node){
+    function go(){var t=$("#"+node.getAttribute("data-target"));if(t)t.scrollIntoView({behavior:"smooth",block:"start"});}
+    node.addEventListener("click",go);
+    node.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
+    var l=node.getAttribute("data-l");
+    if(l){
+      var line=$('[data-l="'+l+'"].km-link',container);
+      node.addEventListener("mouseenter",function(){line.classList.add("hot");});
+      node.addEventListener("mouseleave",function(){line.classList.remove("hot");});
+    }
+  });
+}
+buildFullMap($("#mapTop"));
+buildFullMap($("#mapEnd"));
+
+(function(){
+  var mm=$("#miniMap"),h=MAP_NODES.length*30+10;
+  var svg='<svg viewBox="0 0 210 '+h+'" aria-label="Module progress map">';
+  svg+='<line class="mm-line" x1="12" y1="14" x2="12" y2="'+(h-14)+'"/>';
+  MAP_NODES.forEach(function(m,idx){
+    var y=14+idx*30;
+    svg+='<g class="mm-node" data-target="'+m.id+'" tabindex="0" role="button" aria-label="'+m.n+' '+m.t+'">';
+    svg+='<circle cx="12" cy="'+y+'" r="5"/>';
+    svg+='<text x="26" y="'+(y+3.5)+'">'+m.n+' '+m.t+'</text></g>';
+  });
+  svg+='</svg>';
+  mm.innerHTML=svg;
+  $$(".mm-node",mm).forEach(function(node){
+    function go(){var t=$("#"+node.getAttribute("data-target"));if(t)t.scrollIntoView({behavior:"smooth",block:"start"});}
+    node.addEventListener("click",go);
+    node.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
+  });
+})();
+
+function renderQuiz(el){
+  var key=el.getAttribute("data-q"),data=QUIZZES[key];
+  if(!data||el.getAttribute("data-done"))return;
+  var html='<div class="q">'+data.q+'</div>';
+  data.opts.forEach(function(o,idx){
+    html+='<button class="opt" data-i="'+idx+'">'+String.fromCharCode(65+idx)+'. '+o.t+'</button>';
+  });
+  html+='<div class="q-fb" role="status"></div>';
+  if(key.indexOf("qr")!==0){html+='<div class="q-score" id="sc-'+key+'"></div>';}
+  el.innerHTML=html;
+  var fb=$(".q-fb",el),opts=$$(".opt",el);
+  opts.forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var i=+btn.getAttribute("data-i"),o=data.opts[i];
+      opts.forEach(function(b){b.disabled=true;});
+      btn.classList.add(o.ok?"correct":"wrong");
+      if(!o.ok){data.opts.forEach(function(o2,j){if(o2.ok)opts[j].classList.add("correct");});}
+      fb.textContent=o.fb;
+      fb.classList.add("show");fb.classList.toggle("bad",!o.ok);
+      if(key.indexOf("qr")!==0){
+        if(o.ok){scores[key]=1;}else{scores[key]=scores[key]||0;}
+        store("scores",scores);
+        var done=Object.keys(scores).filter(function(k){return k.indexOf("q")===0&&k.indexOf("qr")!==0;}).length;
+        var right=Object.keys(scores).filter(function(k){return scores[k]===1&&k.indexOf("q")===0&&k.indexOf("qr")!==0;}).length;
+        var sc=$("#sc-"+key);if(sc)sc.textContent="saved · "+right+"/"+done+" correct so far";
+      }
+    });
+  });
+  el.setAttribute("data-done","1");
+}
+$$(".quiz").forEach(renderQuiz);
+
+$$(".scn").forEach(function(el){
+  var key=el.getAttribute("data-s"),data=SCENARIOS[key];
+  if(!data)return;
+  var step=0;
+  function paint(){
+    var d=data.decs[step];
+    var html='<div class="p-head"><span class="p-title">⚖️ '+data.title+'</span><span class="dec-count">decision '+(step+1)+' of '+data.decs.length+'</span></div>';
+    if(step===0)html+='<div class="scn-intro">'+data.intro+'</div>';
+    html+='<div class="dec-q">'+d.d+'</div>';
+    d.opts.forEach(function(o,idx){html+='<button class="opt" data-i="'+idx+'">'+o.t+'</button>';});
+    html+='<div class="scn-fb" role="status"></div>';
+    html+='<button class="btn scn-next">next decision →</button>';
+    if(step===data.decs.length-1)html+='<div class="scn-done">Scenario complete — carry this reasoning into your next mock interview.</div>';
+    el.innerHTML=html;
+    var fb=$(".scn-fb",el),next=$(".scn-next",el);
+    $$(".opt",el).forEach(function(btn){
+      btn.addEventListener("click",function(){
+        var o=d.opts[+btn.getAttribute("data-i")];
+        $$(".opt",el).forEach(function(b){b.disabled=true;});
+        btn.classList.add(o.ok?"correct":"wrong");
+        if(!o.ok){d.opts.forEach(function(o2,j){if(o2.ok)$$(".opt",el)[j].classList.add("correct");});}
+        fb.textContent=o.fb;fb.classList.add("show");fb.classList.toggle("bad",!o.ok);
+        if(step<data.decs.length-1){next.classList.add("show");}
+        else{$(".scn-done",el).style.display="block";}
+      });
+    });
+    next.addEventListener("click",function(){step++;paint();});
+  }
+  paint();
+});
+
+(function(){
+  var idx=0,card=$("#fcCard");
+  function paint(){
+    var c=FLASHCARDS[idx];
+    card.classList.remove("flip");
+    $("#fcFront").textContent=c.f;
+    $("#fcBack").textContent=c.b;
+    $("#fcExtra").textContent=c.x;
+    $("#fcExtra").classList.remove("show");
+    $("#fcCount").textContent=(idx+1)+" / "+FLASHCARDS.length;
+    $("#fcMastered").textContent="mastered: "+mastered.length+"/"+FLASHCARDS.length;
+    $("#fcGot").textContent=mastered.indexOf(idx)>-1?"✓ mastered":"✓ got it";
+  }
+  function flip(){card.classList.toggle("flip");}
+  card.addEventListener("click",flip);
+  card.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();flip();}});
+  $("#fcFlip").addEventListener("click",flip);
+  $("#fcPrev").addEventListener("click",function(){idx=(idx-1+FLASHCARDS.length)%FLASHCARDS.length;paint();});
+  $("#fcNext").addEventListener("click",function(){idx=(idx+1)%FLASHCARDS.length;paint();});
+  $("#fcGot").addEventListener("click",function(){
+    var p=mastered.indexOf(idx);
+    if(p>-1){mastered.splice(p,1);}else{mastered.push(idx);}
+    store("mastery",mastered);paint();
+  });
+  $("#fcExtraBtn").addEventListener("click",function(){$("#fcExtra").classList.toggle("show");card.classList.add("flip");});
+  paint();
+})();
+
+(function(){
+  var pool=$("#ddPool"),slots=$("#ddSlots"),msg=$("#ddMsg");
+  var items=MATCH.slice().sort(function(){return Math.random()-0.5;});
+  var selected=null,placed=0;
+  items.forEach(function(it,i){
+    var chip=document.createElement("button");
+    chip.className="chip";chip.textContent=it.a;chip.setAttribute("draggable","true");
+    chip.setAttribute("data-a",it.a);
+    chip.addEventListener("click",function(){
+      if(chip.classList.contains("placed"))return;
+      $$(".chip",pool).forEach(function(c){c.classList.remove("sel");});
+      chip.classList.add("sel");selected=chip;
+      msg.textContent='Now click the slot that matches "'+it.a+'".';
+    });
+    chip.addEventListener("dragstart",function(e){
+      e.dataTransfer.setData("text/plain",it.a);selected=chip;
+    });
+    pool.appendChild(chip);
+  });
+  MATCH.forEach(function(it){
+    var slot=document.createElement("div");
+    slot.className="slot";slot.setAttribute("tabindex","0");slot.setAttribute("role","button");
+    slot.innerHTML='<span>'+it.j+'</span><span class="ans"></span>';
+    slot.setAttribute("aria-label","Slot: "+it.j);
+    function tryPlace(answer){
+      if(slot.classList.contains("filled"))return;
+      if(answer===it.a){
+        slot.classList.add("filled");
+        $(".ans",slot).textContent="✓ "+answer;
+        var chip=$('.chip[data-a="'+answer+'"]',pool);
+        if(chip){chip.classList.add("placed");chip.classList.remove("sel");chip.setAttribute("draggable","false");}
+        placed++;msg.textContent=placed===MATCH.length?"All seven matched — the service layer is yours.":"";
+      }else{
+        slot.classList.add("flash");
+        msg.textContent='Not quite — "'+answer+'" doesn\'t own that job. Try again.';
+        setTimeout(function(){slot.classList.remove("flash");},600);
+      }
+      selected=null;
+      $$(".chip",pool).forEach(function(c){c.classList.remove("sel");});
+    }
+    slot.addEventListener("click",function(){if(selected)tryPlace(selected.getAttribute("data-a"));});
+    slot.addEventListener("keydown",function(e){if((e.key==="Enter"||e.key===" ")&&selected){e.preventDefault();tryPlace(selected.getAttribute("data-a"));}});
+    slot.addEventListener("dragover",function(e){e.preventDefault();});
+    slot.addEventListener("drop",function(e){e.preventDefault();tryPlace(e.dataTransfer.getData("text/plain"));});
+    slots.appendChild(slot);
+  });
+})();
+
+(function(){
+  var hintLevel=[0,0,0];
+  $$(".fib-hint-btn").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var i=+btn.getAttribute("data-fib");
+      if(hintLevel[i]<3){
+        $("#fh"+i).textContent=" → "+FIB_HINTS[i][hintLevel[i]];
+        hintLevel[i]++;
+      }
+    });
+  });
+  $("#fibCheck").addEventListener("click",function(){
+    var all=true;
+    $$(".fib").forEach(function(inp){
+      var accept=inp.getAttribute("data-accept").split("|").map(function(s){return s.toLowerCase();});
+      var v=inp.value.trim().toLowerCase();
+      var ok=accept.indexOf(v)>-1;
+      inp.classList.toggle("ok",ok);inp.classList.toggle("no",!ok);
+      if(!ok)all=false;
+    });
+    $("#fibNote").textContent=all
+      ?"All three locked in. These numbers are your interview anchors — rehearse the derivations, not just the digits."
+      :"Some blanks are off. Use the hints — each one narrows the range a level at a time.";
+    store("fib-done",true);
+  });
+})();
+
+(function(){
+  var wrap=$("#mcCases");
+  var labels={allow:"Allow it",req:"Block — request limit",tok:"Block — token limit"};
+  MC_CASES.forEach(function(c,ci){
+    var box=document.createElement("div");box.className="mc-case";
+    var html='<div class="cc"><b>Case '+(ci+1)+'.</b> '+c.c+'</div><div class="mc-opts">';
+    ["allow","req","tok"].forEach(function(k){html+='<button class="btn" data-k="'+k+'">'+labels[k]+'</button>';});
+    html+='</div><div class="mc-fb" role="status"></div>';
+    box.innerHTML=html;
+    var fb=$(".mc-fb",box);
+    $$(".btn",box).forEach(function(btn){
+      btn.addEventListener("click",function(){
+        var k=btn.getAttribute("data-k"),ok=(k===c.ok);
+        $$(".btn",box).forEach(function(b){b.disabled=true;if(b.getAttribute("data-k")===c.ok)b.classList.add("acc");});
+        fb.textContent=c.fb[k];
+        fb.classList.add("show");fb.classList.toggle("bad",!ok);
+      });
+    });
+    wrap.appendChild(box);
+  });
+})();
+
+(function(){
+  $("#tbCheck").addEventListener("click",function(){
+    var txt=$("#tbText").value.toLowerCase(),res=$("#tbRes");
+    var hits=TB_KEYS.filter(function(k){return txt.indexOf(k)>-1;});
+    var html='<div class="tb-kw">Key ideas hit: <b>'+hits.length+' / '+TB_KEYS.length+'</b> — ';
+    html+=TB_KEYS.map(function(k){return '<span class="'+(hits.indexOf(k)>-1?"hit":"miss")+'">'+k+'</span>';}).join(" · ");
+    html+='</div>';
+    if(hits.length<4)html+='<p style="margin-top:8px;color:var(--muted)">Try again — aim for the waiting-vs-reading contrast and the idea of tiny pieces arriving first.</p>';
+    html+='<div class="tb-model"><b>The polished version:</b> "Imagine you asked me to tell you a very long story. If I went quiet for thirty seconds and then said it all at once, you\'d think I fell asleep! Instead, I say the words one by one as I think of them — you start listening right away, it feels fast, and you can even tell me to stop whenever you like. That\'s streaming: the computer sends tiny pieces of its answer (tokens) the moment each one is ready."</div>';
+    res.innerHTML=html;res.classList.add("show");
+  });
+})();
+
+(function(){
+  var panel=$("#hsPanel");
+  $$(".hs").forEach(function(g){
+    function show(){
+      $$(".hs").forEach(function(x){x.classList.remove("on");});
+      g.classList.add("on");
+      panel.innerHTML=HS_INFO[g.getAttribute("data-hs")]||"";
+    }
+    g.addEventListener("click",show);
+    g.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();show();}});
+  });
+})();
+
+$$(".pnode").forEach(function(g){
+  function show(){
+    var key=g.getAttribute("data-p");
+    var panelId = key.indexOf("st")===0 ? "stagePanel" : (key.indexOf("c")===0 ? "costPanel" : "pipePanel");
+    var panel=$("#"+panelId);
+    var siblings=g.parentNode.querySelectorAll(".pnode");
+    siblings.forEach(function(x){x.classList.remove("on");});
+    g.classList.add("on");
+    if(panel&&PANELS[key])panel.textContent=PANELS[key];
+  }
+  g.addEventListener("click",show);
+  g.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();show();}});
+});
+
+$$(".why-link[data-why]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    $("#"+btn.getAttribute("data-why")).classList.toggle("open");
+  });
+});
+$$(".show-more").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    var c=$("#"+btn.getAttribute("data-chunk"));
+    c.classList.toggle("open");
+    btn.textContent=c.classList.contains("open")?"Show less":"Show the detailed NFR breakdown";
+  });
+});
+var io=new IntersectionObserver(function(entries){
+  entries.forEach(function(en){
+    if(en.isIntersecting){
+      en.target.classList.add("in");
+      if(en.target.classList.contains("module")){
+        var id=en.target.id;
+        if(visited.indexOf(id)===-1){visited.push(id);store("visited",visited);}
+        refreshMiniMap();checkFinish();
+      }
+    }
+  });
+},{threshold:0.12});
+$$(".rv").forEach(function(el){io.observe(el);});
+
+function refreshMiniMap(){
+  $$("#miniMap .mm-node").forEach(function(n){
+    var id=n.getAttribute("data-target");
+    n.classList.toggle("done",visited.indexOf(id)>-1);
+  });
+}
+var secIO=new IntersectionObserver(function(entries){
+  entries.forEach(function(en){
+    if(en.isIntersecting){
+      $$("#miniMap .mm-node").forEach(function(n){
+        n.classList.toggle("active",n.getAttribute("data-target")===en.target.id);
+      });
+    }
+  });
+},{rootMargin:"-30% 0px -60% 0px"});
+$$(".module").forEach(function(m){secIO.observe(m);});
+
+var pbar=$("#pbar");
+window.addEventListener("scroll",function(){
+  var h=document.documentElement;
+  var pct=h.scrollTop/((h.scrollHeight-h.clientHeight)||1)*100;
+  pbar.style.width=pct+"%";
+  if(pct>96)checkFinish();
+},{passive:true});
+function checkFinish(){
+  if(visited.length>=8){$("#endBadge").classList.add("show");}
+}
+checkFinish();refreshMiniMap();
+
+function hideLoader(){
+  try{var l=$("#loader");if(l)l.classList.add("hide");}catch(e){}
+}
+window.addEventListener("load",function(){
+  setTimeout(hideLoader,450);
+});
+setTimeout(hideLoader,2500);
+window.addEventListener("error",hideLoader);
+</script>
+</body>
+</html>

@@ -1,0 +1,3813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OS Deep Dive — Processes, Threads & Virtual Memory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS — Light, warm, refined
+   ============================================================ */
+:root {
+  --bg: #f4f1ea;
+  --bg-elevated: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fbf9f4;
+  --bg-soft: #ede9df;
+  --bg-code: #f0ebe0;
+  --border: #e2dccf;
+  --border-strong: #d0c8b6;
+  --text: #1c1814;
+  --text-muted: #6b6358;
+  --text-dim: #9a9082;
+  --primary: #c2410c;
+  --primary-bright: #ea580c;
+  --primary-soft: #fed7aa;
+  --primary-glow: rgba(194, 65, 12, 0.08);
+  --secondary: #0d9488;
+  --secondary-soft: #ccfbf1;
+  --secondary-glow: rgba(13, 148, 136, 0.08);
+  --accent: #be185d;
+  --accent-soft: #fce7f3;
+  --accent-glow: rgba(190, 24, 93, 0.08);
+  --success: #15803d;
+  --success-soft: #dcfce7;
+  --warning: #b45309;
+  --warning-soft: #fef3c7;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+  --shadow-sm: 0 1px 3px rgba(60,40,20,0.06);
+  --shadow-md: 0 4px 16px rgba(60,40,20,0.08);
+  --shadow-lg: 0 12px 40px rgba(60,40,20,0.12);
+  --sidebar-w: 300px;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   RESET
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  overflow: hidden;
+  height: 100vh;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Space Grotesk', sans-serif;
+  line-height: 1.2;
+  font-weight: 600;
+}
+code, .mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9em;
+}
+
+/* ============================================================
+   APP LAYOUT — Sidebar + Slide Deck
+   ============================================================ */
+.app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ---- SIDEBAR ---- */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 50;
+  transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+.sidebar-header {
+  padding: 1.75rem 1.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.logo-mark {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  border-radius: 10px;
+  display: grid; place-items: center;
+  color: white;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: var(--shadow-sm);
+}
+.logo-text {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.logo-sub {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.05em;
+}
+
+.sidebar-progress {
+  margin-top: 0.5rem;
+}
+.sidebar-progress-bar {
+  height: 5px;
+  background: var(--bg-soft);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.sidebar-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  width: 0%;
+  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+  border-radius: 3px;
+}
+.sidebar-progress-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+  font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  justify-content: space-between;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 0.75rem 0.75rem;
+}
+.sidebar-section-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  padding: 0.75rem 0.75rem 0.5rem;
+  font-weight: 600;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-bottom: 0.15rem;
+  position: relative;
+  border: 1px solid transparent;
+}
+.nav-item:hover {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+.nav-item.active {
+  background: var(--primary-glow);
+  color: var(--primary);
+  border-color: var(--primary-soft);
+  font-weight: 600;
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--primary);
+  border-radius: 0 3px 3px 0;
+}
+.nav-item .nav-num {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  background: var(--bg-soft);
+  display: grid; place-items: center;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+}
+.nav-item.active .nav-num {
+  background: var(--primary);
+  color: white;
+}
+.nav-item.completed .nav-num {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.nav-item.completed .nav-num::after {
+  content: '✓';
+  font-size: 0.85rem;
+}
+.nav-item.completed .nav-num-text { display: none; }
+.nav-item .nav-label { flex: 1; line-height: 1.3; }
+.nav-item .nav-icon { font-size: 1rem; opacity: 0.7; }
+
+.sidebar-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ---- MAIN CONTENT (Slide Deck) ---- */
+.main {
+  flex: 1;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg);
+}
+.slide-track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+.slide {
+  min-width: 100%;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.slide::-webkit-scrollbar { width: 8px; }
+.slide::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+.slide::-webkit-scrollbar-track { background: transparent; }
+
+.slide-inner {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 3rem 2.5rem 6rem;
+}
+
+/* Slide entry animation */
+.slide-enter {
+  animation: slideEnter 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes slideEnter {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- TOP BAR (inside main) ---- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(244, 241, 234, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.topbar-current {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.topbar-current .crumb-num {
+  background: var(--primary);
+  color: white;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  display: grid; place-items: center;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+.topbar-current .crumb-title {
+  font-weight: 600;
+  color: var(--text);
+}
+.topbar-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+}
+.topbar-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.topbar-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+.topbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Mobile sidebar toggle */
+.menu-toggle {
+  display: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: var(--text);
+}
+
+/* ============================================================
+   HERO SLIDE
+   ============================================================ */
+.hero-slide {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero-slide::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 30%, var(--primary-glow) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, var(--secondary-glow) 0%, transparent 50%),
+    radial-gradient(circle at 50% 100%, var(--accent-glow) 0%, transparent 40%);
+  pointer-events: none;
+}
+.hero-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  max-width: 700px;
+  padding: 2rem;
+}
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--secondary);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--secondary);
+  border-radius: 999px;
+  margin-bottom: 1.75rem;
+  background: var(--secondary-glow);
+}
+.hero h1 {
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  letter-spacing: -0.03em;
+  margin-bottom: 1.25rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 50%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero-sub {
+  font-size: 1.15rem;
+  color: var(--text-muted);
+  margin-bottom: 2.5rem;
+  line-height: 1.6;
+}
+.hero-stats {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+.stat-pill {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 100px;
+}
+.stat-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: var(--primary);
+}
+.stat-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.hero-cta {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.85rem 2rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 16px var(--primary-glow);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.hero-cta:hover {
+  background: var(--primary-bright);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px var(--primary-glow);
+}
+
+/* ============================================================
+   SECTION HEADERS
+   ============================================================ */
+.slide-title {
+  margin-bottom: 0.5rem;
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  letter-spacing: -0.02em;
+}
+.slide-subtitle {
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+  font-size: 1rem;
+}
+.module-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+.module-number-big {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 3rem;
+  line-height: 1;
+  color: var(--primary);
+  opacity: 0.15;
+  position: absolute;
+  top: -0.5rem;
+  right: 0;
+  pointer-events: none;
+}
+.module-header-content {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+}
+.module-tag {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  background: var(--secondary-soft);
+  color: var(--secondary);
+  letter-spacing: 0.05em;
+  margin-bottom: 0.6rem;
+  font-weight: 500;
+}
+.module-header h2 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+}
+
+/* ============================================================
+   CONTENT BLOCKS
+   ============================================================ */
+.block {
+  margin-bottom: 2rem;
+}
+.block h3 {
+  color: var(--primary);
+  font-size: 1.15rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.block h3 .icon {
+  font-size: 1.3rem;
+}
+.block p {
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+.block p strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+.block ul, .block ol {
+  margin: 0.5rem 0 1rem 1.5rem;
+}
+.block li {
+  margin-bottom: 0.4rem;
+}
+.block code {
+  background: var(--bg-code);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  color: var(--primary);
+  border: 1px solid var(--border);
+  font-size: 0.86em;
+}
+
+/* ---- CARDS ---- */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+
+/* ---- STEPS ---- */
+.steps {
+  counter-reset: step;
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+}
+.steps li {
+  position: relative;
+  padding: 0.85rem 0 0.85rem 3rem;
+  margin-bottom: 0.3rem;
+  border-left: 2px solid var(--primary-soft);
+  margin-left: 1rem;
+  padding-left: 2.5rem;
+}
+.steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: -0.9rem;
+  top: 0.85rem;
+  width: 28px; height: 28px;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border: 3px solid var(--bg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- ANALOGY ---- */
+.analogy {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: stretch;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: var(--shadow-sm);
+}
+.analogy-side {
+  padding: 1.1rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+}
+.analogy-side.real { border-left: 3px solid var(--primary); }
+.analogy-side.metaphor { border-left: 3px solid var(--secondary); }
+.analogy-side h4 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+}
+.analogy-side.real h4 { color: var(--primary); }
+.analogy-side.metaphor h4 { color: var(--secondary); }
+.analogy-arrow {
+  display: grid; place-items: center;
+  font-size: 1.5rem;
+  color: var(--accent);
+}
+@media (max-width: 600px) {
+  .analogy { grid-template-columns: 1fr; }
+  .analogy-arrow { transform: rotate(90deg); }
+}
+
+/* ---- EXAMPLES ---- */
+.example-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.example {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1.25rem;
+  border-top: 3px solid var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+.example.counter { border-top-color: var(--accent); }
+.example h4 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.example .tag {
+  background: var(--secondary-soft);
+  color: var(--secondary);
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+.example.counter .tag {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ---- MISCONCEPTIONS ---- */
+.misconception {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin: 0.6rem 0;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.misconception summary {
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  font-weight: 500;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  transition: background 0.2s ease;
+  font-size: 0.92rem;
+}
+.misconception summary::-webkit-details-marker { display: none; }
+.misconception summary:hover { background: var(--bg-card-hover); }
+.misconception summary::before { content: '❌'; font-size: 0.95rem; }
+.misconception summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--text-dim);
+  transition: transform 0.3s ease;
+}
+.misconception[open] summary::after { transform: rotate(180deg); }
+.misconception-body {
+  padding: 0 1.25rem 1.25rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+.misconception-body .myth {
+  color: var(--danger);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+.misconception-body .truth {
+  color: var(--success);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* ---- WHY MATTERS ---- */
+.why-matters {
+  background: linear-gradient(135deg, var(--primary-glow), var(--secondary-glow));
+  border: 1px solid var(--primary-soft);
+  border-radius: var(--radius-sm);
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.why-matters .icon { font-size: 1.5rem; flex-shrink: 0; }
+.why-matters .label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.25rem;
+}
+
+/* ---- CONNECTION ---- */
+.connection {
+  background: var(--bg-card);
+  border-left: 3px solid var(--secondary);
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  font-size: 0.9rem;
+  box-shadow: var(--shadow-sm);
+}
+.connection strong { color: var(--secondary); }
+
+/* ---- ELABORATIVE ---- */
+.elaborative {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  border-left: 3px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+.elaborative .question {
+  color: var(--accent);
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+}
+.elaborative .question::before { content: '🤔'; }
+.elaborative .answer {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+  display: none;
+  font-size: 0.9rem;
+}
+.elaborative.open .answer { display: block; animation: fadeIn 0.3s ease; }
+.elaborative .question::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--text-dim);
+  transition: transform 0.3s ease;
+}
+.elaborative.open .question::after { transform: rotate(180deg); }
+
+/* ============================================================
+   INTERACTIVE: CONCEPT MAP
+   ============================================================ */
+.concept-map {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  box-shadow: var(--shadow-sm);
+}
+.concept-map svg {
+  display: block;
+  margin: 0 auto;
+  min-width: 600px;
+}
+.cm-node { cursor: pointer; transition: all 0.3s ease; }
+.cm-node:hover circle { filter: brightness(1.05); }
+.cm-node text {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  pointer-events: none;
+  text-anchor: middle;
+}
+.cm-edge {
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  fill: none;
+  transition: stroke 0.3s ease;
+}
+.cm-edge.highlight { stroke: var(--primary); stroke-width: 3; }
+.cm-detail {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-code);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  min-height: 50px;
+  border-left: 3px solid var(--primary);
+}
+
+/* ============================================================
+   INTERACTIVE: HOTSPOTS
+   ============================================================ */
+.hotspot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+.hotspot-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.86rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+}
+.hotspot-btn:hover { border-color: var(--primary); background: var(--bg-card-hover); }
+.hotspot-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+  color: var(--primary);
+  font-weight: 500;
+}
+.hotspot-btn .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--secondary);
+  flex-shrink: 0;
+}
+.hotspot-btn.kernel .dot { background: var(--accent); }
+.hotspot-detail {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-code);
+  border-radius: 8px;
+  border-left: 3px solid var(--primary);
+  font-size: 0.9rem;
+  min-height: 60px;
+}
+.hotspot-detail .title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 0.4rem;
+}
+
+/* ============================================================
+   INTERACTIVE: LIFECYCLE
+   ============================================================ */
+.lifecycle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+}
+.lifecycle-state {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  padding: 1.1rem 0.85rem;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+}
+.lifecycle-state:hover { transform: translateY(-3px); border-color: var(--primary); }
+.lifecycle-state.active {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+}
+.lifecycle-state .icon { font-size: 1.6rem; margin-bottom: 0.4rem; }
+.lifecycle-state .name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.lifecycle-state .desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+/* ============================================================
+   INTERACTIVE: FLASHCARDS
+   ============================================================ */
+.flashcard-deck {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.flashcard {
+  perspective: 1000px;
+  height: 200px;
+  cursor: pointer;
+}
+.flashcard-inner {
+  position: relative;
+  width: 100%; height: 100%;
+  transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+  transform-style: preserve-3d;
+}
+.flashcard.flipped .flashcard-inner { transform: rotateY(180deg); }
+.flashcard-face {
+  position: absolute; inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.flashcard-front {
+  background: linear-gradient(135deg, var(--bg-card), var(--bg-soft));
+}
+.flashcard-back {
+  background: linear-gradient(135deg, var(--primary-glow), var(--bg-card));
+  transform: rotateY(180deg);
+  border-color: var(--primary-soft);
+}
+.flashcard-q-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+.flashcard-question {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.flashcard-answer {
+  font-size: 0.92rem;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+.flashcard-extra {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--bg-code);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  margin-top: 0.5rem;
+  display: none;
+}
+.flashcard-extra.shown { display: block; }
+.flashcard-hint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: auto;
+}
+.flashcard-btn {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  transition: all 0.2s ease;
+}
+.flashcard-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ============================================================
+   INTERACTIVE: QUIZ
+   ============================================================ */
+.quiz {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: var(--shadow-sm);
+}
+.quiz-question {
+  font-weight: 500;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+.quiz-options { display: flex; flex-direction: column; gap: 0.5rem; }
+.quiz-option {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  text-align: left;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.quiz-option:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--bg-card);
+}
+.quiz-option .letter {
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  display: grid; place-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.quiz-option.correct {
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+.quiz-option.correct .letter { background: var(--success); color: white; border-color: var(--success); }
+.quiz-option.incorrect {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+.quiz-option.incorrect .letter { background: var(--danger); color: white; border-color: var(--danger); }
+.quiz-option:disabled { cursor: default; }
+.quiz-feedback {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  background: var(--bg-code);
+  border-left: 3px solid var(--secondary);
+  font-size: 0.88rem;
+  display: none;
+}
+.quiz-feedback.shown { display: block; animation: fadeIn 0.4s ease; }
+.quiz-feedback strong { color: var(--primary); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   INTERACTIVE: DRAG AND DROP
+   ============================================================ */
+.dnd-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin: 1rem 0;
+}
+@media (max-width: 600px) { .dnd-container { grid-template-columns: 1fr; } }
+.dnd-column h4 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+.dnd-items {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  min-height: 60px;
+  padding: 0.5rem;
+  background: var(--bg-soft);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.dnd-items.drop-target { border-color: var(--primary); background: var(--primary-glow); }
+.dnd-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  cursor: grab;
+  transition: all 0.2s ease;
+  font-size: 0.88rem;
+  box-shadow: var(--shadow-sm);
+}
+.dnd-item:hover { border-color: var(--primary); transform: translateY(-1px); }
+.dnd-item:active { cursor: grabbing; }
+.dnd-item.dragging { opacity: 0.5; }
+.dnd-slot {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  box-shadow: var(--shadow-sm);
+}
+.dnd-slot .slot-label { font-size: 0.88rem; color: var(--text-muted); }
+.dnd-slot.filled { border-color: var(--secondary); }
+.dnd-slot.correct { border-color: var(--success); background: var(--success-soft); }
+.dnd-slot.incorrect { border-color: var(--danger); background: var(--danger-soft); }
+.dnd-slot .placed {
+  background: var(--primary-glow);
+  padding: 0.3rem 0.6rem;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+/* ============================================================
+   INTERACTIVE: FILL IN THE BLANK
+   ============================================================ */
+.fill-blank {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: var(--shadow-sm);
+}
+.fill-blank .sentence {
+  font-size: 1.02rem;
+  line-height: 2;
+  margin-bottom: 1rem;
+}
+.fill-blank input {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  color: var(--primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.92rem;
+  width: 130px;
+  text-align: center;
+  margin: 0 0.25rem;
+  transition: all 0.2s ease;
+}
+.fill-blank input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+.fill-blank input.correct { border-color: var(--success); color: var(--success); background: var(--success-soft); }
+.fill-blank input.incorrect { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+.hint-system { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.75rem; }
+.hint-btn {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-family: 'JetBrains Mono', monospace;
+  transition: all 0.2s ease;
+}
+.hint-btn:hover:not(:disabled) { border-color: var(--warning); color: var(--warning); }
+.hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.hint-display {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--warning-soft);
+  border-left: 3px solid var(--warning);
+  border-radius: 6px;
+  font-size: 0.86rem;
+  display: none;
+}
+.hint-display.shown { display: block; animation: fadeIn 0.3s ease; }
+
+/* ============================================================
+   INTERACTIVE: SCENARIO
+   ============================================================ */
+.scenario {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: var(--shadow-sm);
+}
+.scenario-intro {
+  background: var(--bg-soft);
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  margin-bottom: 1rem;
+  font-size: 0.92rem;
+}
+.scenario-choice {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  width: 100%;
+}
+.scenario-choice:hover:not(:disabled) { border-color: var(--primary); }
+.scenario-choice:disabled { cursor: default; opacity: 0.7; }
+.scenario-choice.selected { border-color: var(--primary); background: var(--primary-glow); }
+.scenario-consequence {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: var(--bg-code);
+  border-radius: 8px;
+  border-left: 3px solid var(--secondary);
+  font-size: 0.9rem;
+  display: none;
+}
+.scenario-consequence.shown { display: block; animation: fadeIn 0.4s ease; }
+
+/* ============================================================
+   INTERACTIVE: EXPLAIN TO 5YO
+   ============================================================ */
+.explain-5yo {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: var(--shadow-sm);
+}
+.explain-5yo textarea {
+  width: 100%;
+  min-height: 110px;
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.85rem;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.92rem;
+  resize: vertical;
+  transition: border 0.2s ease;
+}
+.explain-5yo textarea:focus { outline: none; border-color: var(--primary); }
+.explain-5yo .actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.explain-5yo .model {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-soft);
+  border-radius: 8px;
+  border-left: 3px solid var(--secondary);
+  display: none;
+}
+.explain-5yo .model.shown { display: block; animation: fadeIn 0.4s ease; }
+.explain-5yo .model h4 {
+  color: var(--secondary);
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.btn:hover { background: var(--primary-bright); transform: translateY(-1px); }
+.btn.secondary {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn.secondary:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ============================================================
+   SLIDE NAVIGATION (bottom bar)
+   ============================================================ */
+.slide-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.slide-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.slide-nav-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+.slide-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.slide-nav-btn.primary {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.slide-nav-btn.primary:hover:not(:disabled) {
+  background: var(--primary-bright);
+  color: white;
+}
+
+/* ============================================================
+   CHEAT SHEET
+   ============================================================ */
+.cheat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+.cheat-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  border-left: 3px solid var(--primary);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+.cheat-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.cheat-item h4 {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--primary);
+  font-size: 0.88rem;
+  margin-bottom: 0.4rem;
+}
+.cheat-item p { font-size: 0.86rem; color: var(--text-muted); margin: 0; }
+
+/* ============================================================
+   SPACED REPETITION
+   ============================================================ */
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.schedule-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.schedule-item .when {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.76rem;
+  color: var(--secondary);
+  margin-bottom: 0.3rem;
+  font-weight: 500;
+}
+.schedule-item .date {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+.schedule-item .what {
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+/* ============================================================
+   FEYNMAN
+   ============================================================ */
+.feynman {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: var(--shadow-sm);
+}
+.feynman-textarea {
+  width: 100%;
+  min-height: 160px;
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.92rem;
+  resize: vertical;
+}
+.feynman-textarea:focus { outline: none; border-color: var(--primary); }
+.feynman-score {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-soft);
+  border-radius: 8px;
+  display: none;
+}
+.feynman-score.shown { display: block; animation: fadeIn 0.4s ease; }
+.score-bar {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+.score-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--danger), var(--warning), var(--success));
+  width: 0%;
+  transition: width 0.6s ease;
+}
+.keyword-list {
+  display: flex; flex-wrap: wrap; gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+.keyword {
+  padding: 0.25rem 0.55rem;
+  background: var(--bg-code);
+  border-radius: 4px;
+  font-size: 0.76rem;
+  font-family: 'JetBrains Mono', monospace;
+  border: 1px solid var(--border);
+}
+.keyword.found { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+.keyword.missed { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+
+/* ============================================================
+   FINAL TEST
+   ============================================================ */
+.test-score {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  text-align: center;
+  margin-top: 1.5rem;
+  display: none;
+  box-shadow: var(--shadow-sm);
+}
+.test-score.shown { display: block; animation: fadeIn 0.5s ease; }
+.test-score .big {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* ============================================================
+   FAQ
+   ============================================================ */
+.faq-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.6rem;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.faq-item summary {
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  font-weight: 500;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  transition: background 0.2s ease;
+  font-size: 0.92rem;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::before { content: '❓'; font-size: 0.95rem; }
+.faq-item summary::after {
+  content: '▸';
+  margin-left: auto;
+  color: var(--text-dim);
+  transition: transform 0.3s ease;
+}
+.faq-item[open] summary::after { transform: rotate(90deg); }
+.faq-item summary:hover { background: var(--bg-card-hover); }
+.faq-answer {
+  padding: 0 1.25rem 1.25rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+/* ============================================================
+   NEXT STEPS
+   ============================================================ */
+.next-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+.next-step {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1.25rem;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+}
+.next-step:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.next-step h4 { color: var(--primary); margin-bottom: 0.4rem; font-size: 0.98rem; }
+.next-step p { font-size: 0.88rem; color: var(--text-muted); margin: 0; }
+.next-step .difficulty {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--secondary-soft);
+  color: var(--secondary);
+  border-radius: 4px;
+  margin-top: 0.6rem;
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--primary);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 0.88rem;
+  z-index: 1000;
+  box-shadow: var(--shadow-lg);
+  animation: toastIn 0.3s ease;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ============================================================
+   LOADING SCREEN
+   ============================================================ */
+#loader {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 1.5rem;
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+#loader.hidden { opacity: 0; visibility: hidden; }
+.loader-orb {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--primary), var(--secondary), var(--accent), var(--primary));
+  animation: spin 1.4s linear infinite;
+  position: relative;
+}
+.loader-orb::after {
+  content: ''; position: absolute; inset: 7px;
+  background: var(--bg); border-radius: 50%;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loader-text {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    left: 0; top: 0;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-lg);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .menu-toggle { display: flex; }
+  .slide-inner { padding: 2rem 1.25rem 4rem; }
+  .topbar { padding: 0.75rem 1.25rem; }
+}
+
+/* ============================================================
+   ACCESSIBILITY
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .slide-track { transition: none !important; }
+}
+button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Sidebar backdrop for mobile */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 49;
+}
+.sidebar-backdrop.show { display: block; }
+</style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loader">
+  <div class="loader-orb"></div>
+  <div class="loader-text">Preparing your learning journey</div>
+</div>
+
+<div class="app">
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="logo-mark">OS</div>
+        <div>
+          <div class="logo-text">Deep Dive</div>
+          <div class="logo-sub">Systems Performance</div>
+        </div>
+      </div>
+      <div class="sidebar-progress">
+        <div class="sidebar-progress-bar">
+          <div class="sidebar-progress-fill" id="progressFill"></div>
+        </div>
+        <div class="sidebar-progress-label">
+          <span>Progress</span>
+          <span id="progressLabel">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebarNav">
+      <div class="sidebar-section-label">Overview</div>
+      <div class="nav-item active" data-slide="0">
+        <span class="nav-num"><span class="nav-num-text">★</span></span>
+        <span class="nav-label">Welcome</span>
+        <span class="nav-icon">🏠</span>
+      </div>
+
+      <div class="sidebar-section-label">Learning Modules</div>
+      <div class="nav-item" data-slide="1" data-module="1">
+        <span class="nav-num"><span class="nav-num-text">1</span></span>
+        <span class="nav-label">The OS as Abstraction</span>
+        <span class="nav-icon">🔧</span>
+      </div>
+      <div class="nav-item" data-slide="2" data-module="2">
+        <span class="nav-num"><span class="nav-num-text">2</span></span>
+        <span class="nav-label">Process Anatomy</span>
+        <span class="nav-icon">🧬</span>
+      </div>
+      <div class="nav-item" data-slide="3" data-module="3">
+        <span class="nav-num"><span class="nav-num-text">3</span></span>
+        <span class="nav-label">Processes vs Threads</span>
+        <span class="nav-icon">⚡</span>
+      </div>
+      <div class="nav-item" data-slide="4" data-module="4">
+        <span class="nav-num"><span class="nav-num-text">4</span></span>
+        <span class="nav-label">User & Kernel Mode</span>
+        <span class="nav-icon">🛡️</span>
+      </div>
+      <div class="nav-item" data-slide="5" data-module="5">
+        <span class="nav-num"><span class="nav-num-text">5</span></span>
+        <span class="nav-label">Virtual Memory</span>
+        <span class="nav-icon">🧠</span>
+      </div>
+      <div class="nav-item" data-slide="6" data-module="6">
+        <span class="nav-num"><span class="nav-num-text">6</span></span>
+        <span class="nav-label">Performance Synthesis</span>
+        <span class="nav-icon">📊</span>
+      </div>
+
+      <div class="sidebar-section-label">Review & Test</div>
+      <div class="nav-item" data-slide="7">
+        <span class="nav-num"><span class="nav-num-text">📋</span></span>
+        <span class="nav-label">Cheat Sheet</span>
+        <span class="nav-icon">📝</span>
+      </div>
+      <div class="nav-item" data-slide="8">
+        <span class="nav-num"><span class="nav-num-text">🎓</span></span>
+        <span class="nav-label">Feynman Exercise</span>
+        <span class="nav-icon">✍️</span>
+      </div>
+      <div class="nav-item" data-slide="9">
+        <span class="nav-num"><span class="nav-num-text">🏆</span></span>
+        <span class="nav-label">Final Test</span>
+        <span class="nav-icon">🎯</span>
+      </div>
+      <div class="nav-item" data-slide="10">
+        <span class="nav-num"><span class="nav-num-text">❓</span></span>
+        <span class="nav-label">FAQ & Next Steps</span>
+        <span class="nav-icon">🚀</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      Based on Brendan Gregg's<br>Systems Performance
+    </div>
+  </aside>
+
+  <!-- Mobile backdrop -->
+  <div class="sidebar-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+
+  <!-- ============================================================
+       MAIN CONTENT — SLIDE DECK
+       ============================================================ -->
+  <main class="main">
+    <div class="slide-track" id="slideTrack">
+
+      <!-- ====================================================
+           SLIDE 0: HERO / WELCOME
+           ==================================================== -->
+      <section class="slide hero-slide" data-slide="0">
+        <div class="hero-content">
+          <span class="hero-eyebrow">📘 Interactive Deep Dive</span>
+          <h1>How Operating Systems<br>Actually Work</h1>
+          <p class="hero-sub">A slide-by-slide journey through the abstractions your code runs on — processes, threads, virtual memory, and the kernel boundary that makes modern computing possible.</p>
+          <div class="hero-stats">
+            <div class="stat-pill"><span class="stat-num">6</span><span class="stat-label">Modules</span></div>
+            <div class="stat-pill"><span class="stat-num">15+</span><span class="stat-label">Activities</span></div>
+            <div class="stat-pill"><span class="stat-num">15</span><span class="stat-label">Test Qs</span></div>
+            <div class="stat-pill"><span class="stat-num">∞</span><span class="stat-label">Ah-ha moments</span></div>
+          </div>
+          <button class="hero-cta" onclick="goToSlide(1)">
+            Start Learning →
+          </button>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 1: MODULE 1 — OS as Abstraction
+           ==================================================== -->
+      <section class="slide" data-slide="1">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">1</span>
+            <span class="crumb-title">The OS as a Layer of Abstraction</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="nextSlide()">Next →</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <div class="module-header">
+            <div class="module-header-content">
+              <span class="module-tag">FOUNDATIONS</span>
+              <h2>The Operating System as a Layer of Abstraction</h2>
+            </div>
+            <div class="module-number-big">01</div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📖</span> Core Explanation</h3>
+            <p>An <strong>operating system</strong> is software that sits between your applications and physical hardware. Its job is to provide <strong>abstractions</strong> — clean, simplified models of reality — so application engineers don't worry about the messy details of sharing physical resources.</p>
+            <p>On your motherboard: a <strong>CPU</strong> (with multiple cores), <strong>RAM</strong> (working memory), and a <strong>disk</strong> (storage). You want to run a chat app, music player, database, browser, terminal, and video editor — all at once, on this one set of hardware.</p>
+            <p>Without an OS, every app would need to coordinate: "Hey music app, I'm using RAM 0–1000, you use 1001–2000." A malicious app could overwrite another's memory. The OS solves this with <strong>processes</strong> (each app thinks it has its own CPU and memory), <strong>virtual memory</strong> (each app thinks it owns all RAM), and <strong>file systems</strong> (clean data persistence).</p>
+          </div>
+
+          <div class="elaborative" data-elab>
+            <div class="question">But why do we need abstractions at all? Why not let programs talk to hardware directly?</div>
+            <div class="answer">
+              <p>Three reasons: <strong>(1) Isolation</strong> — without abstractions, a buggy app could read passwords from another's memory or crash the system. <strong>(2) Coordination</strong> — if programs negotiated RAM manually, every program would need to know about every other. <strong>(3) Portability</strong> — abstractions let the same program run on different hardware.</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🔧</span> The Hardware Reality</h3>
+            <ol class="steps">
+              <li><strong>The CPU</strong> — A chip with multiple cores. Each core executes one instruction stream at a time.</li>
+              <li><strong>The RAM</strong> — A big pool of bytes. CPU reads/writes constantly. Fast but volatile.</li>
+              <li><strong>The Disk</strong> — Slower than RAM, but persistent. Data is loaded into RAM before use.</li>
+              <li><strong>I/O Devices</strong> — Network cards, GPUs, keyboards. The OS provides unified access.</li>
+            </ol>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">💡</span> Visual Analogy</h3>
+            <div class="analogy">
+              <div class="analogy-side real">
+                <h4>Operating System</h4>
+                <p>Provides abstractions that let many programs share one physical computer without conflicting.</p>
+              </div>
+              <div class="analogy-arrow">⇄</div>
+              <div class="analogy-side metaphor">
+                <h4>A Hotel</h4>
+                <p>One building (hardware), private rooms (processes), shared services managed by staff (the kernel).</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🌟</span> Real-World Examples</h3>
+            <div class="example-grid">
+              <div class="example">
+                <h4>Obvious <span class="tag">Everyday</span></h4>
+                <p>You're on Zoom, listening to Spotify, with 20 browser tabs, running Postgres. None knows the others exist. Each thinks it has its own CPU and RAM.</p>
+              </div>
+              <div class="example counter">
+                <h4>Counter-Intuitive <span class="tag">Edge Case</span></h4>
+                <p>Real-time operating systems (pacemakers, spacecraft) sometimes <em>throw out</em> standard abstractions. Predictability matters more than fairness. A pacemaker can't wait 10ms for the scheduler.</p>
+              </div>
+            </div>
+          </div>
+
+          <details class="misconception">
+            <summary>Abstractions are free — they don't cost anything.</summary>
+            <div class="misconception-body">
+              <p class="myth">❌ Myth: Abstractions are just conceptual; they don't impact performance.</p>
+              <p class="truth">✅ Truth: Every abstraction has a cost. Process creation takes time. Context switching wastes CPU cycles. Virtual memory translation adds latency. The art of performance is knowing when these costs matter.</p>
+            </div>
+          </details>
+
+          <details class="misconception">
+            <summary>AI will make knowing this obsolete.</summary>
+            <div class="misconception-body">
+              <p class="myth">❌ Myth: Since AI writes most code, engineers don't need OS internals.</p>
+              <p class="truth">✅ Truth: The biggest AI companies aggressively hire infrastructure experts. To build systems AI runs on, you need humans who deeply understand OS. AI makes engineers faster; it doesn't replace expertise.</p>
+            </div>
+          </details>
+
+          <div class="why-matters">
+            <div class="icon">🎯</div>
+            <div>
+              <div class="label">Why This Matters</div>
+              <p>Every performance problem — slow app, high latency, memory leak, CPU spike — traces back to how your program interacts with OS abstractions. Skip this foundation and you'll guess forever.</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🔍</span> Click Each Hardware Component</h3>
+            <div class="hotspot-grid">
+              <button class="hotspot-btn" data-hw="cpu"><span class="dot"></span>CPU (Cores)</button>
+              <button class="hotspot-btn" data-hw="ram"><span class="dot"></span>RAM</button>
+              <button class="hotspot-btn" data-hw="disk"><span class="dot"></span>Disk</button>
+              <button class="hotspot-btn" data-hw="io"><span class="dot"></span>I/O Devices</button>
+            </div>
+            <div class="hotspot-detail" id="hwDetail">
+              <div class="title">Click a component to learn more</div>
+              <div>Each plays a specific role, abstracted differently by the OS.</div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📝</span> Flashcards</h3>
+            <div class="flashcard-deck" id="fcDeck1"></div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">✅</span> Quick Check</h3>
+            <div class="quiz" data-quiz="1"></div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">✍️</span> Explain It to a 5-Year-Old</h3>
+            <div class="explain-5yo" data-explain="1">
+              <p style="margin-bottom: 0.75rem; color: var(--text-muted); font-size: 0.9rem;">Explain <strong>why we need an operating system</strong> in your own words.</p>
+              <textarea placeholder="Type your explanation here..."></textarea>
+              <div class="actions">
+                <button class="btn" onclick="revealModel(this)">Reveal Model Answer</button>
+              </div>
+              <div class="model">
+                <h4>Model Answer</h4>
+                <p>Imagine you and your friends all want to play with the same toy box. If you all grabbed toys at once, you'd fight. The operating system is like a teacher — it makes sure everyone gets a turn, no one takes toys that aren't theirs, and everyone feels like they have the whole toy box to themselves.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="connection">
+            <strong>🔗 Connects to Module 2:</strong> The <em>process</em> is the most important abstraction the OS provides. Now we'll zoom into what a process actually <em>is</em>.
+          </div>
+
+          <div class="slide-nav">
+            <button class="slide-nav-btn" onclick="prevSlide()">← Previous</button>
+            <button class="slide-nav-btn primary" onclick="completeModule(1); nextSlide()">Mark Complete & Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 2: MODULE 2 — Process Anatomy
+           ==================================================== -->
+      <section class="slide" data-slide="2">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">2</span>
+            <span class="crumb-title">Process Anatomy & Lifecycle</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="nextSlide()">Next →</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <div class="module-header">
+            <div class="module-header-content">
+              <span class="module-tag">CORE CONCEPT</span>
+              <h2>The Process — Anatomy & Lifecycle</h2>
+            </div>
+            <div class="module-number-big">02</div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📖</span> Core Explanation</h3>
+            <p>A <strong>process</strong> is the OS abstraction for "one running program." When you launch your browser, the OS creates a process. When you run a Python script, that's a process. Nearly everything running on your computer is a process.</p>
+            <p>The genius: each program <strong>pretends it has the entire computer to itself</strong>. Your browser doesn't know Spotify is running. It doesn't know which RAM addresses are "safe." The process gives a clean illusion: "You have a CPU. You have memory. Go wild."</p>
+            <p>Behind the scenes, the OS decides which process runs on which core and for how long (<strong>scheduler</strong>), maps each process's "fake" addresses to real RAM (<strong>virtual memory</strong>), and tracks open files (<strong>file descriptors</strong>).</p>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🧬</span> Anatomy of a Process</h3>
+            <p>A process has a <strong>user address space</strong> (where the program lives) and a <strong>kernel context</strong> (metadata the OS tracks). Click any component:</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+              <div>
+                <h4 style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--secondary); margin-bottom: 0.5rem;">User Address Space</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                  <button class="hotspot-btn" data-pd="exec"><span class="dot"></span>Executable (Code)</button>
+                  <button class="hotspot-btn" data-pd="libs"><span class="dot"></span>Libraries</button>
+                  <button class="hotspot-btn" data-pd="heap"><span class="dot"></span>Heap</button>
+                  <button class="hotspot-btn" data-pd="stack"><span class="dot"></span>User Stack</button>
+                </div>
+              </div>
+              <div>
+                <h4 style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 0.5rem;">Kernel Context</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                  <button class="hotspot-btn kernel" data-pd="pid"><span class="dot"></span>PID & Metadata</button>
+                  <button class="hotspot-btn kernel" data-pd="kstack"><span class="dot"></span>Kernel Stack</button>
+                  <button class="hotspot-btn kernel" data-pd="fd"><span class="dot"></span>File Descriptors</button>
+                  <button class="hotspot-btn kernel" data-pd="regs"><span class="dot"></span>Registers & State</button>
+                </div>
+              </div>
+            </div>
+            <div class="hotspot-detail" id="pdDetail" style="margin-top: 1rem;">
+              <div class="title">Click any component above</div>
+              <div>Each plays a specific role in the process abstraction.</div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📊</span> Stack vs Heap</h3>
+            <div class="example-grid">
+              <div class="example" style="border-top-color: var(--secondary);">
+                <h4>The Stack</h4>
+                <p>Function call frames — local variables, return addresses. Grows/shrinks automatically as functions are called and return. Fast, structured, LIFO.</p>
+              </div>
+              <div class="example" style="border-top-color: var(--accent);">
+                <h4>The Heap</h4>
+                <p>Dynamic allocations — objects, arrays, hash maps. Created with <code>malloc</code> or <code>new</code>. Can fragment. Slower, more flexible.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🛠️</span> Creating a Process: fork() + exec()</h3>
+            <ol class="steps">
+              <li><strong>fork()</strong> — Creates an <em>identical copy</em> of the calling process. The child gets a new PID but is otherwise a clone: same code, same memory, same open files.</li>
+              <li><strong>exec()</strong> — Replaces the current process's program with a new one. Keeps PID and file descriptors, but replaces code, data, and heap.</li>
+              <li><strong>The pattern:</strong> To launch a new program: <code>fork()</code> to clone yourself, then in the child call <code>exec()</code> to transform into the new program.</li>
+            </ol>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">💡</span> Visual Analogy</h3>
+            <div class="analogy">
+              <div class="analogy-side real">
+                <h4>fork() + exec()</h4>
+                <p>Make a perfect clone of yourself, then the clone puts on a different uniform and becomes a different worker — but keeps your access badge.</p>
+              </div>
+              <div class="analogy-arrow">⇄</div>
+              <div class="analogy-side metaphor">
+                <h4>A Cell Dividing</h4>
+                <p>Like mitosis: one cell splits into two identical cells. Then one differentiates into a new type. The original stays as it was.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🌟</span> Real-World Examples</h3>
+            <div class="example-grid">
+              <div class="example">
+                <h4>Obvious <span class="tag">Shell</span></h4>
+                <p>Type <code>ls</code> in terminal: shell calls <code>fork()</code>, child calls <code>exec("ls")</code>. Shell waits, then shows the prompt again.</p>
+              </div>
+              <div class="example counter">
+                <h4>Counter-Intuitive <span class="tag">Boot</span></h4>
+                <p>When your computer boots, the kernel creates a single <strong>init process</strong> (PID 1). <em>Every other process</em> is descended from this one via fork(). Killing PID 1 kills the system.</p>
+              </div>
+            </div>
+          </div>
+
+          <details class="misconception">
+            <summary>Processes and programs are the same thing.</summary>
+            <div class="misconception-body">
+              <p class="myth">❌ Myth: "Program" and "process" are interchangeable.</p>
+              <p class="truth">✅ Truth: A <strong>program</strong> is a static file on disk. A <strong>process</strong> is a running instance. One program can have many processes. A program is the recipe; a process is the cake being baked.</p>
+            </div>
+          </details>
+
+          <details class="misconception">
+            <summary>fork() copies all memory byte-by-byte.</summary>
+            <div class="misconception-body">
+              <p class="myth">❌ Myth: fork() immediately duplicates all RAM.</p>
+              <p class="truth">✅ Truth: Modern OSes use <strong>copy-on-write</strong>. Parent and child share physical pages until one writes. Only then is a copy made. fork() is extremely fast even for gigabyte processes.</p>
+            </div>
+          </details>
+
+          <div class="why-matters">
+            <div class="icon">🎯</div>
+            <div>
+              <div class="label">Why This Matters</div>
+              <p>Understanding process anatomy is the difference between "my app is slow" and "my heap is fragmented, causing allocator overhead, and I can prove it."</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📊</span> Process Lifecycle — Click Each State</h3>
+            <div class="lifecycle-grid">
+              <button class="lifecycle-state" data-state="ready">
+                <div class="icon">⏳</div>
+                <div class="name">Ready</div>
+                <div class="desc">Waiting for CPU</div>
+              </button>
+              <button class="lifecycle-state" data-state="running">
+                <div class="icon">🏃</div>
+                <div class="name">Running</div>
+                <div class="desc">On CPU now</div>
+              </button>
+              <button class="lifecycle-state" data-state="waiting">
+                <div class="icon">😴</div>
+                <div class="name">Waiting</div>
+                <div class="desc">Blocked on I/O</div>
+              </button>
+              <button class="lifecycle-state" data-state="zombie">
+                <div class="icon">🧟</div>
+                <div class="name">Zombie</div>
+                <div class="desc">Done, awaiting cleanup</div>
+              </button>
+            </div>
+            <div class="hotspot-detail" id="lifecycleDetail">
+              <strong>Ready</strong> — The process is ready to run but hasn't been picked by the scheduler yet. It's in the ready queue, waiting for its turn on a CPU core.
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🧩</span> Match Components to Their Location</h3>
+            <div class="dnd-container">
+              <div class="dnd-column">
+                <h4>Components (drag these)</h4>
+                <div class="dnd-items" id="dndSource1"></div>
+              </div>
+              <div class="dnd-column">
+                <h4>Drop into correct section</h4>
+                <div id="dndSlots1">
+                  <div class="dnd-slot" data-slot="userspace">
+                    <span class="slot-label">User Space</span>
+                  </div>
+                  <div class="dnd-slot" data-slot="kernel">
+                    <span class="slot-label">Kernel Context</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="dndFeedback1" style="margin-top: 1rem; padding: 1rem; border-radius: 8px; font-size: 0.9rem; display: none;"></div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🎯</span> Fill in the Blank</h3>
+            <div class="fill-blank" data-fib="1">
+              <p class="sentence">When a process calls <input type="text" data-answer="fork" data-fib-input>, the OS creates an identical copy called the child process.</p>
+              <div class="hint-system">
+                <button class="hint-btn" data-hint="1">Hint 1</button>
+                <button class="hint-btn" data-hint="2">Hint 2</button>
+                <button class="hint-btn" data-hint="3">Hint 3</button>
+                <button class="hint-btn" data-reveal>Reveal Answer</button>
+              </div>
+              <div class="hint-display"></div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">✍️</span> Explain It to a 5-Year-Old</h3>
+            <div class="explain-5yo" data-explain="2">
+              <p style="margin-bottom: 0.75rem; color: var(--text-muted); font-size: 0.9rem;">Explain <strong>what a process is</strong> in your own words.</p>
+              <textarea placeholder="Type your explanation here..."></textarea>
+              <div class="actions">
+                <button class="btn" onclick="revealModel(this)">Reveal Model Answer</button>
+              </div>
+              <div class="model">
+                <h4>Model Answer</h4>
+                <p>Imagine a toy robot. When you turn it on, it becomes "alive" — it can do things, remember things. A process is like a robot that has been turned on. The program is the instructions in its brain; the process is the robot actually running around doing them. You can have lots of robots running at once!</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="connection">
+            <strong>🔗 Connects to Module 3:</strong> Once you understand a process, the next question: "Can a process do multiple things at once?" That's what threads are for.
+          </div>
+
+          <div class="slide-nav">
+            <button class="slide-nav-btn" onclick="prevSlide()">← Previous</button>
+            <button class="slide-nav-btn primary" onclick="completeModule(2); nextSlide()">Mark Complete & Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 3: MODULE 3 — Processes vs Threads
+           ==================================================== -->
+      <section class="slide" data-slide="3">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">3</span>
+            <span class="crumb-title">Processes vs Threads</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="nextSlide()">Next →</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <div class="module-header">
+            <div class="module-header-content">
+              <span class="module-tag">PARALLELISM</span>
+              <h2>Processes vs Threads</h2>
+            </div>
+            <div class="module-number-big">03</div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📖</span> Core Explanation</h3>
+            <p>A <strong>thread</strong> is a unit of execution that lives <em>inside</em> a process. A process can have one thread (simple case) or many — two, ten, hundreds. Each thread has its own <strong>program stack</strong> (different point in code), but all threads share the same <strong>virtual memory space</strong> — same heap, same code, same open files.</p>
+            <p>This is the critical difference. Create a new process (fork), you get isolated copies of everything. Create a new thread, you get a new execution stream that shares memory. Threads are <strong>lighter weight</strong> — faster to create, faster to switch, less memory. But sharing memory means threads can step on each other's toes.</p>
+            <p>The choice is one of the most consequential architectural decisions. <strong>Multi-process</strong> (Chrome, one process per tab) prioritizes isolation. <strong>Multi-threaded</strong> (most web servers) prioritizes performance and easy data sharing, but requires careful synchronization.</p>
+          </div>
+
+          <div class="elaborative" data-elab>
+            <div class="question">But why are threads "lighter" than processes? What's actually different?</div>
+            <div class="answer">
+              <p>Switching between <strong>processes</strong> means swapping page tables, invalidating TLBs, swapping file descriptor tables. Expensive. Switching between <strong>threads in the same process</strong> — none of that changes. The OS only swaps the stack pointer, program counter, and registers. Much less work, much faster.</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">⚖️</span> The Trade-off</h3>
+            <div class="example-grid">
+              <div class="example">
+                <h4>Multiprocess <span class="tag">Isolation</span></h4>
+                <ul>
+                  <li>Private memory per process</li>
+                  <li>Crash in one doesn't kill others</li>
+                  <li>Higher memory overhead</li>
+                  <li>Slower to create/switch</li>
+                  <li>Communication via pipes/messages</li>
+                </ul>
+              </div>
+              <div class="example" style="border-top-color: var(--accent);">
+                <h4>Multi-threaded <span class="tag">Shared</span></h4>
+                <ul>
+                  <li>Threads share one memory space</li>
+                  <li>Crash in one kills whole process</li>
+                  <li>Low memory overhead</li>
+                  <li>Fast to create/switch</li>
+                  <li>Communication via shared variables (with locks!)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">💡</span> Visual Analogy</h3>
+            <div class="analogy">
+              <div class="analogy-side real">
+                <h4>Process vs Thread</h4>
+                <p>A process is a separate house: private kitchen, private bathroom. A thread is a roommate: private bedroom, shared kitchen.</p>
+              </div>
+              <div class="analogy-arrow">⇄</div>
+              <div class="analogy-side metaphor">
+                <h4>Workers in an Office</h4>
+                <p>Processes are separate companies — they communicate by mail. Threads are coworkers — they share the whiteboard and coffee machine, but each has their own desk.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🌟</span> Real-World Examples</h3>
+            <div class="example-grid">
+              <div class="example">
+                <h4>Obvious <span class="tag">Chrome</span></h4>
+                <p>Chrome uses <strong>multiprocess</strong>: each tab is its own process. If one tab crashes, others survive. Cost? More memory. Chrome accepts this trade because stability matters.</p>
+              </div>
+              <div class="example counter">
+                <h4>Counter-Intuitive <span class="tag">Redis</span></h4>
+                <p>Redis is famously <strong>single-threaded</strong> for commands. You'd think this makes it slow — it's blazingly fast. Avoiding locks, cache misses, and context switches often beats naive parallelism.</p>
+              </div>
+            </div>
+          </div>
+
+          <details class="misconception">
+            <summary>More threads always means faster.</summary>
+            <div class="misconception-body">
+              <p class="myth">❌ Myth: If 4 threads are good, 40 are 10x better.</p>
+              <p class="truth">✅ Truth: Beyond the number of CPU cores, more threads often means <em>slower</em>. The OS wastes time context-switching, caches get thrashed, lock contention increases. Sweet spot: 1–2 threads per core for CPU-bound work.</p>
+            </div>
+          </details>
+
+          <div class="why-matters">
+            <div class="icon">🎯</div>
+            <div>
+              <div class="label">Why This Matters</div>
+              <p>This decision shapes your entire system's reliability, performance, and complexity. Get it wrong: memory bloat (too many processes) or race-condition hell (too many threads).</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🎮</span> Mini-Challenge: Architecting a Web Server</h3>
+            <div class="scenario" data-scenario="3">
+              <div class="scenario-intro">
+                <strong>Scenario:</strong> You're building a web server handling 10,000 concurrent connections. Each connection spends 90% of time waiting on database I/O, 10% doing CPU work. Choose your architecture.
+              </div>
+              <button class="scenario-choice" data-choice="a">A) One process per connection (10,000 processes)</button>
+              <button class="scenario-choice" data-choice="b">B) One thread per connection (10,000 threads in one process)</button>
+              <button class="scenario-choice" data-choice="c">C) A small pool of threads (say 16) using async I/O</button>
+              <button class="scenario-choice" data-choice="d">D) A small pool of processes (say 16) using async I/O</button>
+              <div class="scenario-consequence"></div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">✅</span> Quick Check</h3>
+            <div class="quiz" data-quiz="3"></div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">✍️</span> Explain It to a 5-Year-Old</h3>
+            <div class="explain-5yo" data-explain="3">
+              <p style="margin-bottom: 0.75rem; color: var(--text-muted); font-size: 0.9rem;">Explain the <strong>difference between a process and a thread</strong>.</p>
+              <textarea placeholder="Type your explanation here..."></textarea>
+              <div class="actions">
+                <button class="btn" onclick="revealModel(this)">Reveal Model Answer</button>
+              </div>
+              <div class="model">
+                <h4>Model Answer</h4>
+                <p>A process is a whole house — its own kitchen, bathroom, everything. People in different houses can't share easily; they send messages. A thread is a roommate in a house. Multiple roommates share the kitchen and TV, but each has their own bedroom. If the house catches fire, everyone in it is in trouble — but the house next door is fine.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="connection">
+            <strong>🔗 Connects to Module 4:</strong> Both processes and threads need to talk to hardware — read files, send packets, allocate memory. They cross the <strong>user/kernel boundary</strong> via system calls.
+          </div>
+
+          <div class="slide-nav">
+            <button class="slide-nav-btn" onclick="prevSlide()">← Previous</button>
+            <button class="slide-nav-btn primary" onclick="completeModule(3); nextSlide()">Mark Complete & Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 4: MODULE 4 — User/Kernel Mode
+           ==================================================== -->
+      <section class="slide" data-slide="4">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">4</span>
+            <span class="crumb-title">User Mode, Kernel Mode & System Calls</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="nextSlide()">Next →</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <div class="module-header">
+            <div class="module-header-content">
+              <span class="module-tag">BOUNDARY</span>
+              <h2>User Mode, Kernel Mode & System Calls</h2>
+            </div>
+            <div class="module-number-big">04</div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📖</span> Core Explanation</h3>
+            <p>Modern CPUs run code at different <strong>privilege levels</strong>. The key distinction: <strong>user mode</strong> (where apps run) and <strong>kernel mode</strong> (where the OS kernel runs). In user mode, code is restricted — can't directly access hardware, can't read arbitrary memory. In kernel mode, code can do anything.</p>
+            <p>This separation makes systems secure and stable. If your browser tries to read the password file, the CPU refuses. If your game crashes, it takes down only itself.</p>
+            <p>But apps <em>do</em> need privileged things: read files, send packets, allocate memory. They do this through <strong>system calls</strong> — controlled entry points into the kernel. The CPU switches to kernel mode, executes kernel code, switches back.</p>
+          </div>
+
+          <div class="elaborative" data-elab>
+            <div class="question">But why can't user code just pretend to be the kernel?</div>
+            <div class="answer">
+              <p>The CPU enforces this in hardware. Special instructions (like <code>syscall</code> on x86) transition to kernel mode, but only jump to <em>kernel-defined entry points</em>. User code can't jump to arbitrary kernel addresses. The kernel registers handlers at boot; the CPU's privilege architecture enforces that only those specific entry points can escalate. Hardware-enforced security, not just software convention.</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🔧</span> How a System Call Works</h3>
+            <ol class="steps">
+              <li><strong>Application calls a wrapper</strong> — e.g., <code>open("file.txt", O_RDONLY)</code> in your C library.</li>
+              <li><strong>Wrapper loads syscall number and args</strong> into specific CPU registers.</li>
+              <li><strong>Wrapper executes <code>syscall</code> instruction</strong> — triggers transition to kernel mode.</li>
+              <li><strong>CPU jumps to kernel's syscall handler</strong> — a predefined entry point.</li>
+              <li><strong>Kernel executes the handler</strong> with full privileges.</li>
+              <li><strong>Kernel writes result</strong> to a register.</li>
+              <li><strong>CPU returns to user mode</strong>, wrapper returns result to app.</li>
+            </ol>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📜</span> Important System Calls</h3>
+            <div class="example-grid">
+              <div class="example">
+                <h4>Process Management</h4>
+                <ul>
+                  <li><code>fork()</code> — create child process</li>
+                  <li><code>exec()</code> — replace program</li>
+                  <li><code>exit()</code> — terminate</li>
+                  <li><code>wait()</code> — wait for child</li>
+                  <li><code>kill()</code> — send signal</li>
+                </ul>
+              </div>
+              <div class="example">
+                <h4>File & I/O</h4>
+                <ul>
+                  <li><code>open()</code> — open file, get fd</li>
+                  <li><code>read()</code> — read from fd</li>
+                  <li><code>write()</code> — write to fd</li>
+                  <li><code>close()</code> — close fd</li>
+                  <li><code>mmap()</code> — map file into memory</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">💡</span> Visual Analogy</h3>
+            <div class="analogy">
+              <div class="analogy-side real">
+                <h4>User vs Kernel Mode</h4>
+                <p>Your app runs restricted. When it needs hardware access, it makes a syscall — a controlled handoff to the kernel.</p>
+              </div>
+              <div class="analogy-arrow">⇄</div>
+              <div class="analogy-side metaphor">
+                <h4>A Restaurant</h4>
+                <p>You sit in the dining room (user mode) and can't enter the kitchen. When you want food, you ask the waiter (syscall). The waiter goes to the kitchen, gets food, brings it back.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🌟</span> Real-World Examples</h3>
+            <div class="example-grid">
+              <div class="example">
+                <h4>Obvious <span class="tag">Reading a file</span></h4>
+                <p>When Python calls <code>open("data.csv").read()</code>, that's a syscall to the kernel, which reads from disk and returns bytes. Your code never touches the disk directly.</p>
+              </div>
+              <div class="example counter">
+                <h4>Counter-Intuitive <span class="tag">Time</span></h4>
+                <p>Even getting the current time was a syscall. Modern systems use <code>vDSO</code> — a kernel-provided code page mapped into user space — so time can be read without a context switch. This optimization exists because reading time happens <em>so often</em>.</p>
+              </div>
+            </div>
+          </div>
+
+          <details class="misconception">
+            <summary>System calls are just regular function calls.</summary>
+            <div class="misconception-body">
+              <p class="myth">❌ Myth: A syscall is just like calling any other function — fast and cheap.</p>
+              <p class="truth">✅ Truth: Syscalls are <em>much</em> more expensive. They involve a privilege switch, kernel-side validation, cache pollution, and a return trip. A function call: nanoseconds. A syscall: 1–10 microseconds — 1000x slower. This is why high-performance code batches syscalls.</p>
+            </div>
+          </details>
+
+          <div class="why-matters">
+            <div class="icon">🎯</div>
+            <div>
+              <div class="label">Why This Matters</div>
+              <p>Every file read, every network packet, every memory allocation crosses this boundary. If your hot loop makes thousands of syscalls, that's likely your bottleneck. Tools like <code>strace</code> exist to show you what syscalls your program makes.</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">✅</span> Quick Check</h3>
+            <div class="quiz" data-quiz="4"></div>
+          </div>
+
+          <div class="connection">
+            <strong>🔗 Connects to Module 5:</strong> Virtual memory is one of the most important subsystems the kernel manages. When your program reads address <code>0x12345</code>, that's virtual — the kernel translates it to physical.
+          </div>
+
+          <div class="slide-nav">
+            <button class="slide-nav-btn" onclick="prevSlide()">← Previous</button>
+            <button class="slide-nav-btn primary" onclick="completeModule(4); nextSlide()">Mark Complete & Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 5: MODULE 5 — Virtual Memory
+           ==================================================== -->
+      <section class="slide" data-slide="5">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">5</span>
+            <span class="crumb-title">Virtual Memory — The Grand Illusion</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="nextSlide()">Next →</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <div class="module-header">
+            <div class="module-header-content">
+              <span class="module-tag">MEMORY</span>
+              <h2>Virtual Memory — The Grand Illusion</h2>
+            </div>
+            <div class="module-number-big">05</div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📖</span> Core Explanation</h3>
+            <p><strong>Virtual memory</strong> lets every process pretend it has its own private, contiguous, near-infinite memory space — even though physical RAM is shared and may be much smaller than what any process wants to use.</p>
+            <p>When your program reads address <code>0x12345</code>, that address is <em>virtual</em>. Between your CPU and physical RAM sits the <strong>Memory Management Unit (MMU)</strong> — partly hardware, partly kernel software — that translates virtual to physical addresses on the fly.</p>
+            <p>The OS maintains a <strong>page table</strong> for each process — a mapping from virtual pages to physical frames. Memory is divided into <strong>pages</strong> (typically 4KB or 16KB). The page table tracks where each virtual page actually resides in RAM — or whether it's been pushed out to disk.</p>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🔧</span> How Address Translation Works</h3>
+            <p>Let's trace what happens when a CPU instruction loads from virtual address <code>0x2C8</code>:</p>
+            <ol class="steps">
+              <li><strong>CPU issues a load</strong> for virtual address <code>0x2C8</code>.</li>
+              <li><strong>The address is split</strong> into page number (high bits: <code>0x2</code>) and offset (low bits: <code>0xC8</code>).</li>
+              <li><strong>The MMU looks up the page number</strong> in the current process's page table.</li>
+              <li><strong>If resident (R=1)</strong>, the MMU combines the physical page number with the offset to form the physical address.</li>
+              <li><strong>If not resident (R=0)</strong> — a "page fault" — the CPU traps to the kernel, which fetches the page from disk, loads it into RAM, updates the table, and retries.</li>
+              <li><strong>The CPU reads the bytes</strong> from the translated physical address.</li>
+            </ol>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🧩</span> Page Table Entry Bits</h3>
+            <div class="example-grid">
+              <div class="example">
+                <h4>R (Resident) Bit</h4>
+                <p>1 = page is in physical RAM. 0 = pushed out to disk. If a process accesses a page with R=0, a page fault occurs.</p>
+              </div>
+              <div class="example">
+                <h4>D (Dirty) Bit</h4>
+                <p>1 = page has been modified. When evicting, the OS must write it back to disk. If D=0, it can be discarded — the disk copy is still valid.</p>
+              </div>
+              <div class="example">
+                <h4>Physical Page Number</h4>
+                <p>Where in physical RAM this virtual page currently lives. The MMU uses this to construct the actual physical address.</p>
+              </div>
+              <div class="example">
+                <h4>Permission Bits</h4>
+                <p>Read/Write/Execute. If a process tries to write to a read-only page, the CPU raises a protection fault — how OSes catch segfaults.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🌳</span> Multi-Level Page Tables</h3>
+            <p>With 48-bit addresses and 4KB pages, a flat page table would need <strong>millions of entries</strong> per process. Solution: <strong>multi-level page tables</strong> — a tree structure. If a process uses only a small portion of its address space (the common case), huge subtrees are a single "not present" entry. Page table memory scales with actual <em>use</em>, not address space size.</p>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">💡</span> Visual Analogy</h3>
+            <div class="analogy">
+              <div class="analogy-side real">
+                <h4>Virtual Memory</h4>
+                <p>Each process has its own virtual address space. The MMU translates virtual to physical. The same virtual address in two processes points to different physical locations.</p>
+              </div>
+              <div class="analogy-arrow">⇄</div>
+              <div class="analogy-side metaphor">
+                <h4>Apartment Building</h4>
+                <p>Every apartment has a number (Apt 101). Behind the scenes, the manager (MMU) knows Apt 101 is at "Building A, Floor 3, Unit 7." Two buildings can both have "Apt 101" — they map to different physical locations.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🌟</span> Real-World Examples</h3>
+            <div class="example-grid">
+              <div class="example">
+                <h4>Obvious <span class="tag">Many apps</span></h4>
+                <p>Your laptop has 16GB RAM but 30 apps "use" 40GB virtual memory. Works because not all is resident at once — the OS pages out inactive data.</p>
+              </div>
+              <div class="example counter">
+                <h4>Counter-Intuitive <span class="tag">Lazy allocation</span></h4>
+                <p><code>malloc(1GB)</code> doesn't allocate 1GB RAM. It just reserves virtual space. RAM is assigned only when you write to those addresses. You can <code>malloc</code> 1TB on a 4GB machine — until you touch more than the machine can hold.</p>
+              </div>
+            </div>
+          </div>
+
+          <details class="misconception">
+            <summary>Virtual memory is just "using disk as RAM" when you run out.</summary>
+            <div class="misconception-body">
+              <p class="myth">❌ Myth: Virtual memory only kicks in when you're out of RAM.</p>
+              <p class="truth">✅ Truth: Virtual memory is <em>always</em> in use. Every memory access goes through translation. Swapping is just one feature — more important are isolation, lazy allocation, memory-mapped files, and using more virtual space than physical RAM.</p>
+            </div>
+          </details>
+
+          <div class="why-matters">
+            <div class="icon">🎯</div>
+            <div>
+              <div class="label">Why This Matters</div>
+              <p>Every memory access involves translation. Cache misses, page faults, TLB misses — invisible performance killers. If you don't understand virtual memory, you can't reason about why arrays are fast but linked lists are slow (cache locality and page residency).</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📊</span> Walk Through a Translation</h3>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+              <button class="btn secondary" onclick="vmStep(1)">Step 1: Split Address</button>
+              <button class="btn secondary" onclick="vmStep(2)">Step 2: Look Up Page</button>
+              <button class="btn secondary" onclick="vmStep(3)">Step 3: Check Resident</button>
+              <button class="btn secondary" onclick="vmStep(4)">Step 4: Physical Address</button>
+            </div>
+            <div class="hotspot-detail" id="vmDetail" style="min-height: 100px;">
+              <div class="title">Click Step 1 to begin</div>
+              <div>Each step reveals what happens during address translation.</div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📝</span> Flashcards — Virtual Memory</h3>
+            <div class="flashcard-deck" id="fcDeck5"></div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">✅</span> Quick Check</h3>
+            <div class="quiz" data-quiz="5"></div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">✍️</span> Explain It to a 5-Year-Old</h3>
+            <div class="explain-5yo" data-explain="5">
+              <p style="margin-bottom: 0.75rem; color: var(--text-muted); font-size: 0.9rem;">Explain <strong>virtual memory</strong> in your own words.</p>
+              <textarea placeholder="Type your explanation here..."></textarea>
+              <div class="actions">
+                <button class="btn" onclick="revealModel(this)">Reveal Model Answer</button>
+              </div>
+              <div class="model">
+                <h4>Model Answer</h4>
+                <p>Imagine a magic notebook. Whenever you write in it, a helper (the MMU) secretly copies your writing into a real notebook in a big library. You don't know which real notebook your page ended up in. If the library gets full, the helper takes pages you haven't looked at recently and puts them in a filing cabinet (the disk). When you need them again, the helper brings them back. You just keep writing like nothing happened!</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="connection">
+            <strong>🔗 Connects to Module 6:</strong> All these abstractions exist to make a fast, reliable, shareable computer. Now let's see how they combine in real systems.
+          </div>
+
+          <div class="slide-nav">
+            <button class="slide-nav-btn" onclick="prevSlide()">← Previous</button>
+            <button class="slide-nav-btn primary" onclick="completeModule(5); nextSlide()">Mark Complete & Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 6: MODULE 6 — Performance Synthesis
+           ==================================================== -->
+      <section class="slide" data-slide="6">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">6</span>
+            <span class="crumb-title">Putting It All Together</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="nextSlide()">Next →</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <div class="module-header">
+            <div class="module-header-content">
+              <span class="module-tag">SYNTHESIS</span>
+              <h2>Putting It All Together — Performance</h2>
+            </div>
+            <div class="module-number-big">06</div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">📖</span> Core Explanation</h3>
+            <p>Every abstraction has a cost. <strong>Context switching</strong> between processes takes microseconds. <strong>System calls</strong> take 1–10μs each. <strong>Page faults</strong> take milliseconds — thousands of times slower than a normal memory access. These costs add up.</p>
+            <p>Systems performance engineering is the art of <strong>making abstractions work for you</strong>. Structure code so the scheduler gives fair CPU time, batch syscalls to amortize cost, lay out memory so the MMU and caches work efficiently, choose between processes and threads based on actual workload.</p>
+            <p>The Cursor team's "agent swarm" article suggests AI workflows can be thought of as <strong>compilers for intent</strong>: a goal gets decomposed into a task tree, each executable by a smaller model. This draws directly on systems thinking — and relies on the same primitives we've studied.</p>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">💰</span> The Cost of Abstractions</h3>
+            <div class="example-grid">
+              <div class="example">
+                <h4>Context Switch</h4>
+                <p>~1–10 μs. Save state, load another, swap page tables. Happens thousands of times per second on a busy system.</p>
+              </div>
+              <div class="example">
+                <h4>System Call</h4>
+                <p>~1–10 μs. Crossing user/kernel boundary. 100k syscalls/sec spends significant time just transitioning.</p>
+              </div>
+              <div class="example">
+                <h4>Page Fault</h4>
+                <p>~1–10 ms. 1000x slower than a normal memory access. Process blocks while kernel fetches from disk.</p>
+              </div>
+              <div class="example">
+                <h4>fork() + exec()</h4>
+                <p>~100 μs to ~10 ms. With copy-on-write, fork is cheap; exec loads the new program.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🔧</span> Performance Investigation Checklist</h3>
+            <ol class="steps">
+              <li><strong>Identify the symptom</strong> — slow response? high CPU? memory growth?</li>
+              <li><strong>Check process states</strong> — user mode, kernel mode, or I/O wait? (<code>top</code>, <code>htop</code>)</li>
+              <li><strong>Look for syscalls</strong> — <code>strace</code> reveals every syscall.</li>
+              <li><strong>Check page faults</strong> — <code>vmstat</code>, <code>sar</code>.</li>
+              <li><strong>Profile CPU</strong> — <code>perf</code>, flamegraphs (Brendan Gregg's specialty!).</li>
+              <li><strong>Examine context switches</strong> — <code>pidstat</code>, <code>/proc/[pid]/status</code>.</li>
+            </ol>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">💡</span> Visual Analogy</h3>
+            <div class="analogy">
+              <div class="analogy-side real">
+                <h4>System Performance</h4>
+                <p>Every abstraction has overhead. Understand which costs you're paying and how to minimize them.</p>
+              </div>
+              <div class="analogy-arrow">⇄</div>
+              <div class="analogy-side metaphor">
+                <h4>A Kitchen</h4>
+                <p>Many stations: prep, grill, plating, dish. Each handoff takes time. A great chef doesn't eliminate stations — they orchestrate them so handoffs are smooth. Performance tuning is kitchen management for computers.</p>
+              </div>
+            </div>
+          </div>
+
+          <details class="misconception">
+            <summary>If CPU is at 100%, your system is maxed out.</summary>
+            <div class="misconception-body">
+              <p class="myth">❌ Myth: 100% CPU means hardware is fully used.</p>
+              <p class="truth">✅ Truth: 100% CPU just means the CPU is never idle — it could be spinning uselessly, context-switching, or doing kernel overhead. A well-tuned system at 60% CPU doing useful work beats a poorly-tuned one at 100% doing overhead. Measure <em>throughput</em> and <em>latency</em>, not just utilization.</p>
+            </div>
+          </details>
+
+          <div class="why-matters">
+            <div class="icon">🎯</div>
+            <div>
+              <div class="label">Why This Matters</div>
+              <p>Real performance issues rarely have one cause — they're interactions between scheduling, memory hierarchy, syscall overhead, and I/O. The mental models you've built are the tools to debug them.</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">🎮</span> Mini-Challenge: Diagnose the Slowness</h3>
+            <div class="scenario" data-scenario="6">
+              <div class="scenario-intro">
+                <strong>Scenario:</strong> Your web app was fast yesterday, slow today. No code changes. <code>top</code> shows CPU at 70%. What do you investigate first?
+              </div>
+              <button class="scenario-choice" data-choice="a">A) Add more CPU cores immediately</button>
+              <button class="scenario-choice" data-choice="b">B) Check page fault rates and disk I/O</button>
+              <button class="scenario-choice" data-choice="c">C) Rewrite the app in a faster language</button>
+              <button class="scenario-choice" data-choice="d">D) Check if a background process is consuming resources</button>
+              <div class="scenario-consequence"></div>
+            </div>
+          </div>
+
+          <div class="block">
+            <h3><span class="icon">✅</span> Module Quiz</h3>
+            <div class="quiz" data-quiz="6"></div>
+          </div>
+
+          <div class="slide-nav">
+            <button class="slide-nav-btn" onclick="prevSlide()">← Previous</button>
+            <button class="slide-nav-btn primary" onclick="completeModule(6); nextSlide()">Mark Complete & Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 7: CHEAT SHEET
+           ==================================================== -->
+      <section class="slide" data-slide="7">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">📋</span>
+            <span class="crumb-title">Summary & Cheat Sheet</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="nextSlide()">Next →</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <h2 class="slide-title">📋 Summary & Cheat Sheet</h2>
+          <p class="slide-subtitle">Everything you learned, condensed to one page.</p>
+          <div class="cheat-grid">
+            <div class="cheat-item"><h4>Process</h4><p>OS abstraction for a running program. Own virtual address space, file descriptors, PID. Created via fork()+exec().</p></div>
+            <div class="cheat-item"><h4>Thread</h4><p>Unit of execution inside a process. Shares memory with siblings but has own stack. Lighter than a process.</p></div>
+            <div class="cheat-item"><h4>fork() / exec()</h4><p>fork() clones the calling process. exec() replaces the program. Together they launch new programs on Unix.</p></div>
+            <div class="cheat-item"><h4>User vs Kernel Mode</h4><p>User = restricted (apps). Kernel = full privileges (OS). Crossing requires a syscall (~1-10μs).</p></div>
+            <div class="cheat-item"><h4>System Call</h4><p>Controlled entry into the kernel. Examples: open, read, write, fork, exec, mmap.</p></div>
+            <div class="cheat-item"><h4>File Descriptor</h4><p>Integer handle for an open file/socket/pipe. Tracked in kernel context per process.</p></div>
+            <div class="cheat-item"><h4>Stack vs Heap</h4><p>Stack: function frames, auto-managed, LIFO. Heap: dynamic allocations (malloc/new), can fragment.</p></div>
+            <div class="cheat-item"><h4>Virtual Memory</h4><p>Each process thinks it owns all memory. MMU translates virtual → physical via page tables.</p></div>
+            <div class="cheat-item"><h4>Page Table</h4><p>Per-process mapping from virtual pages to physical frames. Multi-level tree for efficiency.</p></div>
+            <div class="cheat-item"><h4>Page Fault</h4><p>Accessing a non-resident page. Kernel fetches from disk, updates table, resumes. ~1000x slower.</p></div>
+            <div class="cheat-item"><h4>MMU</h4><p>Memory Management Unit. Translates virtual to physical using the page table. Cached in TLB.</p></div>
+            <div class="cheat-item"><h4>Context Switch</h4><p>Saving one process's state, loading another's. ~1-10μs due to register/page table swaps.</p></div>
+            <div class="cheat-item"><h4>Scheduler</h4><p>OS component deciding which process runs on which core and for how long.</p></div>
+            <div class="cheat-item"><h4>Process States</h4><p>Ready (waiting for CPU), Running (on CPU), Waiting (blocked on I/O), Zombie (done, awaiting cleanup).</p></div>
+            <div class="cheat-item"><h4>Multi-process vs Thread</h4><p>Processes: isolated, heavier, crash-safe. Threads: shared memory, lighter, need synchronization.</p></div>
+            <div class="cheat-item"><h4>Copy-on-Write</h4><p>fork() optimization. Parent and child share pages until one writes. Makes fork() fast.</p></div>
+          </div>
+
+          <div class="block" style="margin-top: 2rem;">
+            <h3><span class="icon">📅</span> Spaced Repetition Schedule</h3>
+            <p style="font-size: 0.9rem; color: var(--text-muted);">Review at expanding intervals. Each review should be active — try to recall before checking answers.</p>
+            <div class="schedule-grid" id="scheduleGrid"></div>
+          </div>
+
+          <div class="slide-nav">
+            <button class="slide-nav-btn" onclick="prevSlide()">← Previous</button>
+            <button class="slide-nav-btn primary" onclick="nextSlide()">Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 8: FEYNMAN EXERCISE
+           ==================================================== -->
+      <section class="slide" data-slide="8">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">🎓</span>
+            <span class="crumb-title">Feynman Technique</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="nextSlide()">Next →</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <h2 class="slide-title">🎓 Feynman Technique — Teach It Back</h2>
+          <p class="slide-subtitle">Explain a topic in plain language, as if teaching someone who knows nothing. Gaps in your explanation reveal gaps in your understanding.</p>
+          <div class="feynman">
+            <p style="margin-bottom: 1rem;">Type your explanation of <strong>"how an operating system runs multiple programs at once"</strong> below:</p>
+            <textarea class="feynman-textarea" id="feynmanInput" placeholder="Start typing... e.g., 'An operating system lets many programs run at the same time by...'"></textarea>
+            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn" onclick="scoreFeynman()">Score My Explanation</button>
+              <button class="btn secondary" onclick="revealExpert()">Reveal Expert Version</button>
+            </div>
+            <div class="feynman-score" id="feynmanScore">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <strong>Keyword Coverage</strong>
+                <span id="feynmanPercent" style="font-family: 'JetBrains Mono', monospace; color: var(--primary);">0%</span>
+              </div>
+              <div class="score-bar"><div class="score-fill" id="feynmanFill"></div></div>
+              <div class="keyword-list" id="keywordList"></div>
+              <div id="feynmanFeedback" style="margin-top: 0.75rem; font-size: 0.9rem;"></div>
+            </div>
+            <div class="feynman-score" id="expertVersion">
+              <h4 style="color: var(--secondary); margin-bottom: 0.75rem;">Expert Version</h4>
+              <p style="font-size: 0.9rem;">An operating system runs many programs simultaneously through abstractions. Each program runs inside a <strong>process</strong>, which gives it its own private <strong>virtual memory</strong> space and the illusion of having the entire CPU. The OS <strong>scheduler</strong> rapidly switches between processes via <strong>context switches</strong>, giving each small slices of CPU time. When a process needs hardware access — reading a file, sending network data — it makes a <strong>system call</strong> that transitions from user mode to kernel mode. Memory accesses go through the <strong>MMU</strong>, which translates virtual addresses to physical ones using per-process <strong>page tables</strong>. If a needed page isn't in RAM, a <strong>page fault</strong> occurs and the kernel fetches it from disk. For parallelism within a single program, processes can spawn <strong>threads</strong>, which share memory but have independent stacks.</p>
+            </div>
+          </div>
+
+          <div class="slide-nav">
+            <button class="slide-nav-btn" onclick="prevSlide()">← Previous</button>
+            <button class="slide-nav-btn primary" onclick="nextSlide()">Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 9: FINAL TEST
+           ==================================================== -->
+      <section class="slide" data-slide="9">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">🏆</span>
+            <span class="crumb-title">Final Test — 15 Questions</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="nextSlide()">Next →</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <h2 class="slide-title">🏆 Test Your Knowledge</h2>
+          <p class="slide-subtitle">Mixed format: definitions, processes, analogies, and applications. Each question gives detailed feedback on every option.</p>
+          <div id="finalTestContainer"></div>
+          <div class="test-score" id="testScore">
+            <div class="big" id="scoreNumber">0/15</div>
+            <div style="color: var(--text-muted); margin-top: 0.5rem;" id="scoreMessage">Take the test to see your score</div>
+          </div>
+
+          <div class="slide-nav">
+            <button class="slide-nav-btn" onclick="prevSlide()">← Previous</button>
+            <button class="slide-nav-btn primary" onclick="nextSlide()">Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================
+           SLIDE 10: FAQ & NEXT STEPS
+           ==================================================== -->
+      <section class="slide" data-slide="10">
+        <div class="topbar">
+          <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+          <div class="topbar-current">
+            <span class="crumb-num">🚀</span>
+            <span class="crumb-title">FAQ & Next Steps</span>
+          </div>
+          <div class="topbar-nav">
+            <button class="topbar-btn" onclick="prevSlide()">← Prev</button>
+            <button class="topbar-btn" onclick="goToSlide(0)">Start Over ↺</button>
+          </div>
+        </div>
+        <div class="slide-inner">
+          <h2 class="slide-title">❓ Still Confused? FAQ</h2>
+          <p class="slide-subtitle">Click any question to expand a detailed answer.</p>
+          <div id="faqContainer"></div>
+
+          <div class="block" style="margin-top: 3rem;">
+            <h3><span class="icon">🚀</span> Next Steps — Where to Go From Here</h3>
+            <div class="next-steps">
+              <div class="next-step">
+                <h4>Read "Systems Performance" by Brendan Gregg</h4>
+                <p>The book this content is based on. 800+ pages on profiling, tracing, and tuning. Focus on chapters 5–7 first.</p>
+                <span class="difficulty">Intermediate</span>
+              </div>
+              <div class="next-step">
+                <h4>Read "OSTEP" (Operating Systems: Three Easy Pieces)</h4>
+                <p>Free online OS textbook. Covers virtualization, concurrency, and persistence in depth.</p>
+                <span class="difficulty">Beginner→Intermediate</span>
+              </div>
+              <div class="next-step">
+                <h4>Practice with strace, perf, and flamegraphs</h4>
+                <p>Run <code>strace -c ls</code> on any program. Use <code>perf</code> to profile. Generate flamegraphs.</p>
+                <span class="difficulty">Hands-on</span>
+              </div>
+              <div class="next-step">
+                <h4>Write a multithreaded program</h4>
+                <p>Build a parallel word counter in C, Rust, or Go. Watch what breaks when you remove locks.</p>
+                <span class="difficulty">Hands-on</span>
+              </div>
+              <div class="next-step">
+                <h4>Explore /proc on Linux</h4>
+                <p>Walk <code>/proc/[pid]/</code> for any running process. See memory maps, open fds, status — all the kernel context, visible.</p>
+                <span class="difficulty">Beginner</span>
+              </div>
+              <div class="next-step">
+                <h4>Study the Cursor agent swarm article</h4>
+                <p>About treating AI agent swarms as compilers for intent. Great cross-domain thinking.</p>
+                <span class="difficulty">Conceptual</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="text-align: center; margin-top: 3rem; padding: 2rem; color: var(--text-muted); font-size: 0.88rem; border-top: 1px solid var(--border);">
+            <p>Built as an interactive learning experience based on a systems performance stream.</p>
+            <p style="margin-top: 0.5rem; font-size: 0.8rem;">All progress saved locally in your browser.</p>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /slide-track -->
+  </main>
+</div><!-- /app -->
+
+<script>
+/* ============================================================
+   STATE & STORAGE
+   ============================================================ */
+const STORAGE_KEY = 'os-deep-dive-v2';
+let state = {
+  currentSlide: 0,
+  completedModules: [],
+  quizScores: {}
+};
+try {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) state = { ...state, ...JSON.parse(saved) };
+} catch(e) {}
+
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch(e) {}
+}
+
+/* ============================================================
+   LOADING SCREEN
+   ============================================================ */
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('loader').classList.add('hidden');
+  }, 600);
+});
+
+/* ============================================================
+   SLIDE NAVIGATION — The core slide mechanic
+   ============================================================ */
+const slideTrack = document.getElementById('slideTrack');
+const totalSlides = 11; // 0 through 10
+
+function goToSlide(index) {
+  if (index < 0) index = 0;
+  if (index >= totalSlides) index = totalSlides - 1;
+  
+  state.currentSlide = index;
+  saveState();
+  
+  // Slide the track
+  slideTrack.style.transform = `translateX(-${index * 100}%)`;
+  
+  // Update sidebar active state
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', parseInt(item.dataset.slide) === index);
+  });
+  
+  // Update progress
+  updateProgress();
+  
+  // Trigger slide entry animation
+  const slide = document.querySelector(`.slide[data-slide="${index}"]`);
+  if (slide) {
+    slide.classList.remove('slide-enter');
+    void slide.offsetWidth; // force reflow
+    slide.classList.add('slide-enter');
+    // Scroll to top of slide
+    slide.scrollTop = 0;
+  }
+  
+  // Close sidebar on mobile
+  if (window.innerWidth <= 900) {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('backdrop').classList.remove('show');
+  }
+}
+
+function nextSlide() { goToSlide(state.currentSlide + 1); }
+function prevSlide() { goToSlide(state.currentSlide - 1); }
+
+/* ============================================================
+   SIDEBAR NAVIGATION
+   ============================================================ */
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const slideIndex = parseInt(item.dataset.slide);
+    goToSlide(slideIndex);
+  });
+  item.setAttribute('tabindex', '0');
+  item.setAttribute('role', 'button');
+  item.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      item.click();
+    }
+  });
+});
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('backdrop');
+  sb.classList.toggle('open');
+  bd.classList.toggle('show');
+}
+
+/* ============================================================
+   PROGRESS TRACKING
+   ============================================================ */
+function updateProgress() {
+  const total = 6;
+  const completed = state.completedModules.length;
+  const percent = Math.round((completed / total) * 100);
+  document.getElementById('progressFill').style.width = percent + '%';
+  document.getElementById('progressLabel').textContent = percent + '%';
+  
+  // Update nav items
+  document.querySelectorAll('.nav-item[data-module]').forEach(item => {
+    const modNum = parseInt(item.dataset.module);
+    if (state.completedModules.includes(modNum)) {
+      item.classList.add('completed');
+    }
+  });
+}
+
+function completeModule(num) {
+  if (!state.completedModules.includes(num)) {
+    state.completedModules.push(num);
+    saveState();
+    updateProgress();
+    showToast(`Module ${num} complete! 🎉`);
+  }
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.4s'; }, 2400);
+  setTimeout(() => t.remove(), 2900);
+}
+
+/* ============================================================
+   KEYBOARD NAVIGATION
+   ============================================================ */
+document.addEventListener('keydown', (e) => {
+  // Don't interfere with typing
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+    e.preventDefault();
+    nextSlide();
+  } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+    e.preventDefault();
+    prevSlide();
+  }
+});
+
+/* ============================================================
+   ELABORATIVE INTERROGATION
+   ============================================================ */
+document.querySelectorAll('[data-elab]').forEach(el => {
+  const q = el.querySelector('.question');
+  q.addEventListener('click', () => el.classList.toggle('open'));
+  q.setAttribute('tabindex', '0');
+  q.setAttribute('role', 'button');
+  q.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.classList.toggle('open'); }
+  });
+});
+
+/* ============================================================
+   HARDWARE HOTSPOTS (Module 1)
+   ============================================================ */
+const hwInfo = {
+  cpu: { title: 'CPU (Central Processing Unit)', desc: 'The chip that executes instructions. Modern CPUs have multiple cores — each core runs one instruction stream at a time. The OS scheduler decides which process gets which core and for how long.' },
+  ram: { title: 'RAM (Random Access Memory)', desc: 'Volatile working memory. CPU reads and writes here constantly. All running processes share physical RAM, but virtual memory makes each think it has private space.' },
+  disk: { title: 'Disk (SSD/HDD)', desc: 'Persistent storage. Much slower than RAM but holds data when power is off. The OS provides file system abstractions to organize data into files and directories.' },
+  io: { title: 'I/O Devices', desc: 'Network cards, GPUs, keyboards, displays. All accessed through the kernel via system calls. The kernel abstracts away device specifics.' }
+};
+
+document.querySelectorAll('[data-hw]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-hw]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const info = hwInfo[btn.dataset.hw];
+    document.getElementById('hwDetail').innerHTML = `<div class="title">${info.title}</div><div>${info.desc}</div>`;
+  });
+});
+
+/* ============================================================
+   PROCESS DIAGRAM HOTSPOTS (Module 2)
+   ============================================================ */
+const pdInfo = {
+  exec: { title: 'Executable (Code / Text Segment)', desc: 'The compiled program instructions loaded into memory. The actual machine code being executed — add, move, jump, load, store. Typically read-only.' },
+  libs: { title: 'Libraries', desc: 'Shared code libraries (like libc) loaded into the process address space. Multiple processes can share the same physical library pages to save memory.' },
+  heap: { title: 'Heap', desc: 'Dynamic memory allocations — objects, arrays, anything created with malloc/new. Grows upward. Can become fragmented. Programmer-managed lifetime.' },
+  stack: { title: 'User Stack', desc: 'Function call frames — local variables, return addresses, arguments. Grows downward. Auto-managed: grows when functions are called, shrinks when they return.' },
+  pid: { title: 'PID, UID, and Metadata', desc: 'Process ID (unique identifier), User ID (who owns this process), timing info, resource usage, priority. The kernel uses these to manage the process.' },
+  kstack: { title: 'Kernel Stack', desc: 'A separate stack used when the process executes kernel code (during a system call). Each process has its own kernel stack.' },
+  fd: { title: 'File Descriptors', desc: 'Integer handles (0=stdin, 1=stdout, 2=stderr, then 3+) for open files, sockets, pipes. The kernel tracks which fds each process has open.' },
+  regs: { title: 'Registers & CPU State', desc: 'Snapshot of CPU registers saved when the process isn\'t running. Required to resume execution via context switch.' }
+};
+
+document.querySelectorAll('[data-pd]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-pd]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const info = pdInfo[btn.dataset.pd];
+    document.getElementById('pdDetail').innerHTML = `<div class="title">${info.title}</div><div>${info.desc}</div>`;
+  });
+});
+
+/* ============================================================
+   PROCESS LIFECYCLE (Module 2)
+   ============================================================ */
+const lifecycleInfo = {
+  ready: '<strong>Ready</strong> — The process is ready to run but hasn\'t been picked by the scheduler yet. It\'s in the ready queue. Transition: when the scheduler picks it, it becomes Running.',
+  running: '<strong>Running</strong> — The process is currently executing on a CPU core. Transition: it can be preempted (kicked off after its time slice) back to Ready, or block on I/O and go to Waiting.',
+  waiting: '<strong>Waiting (Blocked)</strong> — The process is paused, waiting for something: disk read, network packet, lock, timer. Cannot run until that event occurs. Transition: when the event fires, it goes to Ready.',
+  zombie: '<strong>Zombie</strong> — The process has finished (called exit()) but its entry hasn\'t been cleaned up. The parent must call wait() to "reap" it. Until then, it retains its PID and exit status.'
+};
+
+document.querySelectorAll('[data-state]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-state]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('lifecycleDetail').innerHTML = lifecycleInfo[btn.dataset.state];
+  });
+});
+
+/* ============================================================
+   VIRTUAL MEMORY STEP-THROUGH (Module 5)
+   ============================================================ */
+function vmStep(n) {
+  const detail = document.getElementById('vmDetail');
+  const steps = {
+    1: { title: 'Step 1: Split the Virtual Address', body: 'Virtual address <code>0x2C8</code> is split. High-order bits (<code>0x2</code>) = <strong>page table index</strong>. Low-order bits (<code>0xC8</code>) = <strong>page offset</strong> (position within the page).' },
+    2: { title: 'Step 2: Look Up the Page Table Entry', body: 'The MMU uses index <code>0x2</code> to look up entry #2 in the process\'s page table. This entry contains: a physical page number, a Resident (R) bit, and a Dirty (D) bit.' },
+    3: { title: 'Step 3: Check the Resident Bit', body: 'If R=1, the page is in physical RAM — proceed. If R=0, a <strong>page fault</strong> occurs: the CPU traps to kernel mode, the kernel finds the page on disk, loads it into a free frame, updates the page table, and the instruction retries.' },
+    4: { title: 'Step 4: Construct the Physical Address', body: 'The MMU combines the physical page number from the page table entry with the original offset (<code>0xC8</code>) to form the final physical address. The CPU then reads/writes that location. Total overhead: nanoseconds if the TLB cached the translation.' }
+  };
+  const s = steps[n];
+  detail.innerHTML = `<div class="title">${s.title}</div><div>${s.body}</div>`;
+}
+
+/* ============================================================
+   FLASHCARDS
+   ============================================================ */
+const flashcardData = {
+  1: [
+    { q: 'What are the three main hardware components an OS abstracts?', a: 'CPU, RAM, and Disk.', extra: 'Plus various I/O devices (network cards, GPUs). The OS provides unified abstractions for all of them.' },
+    { q: 'Why does the OS provide abstractions?', a: 'For isolation, coordination, and portability.', extra: 'Without abstractions, programs would manually coordinate RAM addresses, and a buggy program could crash everything.' },
+    { q: 'What does the scheduler do?', a: 'Decides which process runs on which CPU core and for how long.', extra: 'It implements time-sharing by rapidly context-switching between processes.' }
+  ],
+  5: [
+    { q: 'What is virtual memory?', a: 'A technique where each process has its own private address space, translated to physical RAM by the MMU.', extra: 'Creates the illusion that each process owns all the memory.' },
+    { q: 'What are the R and D bits?', a: 'R = Resident (in RAM?). D = Dirty (modified?).', extra: 'If R=0, accessing the page triggers a page fault. If D=1, the page must be written back to disk before eviction.' },
+    { q: 'Why use multi-level page tables?', a: 'To avoid allocating entries for unused address space.', extra: 'A flat table for 48-bit addresses would need millions of entries. Multi-level tables scale with actual memory usage.' },
+    { q: 'What is a page fault?', a: 'An exception when a process accesses a virtual page not currently in physical RAM.', extra: 'The kernel fetches it from disk, loads it, updates the page table, and resumes. Costs ~1-10ms.' }
+  ]
+};
+
+function renderFlashcards(deckId, moduleNum) {
+  const deck = document.getElementById(deckId);
+  if (!deck) return;
+  const cards = flashcardData[moduleNum] || [];
+  deck.innerHTML = cards.map((card, i) => `
+    <div class="flashcard" data-card="${moduleNum}-${i}" tabindex="0" role="button" aria-label="Flashcard ${i+1}">
+      <div class="flashcard-inner">
+        <div class="flashcard-face flashcard-front">
+          <div class="flashcard-q-label">Question</div>
+          <div class="flashcard-question">${card.q}</div>
+          <div class="flashcard-hint">Click to flip</div>
+        </div>
+        <div class="flashcard-face flashcard-back">
+          <div class="flashcard-q-label">Answer</div>
+          <div class="flashcard-answer">${card.a}</div>
+          <button class="flashcard-btn" onclick="event.stopPropagation(); toggleExtra(this)">Show Extra Context</button>
+          <div class="flashcard-extra">${card.extra}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  deck.querySelectorAll('.flashcard').forEach(card => {
+    card.addEventListener('click', () => card.classList.toggle('flipped'));
+    card.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.classList.toggle('flipped'); }
+    });
+  });
+}
+
+function toggleExtra(btn) {
+  const extra = btn.nextElementSibling;
+  extra.classList.toggle('shown');
+  btn.textContent = extra.classList.contains('shown') ? 'Hide Extra' : 'Show Extra Context';
+}
+
+renderFlashcards('fcDeck1', 1);
+renderFlashcards('fcDeck5', 5);
+
+/* ============================================================
+   QUIZ ENGINE
+   ============================================================ */
+const quizData = {
+  1: {
+    question: 'Which of these is NOT a primary abstraction provided by modern operating systems?',
+    options: [
+      { text: 'Processes', correct: false, explain: 'Processes ARE a primary OS abstraction — they encapsulate a running program with its own virtual address space.' },
+      { text: 'Virtual memory', correct: false, explain: 'Virtual memory IS a primary abstraction — it gives each process the illusion of having all the RAM.' },
+      { text: 'Direct hardware access from user code', correct: true, explain: '✅ Correct! Modern OSes specifically PREVENT direct hardware access from user code. Hardware access must go through the kernel via system calls. This is the opposite of an abstraction the OS provides — it\'s a restriction.' },
+      { text: 'File systems', correct: false, explain: 'File systems ARE a primary OS abstraction — they organize persistent data on disk.' }
+    ]
+  },
+  3: {
+    question: 'What is the KEY difference between a process and a thread?',
+    options: [
+      { text: 'Processes run on CPU; threads run on RAM.', correct: false, explain: 'Both are units of CPU execution. RAM is memory, not a place where things "run."' },
+      { text: 'Threads share memory; processes have isolated memory.', correct: true, explain: '✅ Correct! Threads within the same process share one virtual address space. Processes each have their own private address space. This is why threads are lighter but require synchronization.' },
+      { text: 'Threads are always faster than processes.', correct: false, explain: 'Not always. Threads are lighter, but for workloads needing isolation, processes are better.' },
+      { text: 'A process can have only one thread.', correct: false, explain: 'A process can have many threads — that\'s the whole point of multi-threaded programming.' }
+    ]
+  },
+  4: {
+    question: 'Why are system calls more expensive than regular function calls?',
+    options: [
+      { text: 'Because they execute in Python instead of C.', correct: false, explain: 'System calls are kernel code, typically C. Language isn\'t the issue.' },
+      { text: 'Because they involve a privilege level transition and kernel-side validation.', correct: true, explain: '✅ Correct! A syscall requires: saving user state, switching to kernel mode, kernel validation, executing privileged code, returning to user mode. 100-1000x slower than a function call.' },
+      { text: 'Because they\'re interpreted at runtime.', correct: false, explain: 'System calls are compiled kernel code, not interpreted.' },
+      { text: 'Because they require network access.', correct: false, explain: 'Most syscalls (open, read, fork) have nothing to do with the network.' }
+    ]
+  },
+  5: {
+    question: 'What happens when a process accesses a virtual page NOT currently in physical RAM?',
+    options: [
+      { text: 'The process crashes with a segfault.', correct: false, explain: 'A segfault is for an INVALID address. A valid but non-resident page triggers a page fault, handled gracefully.' },
+      { text: 'The CPU reads from disk directly.', correct: false, explain: 'The CPU never bypasses the OS. The MMU triggers a page fault, and the kernel handles the disk read.' },
+      { text: 'A page fault occurs; the kernel fetches the page from disk, loads it into RAM, updates the page table, and resumes.', correct: true, explain: '✅ Correct! This is the page fault flow. The process is unaware (except for the time cost).' },
+      { text: 'The MMU creates the data out of nowhere.', correct: false, explain: 'The MMU can\'t create data. The kernel must bring it from disk.' }
+    ]
+  },
+  6: {
+    question: 'Your app is slow. CPU usage is 70%. What is the BEST first investigation?',
+    options: [
+      { text: 'Add more CPU cores immediately.', correct: false, explain: 'Premature optimization. 70% CPU means headroom — adding cores won\'t help if the bottleneck is elsewhere.' },
+      { text: 'Check page fault rates, I/O wait, and syscall patterns.', correct: true, explain: '✅ Correct! 70% CPU means 30% idle — not CPU-bound. The slowness is likely page faults, I/O wait, excessive syscalls, or lock contention. Tools: vmstat, iostat, strace, perf.' },
+      { text: 'Rewrite the app in Rust.', correct: false, explain: 'Rewrites take weeks. Diagnose first — it could be a config or data issue.' },
+      { text: 'Restart the server.', correct: false, explain: 'Might mask the symptom but won\'t fix the root cause.' }
+    ]
+  }
+};
+
+function renderQuiz(quizElement, quizId) {
+  const data = quizData[quizId];
+  if (!data) return;
+  quizElement.innerHTML = `
+    <div class="quiz-question">${data.question}</div>
+    <div class="quiz-options">
+      ${data.options.map((opt, i) => `
+        <button class="quiz-option" data-idx="${i}">
+          <span class="letter">${String.fromCharCode(65 + i)}</span>
+          <span>${opt.text}</span>
+        </button>
+      `).join('')}
+    </div>
+    <div class="quiz-feedback"></div>
+  `;
+  const options = quizElement.querySelectorAll('.quiz-option');
+  const feedback = quizElement.querySelector('.quiz-feedback');
+  options.forEach(opt => {
+    opt.addEventListener('click', () => {
+      const idx = parseInt(opt.dataset.idx);
+      const selected = data.options[idx];
+      options.forEach(o => o.disabled = true);
+      options.forEach((o, i) => {
+        if (data.options[i].correct) o.classList.add('correct');
+        else if (i === idx) o.classList.add('incorrect');
+      });
+      let html = '';
+      if (selected.correct) {
+        html = `<strong>✅ Correct!</strong><br>${selected.explain}`;
+      } else {
+        const correctOpt = data.options.find(o => o.correct);
+        html = `<strong>❌ Not quite.</strong> The correct answer is: <em>${correctOpt.text}</em><br><br><strong>Why your answer was wrong:</strong> ${selected.explain}<br><br><strong>Why the correct answer is right:</strong> ${correctOpt.explain}`;
+      }
+      feedback.innerHTML = html;
+      feedback.classList.add('shown');
+      state.quizScores[quizId] = selected.correct;
+      saveState();
+    });
+  });
+}
+
+document.querySelectorAll('[data-quiz]').forEach(q => renderQuiz(q, q.dataset.quiz));
+
+/* ============================================================
+   DRAG AND DROP (Module 2)
+   ============================================================ */
+const dndData1 = [
+  { id: 'exec', label: 'Executable (Code)', correct: 'userspace' },
+  { id: 'heap', label: 'Heap', correct: 'userspace' },
+  { id: 'stack', label: 'User Stack', correct: 'userspace' },
+  { id: 'libs', label: 'Libraries', correct: 'userspace' },
+  { id: 'pid', label: 'PID & Metadata', correct: 'kernel' },
+  { id: 'fd', label: 'File Descriptors', correct: 'kernel' },
+  { id: 'kstack', label: 'Kernel Stack', correct: 'kernel' },
+  { id: 'regs', label: 'Registers & State', correct: 'kernel' }
+];
+
+function renderDnD1() {
+  const source = document.getElementById('dndSource1');
+  const slotsContainer = document.getElementById('dndSlots1');
+  const shuffled = [...dndData1].sort(() => Math.random() - 0.5);
+  source.innerHTML = shuffled.map(item => `
+    <div class="dnd-item" draggable="true" data-id="${item.id}" data-correct="${item.correct}">${item.label}</div>
+  `).join('');
+  slotsContainer.querySelectorAll('.dnd-slot').forEach(slot => {
+    slot.classList.remove('filled', 'correct', 'incorrect');
+    const placed = slot.querySelector('.placed');
+    if (placed) placed.remove();
+    const label = slot.querySelector('.slot-label');
+    if (label) label.style.display = '';
+  });
+  setupDnD();
+}
+
+function setupDnD() {
+  let dragged = null;
+  document.querySelectorAll('.dnd-item').forEach(item => {
+    item.addEventListener('dragstart', (e) => {
+      dragged = item;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => item.classList.remove('dragging'));
+  });
+  document.querySelectorAll('.dnd-slot').forEach(slot => {
+    slot.addEventListener('dragover', (e) => { e.preventDefault(); slot.classList.add('drop-target'); });
+    slot.addEventListener('dragleave', () => slot.classList.remove('drop-target'));
+    slot.addEventListener('drop', (e) => {
+      e.preventDefault();
+      slot.classList.remove('drop-target');
+      if (!dragged) return;
+      const existingLabel = slot.querySelector('.slot-label');
+      const existingPlaced = slot.querySelector('.placed');
+      if (existingPlaced) existingPlaced.remove();
+      const placed = document.createElement('span');
+      placed.className = 'placed';
+      placed.textContent = dragged.textContent;
+      placed.dataset.correct = dragged.dataset.correct;
+      slot.appendChild(placed);
+      if (existingLabel) existingLabel.style.display = 'none';
+      slot.classList.add('filled');
+      dragged.remove();
+      checkDnD1Complete();
+    });
+  });
+}
+
+function checkDnD1Complete() {
+  const source = document.getElementById('dndSource1');
+  const feedback = document.getElementById('dndFeedback1');
+  if (source.children.length > 0) return;
+  let allCorrect = true;
+  document.querySelectorAll('#dndSlots1 .dnd-slot').forEach(slot => {
+    const placed = slot.querySelector('.placed');
+    if (!placed) return;
+    const isCorrect = placed.dataset.correct === slot.dataset.slot;
+    slot.classList.remove('filled');
+    slot.classList.add(isCorrect ? 'correct' : 'incorrect');
+    if (!isCorrect) allCorrect = false;
+  });
+  feedback.style.display = 'block';
+  feedback.style.padding = '1rem';
+  feedback.style.borderRadius = '8px';
+  if (allCorrect) {
+    feedback.style.background = 'var(--success-soft)';
+    feedback.style.borderLeft = '3px solid var(--success)';
+    feedback.innerHTML = '<strong>✅ All correct!</strong> User space: code, heap, stack, libraries. Kernel context: PID, file descriptors, kernel stack, registers. <button class="btn secondary" style="margin-left: 0.5rem;" onclick="renderDnD1()">Shuffle & Try Again</button>';
+  } else {
+    feedback.style.background = 'var(--danger-soft)';
+    feedback.style.borderLeft = '3px solid var(--danger)';
+    feedback.innerHTML = '<strong>❌ Some incorrect.</strong> User space = the program\'s own data. Kernel context = metadata the OS tracks. <button class="btn secondary" style="margin-left: 0.5rem;" onclick="renderDnD1()">Try Again</button>';
+  }
+}
+
+renderDnD1();
+
+/* ============================================================
+   FILL IN THE BLANK
+   ============================================================ */
+const fibHints = {
+  1: ['It rhymes with "pork".', 'It starts with the letter "f".', 'It\'s a 4-letter word meaning "to split".']
+};
+
+document.querySelectorAll('[data-fib]').forEach(fib => {
+  const input = fib.querySelector('[data-fib-input]');
+  const hintBtns = fib.querySelectorAll('[data-hint]');
+  const revealBtn = fib.querySelector('[data-reveal]');
+  const hintDisplay = fib.querySelector('.hint-display');
+  const moduleId = fib.dataset.fib;
+  let hintLevel = 0;
+  input.addEventListener('input', () => {
+    const val = input.value.toLowerCase().trim();
+    if (val === input.dataset.answer.toLowerCase()) {
+      input.classList.add('correct');
+      input.classList.remove('incorrect');
+    } else {
+      input.classList.remove('correct');
+    }
+  });
+  input.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const val = input.value.toLowerCase().trim();
+      if (val !== input.dataset.answer.toLowerCase()) input.classList.add('incorrect');
+    }
+  });
+  hintBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const level = parseInt(btn.dataset.hint);
+      if (level <= hintLevel + 1) {
+        hintLevel = level;
+        const hints = fibHints[moduleId];
+        hintDisplay.innerHTML = `<strong>Hint ${level}:</strong> ${hints[level - 1]}`;
+        hintDisplay.classList.add('shown');
+        hintBtns.forEach((b, i) => { if (i < level) b.disabled = true; });
+      }
+    });
+  });
+  revealBtn.addEventListener('click', () => {
+    input.value = input.dataset.answer;
+    input.classList.add('correct');
+    input.classList.remove('incorrect');
+    hintDisplay.innerHTML = `<strong>Answer:</strong> <code>${input.dataset.answer}</code>`;
+    hintDisplay.classList.add('shown');
+    hintBtns.forEach(b => b.disabled = true);
+    revealBtn.disabled = true;
+  });
+});
+
+/* ============================================================
+   SCENARIO CHOICES
+   ============================================================ */
+const scenarioData = {
+  3: {
+    a: 'Technically works but expensive. 10,000 processes means 10,000 separate memory spaces — huge RAM overhead. Context switching is expensive. Apache prefork MPM does this, but it\'s not the most efficient.',
+    b: 'Common approach (traditional Apache worker, many Java servers). 10,000 threads share one address space — more memory efficient. But 10,000 threads still means heavy context-switching, and each thread consumes stack memory.',
+    c: '✅ This is the modern answer. Async I/O (epoll on Linux, kqueue on BSD, io_uring) lets one thread manage thousands of connections by waiting on multiple I/O events simultaneously. This is how nginx, Node.js, and Go handle massive concurrency. Minimal context switches, minimal memory.',
+    d: 'Workable if you need isolation between connections (security). But processes can\'t easily share state — you\'d need IPC. More overhead than option C. Used in some specialized servers.'
+  },
+  6: {
+    a: 'Premature optimization. 70% CPU means headroom — adding cores won\'t help if the bottleneck is I/O, memory, or locks. Diagnose first.',
+    b: '✅ Great first step. Check vmstat for page fault rates and swap activity, iostat for disk I/O wait. If your working set outgrew RAM, the kernel is constantly paging — explains slowness despite CPU headroom. Common cause: data grew overnight.',
+    c: 'Almost never the right first move. Rewrites take weeks. Diagnose the actual problem first — it\'s often a config change or data issue.',
+    d: '✅ Also great. Run <code>top</code> and sort by CPU and memory. Maybe a backup job started, or log rotation is running. "No code changes" doesn\'t mean "nothing changed" — cron jobs, background processes, and external load all matter.'
+  }
+};
+
+document.querySelectorAll('[data-scenario]').forEach(scenario => {
+  const scenarioId = scenario.dataset.scenario;
+  const choices = scenario.querySelectorAll('.scenario-choice');
+  const consequence = scenario.querySelector('.scenario-consequence');
+  choices.forEach(choice => {
+    choice.addEventListener('click', () => {
+      choices.forEach(c => { c.disabled = true; c.classList.remove('selected'); });
+      choice.classList.add('selected');
+      consequence.innerHTML = scenarioData[scenarioId][choice.dataset.choice];
+      consequence.classList.add('shown');
+    });
+  });
+});
+
+/* ============================================================
+   EXPLAIN TO 5-YEAR-OLD
+   ============================================================ */
+function revealModel(btn) {
+  const container = btn.closest('.explain-5yo');
+  const model = container.querySelector('.model');
+  model.classList.add('shown');
+}
+
+/* ============================================================
+   SPACED REPETITION SCHEDULE
+   ============================================================ */
+function generateSchedule() {
+  const now = new Date();
+  const intervals = [
+    { delay: 0, label: 'Right now (1 min)', task: 'Skim the cheat sheet. Then close it and try to recall the 16 key terms from memory.' },
+    { delay: 10 * 60 * 1000, label: '+10 minutes', task: 'Quick recall: write down the 4 process states and the fork()→exec() flow without looking.' },
+    { delay: 60 * 60 * 1000, label: '+1 hour', task: 'Take the final test again. Note which questions you missed and re-read those modules.' },
+    { delay: 24 * 60 * 60 * 1000, label: '+1 day', task: 'Explain virtual memory out loud. If you stumble, revisit Module 5.' },
+    { delay: 3 * 24 * 60 * 60 * 1000, label: '+3 days', task: 'Try the Feynman exercise again. Compare with the expert version.' },
+    { delay: 7 * 24 * 60 * 60 * 1000, label: '+1 week', task: 'Run `strace -c ls` on your terminal. Identify 5 syscalls and explain why each is needed.' }
+  ];
+  const grid = document.getElementById('scheduleGrid');
+  grid.innerHTML = intervals.map(iv => {
+    const when = new Date(now.getTime() + iv.delay);
+    const timeStr = when.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return `<div class="schedule-item"><div class="when">${iv.label}</div><div class="date">${timeStr}</div><div class="what">${iv.task}</div></div>`;
+  }).join('');
+}
+
+generateSchedule();
+
+/* ============================================================
+   FEYNMAN SCORING
+   ============================================================ */
+const feynmanKeywords = [
+  'process', 'thread', 'virtual memory', 'scheduler', 'context switch',
+  'system call', 'kernel', 'user mode', 'page table', 'mmu',
+  'fork', 'exec', 'isolation', 'page fault', 'abstraction'
+];
+
+function scoreFeynman() {
+  const input = document.getElementById('feynmanInput').value.toLowerCase();
+  const found = feynmanKeywords.filter(kw => input.includes(kw));
+  const missed = feynmanKeywords.filter(kw => !input.includes(kw));
+  const percent = Math.round((found.length / feynmanKeywords.length) * 100);
+  document.getElementById('feynmanPercent').textContent = percent + '%';
+  document.getElementById('feynmanFill').style.width = percent + '%';
+  document.getElementById('keywordList').innerHTML =
+    found.map(k => `<span class="keyword found">${k}</span>`).join('') +
+    missed.map(k => `<span class="keyword missed">${k}</span>`).join('');
+  let feedback = '';
+  if (percent >= 80) feedback = 'Excellent! Your explanation covers most key concepts. Compare with the expert version for nuance.';
+  else if (percent >= 50) feedback = 'Good start. You\'re covering basics but missing some concepts (shown in red). Revisit those modules.';
+  else feedback = 'Your explanation is missing many key concepts. Re-read the cheat sheet, then try again.';
+  document.getElementById('feynmanFeedback').innerHTML = feedback;
+  document.getElementById('feynmanScore').classList.add('shown');
+}
+
+function revealExpert() {
+  document.getElementById('expertVersion').classList.add('shown');
+}
+
+/* ============================================================
+   FINAL TEST — 15 Questions
+   ============================================================ */
+const finalTestQuestions = [
+  {
+    q: 'What is the primary purpose of the process abstraction?',
+    options: ['To make programs run faster', 'To give each running program the illusion that it has the computer to itself', 'To prevent programs from using too much CPU', 'To compress programs'],
+    correct: 1,
+    explains: ['Speed isn\'t the purpose — abstractions add overhead.', '✅ Correct. A process gives each program its own virtual address space and the illusion of owning the CPU.', 'CPU limits are enforced by the scheduler, not the process abstraction.', 'Compression is unrelated.']
+  },
+  {
+    q: 'On Unix, how is a new program typically launched?',
+    options: ['By calling fork() then exec()', 'By calling exec() then fork()', 'By calling launch() directly', 'By calling create_process()'],
+    correct: 0,
+    explains: ['✅ Correct. fork() creates a clone, the child calls exec() to replace its program with the new one.', 'Wrong order. exec() replaces the current program.', 'No launch() syscall exists on Unix.', 'CreateProcess() is the Windows API.']
+  },
+  {
+    q: 'Which is stored in the KERNEL context of a process?',
+    options: ['The executable code', 'The heap', 'File descriptors', 'The user stack'],
+    correct: 2,
+    explains: ['Executable code lives in user space.', 'The heap is in user space.', '✅ Correct. File descriptors are tracked by the kernel — integer handles for open files, sockets, pipes.', 'The user stack is in user space.']
+  },
+  {
+    q: 'What is the main difference between a process and a thread?',
+    options: ['Processes are faster; threads are slower', 'Threads share memory; processes have isolated memory', 'Processes run on CPU; threads run on RAM', 'A process can only have one thread'],
+    correct: 1,
+    explains: ['Actually the opposite — threads are lighter.', '✅ Correct. Threads share one virtual address space. Processes each have their own private address space.', 'Both run on CPU. RAM is memory.', 'A process can have many threads.']
+  },
+  {
+    q: 'What does the MMU do?',
+    options: ['Manages file system operations', 'Translates virtual addresses to physical addresses', 'Schedules processes on the CPU', 'Compiles source code'],
+    correct: 1,
+    explains: ['File systems are handled by the kernel VFS layer.', '✅ Correct. The MMU translates virtual to physical addresses using the page table.', 'Process scheduling is done by the OS scheduler.', 'Compilation is done by a compiler program.']
+  },
+  {
+    q: 'What happens during a page fault?',
+    options: ['The program crashes with a segfault', 'The CPU reads from disk directly', 'The kernel fetches the page from disk and loads it into RAM', 'The MMU creates data out of nowhere'],
+    correct: 2,
+    explains: ['A segfault is different — for an invalid address. A page fault is for a valid but non-resident page.', 'The CPU never bypasses the OS for disk access.', '✅ Correct. The kernel finds the page on disk, loads it into a free frame, updates the page table, and resumes the process.', 'The MMU can\'t create data.']
+  },
+  {
+    q: 'Why are system calls more expensive than regular function calls?',
+    options: ['They\'re written in Python', 'They involve a privilege level transition and kernel-side validation', 'They require network access', 'They\'re interpreted at runtime'],
+    correct: 1,
+    explains: ['System calls are kernel code, typically C.', '✅ Correct. A syscall requires saving state, switching to kernel mode, validation, executing, returning. 100-1000x slower than a function call.', 'Most syscalls have nothing to do with the network.', 'System calls are compiled, not interpreted.']
+  },
+  {
+    q: 'What does the "D" (dirty) bit indicate?',
+    options: ['The page is corrupted', 'The page has been modified since being loaded from disk', 'The page is being executed as code', 'The page belongs to a different process'],
+    correct: 1,
+    explains: ['Corruption is unrelated.', '✅ Correct. When D=1, the page must be written back to disk before eviction. D=0 pages can be discarded.', 'Code vs data is tracked by permission bits.', 'Each process has its own page table.']
+  },
+  {
+    q: 'What is a "zombie" process?',
+    options: ['A process consuming too much CPU', 'A process that has finished but whose entry hasn\'t been cleaned up by its parent', 'A process infected by malware', 'A process stuck in an infinite loop'],
+    correct: 1,
+    explains: ['CPU-hogging processes are still alive (Running).', '✅ Correct. The process has called exit() but its entry remains until the parent calls wait() to "reap" it.', 'Malware doesn\'t create zombies.', 'An infinite loop keeps the process in Running state.']
+  },
+  {
+    q: 'Why does Chrome use a multi-process architecture (one process per tab)?',
+    options: ['Processes are faster than threads', 'To isolate tabs so a crash in one doesn\'t take down others', 'Threads don\'t exist on modern OSes', 'To reduce memory usage'],
+    correct: 1,
+    explains: ['Processes are actually heavier than threads.', '✅ Correct. If one tab crashes, others survive. The cost is higher memory, which Chrome accepts.', 'Threads absolutely exist.', 'Multi-process uses MORE memory.']
+  },
+  {
+    q: 'Which analogy best describes fork() + exec()?',
+    options: ['A cell dividing (mitosis), then one cell differentiating', 'A car engine starting up', 'A book being printed', 'A network packet being routed'],
+    correct: 0,
+    explains: ['✅ Correct. fork() is like mitosis — one process splits into two identical copies. Then exec() is like differentiation — one transforms into a new program.', 'Doesn\'t capture the cloning+transforming pattern.', 'Wrong metaphor.', 'Network routing is about moving data.']
+  },
+  {
+    q: 'What is the main advantage of multi-level page tables?',
+    options: ['They are faster to look up', 'They use less memory when address space is sparsely used', 'They allow larger page sizes', 'They eliminate the need for a TLB'],
+    correct: 1,
+    explains: ['Lookup is slightly slower (multiple memory accesses).', '✅ Correct. A flat table for 48-bit addresses would need millions of entries. Multi-level tables only allocate entries for used portions.', 'Page size is independent of table structure.', 'TLBs are still needed.']
+  },
+  {
+    q: 'When is using threads PREFERABLE to processes?',
+    options: ['When you need maximum isolation', 'When running untrusted code safely', 'When threads need to share lots of data and you want fast context switches', 'When you want separate file descriptors'],
+    correct: 2,
+    explains: ['Isolation is the advantage of PROCESSES.', 'Untrusted code should run in a separate process.', '✅ Correct. Threads share memory (easy data sharing) and are cheaper to switch between.', 'Each process has its own file descriptors.']
+  },
+  {
+    q: 'What does copy-on-write (COW) optimize?',
+    options: ['File system writes', 'The fork() system call', 'Network packet copying', 'Disk I/O operations'],
+    correct: 1,
+    explains: ['COW isn\'t about file systems.', '✅ Correct. After fork(), parent and child share pages. Only when one writes does the OS create a private copy. Makes fork() fast.', 'COW isn\'t related to network packets.', 'COW doesn\'t directly optimize disk I/O.']
+  },
+  {
+    q: 'Your app was fast yesterday, slow today. No code changes. CPU is 70%. Best first step?',
+    options: ['Add more CPU cores', 'Check page fault rates, I/O wait, and background processes', 'Rewrite in Rust', 'Restart the server'],
+    correct: 1,
+    explains: ['Premature optimization. 70% CPU means headroom.', '✅ Correct. With CPU headroom, slowness is likely page faults, I/O wait, or background processes. Tools: vmstat, iostat, top, strace.', 'Rewrites take weeks. Diagnose first.', 'Might mask the symptom but won\'t fix the cause.']
+  }
+];
+
+function renderFinalTest() {
+  const container = document.getElementById('finalTestContainer');
+  container.innerHTML = finalTestQuestions.map((q, qi) => `
+    <div class="quiz" style="margin-bottom: 1rem;" data-test-q="${qi}">
+      <div class="quiz-question"><strong>Q${qi + 1}.</strong> ${q.q}</div>
+      <div class="quiz-options">
+        ${q.options.map((opt, oi) => `
+          <button class="quiz-option" data-idx="${oi}">
+            <span class="letter">${String.fromCharCode(65 + oi)}</span>
+            <span>${opt}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  `).join('');
+  container.querySelectorAll('[data-test-q]').forEach(qEl => {
+    const qi = parseInt(qEl.dataset.testQ);
+    const q = finalTestQuestions[qi];
+    const options = qEl.querySelectorAll('.quiz-option');
+    const feedback = qEl.querySelector('.quiz-feedback');
+    options.forEach(opt => {
+      opt.addEventListener('click', () => {
+        const oi = parseInt(opt.dataset.idx);
+        options.forEach(o => o.disabled = true);
+        options.forEach((o, i) => {
+          if (i === q.correct) o.classList.add('correct');
+          else if (i === oi) o.classList.add('incorrect');
+        });
+        let html = '';
+        if (oi === q.correct) {
+          html = `<strong>✅ Correct!</strong> ${q.explains[oi]}`;
+        } else {
+          html = `<strong>❌ Not quite.</strong> The correct answer is <em>${q.options[q.correct]}</em>.<br><br><strong>Why your answer was wrong:</strong> ${q.explains[oi]}<br><br><strong>Why the correct answer is right:</strong> ${q.explains[q.correct]}`;
+        }
+        feedback.innerHTML = html;
+        feedback.classList.add('shown');
+        updateTestScore();
+      });
+    });
+  });
+}
+
+function updateTestScore() {
+  const all = document.querySelectorAll('[data-test-q]');
+  let correct = 0;
+  let answered = 0;
+  all.forEach(qEl => {
+    const qi = parseInt(qEl.dataset.testQ);
+    const q = finalTestQuestions[qi];
+    const selected = qEl.querySelector('.quiz-option.incorrect, .quiz-option.correct');
+    if (selected) {
+      answered++;
+      if (selected.classList.contains('correct')) correct++;
+    }
+  });
+  if (answered > 0) {
+    const scoreEl = document.getElementById('testScore');
+    scoreEl.classList.add('shown');
+    document.getElementById('scoreNumber').textContent = `${correct}/${all.length}`;
+    let msg = '';
+    const pct = correct / all.length;
+    if (answered < all.length) msg = `${answered} of ${all.length} answered. Keep going!`;
+    else if (pct >= 0.9) msg = '🏆 Outstanding! You\'ve truly internalized this material.';
+    else if (pct >= 0.7) msg = '👍 Great work! Review the questions you missed.';
+    else if (pct >= 0.5) msg = '📖 Solid foundation. Re-read the cheat sheet.';
+    else msg = '💪 Keep studying! Go back through the modules.';
+    document.getElementById('scoreMessage').textContent = msg;
+  }
+}
+
+renderFinalTest();
+
+/* ============================================================
+   FAQ
+   ============================================================ */
+const faqData = [
+  { q: 'I keep hearing "process" and "thread" used interchangeably. Are they really different?', a: 'Yes, fundamentally. A <strong>process</strong> is a complete program execution environment with its own virtual address space. A <strong>thread</strong> is a unit of execution that lives <em>inside</em> a process. Multiple threads share one process\'s memory, code, and open files, but each thread has its own stack. Think of a process as a house and threads as roommates — they share the kitchen but have separate bedrooms.' },
+  { q: 'Why does fork() make a copy? Wouldn\'t a "create new process" syscall be simpler?', a: 'The Unix fork+exec design seems weird but is elegant. By separating "clone myself" (fork) from "become a new program" (exec), Unix gives the parent a window between fork and exec where the child can do setup: change directory, redirect file descriptors, set environment variables <em>before</em> the new program starts. With a single "create process" syscall (like Windows\' CreateProcess), you\'d pass all config as arguments, leading to a bloated API. fork+exec keeps the syscall simple while allowing arbitrary setup. The cost is that fork must be efficient (which is why copy-on-write was invented).' },
+  { q: 'If virtual memory is always translating, doesn\'t that make every memory access slow?', a: 'Great question. In theory, every access would require looking up the page table — multiple memory accesses for multi-level tables. In practice, CPUs have a <strong>TLB (Translation Lookaside Buffer)</strong> — a small, fast cache of recent translations. When the MMU needs to translate, it first checks the TLB. If cached (TLB hit), the lookup is essentially free. If not cached (TLB miss), the MMU walks the page table. Programs with good locality have high TLB hit rates. Programs that jump around randomly (like traversing a linked list across many pages) suffer TLB misses. This is why cache-friendly data structures matter.' },
+  { q: 'What\'s the difference between a segfault and a page fault?', a: 'Commonly confused. A <strong>page fault</strong> is normal and healthy — it occurs when accessing a valid virtual address whose page just isn\'t in RAM. The kernel handles it transparently by fetching from disk. The process doesn\'t know it happened (except the time cost). A <strong>segfault</strong> is an error — accessing an <em>invalid</em> virtual address or violating permissions (e.g., writing to a read-only page). The kernel can\'t handle this — it sends SIGSEGV, which by default kills the process. Page faults are routine; segfaults are bugs.' },
+  { q: 'My professor said threads are "lightweight." What does that mean?', a: '"Lightweight" means threads consume fewer resources and are cheaper to manipulate. (1) <strong>Creation cost</strong> — creating a thread just allocates a new stack. Creating a process requires duplicating the address space (mitigated by COW, but still more work). (2) <strong>Context switch cost</strong> — switching between threads in the same process just swaps stack pointer, program counter, registers. Switching between processes also swaps the page table pointer and invalidates the TLB. (3) <strong>Memory overhead</strong> — threads share one address space. 100 threads in one process uses far less memory than 100 separate processes. (4) <strong>Communication</strong> — threads communicate via shared variables. Processes need IPC mechanisms (pipes, shared memory), which have higher overhead.' },
+  { q: 'I\'ve heard "context switch" — what exactly is being switched?', a: 'A context switch is saving one process/thread\'s state and loading another\'s. The "context" includes: (1) <strong>CPU registers</strong> — program counter, stack pointer, general-purpose registers, status flags. (2) <strong>Floating-point state</strong> — if the process was doing math. (3) <strong>Memory management state</strong> — for processes, the page table pointer is swapped and the TLB is flushed. For threads in the same process, this isn\'t needed. (4) <strong>Kernel state</strong> — the kernel stack pointer. All saved to a process control block (PCB) in kernel memory. The full operation takes 1-10 microseconds — fast in absolute terms, but at millions of switches per second, it adds up.' },
+  { q: 'Is learning this still worth it when AI writes most code now?', a: 'Yes. (1) <strong>The biggest AI companies hire infrastructure experts.</strong> OpenAI, Anthropic, Google, Meta — they need people who deeply understand OS and systems performance to build the systems AI runs on. (2) <strong>AI-generated code still runs on these abstractions.</strong> When AI writes a web server, that server makes syscalls, manages threads, uses virtual memory. If you don\'t understand these, you can\'t debug or optimize AI-generated code. (3) <strong>Performance debugging requires human expertise.</strong> AI can write code, but reasoning about why a production system is slow requires deep systems understanding. (4) <strong>Learning is intrinsically valuable.</strong> Understanding how computers work is fascinating and makes you a more informed technologist.' }
+];
+
+function renderFAQ() {
+  document.getElementById('faqContainer').innerHTML = faqData.map(item => `
+    <details class="faq-item">
+      <summary>${item.q}</summary>
+      <div class="faq-answer">${item.a}</div>
+    </details>
+  `).join('');
+}
+
+renderFAQ();
+
+/* ============================================================
+   INITIALIZE
+   ============================================================ */
+// Restore saved slide
+goToSlide(state.currentSlide || 0);
+updateProgress();
+
+console.log('📚 OS Deep Dive — Ready. Use ← → arrow keys to navigate slides.');
+</script>
+
+</body>
+</html>

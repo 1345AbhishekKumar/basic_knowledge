@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Netflix AI Playbook — A Lesson from Elizabeth Stone</title>
+<style>
+  :root{
+    --bg:#f6f3ee; --bg2:#efe9de; --ink:#111; --ink2:#555; --ink3:#7a756a;
+    --line:#d8d2c6; --accent:#9a6b2f; --accent-soft:#d6a77a; --card:#fffdf8;
+    --ok:#2f6f4f; --err:#8a3b2e; --chip:#efe7d8;
+  }
+  html[data-theme="dark"]{
+    --bg:#141310; --bg2:#1b1915; --ink:#e9e5dd; --ink2:#b3ada2; --ink3:#8f8a7f;
+    --line:#3a362f; --accent:#d6a77a; --accent-soft:#a98453; --card:#1d1b17;
+    --ok:#7fbf9f; --err:#d98a76; --chip:#26231d;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    line-height:1.65; font-size:17px;
+    transition:background .3s ease, color .3s ease;
+  }
+  h1,h2,h3,h4{font-family:Georgia, "Times New Roman", serif; font-weight:600; line-height:1.25; letter-spacing:-.01em}
+  .serif{font-family:Georgia, "Times New Roman", serif}
+  a{color:var(--accent)}
+  p{max-width:70ch}
+
+  /* thin top progress bar */
+  #progress{position:fixed; top:0; left:0; height:2px; width:0%; background:var(--accent); z-index:60; transition:width .1s linear}
+
+  .topbar{
+    position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:14px;
+    padding:12px 22px; background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:blur(6px); border-bottom:1px solid var(--line);
+  }
+  .topbar .brand{font-family:Georgia,serif; font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink3)}
+  .topbar .spacer{flex:1}
+  #themeToggle{
+    background:none; border:1px solid var(--line); border-radius:999px; color:var(--ink2);
+    width:36px; height:36px; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center;
+    transition:border-color .2s, color .2s;
+  }
+  #themeToggle:hover{border-color:var(--accent); color:var(--accent)}
+  #themeToggle .icon-sun{display:none}
+  html[data-theme="dark"] #themeToggle .icon-sun{display:inline}
+  html[data-theme="dark"] #themeToggle .icon-moon{display:none}
+
+  .layout{display:grid; grid-template-columns:240px minmax(0,1fr); gap:0; max-width:1200px; margin:0 auto}
+
+  /* Timeline rail */
+  .rail{
+    position:sticky; top:61px; align-self:start; height:calc(100vh - 61px); overflow:auto;
+    padding:34px 18px 40px 26px; border-right:1px solid var(--line);
+  }
+  .rail h2{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink3); margin-bottom:18px; font-family:inherit; font-weight:600}
+  .rail ol{list-style:none; position:relative; padding-left:0}
+  .rail ol::before{content:""; position:absolute; left:11px; top:10px; bottom:10px; width:1.5px; background:var(--line)}
+  .rail li{position:relative; margin-bottom:4px}
+  .rail a{
+    display:flex; gap:12px; align-items:center; padding:9px 10px 9px 0; text-decoration:none; color:var(--ink2);
+    border-radius:8px; transition:color .2s, background .2s; font-size:14px;
+  }
+  .rail a:hover{color:var(--ink); background:color-mix(in srgb, var(--bg2) 70%, transparent)}
+  .rail .dot{
+    width:11px; height:11px; border-radius:50%; border:1.5px solid var(--line); background:var(--bg);
+    flex:none; position:relative; z-index:1; margin-left:6px; transition:border-color .2s, background .2s;
+  }
+  .rail a.active{color:var(--ink)}
+  .rail a.active .dot{border-color:var(--accent); background:var(--accent)}
+  .rail .num{font-family:Georgia,serif; font-size:13px; color:var(--ink3); min-width:14px}
+
+  main{padding:0 34px 80px; min-width:0}
+  .wrap{max-width:820px; margin:0 auto}
+
+  /* hero */
+  .hero{padding:56px 0 26px; border-bottom:1px solid var(--line); margin-bottom:44px}
+  .hero .eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); font-weight:600; margin-bottom:14px}
+  .hero h1{font-size:clamp(30px, 4.4vw, 44px); margin-bottom:16px}
+  .hero .sub{color:var(--ink2); font-size:18px; max-width:62ch}
+  .hero .meta{margin-top:18px; font-size:13.5px; color:var(--ink3); display:flex; flex-wrap:wrap; gap:6px 18px}
+  .hero .meta b{color:var(--ink2); font-weight:600}
+
+  section.block{margin:0 0 14px; padding-top:12px}
+  h2.sec{font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600; font-family:inherit; margin:0 0 20px; display:flex; align-items:center; gap:10px}
+  h2.sec::after{content:""; flex:1; height:1px; background:var(--line)}
+
+  .learn-list{list-style:none; display:grid; gap:12px; margin-bottom:8px}
+  .learn-list li{display:flex; gap:12px; align-items:flex-start; font-size:16px; color:var(--ink)}
+  .learn-list .tick{color:var(--accent); font-weight:700; line-height:1.6; flex:none}
+
+  /* knowledge map */
+  .kmap-wrap{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 12px 10px; margin:6px 0 26px}
+  .kmap-wrap figcaption{font-size:12.5px; color:var(--ink3); text-align:center; margin-top:4px}
+  #kmap{width:100%; height:auto; display:block}
+  #kmap .node{cursor:pointer}
+  #kmap .node circle{transition:fill .2s, stroke .2s}
+  #kmap .node:hover circle{fill:var(--accent); stroke:var(--accent)}
+  #kmap .node:hover .nlabel{fill:var(--bg)}
+  #kmap .link{stroke:var(--ink3); stroke-width:1.5}
+  #kmap .nlabel{fill:var(--ink); font-family:Georgia,serif}
+  #kmap .tt{fill:var(--ink2); font-size:12.5px; opacity:0; transition:opacity .2s}
+  #kmap .node:hover .tt{opacity:1}
+  #kmap text{pointer-events:none}
+
+  /* module */
+  .module{padding:0 0 52px; border-bottom:1px solid var(--line); margin-bottom:52px; scroll-margin-top:80px}
+  .module:last-of-type{border-bottom:none}
+  .module-head{display:flex; gap:16px; align-items:flex-start; margin-bottom:18px}
+  .module-num{
+    flex:none; width:44px; height:44px; border-radius:50%; border:1.5px solid var(--accent);
+    display:flex; align-items:center; justify-content:center; font-family:Georgia,serif; font-size:19px; color:var(--accent); margin-top:4px;
+  }
+  .module-head .when{font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink3); margin-bottom:4px; font-weight:600}
+  .module h2{font-size:clamp(23px, 3vw, 30px); margin-bottom:6px}
+  .module-head .tagline{color:var(--ink2); font-size:16px; max-width:60ch}
+
+  .prose{color:var(--ink); font-size:16.5px}
+  .prose p{margin:0 0 16px}
+  .prose p:first-of-type::first-letter{
+    font-family:Georgia,serif; font-size:2.6em; float:left; line-height:.85; padding:6px 8px 0 0; color:var(--accent); font-weight:600;
+  }
+  .prose strong{font-weight:600}
+
+  .subhead{font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); font-weight:600; font-family:inherit; margin:34px 0 12px; display:flex; align-items:center; gap:10px}
+  .subhead::after{content:""; flex:1; height:1px; background:var(--line)}
+
+  .steps{counter-reset:step; list-style:none; display:grid; gap:10px; margin-bottom:8px}
+  .steps li{
+    counter-increment:step; display:flex; gap:14px; align-items:flex-start;
+    background:var(--card); border:1px solid var(--line); border-radius:10px; padding:13px 16px;
+  }
+  .steps li::before{
+    content:counter(step); flex:none; width:26px; height:26px; border-radius:50%;
+    background:var(--chip); color:var(--accent); font-family:Georgia,serif; font-size:14px;
+    display:flex; align-items:center; justify-content:center; margin-top:2px;
+  }
+  .steps b{font-weight:600}
+
+  .examples{display:grid; gap:10px; margin-bottom:8px}
+  .ex{
+    background:var(--card); border:1px solid var(--line); border-left:3px solid var(--accent-soft);
+    border-radius:10px; padding:14px 16px;
+  }
+  .ex .tag{font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; color:var(--ink3); display:block; margin-bottom:4px}
+  .ex .tag .kind{color:var(--accent)}
+  .ex p{font-size:15px; margin:0; color:var(--ink)}
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0}
+  .card h4{font-size:17px; margin-bottom:8px; display:flex; align-items:center; gap:10px}
+  .card h4 .ic{color:var(--accent)}
+  .card p{font-size:15.5px; color:var(--ink); margin-bottom:8px}
+  .card p:last-child{margin-bottom:0}
+  .card .label{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink3); font-weight:700}
+
+  .analogy{border-left:3px solid var(--accent)}
+  .analogy .analogy-body{display:none; margin-top:6px}
+  .analogy.open .analogy-body{display:block}
+  .analogy .toggle-btn{
+    background:none; border:1px solid var(--line); color:var(--ink2); border-radius:999px;
+    padding:5px 14px; font-size:13px; cursor:pointer; margin-top:8px; transition:border-color .2s,color .2s;
+  }
+  .analogy .toggle-btn:hover{border-color:var(--accent); color:var(--accent)}
+
+  .myth{background:color-mix(in srgb, var(--bg2) 60%, transparent); border-radius:12px; padding:16px 18px; margin:14px 0}
+  .myth .myth-q{font-weight:600; color:var(--ink); font-size:15.5px; display:flex; gap:10px; align-items:flex-start; cursor:pointer; background:none; border:none; text-align:left; width:100%; font-family:inherit}
+  .myth .myth-q .mark{color:var(--accent); font-weight:700; flex:none}
+  .myth .myth-a{display:none; color:var(--ink2); font-size:15px; margin-top:10px; max-width:68ch}
+  .myth.open .myth-a{display:block}
+  .myth .myth-a b{color:var(--ink)}
+
+  .link-next{margin-top:30px; font-size:15px; color:var(--ink2)}
+  .link-next a{font-weight:600; text-decoration:none; border-bottom:1px solid var(--accent-soft); padding-bottom:1px}
+  .link-next a:hover{border-color:var(--accent)}
+
+  /* visuals */
+  figure.visual{margin:22px 0; text-align:center}
+  figure.visual svg{width:100%; height:auto; background:var(--card); border:1px solid var(--line); border-radius:12px}
+  figure.visual figcaption{font-size:13px; color:var(--ink3); margin-top:8px; max-width:70ch; margin-left:auto; margin-right:auto}
+  .anim-controls{display:flex; gap:8px; justify-content:center; margin-top:10px}
+  .anim-controls button{
+    background:var(--card); border:1px solid var(--line); color:var(--ink2); border-radius:999px;
+    padding:5px 16px; font-size:13px; cursor:pointer; font-family:inherit; transition:border-color .2s, color .2s;
+  }
+  .anim-controls button:hover{border-color:var(--accent); color:var(--accent)}
+  .stage-label{margin-top:8px; font-family:Georgia,serif; font-size:15px; color:var(--accent); min-height:1.4em}
+
+  .photo-placeholder{margin:22px 0}
+  .placeholder-box{
+    min-height:280px; border:1.5px dashed #bbb; border-radius:12px;
+    background-image:url('data:image/gif;base64,R0lGODlhCgAKAIAAAP///7m5uSH/C05FVFNDQVBFMi4wAwEAAAAh+QQJZQAAACwAAAAACgAKAAACF4yPgMuFklJ2nZCbnNc9IS5Oao2Z5mEAIfkECWUAAAAsAAAAAAoACgAAAhWMj4DLhZJSdp2Qm5zXPSQuTmqNmWYBACH5BAllAAAALAAAAAAKAAoAAAIVjI+Ay4WSUnadkJuc1z0kLk5qjZlmAQA7');
+    background-color:var(--card);
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    padding:20px; color:var(--ink3); font-size:14px;
+  }
+  .photo-placeholder figcaption{font-size:13px; color:var(--ink3); margin-top:8px}
+
+  /* interactive widgets */
+  .quiz{margin:16px 0}
+  .quiz .q{font-weight:600; font-size:16px; margin-bottom:10px}
+  .quiz .opts{display:grid; gap:8px}
+  .quiz button.opt{
+    text-align:left; background:var(--card); border:1px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:11px 15px; font-size:15px; cursor:pointer; font-family:inherit;
+    transition:border-color .2s, background .2s;
+  }
+  .quiz button.opt:hover{border-color:var(--accent)}
+  .quiz button.opt.correct{border-color:var(--ok); background:color-mix(in srgb, var(--ok) 12%, var(--card))}
+  .quiz button.opt.wrong{border-color:var(--err); background:color-mix(in srgb, var(--err) 10%, var(--card))}
+  .quiz button.opt:disabled{cursor:default; opacity:.92}
+  .quiz .explain{display:none; font-size:14.5px; color:var(--ink2); margin-top:10px; padding:12px 14px; background:var(--bg2); border-radius:8px; max-width:68ch}
+  .quiz.done .explain{display:block}
+  .quiz .explain b{color:var(--ink)}
+
+  .dnd{margin:16px 0}
+  .dnd .dnd-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .dnd .src, .dnd .dst{
+    border:1px solid var(--line); border-radius:10px; padding:11px 14px; font-size:14.5px; cursor:pointer;
+    background:var(--card); color:var(--ink); user-select:none; transition:border-color .2s, background .2s; min-width:120px; text-align:center;
+  }
+  .dnd .src:hover{border-color:var(--accent)}
+  .dnd .src.dragging{opacity:.5}
+  .dnd .src.used{opacity:.35; pointer-events:none}
+  .dnd .dst{border-style:dashed}
+  .dnd .dst:hover{border-color:var(--accent)}
+  .dnd .dst.correct{border-style:solid; border-color:var(--ok); background:color-mix(in srgb, var(--ok) 12%, var(--card))}
+  .dnd .dst.wrong{border-color:var(--err)}
+  .dnd .dst .slot{display:block; font-size:12px; color:var(--ink3); margin-top:4px; font-style:italic}
+  .dnd .hint{font-size:13px; color:var(--ink3); margin-top:8px}
+
+  .slider{margin:16px 0}
+  .slider input[type=range]{width:100%; accent-color:var(--accent); cursor:pointer}
+  .slider .slider-labels{display:flex; justify-content:space-between; font-size:12.5px; color:var(--ink3); margin-top:4px}
+  .slider .slider-step{display:none; margin-top:12px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; font-size:15px}
+  .slider .slider-step.show{display:block}
+  .slider .slider-step b{color:var(--accent); display:block; margin-bottom:4px; font-family:Georgia,serif}
+
+  .flashcards{display:grid; grid-template-columns:repeat(auto-fit, minmax(230px,1fr)); gap:12px; margin:16px 0}
+  .fc{perspective:900px; height:180px; cursor:pointer}
+  .fc button{width:100%; height:100%; background:none; border:none; padding:0; font:inherit; color:inherit; cursor:pointer; perspective:900px}
+  .fc-inner{
+    position:relative; width:100%; height:100%; text-align:left; transition:transform .5s;
+    transform-style:preserve-3d;
+  }
+  .fc.flipped .fc-inner{transform:rotateY(180deg)}
+  .fc-face{
+    position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden;
+    border:1px solid var(--line); border-radius:12px; padding:16px; display:flex; flex-direction:column; justify-content:center;
+    background:var(--card); color:var(--ink);
+  }
+  .fc-face .fc-q{font-weight:600; font-size:15px}
+  .fc-face .fc-hint{margin-top:auto; font-size:12px; color:var(--ink3); padding-top:10px}
+  .fc-face.back{transform:rotateY(180deg); background:var(--bg2); color:var(--ink)}
+  .fc-face.back p{font-size:14px; margin:0; color:var(--ink2)}
+  .fc-face.back p b{color:var(--ink)}
+
+  .checklist{margin:16px 0}
+  .checklist label{display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:15px}
+  .checklist label:last-child{border-bottom:none}
+  .checklist input{accent-color:var(--accent); margin-top:5px; width:17px; height:17px; cursor:pointer}
+  .checklist .check-progress{font-size:12.5px; color:var(--ink3); margin-top:6px}
+
+  .cheatsheet{margin:16px 0}
+  .cheatsheet pre{
+    background:var(--bg2); border:1px solid var(--line); border-radius:10px; padding:16px; overflow:auto;
+    font-size:13.5px; line-height:1.7; color:var(--ink); white-space:pre; max-width:100%;
+  }
+  .cheatsheet .copy-btn{
+    background:var(--card); border:1px solid var(--line); color:var(--ink2); border-radius:999px;
+    padding:5px 14px; font-size:13px; cursor:pointer; margin-top:8px; font-family:inherit;
+  }
+  .cheatsheet .copy-btn:hover{border-color:var(--accent); color:var(--accent)}
+  .cheatsheet .copy-msg{font-size:12.5px; color:var(--ok); margin-left:10px; opacity:0; transition:opacity .3s}
+  .cheatsheet .copy-msg.show{opacity:1}
+
+  /* memory pills */
+  .pills{display:flex; flex-wrap:wrap; gap:8px; margin:20px 0 6px}
+  .pill{
+    font-size:13px; color:var(--ink2); background:var(--card); border:1px solid var(--line);
+    border-radius:999px; padding:6px 14px; display:inline-flex; align-items:center; gap:7px;
+  }
+  .pill .p-ic{color:var(--accent); font-weight:700}
+  .recall{
+    margin:18px 0; background:color-mix(in srgb, var(--accent-soft) 10%, var(--card));
+    border:1px solid var(--accent-soft); border-radius:10px; padding:13px 16px; font-size:14.5px; color:var(--ink2);
+  }
+  .recall b{color:var(--ink)}
+  .recall .r-ic{color:var(--accent)}
+
+  table.summary{width:100%; border-collapse:collapse; margin:16px 0; font-size:14.5px}
+  table.summary th, table.summary td{border:1px solid var(--line); padding:10px 12px; text-align:left; vertical-align:top}
+  table.summary th{background:var(--bg2); font-weight:600; color:var(--ink); font-size:13px; letter-spacing:.04em}
+  table.summary td{color:var(--ink2)}
+  table.summary td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+
+  .faq{margin:16px 0}
+  .faq details{border:1px solid var(--line); border-radius:10px; margin-bottom:10px; background:var(--card)}
+  .faq summary{cursor:pointer; padding:14px 16px; font-weight:600; font-size:15.5px; list-style:none; display:flex; justify-content:space-between; align-items:center; gap:10px}
+  .faq summary::after{content:"+"; color:var(--accent); font-size:20px; line-height:1}
+  .faq details[open] summary::after{content:"−"}
+  .faq .faq-a{padding:0 16px 14px; color:var(--ink2); font-size:15px; max-width:70ch}
+  .faq .faq-a b{color:var(--ink)}
+
+  .next{display:grid; gap:12px; margin:16px 0}
+  .next .step-card{background:var(--card); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:10px; padding:15px 18px}
+  .next .step-card .n{font-family:Georgia,serif; color:var(--accent); font-size:15px; display:block; margin-bottom:4px}
+  .next .step-card p{font-size:15px; margin:0; color:var(--ink)}
+
+  .closing{
+    margin-top:56px; padding:26px 28px; background:var(--card); border:1px solid var(--line); border-radius:14px;
+  }
+  .closing h3{font-size:20px; margin-bottom:10px}
+  .closing p{color:var(--ink2); font-size:15px}
+  .closing .quote{margin-top:14px; padding-left:16px; border-left:2px solid var(--accent-soft); font-family:Georgia,serif; font-size:17px; color:var(--ink)}
+  footer{margin-top:60px; padding:26px 0 40px; border-top:1px solid var(--line); text-align:center; color:var(--ink3); font-size:13px}
+
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr}
+    .rail{display:none}
+    main{padding:0 20px 60px}
+  }
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto}
+    *{transition:none !important; animation:none !important}
+  }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<header class="topbar">
+  <span class="brand">Netflix · AI Playbook</span>
+  <span class="spacer"></span>
+  <button id="themeToggle" aria-label="Toggle dark mode">
+    <span class="icon-moon">☾</span><span class="icon-sun">☀</span>
+  </button>
+</header>
+
+<div class="layout">
+  <!-- ======================= TIMELINE RAIL ======================= -->
+  <aside class="rail" aria-label="Lesson timeline">
+    <h2>The Conversation Arc</h2>
+    <ol>
+      <li><a href="#m1"><span class="dot"></span><span class="num">01</span> The Storm</a></li>
+      <li><a href="#m2"><span class="dot"></span><span class="num">02</span> The Craft</a></li>
+      <li><a href="#m3"><span class="dot"></span><span class="num">03</span> The Mindset</a></li>
+      <li><a href="#m4"><span class="dot"></span><span class="num">04</span> The Ladder</a></li>
+      <li><a href="#m5"><span class="dot"></span><span class="num">05</span> The Tools</a></li>
+      <li><a href="#m6"><span class="dot"></span><span class="num">06</span> The Culture</a></li>
+      <li><a href="#m7"><span class="dot"></span><span class="num">07</span> The Horizon</a></li>
+    </ol>
+  </aside>
+
+  <!-- ======================= MAIN ======================= -->
+  <main>
+    <div class="wrap">
+
+      <section class="hero">
+        <div class="eyebrow">An Interactive Lesson · Built from a Podcast Transcript</div>
+        <h1>The Netflix AI Playbook: Roles, Systems Thinking &amp; the Future of Entertainment</h1>
+        <p class="sub">A deep, interactive lesson distilled from Lenny&#39;s Podcast — Elizabeth Stone, Product &amp; Technology Officer at Netflix, on how AI is reshaping what we do, how we think, and how a culture of excellence survives the storm.</p>
+        <div class="meta">
+          <span><b>Source:</b> Lenny&#39;s Podcast, Elizabeth Stone (PTO, Netflix)</span>
+          <span><b>Format:</b> 7 modules · 1 knowledge map · 5 animations</span>
+          <span><b>Theme:</b> Timeline Rail</span>
+        </div>
+      </section>
+
+      <!-- WHAT YOU'LL LEARN -->
+      <section class="block" id="learn">
+        <h2 class="sec">What You&#39;ll Learn</h2>
+        <ul class="learn-list">
+          <li><span class="tick">✓</span>Name the <b>storming phase</b> and explain why role-blurring is a phase — not the end state of work.</li>
+          <li><span class="tick">✓</span>Argue why <b>craft and specialization</b> still matter even when everyone can build.</li>
+          <li><span class="tick">✓</span>Practice <b>&#34;one-click-out&#34; systems thinking</b> on your own work — the skill Netflix is hiring for.</li>
+          <li><span class="tick">✓</span>Describe what <b>AI fluency</b> means on career ladders and how hiring is changing.</li>
+          <li><span class="tick">✓</span>Map AI&#39;s real uses at Netflix <b>beyond the recommendation row</b> — from data distillation to post-production.</li>
+          <li><span class="tick">✓</span>Recognize the ingredients of <b>&#34;excellence as an operating system&#34;</b> — and why top AI labs copy it.</li>
+          <li><span class="tick">✓</span>Imagine entertainment&#39;s future: <b>many formats, one seamless journey</b>, humans at the heart.</li>
+        </ul>
+
+        <div class="recall"><span class="r-ic">◉</span> <b>Before you scroll:</b> pause for 10 seconds. What do you think happens to job titles when AI lets everyone do everything? Write down one answer, then keep reading.</div>
+      </section>
+
+      <!-- KNOWLEDGE MAP -->
+      <section class="block" id="map">
+        <h2 class="sec">Knowledge Map</h2>
+        <figure class="kmap-wrap">
+          <svg id="kmap" viewBox="0 0 820 120" role="img" aria-label="Knowledge map with seven modules on a timeline: the storm, the craft, the mindset, the ladder, the tools, the culture, the horizon">
+            <title>Lesson knowledge map</title>
+            <line class="link" x1="60" y1="55" x2="790" y2="55"/>
+            <g class="node" data-target="m1">
+              <circle cx="100" cy="55" r="20" fill="none" stroke="var(--ink3)"/>
+              <text class="nlabel" x="100" y="60" text-anchor="middle" font-size="14">1</text>
+              <text class="tt" x="100" y="95" text-anchor="middle">The Storm</text>
+            </g>
+            <g class="node" data-target="m2">
+              <circle cx="215" cy="55" r="20" fill="none" stroke="var(--ink3)"/>
+              <text class="nlabel" x="215" y="60" text-anchor="middle" font-size="14">2</text>
+              <text class="tt" x="215" y="95" text-anchor="middle">The Craft</text>
+            </g>
+            <g class="node" data-target="m3">
+              <circle cx="330" cy="55" r="20" fill="none" stroke="var(--ink3)"/>
+              <text class="nlabel" x="330" y="60" text-anchor="middle" font-size="14">3</text>
+              <text class="tt" x="330" y="95" text-anchor="middle">The Mindset</text>
+            </g>
+            <g class="node" data-target="m4">
+              <circle cx="445" cy="55" r="20" fill="none" stroke="var(--ink3)"/>
+              <text class="nlabel" x="445" y="60" text-anchor="middle" font-size="14">4</text>
+              <text class="tt" x="445" y="95" text-anchor="middle">The Ladder</text>
+            </g>
+            <g class="node" data-target="m5">
+              <circle cx="560" cy="55" r="20" fill="none" stroke="var(--ink3)"/>
+              <text class="nlabel" x="560" y="60" text-anchor="middle" font-size="14">5</text>
+              <text class="tt" x="560" y="95" text-anchor="middle">The Tools</text>
+            </g>
+            <g class="node" data-target="m6">
+              <circle cx="675" cy="55" r="20" fill="none" stroke="var(--ink3)"/>
+              <text class="nlabel" x="675" y="60" text-anchor="middle" font-size="14">6</text>
+              <text class="tt" x="675" y="95" text-anchor="middle">The Culture</text>
+            </g>
+            <g class="node" data-target="m7">
+              <circle cx="790" cy="55" r="20" fill="none" stroke="var(--ink3)"/>
+              <text class="nlabel" x="790" y="60" text-anchor="middle" font-size="14">7</text>
+              <text class="tt" x="790" y="95" text-anchor="middle">The Horizon</text>
+            </g>
+          </svg>
+          <figcaption>Hover a node to preview, click to jump. The map mirrors the timeline rail on the left — this lesson is a journey from &#34;then&#34; to &#34;the horizon&#34;.</figcaption>
+        </figure>
+      </section>
+
+      <!-- ======================= MODULE 1 ======================= -->
+      <section class="module" id="m1">
+        <div class="module-head">
+          <div class="module-num">1</div>
+          <div>
+            <div class="when">Now · The Shift</div>
+            <h2>The Storming Phase: When Everyone Can Be Everything</h2>
+            <p class="tagline">PMs ship code. Designers write PRDs. Engineers &#34;product.&#34; And everybody asks: what is my job anymore?</p>
+          </div>
+        </div>
+
+        <div class="prose">
+          <p>Elizabeth opens with a line that will feel familiar to almost anyone working in tech right now: &#34;Everyone can be everything now.&#34; Product managers can ship working prototypes. Designers can draft product requirement documents. Engineers can weigh in on product strategy. And underneath all that new capability sits a very human feeling — confusion, even frustration, about what you are actually responsible for anymore.</p>
+          <p>Her framing borrows from the classic team-development model: every new technology pushes an organization through a <strong>storming phase</strong> before it reaches a <strong>forming phase</strong>. Storming is messy, loud, and full of identity questions. That is normal, and it is where we are right now. The mistake would be to panic and &#34;put AI back into the box.&#34; The smarter move is to capture the benefits of experimentation while deliberately reducing the costs.</p>
+          <p>At Netflix that means three guardrails, repeated in almost every part of the conversation: <strong>clarity on the source of truth</strong> for data, <strong>guardrails on shipping to production</strong> (test before large changes), and a constant re-statement that <strong>humans remain responsible for outcomes</strong>. If an agent wrote the code, a human still owns what it does in production. Fluidity across roles is healthy when the business problem is clear — but it works only because the accountability never gets fluid.</p>
+        </div>
+
+        <h3 class="subhead">Step-by-Step: Moving Through the Storm</h3>
+        <ol class="steps">
+          <li><span><b>AI accelerates prototyping.</b> Anyone can sketch an idea, write an initial script, or assemble a first version of an analysis without waiting for a specialist team.</span></li>
+          <li><span><b>Role confusion hits.</b> &#34;If I can do their job, what is my job?&#34; The storming phase is where identity questions surface — and they surface loudly.</span></li>
+          <li><span><b>Teams experiment broadly.</b> Product and design move faster on early shaping; engineers are told what is coming so it isn&#39;t a surprise.</span></li>
+          <li><span><b>Guardrails arrive.</b> Source-of-truth data, review before production changes, and clear ownership of outcomes keep experimentation from becoming chaos.</span></li>
+          <li><span><b>Storming settles into forming.</b> A new division of labor emerges — more fluid, but still anchored in expertise and accountability.</span></li>
+        </ol>
+
+        <h3 class="subhead">Three Examples</h3>
+        <div class="examples">
+          <div class="ex"><span class="tag"><span class="kind">Obvious</span> · everyday version</span><p>A product manager prototypes a feature with AI-generated code and shows it to users weeks before the engineering team would have had a sprint slot. Speed up, confusion included.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Counter-intuitive</span> · the twist</span><p>Business stakeholders in finance, content, and advertising — not data scientists — use AI to distill past experiments and bring back an initial hypothesis. The &#34;data person&#34; isn&#39;t replaced; the doorway moved earlier.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Edge case</span> · where it can break</span><p>An AI agent writes code that passes tests but nobody fully understands. The human still owns the production quality — which is precisely why understanding, not just generating, remains the job.</p></div>
+        </div>
+
+        <div class="card analogy" id="analogy1">
+          <h4><span class="ic">◆</span> Visual Analogy: A Kitchen Remodel</h4>
+          <p class="label">What storming actually feels like</p>
+          <p style="margin-top:6px">During a kitchen remodel, the house is a mess — countertops stacked in the hallway, three tradespeople in one room, nothing where it used to be. That&#39;s storming. Nobody concludes the kitchen is obsolete. You put up dust barriers (guardrails), agree on the plan (source of truth), and eventually the chaos resolves into a kitchen that works better than before. The remodel is the point — not the mess, and not the old kitchen either.</p>
+        </div>
+
+        <div class="myth" id="myth1">
+          <button class="myth-q" aria-expanded="false"><span class="mark">✕</span><span>What People Get Wrong: &#34;AI means my role is dead.&#34;</span></button>
+          <div class="myth-a">Elizabeth&#39;s answer is emphatic: the storming phase is temporary, and it is a phase — not the destination. The roles aren&#39;t dying; they&#39;re being re-plumbed. The real risk isn&#39;t that everyone becomes redundant — it&#39;s that organizations grab the benefits of AI without the guardrails, and end up with the costs: chaos, low-quality output, and nobody accountable.</div>
+        </div>
+
+        <h3 class="subhead">Why This Matters</h3>
+        <p class="prose" style="font-size:15.5px;color:var(--ink2)">If you&#39;re confused about your job right now, you are not behind — you&#39;re in the storm, exactly where the model predicts. Understanding that this is a transition, not a verdict, tells you what to do next: keep experimenting, keep your discipline&#39;s lens sharp, and make sure your name is still attached to outcomes.</p>
+
+        <figure class="visual">
+          <svg id="anim-storm" viewBox="0 0 640 240" role="img" aria-label="Animated chart: a curve moving from the storming phase into the forming phase">
+            <title>Storming to forming curve</title>
+            <!-- axis -->
+            <line x1="40" y1="200" x2="620" y2="200" stroke="var(--ink3)" stroke-width="1.5"/>
+            <line x1="40" y1="200" x2="40" y2="30" stroke="var(--ink3)" stroke-width="1.5"/>
+            <!-- phase zones -->
+            <rect x="60" y="50" width="240" height="145" fill="var(--bg2)" stroke="none"/>
+            <rect x="300" y="50" width="300" height="145" fill="none" stroke="none"/>
+            <text x="180" y="40" text-anchor="middle" fill="var(--ink2)" font-size="13" font-family="Georgia,serif">Storming</text>
+            <text x="450" y="40" text-anchor="middle" fill="var(--ink2)" font-size="13" font-family="Georgia,serif">Forming</text>
+            <!-- jagged dip then rise -->
+            <path id="stormPath" d="M60,110 L100,80 L140,135 L180,95 L220,150 L260,120 L300,95 L360,75 L420,60 L480,48 L540,40 L600,34"
+              fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+            <!-- uncertainty dots in storming zone -->
+            <circle cx="100" cy="80" r="3" fill="var(--ink3)"/>
+            <circle cx="180" cy="95" r="3" fill="var(--ink3)"/>
+            <circle cx="260" cy="120" r="3" fill="var(--ink3)"/>
+            <!-- moving dot -->
+            <circle id="stormDot" cx="60" cy="110" r="6" fill="var(--accent)"/>
+            <text x="40" y="222" fill="var(--ink3)" font-size="11.5">time</text>
+            <text x="40" y="26" fill="var(--ink3)" font-size="11.5" transform="rotate(-90 14,110)">clarity ↑</text>
+          </svg>
+          <div class="stage-label" id="stormLabel">Storming — role confusion peaks</div>
+          <div class="anim-controls">
+            <button data-anim-play="storm">▶ Play</button>
+            <button data-anim-pause="storm">⏸ Pause</button>
+            <button data-anim-replay="storm">↺ Replay</button>
+          </div>
+          <figcaption>The curve is deliberately jagged at first: experimentation is noisy. As guardrails and clarity land, the path smooths into forming.</figcaption>
+        </figure>
+
+        <p class="link-next">Up next: if roles don&#39;t die in the storm, what actually survives? <a href="#m2">The Craft →</a></p>
+      </section>
+
+      <!-- ======================= MODULE 2 ======================= -->
+      <section class="module" id="m2">
+        <div class="module-head">
+          <div class="module-num">2</div>
+          <div>
+            <div class="when">Now · The Shift</div>
+            <h2>The Craft Endures: Why Specialists Still Matter</h2>
+            <p class="tagline">Everyone can build now. Great engineering, great data science, and great creativity are still scarce.</p>
+          </div>
+        </div>
+
+        <div class="prose">
+          <p>Here is the question underneath the whole episode: <em>if we all become builders, do we still need separate functions?</em> Elizabeth&#39;s answer is a confident yes — and it&#39;s not nostalgia. AI has removed a lot of <strong>friction</strong>: finding an old experiment, pulling together an analysis, drafting a first prototype. But it hasn&#39;t removed <strong>judgment</strong>. Each discipline still holds a distinctive lens that the tools don&#39;t have.</p>
+          <p>A data scientist is still the person who asks whether the data can be trusted and how much is data versus judgment. A product manager is still the person who checks whether the <em>what</em> — the problem being framed — is actually the right problem. An engineer still owns the <em>how</em>: does this scale, what does high quality look like, what problems will this create when we deploy it? A designer still owns coherence — what a good experience looks like and how it fits the whole. Those are the &#34;nuggets of comparative advantage,&#34; and Elizabeth calls the expertise behind them <strong>craft excellence</strong>.</p>
+          <p>She also noticed something about the last two and a half years: the roles that changed most are the ones that used to be bottlenecks early in the product lifecycle. PMs, designers, and data scientists now get much further — prototyping, writing code, shaping ideas — before engineering needs to be &#34;front of the line.&#34; But that only works when the problem is important, the engineering partner is aware, and people aren&#39;t &#34;throwing spaghetti at the wall.&#34; The roles that changed least? The ones built on deep, hard-to-fake judgment — which is exactly why that judgment got more scarce, not less.</p>
+        </div>
+
+        <h3 class="subhead">Step-by-Step: Fluidity With Anchors</h3>
+        <ol class="steps">
+          <li><span><b>Remove the friction.</b> AI answers &#34;what research did we do, and what did we learn?&#34; in seconds instead of email chains.</span></li>
+          <li><span><b>Move further, faster.</b> Product, design, and data science shape testable hypotheses earlier in the lifecycle.</span></li>
+          <li><span><b>Hold the lens.</b> Each function still applies its comparative advantage — trust, framing, scale, coherence.</span></li>
+          <li><span><b>Keep the partner in the loop.</b> Prototypes aren&#39;t spaghetti; engineers know the problem being solved before work starts.</span></li>
+          <li><span><b>Recognize scarcity.</b> Craft excellence didn&#39;t dissolve — it became the differentiator between good and great output.</span></li>
+        </ol>
+
+        <h3 class="subhead">Three Examples</h3>
+        <div class="examples">
+          <div class="ex"><span class="tag"><span class="kind">Obvious</span> · everyday version</span><p>An engineer is still the one who asks whether a service scales to millions of streams and what breaks when it deploys. The &#34;how&#34; is craft.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Counter-intuitive</span> · the twist</span><p>Designers now write code and PMs prototype — yet the scarce talent is <em>more</em> design-systems thinking, not less. Enabling non-designers to build coherent products requires stronger design expertise at the core.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Edge case</span> · where it can break</span><p>The &#34;member of technical staff&#34; trend — no title, be anything — sounds like the end of specialties. Elizabeth&#39;s take: the disciplines still carry distinct judgment that generalists borrow but don&#39;t replace.</p></div>
+        </div>
+
+        <div class="card analogy">
+          <h4><span class="ic">◆</span> Visual Analogy: Synthesizers, Not Musicians</h4>
+          <p class="label">What a tool does — and doesn&#39;t do</p>
+          <p style="margin-top:6px">Every musician can now buy the same synthesizer and make a passable track in an afternoon. Yet great players are still scarce — because the tool generates sounds, not taste. Knowing what <em>good</em> sounds like, when a chord change serves the song, and how to fix a mix that&#39;s gone wrong is the craft. AI is the synthesizer; craft is still the musician.</p>
+        </div>
+
+        <div class="myth" id="myth2">
+          <button class="myth-q" aria-expanded="false"><span class="mark">✕</span><span>What People Get Wrong: &#34;If everyone can build, specialists are obsolete.&#34;</span></button>
+          <div class="myth-a">The opposite happened. Elizabeth says great engineering, great data science, and great creativity are <em>still scarce</em> — and craft excellence is the thing she finds herself defending at every level. What changed is that specialists now speak more languages (the tools gave them that). What didn&#39;t change is the judgment underneath.</div>
+        </div>
+
+        <h3 class="subhead">Why This Matters</h3>
+        <p class="prose" style="font-size:15.5px;color:var(--ink2)">For your career: the way to stay valuable is not to become generic — it&#39;s to keep sharpening the lens only your discipline has, while adding the ability to move fluidly across steps that used to be blocked. If you can do that, you&#39;re not competing with the tools. You&#39;re the person deciding whether the tools are solving the right problem.</p>
+
+        <figure class="visual">
+          <svg viewBox="0 0 640 300" role="img" aria-label="Diagram showing four disciplines and their distinct lenses: product manager owns the what, engineer owns the how, data scientist owns trust in data, designer owns coherence">
+            <title>Comparative advantage of disciplines</title>
+            <defs>
+              <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--ink3)"/>
+              </marker>
+            </defs>
+            <ellipse cx="320" cy="150" rx="285" ry="125" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+            <ellipse cx="320" cy="150" rx="175" ry="75" fill="var(--bg2)" stroke="var(--ink3)" stroke-width="1.5"/>
+            <text x="320" y="155" text-anchor="middle" fill="var(--ink)" font-size="14" font-family="Georgia,serif">Fluidity: shared building blocks</text>
+            <text x="150" y="62" text-anchor="middle" fill="var(--ink2)" font-size="13.5" font-family="Georgia,serif">PM — the What</text>
+            <text x="490" y="62" text-anchor="middle" fill="var(--ink2)" font-size="13.5" font-family="Georgia,serif">Engineer — the How</text>
+            <text x="150" y="252" text-anchor="middle" fill="var(--ink2)" font-size="13.5" font-family="Georgia,serif">Data Science — trust</text>
+            <text x="490" y="252" text-anchor="middle" fill="var(--ink2)" font-size="13.5" font-family="Georgia,serif">Design — coherence</text>
+            <line x1="200" y1="95" x2="285" y2="125" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#arr)"/>
+            <line x1="440" y1="95" x2="355" y2="125" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#arr)"/>
+            <line x1="200" y1="218" x2="285" y2="180" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#arr)"/>
+            <line x1="440" y1="218" x2="355" y2="180" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#arr)"/>
+          </svg>
+          <figcaption>Each discipline keeps a distinct lens even as the work blurs. The center — shared building blocks — is where systems thinking (next module) lives.</figcaption>
+        </figure>
+
+        <h3 class="subhead">Check Your Understanding</h3>
+        <div class="quiz" id="quiz2">
+          <p class="q">After two and a half years of AI, which roles moved furthest in the product lifecycle before engineering was needed?</p>
+          <div class="opts">
+            <button class="opt" data-correct="true">PMs, designers, and data scientists — they prototype and shape ideas earlier</button>
+            <button class="opt">Engineers — they now write more code than anyone</button>
+            <button class="opt">Nobody — roles are exactly the same</button>
+          </div>
+          <div class="explain"><b>Correct.</b> AI removed friction early in the lifecycle, so product, design, and data science get to testable hypotheses faster — <em>with</em> engineering aware of the problem. The engineering &#34;how&#34; still gates scale and quality.</div>
+        </div>
+
+        <p class="link-next">Up next: the skill Netflix is hiring more of — and the one everyone wants to learn. <a href="#m3">The Mindset →</a></p>
+      </section>
+
+      <!-- ======================= MODULE 3 ======================= -->
+      <section class="module" id="m3">
+        <div class="module-head">
+          <div class="module-num">3</div>
+          <div>
+            <div class="when">Now → Next · The Mindset</div>
+            <h2>Systems Thinking: The Skill Everyone Needs</h2>
+            <p class="tagline">Fewer narrow specialists. More people who can look across domains and find the shared building blocks.</p>
+          </div>
+        </div>
+
+        <div class="prose">
+          <p>When Lenny asks what Netflix is hiring more of, Elizabeth doesn&#39;t name a function — she names a mindset: <strong>systems thinkers</strong>. People who can look across all the business domains, abstract the pattern, and say, &#34;here are the building blocks we&#39;re going to need.&#34; She gives two concrete versions. In engineering, that means more distributed-systems and infrastructure profiles building <strong>paved paths</strong> — common infrastructure that solves a problem once so local teams don&#39;t each rebuild their own stack. In design, it means more people building <strong>design systems and templates</strong> so that everyone, designers or not, ships experiences that feel like one coherent Netflix — instead of &#34;Frankensteins.&#34;</p>
+          <p>Why now? Three forces. First, <strong>velocity</strong>: platforms give most teams 80% of the way there, and with more bets being made across the business, leverage matters more than ever. Second, <strong>agents</strong>: as AI agents do real work across multiple systems, someone has to provide the scaffolding — context, access, identity, security, and a shared notion of what &#34;good&#34; looks like. Third, <strong>scale kills tribal knowledge</strong>: an organization of thousands can no longer rely on &#34;find the one person who knows this.&#34; That was already true before AI; AI made it urgent.</p>
+          <p>The counterweight is that narrow, deep specialization feels more limited than it did 5–10 years ago. Netflix still needs a few world-class experts — encoding, playback, payments — but the general rule has flipped: more adaptable generalists, more people who can say &#34;I can learn that quickly,&#34; and specialists who still ask whether the old tool is still the right tool.</p>
+        </div>
+
+        <h3 class="subhead">Step-by-Step: Developing the Skill</h3>
+        <ol class="steps">
+          <li><span><b>Take your task.</b> Whatever you&#39;re building — a feature, a model, a campaign.</span></li>
+          <li><span><b>Step out one click.</b> Ask: <em>what am I assuming is true about the broader space?</em> Not the whole company strategy — just one zoom out.</span></li>
+          <li><span><b>Test for scale.</b> Would this approach work across multiple content types, teams, or platforms? Could it become a shared capability?</span></li>
+          <li><span><b>Build or borrow the paved path.</b> Use the shared building blocks — or contribute a new one so the next team doesn&#39;t rebuild it.</span></li>
+          <li><span><b>Leave it stronger.</b> Would a colleague — or your manager — be better off because of how you solved this?</span></li>
+        </ol>
+
+        <h3 class="subhead">Three Examples</h3>
+        <div class="examples">
+          <div class="ex"><span class="tag"><span class="kind">Obvious</span> · everyday version</span><p>Central infrastructure builds a paved path for authentication and data access so dozens of local teams don&#39;t each invent their own — and don&#39;t each create a security risk.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Counter-intuitive</span> · the twist</span><p>Designers get hired less for &#34;design this one feature&#34; and more for building templates and brand systems — so non-designers can ship coherent experiences. Systems thinking replaced pixel-pushing as the core ask.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Edge case</span> · where it can break</span><p>A payments expert is still valuable — <em>provided</em> they keep asking whether the old tooling is still the right way to think about the problem. Subject-matter depth + willingness to question = the new specialist.</p></div>
+        </div>
+
+        <div class="card analogy">
+          <h4><span class="ic">◆</span> Visual Analogy: City Planning vs. Building One House</h4>
+          <p class="label">The systems-thinking zoom-out</p>
+          <p style="margin-top:6px">A homeowner asks: how do I make <em>my</em> kitchen efficient? A city planner asks: if a thousand homes are built, where do roads, water, and power go so none of them collapses into chaos? Systems thinking is the planner&#39;s move — you don&#39;t design the whole city, but you design so the city can exist. That&#39;s the &#34;one click out.&#34;</p>
+        </div>
+
+        <h3 class="subhead">Interactive: Step Out One Click</h3>
+        <div class="slider" id="zoomSlider">
+          <input type="range" min="1" max="3" value="1" aria-label="Zoom out level" aria-valuetext="Level 1: your feature">
+          <div class="slider-labels"><span>1 · Your feature</span><span>2 · The problem space</span><span>3 · The business bet</span></div>
+          <div class="slider-step show" data-step="1"><b>Click 1 — Your feature</b>You&#39;re asked to build a new feature for the Netflix member experience. Start here: what exactly are you building?</div>
+          <div class="slider-step" data-step="2"><b>Click 2 — The problem space</b>Zoom out one level: what bigger consumer problem does this solve? What content types must it support? Will it scale across them?</div>
+          <div class="slider-step" data-step="3"><b>Click 3 — The business bet</b>One more click: is this one of the most important consumer problems Netflix must solve as entertainment expands? Not the whole strategy — just this bet, in context.</div>
+        </div>
+
+        <div class="card analogy" id="analogy3">
+          <h4><span class="ic">◆</span> Toggle Analogy</h4>
+          <p class="label">Two ways to see the same skill</p>
+          <button class="toggle-btn" data-toggle="analogy3">Show the manager&#39;s-eye view</button>
+          <div class="analogy-body">
+            <p style="margin-top:10px">Elizabeth&#39;s second trick is even more practical: <em>think about how doing your job helps your manager do theirs.</em> If you consider not just product and tech but finance, content, and the rest of the business, you naturally zoom out — and you start seeing how the pieces need to come together, and how the whole can beat the sum of its parts. Engineers get the same effect by asking: did I leave a better version of this system for my colleagues?</p>
+          </div>
+        </div>
+
+        <div class="myth" id="myth3">
+          <button class="myth-q" aria-expanded="false"><span class="mark">✕</span><span>What People Get Wrong: &#34;Systems thinking means doing strategy.&#34;</span></button>
+          <div class="myth-a">No — Elizabeth is explicit: <em>&#34;You don&#39;t have to boil the whole ocean.&#34;</em> You don&#39;t solve Netflix&#39;s overall strategy or competitive position. You take the thing you&#39;re responsible for and zoom out exactly one level, question your assumptions, and get back to work. And don&#39;t stay in the questioning state too long — otherwise you&#39;re stuck and not making progress.</div>
+        </div>
+
+        <h3 class="subhead">Why This Matters</h3>
+        <p class="prose" style="font-size:15.5px;color:var(--ink2)">This is the skill showing up in hiring, in promotions, and in how work gets done. It&#39;s also the through-line of the whole episode: systems thinking is how you build the paved paths, the guardrails, and the shared building blocks that let hundreds of people and thousands of agents move fast <em>without</em> turning the company into chaos.</p>
+
+        <figure class="visual">
+          <svg id="anim-zoom" viewBox="0 0 640 260" role="img" aria-label="Animated diagram of concentric rings showing zooming out from a feature to the ecosystem">
+            <title>Zooming out one click at a time</title>
+            <rect x="270" y="100" width="100" height="60" rx="8" fill="none" stroke="var(--accent)" stroke-width="1.5" id="zoom-r1"/>
+            <rect x="210" y="60" width="220" height="140" rx="8" fill="none" stroke="var(--ink2)" stroke-width="1.5" id="zoom-r2"/>
+            <rect x="150" y="20" width="340" height="220" rx="8" fill="none" stroke="var(--ink3)" stroke-width="1.5" id="zoom-r3"/>
+            <rect x="90" y="-20" width="460" height="300" rx="8" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="5 5" id="zoom-r4"/>
+            <text x="320" y="137" text-anchor="middle" fill="var(--ink)" font-size="12.5" id="zoom-t1" font-family="Georgia,serif">your feature</text>
+            <text x="320" y="137" text-anchor="middle" fill="var(--ink2)" font-size="12.5" id="zoom-t2" font-family="Georgia,serif" opacity="0">the problem space</text>
+            <text x="320" y="137" text-anchor="middle" fill="var(--ink2)" font-size="12.5" id="zoom-t3" font-family="Georgia,serif" opacity="0">business bets</text>
+            <text x="320" y="137" text-anchor="middle" fill="var(--ink3)" font-size="12.5" id="zoom-t4" font-family="Georgia,serif" opacity="0">the ecosystem</text>
+            <circle id="zoomDot" cx="270" cy="100" r="5" fill="var(--accent)"/>
+          </svg>
+          <div class="stage-label" id="zoomLabel">Click 1 — your feature</div>
+          <div class="anim-controls">
+            <button data-anim-play="zoom">▶ Play</button>
+            <button data-anim-pause="zoom">⏸ Pause</button>
+            <button data-anim-replay="zoom">↺ Replay</button>
+          </div>
+          <figcaption>One click out at a time — from your feature, to the problem space, to the business bet, to the ecosystem. Never the whole ocean at once.</figcaption>
+        </figure>
+
+        <p class="link-next">Up next: how this mindset shows up on career ladders, in hiring, and in how juniors learn. <a href="#m4">The Ladder →</a></p>
+      </section>
+
+      <!-- ======================= MODULE 4 ======================= -->
+      <section class="module" id="m4">
+        <div class="module-head">
+          <div class="module-num">4</div>
+          <div>
+            <div class="when">Now → Next · The Ladder</div>
+            <h2>AI Fluency: Ladders, Hiring &amp; Learning</h2>
+            <p class="tagline">An aspiration layered over every level — not a new set of level-specific requirements.</p>
+          </div>
+        </div>
+
+        <div class="prose">
+          <p>Netflix famously had no career ladders for most of its history — it was a high-trust, low-process culture. When they did add ladders, the question became: how do AI expectations change them? Elizabeth&#39;s answer is deliberately structural: instead of rewriting each level&#39;s criteria, Netflix layered an <strong>AI fluency aspiration</strong> across all talent, at every level, in every function.</p>
+          <p>What is AI fluency? It&#39;s a &#34;tough thing to define,&#34; she admits, and it varies by function and career stage. It means an <strong>experimentation mindset</strong>. It means <strong>knowing where AI is useful and where it isn&#39;t</strong> — tech where it&#39;s useful, not tech for tech&#39;s sake. It means having <strong>actually built something with AI</strong>. And it applies at the most senior levels, too: executives need deep fluency even if they never write code. The definition evolves &#34;by the quarter, if not month or day,&#34; because the technology itself moves that fast — which is exactly why it shouldn&#39;t be nailed to specific levels or roles.</p>
+          <p>The same overlay shows up in hiring: interviews now explore how candidates use AI, how comfortable they are with change, and coding interviews explicitly allow AI tools, because that&#39;s what the job now requires. And junior talent? Netflix still hires juniors — interns and new grads, a program that only started a few years ago. Younger people tend to be more open-minded and more native to new ways of working. But <strong>craft mastery is still the point</strong>: juniors still own quality, still review and test code, still learn what good looks like through mentorship. It runs both directions — earlier-career talent will teach older folks plenty.</p>
+        </div>
+
+        <h3 class="subhead">Step-by-Step: How AI Fluidity Shows Up</h3>
+        <ol class="steps">
+          <li><span><b>Set an aspiration, not a checklist.</b> AI fluency is an overlay on all ladders — varied by function and level, never a fixed requirement list.</span></li>
+          <li><span><b>Define it by behavior.</b> Experimentation mindset, knowing where AI helps, having built something — these are the observable signals.</span></li>
+          <li><span><b>Change hiring to match.</b> Interviews explore AI use and comfort with change; coding interviews allow AI tools.</span></li>
+          <li><span><b>Keep investing in juniors.</b> Interns and new grads bring openness and fresh perspective — and still learn craft through ownership and mentorship.</span></li>
+          <li><span><b>Expect it to keep moving.</b> The definition shifts by the quarter. Fluency is a posture, not a certificate.</span></li>
+        </ol>
+
+        <h3 class="subhead">Three Examples</h3>
+        <div class="examples">
+          <div class="ex"><span class="tag"><span class="kind">Obvious</span> · everyday version</span><p>A coding interview now lets candidates use AI tools — because that&#39;s literally how the work gets done. The interview tests judgment over rote recall.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Counter-intuitive</span> · the twist</span><p>AI fluency isn&#39;t a junior skill. Executives at the senior-most levels of Netflix are expected to have deep fluency even when they don&#39;t write code as part of their day jobs.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Edge case</span> · where it can break</span><p>Agent-written code can be faster but &#34;very hard to follow&#34; — you get better performance but can&#39;t explain why, and can&#39;t fix it when it breaks. The learning curve of rationalizing agent output is one of the steepest right now.</p></div>
+        </div>
+
+        <div class="card analogy">
+          <h4><span class="ic">◆</span> Visual Analogy: Driving With a GPS</h4>
+          <p class="label">You don&#39;t build the engine — but you must know when it&#39;s broken</p>
+          <p style="margin-top:6px">The GPS tells you every turn and you never look under the hood. But when the check-engine light comes on at midnight, the GPS can&#39;t help you. Elizabeth&#39;s version: you may not write lines of code in Python or C++, but you must understand how code, computer systems, and products work — so you can tell if the output is good, and fix it when it isn&#39;t. Understanding is the engine you can&#39;t outsource.</p>
+        </div>
+
+        <h3 class="subhead">Flashcards: Test Your Recall</h3>
+        <div class="flashcards" id="fc4">
+          <div class="fc"><button aria-label="Flashcard: what is AI fluency?">
+            <div class="fc-inner">
+              <div class="fc-face"><span class="fc-q">What is &#34;AI fluency&#34; at Netflix?</span><span class="fc-hint">click to flip</span></div>
+              <div class="fc-face back"><p><b>An aspiration layered across all levels:</b> experimentation mindset, knowing where AI is useful, and having actually built with it. It varies by function and career stage.</p></div>
+            </div>
+          </button></div>
+          <div class="fc"><button aria-label="Flashcard: does everyone at Netflix need to code?">
+            <div class="fc-inner">
+              <div class="fc-face"><span class="fc-q">Does everyone at Netflix need to write code?</span><span class="fc-hint">click to flip</span></div>
+              <div class="fc-face back"><p><b>No.</b> But everyone needs fluency — including executives who never code. You don&#39;t need to write code, but you must understand how systems work to judge and fix them.</p></div>
+            </div>
+          </button></div>
+          <div class="fc"><button aria-label="Flashcard: how do juniors learn craft?">
+            <div class="fc-inner">
+              <div class="fc-face"><span class="fc-q">How do junior people learn craft in an AI world?</span><span class="fc-hint">click to flip</span></div>
+              <div class="fc-face back"><p><b>Through ownership and mentorship.</b> They still carry responsibility for quality, review code, test, diagnose — and learn &#34;what good looks like&#34; from experienced teammates. Both directions: juniors teach seniors new tools too.</p></div>
+            </div>
+          </button></div>
+        </div>
+
+        <div class="myth" id="myth4">
+          <button class="myth-q" aria-expanded="false"><span class="mark">✕</span><span>What People Get Wrong: &#34;AI means you don&#39;t need to learn fundamentals.&#34;</span></button>
+          <div class="myth-a">Elizabeth&#39;s concern is the opposite: with agents doing the writing, people may stop <em>learning</em>. But mastery is still scarce, and the company still invests in teaching what good looks like. The difference between writing code and understanding systems is the difference between generating output and being accountable for it.</div>
+        </div>
+
+        <h3 class="subhead">Why This Matters</h3>
+        <p class="prose" style="font-size:15.5px;color:var(--ink2)">If you&#39;re evaluating your own career: fluency is a behavior, not a badge. Keep experimenting, keep building small things with AI, keep being able to say where it helps and where it hurts. That&#39;s the overlay every ladder is looking for — and it&#39;s the thing that will keep you hirable as the definition keeps moving.</p>
+
+        <figure class="visual">
+          <svg viewBox="0 0 640 260" role="img" aria-label="A career ladder with an AI fluency overlay bar spanning all levels">
+            <title>Career ladder with AI fluency overlay</title>
+            <line x1="120" y1="220" x2="120" y2="40" stroke="var(--ink3)" stroke-width="1.5"/>
+            <line x1="120" y1="220" x2="560" y2="220" stroke="var(--ink3)" stroke-width="1.5"/>
+            <rect x="130" y="40" width="380" height="180" rx="8" fill="var(--bg2)" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4"/>
+            <text x="320" y="26" text-anchor="middle" fill="var(--accent)" font-size="13" font-family="Georgia,serif">AI Fluency — an overlay, not a level</text>
+            <g font-family="Georgia,serif" font-size="13" fill="var(--ink2)">
+              <rect x="160" y="60" width="180" height="30" rx="4" fill="none" stroke="var(--line)" stroke-width="1.5"/><text x="250" y="80" text-anchor="middle">IC — early career</text>
+              <rect x="160" y="100" width="180" height="30" rx="4" fill="none" stroke="var(--line)" stroke-width="1.5"/><text x="250" y="120" text-anchor="middle">IC — senior</text>
+              <rect x="160" y="140" width="180" height="30" rx="4" fill="none" stroke="var(--line)" stroke-width="1.5"/><text x="250" y="160" text-anchor="middle">Manager</text>
+              <rect x="160" y="180" width="180" height="30" rx="4" fill="none" stroke="var(--line)" stroke-width="1.5"/><text x="250" y="200" text-anchor="middle">Executive</text>
+            </g>
+            <g fill="var(--ink3)" font-size="12" text-anchor="middle" font-family="Georgia,serif">
+              <circle cx="380" cy="75" r="4"/><text x="398" y="79">experiment</text>
+              <circle cx="380" cy="115" r="4"/><text x="398" y="119">know when AI helps</text>
+              <circle cx="380" cy="155" r="4"/><text x="398" y="159">have built with it</text>
+              <circle cx="380" cy="195" r="4"/><text x="398" y="199">deep fluency, even sans code</text>
+            </g>
+          </svg>
+          <figcaption>The overlay sits above every rung — the same aspiration, expressed differently at each level and function.</figcaption>
+        </figure>
+
+        <p class="link-next">Up next: what AI actually does at Netflix — the surprising list beyond recommendations. <a href="#m5">The Tools →</a></p>
+      </section>
+
+      <!-- ======================= MODULE 5 ======================= -->
+      <section class="module" id="m5">
+        <div class="module-head">
+          <div class="module-num">5</div>
+          <div>
+            <div class="when">Now · The Tools</div>
+            <h2>AI at Netflix: From Prize to Production</h2>
+            <p class="tagline">Recommendations are the visible tip. The real leverage is in data distillation, production, and post-production.</p>
+          </div>
+        </div>
+
+        <div class="prose">
+          <p>Ask people what AI does at Netflix and they&#39;ll say: the recommendation row. Elizabeth&#39;s point is that this is the <em>oldest</em> chapter of a much longer story. Netflix ran the <strong>Netflix Prize</strong> in 2006–2009 — a $1 million open competition to improve the recommendation algorithm by a few percentage points — making it one of the earliest companies to bet its product on machine learning at scale. (Lenny notes that back then, people insisted, &#34;that&#39;s not AI, it&#39;s just machine learning&#34; — and now we call it all AI. The label changed; the work didn&#39;t.)</p>
+          <p>Personalization is still central, and it gets <em>harder</em> as the catalog grows: films, TV, games, live events, podcasts. The problem — right title, right person, right moment — only becomes more important with more breadth. But the two use cases Elizabeth highlights as most impactful today go well beyond recommendations.</p>
+          <p>First, <strong>data analysis and distillation</strong> — her personal favorite. Netflix has decades of experiments, consumer insights, and stakeholder input. AI is &#34;very powerful at distilling information, looking across a broad set of things&#34; — so instead of emailing someone to ask what research exists, you find it instantly and jump straight to &#34;is there something actionable here?&#34; Second, <strong>content creation and production</strong>: generating promotional assets at scale, localizing subtitles and dubs, pre-visualization (bringing a creator&#39;s vision to life before the set), and post-production tools — Netflix acquired Inner Positive, founded by Ben Affleck, which can relight, reframe, reshoot, and change dialogue after filming. In every case, the filmmaker still leads; the tools amplify the vision.</p>
+        </div>
+
+        <h3 class="subhead">Step-by-Step: From Data to Your Screen</h3>
+        <ol class="steps">
+          <li><span><b>Distill.</b> AI synthesizes decades of experiments and research into starting insights — a head start, not the final answer.</span></li>
+          <li><span><b>Personalize.</b> Match the right title to the right person at the right moment — harder with every new format added.</span></li>
+          <li><span><b>Produce.</b> Pre-visualization lets creators see the vision before the set; assets and localization are generated at scale.</span></li>
+          <li><span><b>Post-produce.</b> After shooting, tools can relight, reframe, reshoot, and change dialogue — always guided by the filmmaker.</span></li>
+          <li><span><b>Connect.</b> Trailers, images, and artwork at scale help titles find their audiences around the world.</span></li>
+        </ol>
+
+        <h3 class="subhead">Three Examples</h3>
+        <div class="examples">
+          <div class="ex"><span class="tag"><span class="kind">Obvious</span> · everyday version</span><p>The recommendation algorithm: personalize the right title for the right person at the right moment — the problem the Netflix Prize kicked off in 2006.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Counter-intuitive</span> · the twist</span><p>Post-production: Inner Positive (from Ben Affleck) can <em>relight, reframe, reshoot, and change dialogue</em> after a scene is already shot — a whole new creative layer that has nothing to do with recommendations.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Edge case</span> · where it can break</span><p>Localization at scale — subtitles and dubs for every market — is a step-function leap, but only works if the results are checked and the source-of-truth data is right. Speed without verification is just fast noise.</p></div>
+        </div>
+
+        <div class="card analogy">
+          <h4><span class="ic">◆</span> Visual Analogy: The Library &amp; the Librarian</h4>
+          <p class="label">Why distillation is a superpower</p>
+          <p style="margin-top:6px">Netflix&#39;s institutional memory is a library with decades of research, every experiment ever run, and notes from every stakeholder. Before AI, using it meant finding the one person who remembered where things were. AI is the librarian who has read everything: ask a question in plain language, get the relevant volumes in seconds. The librarian gives you a head start — you still have to decide what the books mean for your problem.</p>
+        </div>
+
+        <figure class="visual">
+          <svg id="anim-pipe" viewBox="0 0 640 220" role="img" aria-label="Animated pipeline: capture, post-production, localization, trailers, and your screen">
+            <title>How AI moves a title from production to your screen</title>
+            <g id="pipe-boxes" font-family="Georgia,serif" font-size="12.5" text-anchor="middle" fill="var(--ink2)">
+              <rect x="20" y="80" width="100" height="60" rx="8" fill="none" stroke="var(--line)" stroke-width="1.5"/><text x="70" y="107">Capture</text><text x="70" y="122" font-size="10.5" fill="var(--ink3)">on set</text>
+              <rect x="150" y="80" width="100" height="60" rx="8" fill="none" stroke="var(--line)" stroke-width="1.5"/><text x="200" y="107">Post-prod</text><text x="200" y="122" font-size="10.5" fill="var(--ink3)">relight · reframe</text>
+              <rect x="280" y="80" width="100" height="60" rx="8" fill="none" stroke="var(--line)" stroke-width="1.5"/><text x="330" y="107">Localize</text><text x="330" y="122" font-size="10.5" fill="var(--ink3)">dubs · subs</text>
+              <rect x="410" y="80" width="100" height="60" rx="8" fill="none" stroke="var(--line)" stroke-width="1.5"/><text x="460" y="107">Trailers</text><text x="460" y="122" font-size="10.5" fill="var(--ink3)">art at scale</text>
+              <rect x="540" y="80" width="80" height="60" rx="8" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="580" y="107" fill="var(--accent)">Your</text><text x="580" y="122" font-size="10.5" fill="var(--ink3)">screen</text>
+            </g>
+            <g stroke="var(--ink3)" stroke-width="1.5">
+              <line x1="122" y1="110" x2="148" y2="110"/>
+              <line x1="252" y1="110" x2="278" y2="110"/>
+              <line x1="382" y1="110" x2="408" y2="110"/>
+              <line x1="512" y1="110" x2="538" y2="110"/>
+            </g>
+            <circle id="pipeDot" cx="70" cy="110" r="6" fill="var(--accent)"/>
+            <rect id="pipeGlow" x="20" y="72" width="100" height="76" rx="10" fill="none" stroke="var(--accent)" stroke-width="2" opacity="0"/>
+          </svg>
+          <div class="stage-label" id="pipeLabel">Capture — a creator&#39;s vision, brought to life</div>
+          <div class="anim-controls">
+            <button data-anim-play="pipe">▶ Play</button>
+            <button data-anim-pause="pipe">⏸ Pause</button>
+            <button data-anim-replay="pipe">↺ Replay</button>
+          </div>
+          <figcaption>AI appears at almost every stop — not just the final recommendation. The filmmaker leads; the tools amplify.</figcaption>
+        </figure>
+
+        <figure class="photo-placeholder">
+          <div class="placeholder-box" role="img" aria-label="Photo placeholder: a film production set with cameras, lights, and crew working on a Netflix production">
+            What you&#39;d see in real life: a Netflix production set — cameras, lighting rigs, and crew — where pre-visualization and post-production AI tools now shape the final image. (Replace with a real production still or set photo.)
+          </div>
+          <figcaption>Caption: On-set production — where creative ideation meets pre-visualization and post-production AI. Source suggestion: Netflix production stills or behind-the-scenes imagery.</figcaption>
+        </figure>
+
+        <div class="myth" id="myth5">
+          <button class="myth-q" aria-expanded="false"><span class="mark">✕</span><span>What People Get Wrong: &#34;AI at Netflix is just the recommendation row.&#34;</span></button>
+          <div class="myth-a">Recommendations are one chapter of a 20-year story. The high-impact uses today include data distillation (finding decades of experiments in seconds), pre-visualization (seeing the vision before the set), post-production (relighting, reframing, changing dialogue via Inner Positive), and localization at scale. AI is &#34;at the center&#34; of every part of the business — even though Netflix isn&#39;t branded as an AI company.</div>
+        </div>
+
+        <h3 class="subhead">Why This Matters</h3>
+        <p class="prose" style="font-size:15.5px;color:var(--ink2)">The breadth of entertainment is exploding — films, TV, games, live, podcasts. Every new format makes discovery harder, which makes AI more essential, not less. Understanding AI&#39;s full footprint changes how you think about where value is created: not just in the algorithm, but in every step that gets a story from a creator&#39;s mind to your screen.</p>
+
+        <p class="link-next">Up next: the operating system that makes all of this possible — and the culture top AI labs now copy. <a href="#m6">The Culture →</a></p>
+      </section>
+
+      <!-- ======================= MODULE 6 ======================= -->
+      <section class="module" id="m6">
+        <div class="module-head">
+          <div class="module-num">6</div>
+          <div>
+            <div class="when">Always · The Culture</div>
+            <h2>Excellence as an Operating System</h2>
+            <p class="tagline">High agency, talent density, autonomy, top-of-market pay — the values that made Netflix, now echoed by the top AI labs.</p>
+          </div>
+        </div>
+
+        <div class="prose">
+          <p>Lenny points out something striking: the early Netflix culture deck — high agency, autonomy, talent density, bottom-up thinking, fast experiments, top-of-market pay — is basically the operating manual of today&#39;s frontier AI labs. Elizabeth&#39;s response reframes the whole thing: those cultural elements were never the goal. The goal was <strong>excellence</strong>, and the culture was the operating system designed to produce it.</p>
+          <p>Calling it an operating system is precise. Inputs are processed in a specific order. First, <strong>talent density is the non-negotiable</strong> — you can&#39;t have confidence in decisions at every level without exceptional people at every level. Second, <strong>push decisions as deep as possible</strong>, with real accountability — people carry &#34;a lot of keys,&#34; and knowing you&#39;re trusted makes you want to do your best work. Third, <strong>get comfortable with risk</strong>: not avoiding failure, but recovering quickly. The live-events launch was &#34;a wonderful example&#34; — imperfect, fast, and the team learned and got better. Fourth, <strong>selflessness</strong>: it&#39;s about Netflix and its members, not personal preference or personal success.</p>
+          <p>Then come the parts that are &#34;unnatural for humans.&#34; When you disagree with a decision that isn&#39;t material, you let people make it and learn — you don&#39;t veto. When planning gets hard, you <em>resist</em> adding process: Elizabeth has never heard anyone say they found the perfect planning system, but she has seen more process add time without better outcomes. And the <strong>keeper test</strong> is the feedback hygiene that holds it together — used as much to say &#34;I would fight so hard to keep you&#34; as to say &#34;we&#39;ve really tried and I don&#39;t see the path.&#34; The corollary: if a person leaving would feel like relief, you should have had that conversation sooner.</p>
+        </div>
+
+        <h3 class="subhead">Step-by-Step: Running the System</h3>
+        <ol class="steps">
+          <li><span><b>Hire dense.</b> Talent density is the non-negotiable input — everything else assumes you started here.</span></li>
+          <li><span><b>Push decisions deep.</b> Give people real keys and real accountability, and let judgment live where the work is.</span></li>
+          <li><span><b>Take risks, recover fast.</b> Don&#39;t avoid failure — blameless retros and fast learning beat protective process.</span></li>
+          <li><span><b>Resist the process reflex.</b> When things go wrong, the instinct is to add rules. The discipline is to ask: is there a more creative way that gets better outcomes?</span></li>
+          <li><span><b>Run the keeper test both ways.</b> Affirm the extraordinary — and have the hard conversation when someone isn&#39;t passing, sooner rather than later.</span></li>
+        </ol>
+
+        <h3 class="subhead">Three Examples</h3>
+        <div class="examples">
+          <div class="ex"><span class="tag"><span class="kind">Obvious</span> · everyday version</span><p>Netflix&#39;s live events push: a massive, risky launch that everyone knew would be imperfect — taken on anyway, learned from fast, and made better.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Counter-intuitive</span> · the twist</span><p>When planning is hard, the fix is not more process. Adding constraints to a hard problem feels like simplifying it — but Elizabeth&#39;s experience: more process, more time, same or worse outcomes.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Edge case</span> · where it can break</span><p>The keeper test is usually read as a firing tool — but it&#39;s equally used as a way to tell someone &#34;you&#39;re extraordinary, here&#39;s where you shine, and here&#39;s how to be even better.&#34; The positive half of the coin is how you keep great people.</p></div>
+        </div>
+
+        <div class="card analogy">
+          <h4><span class="ic">◆</span> Visual Analogy: The Engine That Runs on Trust</h4>
+          <p class="label">An operating system needs all its parts</p>
+          <p style="margin-top:6px">Talent is the fuel — without it, nothing runs. Autonomy is the throttle — it converts fuel into motion. Accountability is the steering — it keeps the motion pointed at outcomes for members. Risk tolerance is the cooling system — it lets the engine run hot without seizing up. Excellence is not a component; it&#39;s what the whole system produces when every part is tuned. Remove the fuel and no amount of throttle helps.</p>
+        </div>
+
+        <figure class="visual">
+          <svg id="anim-fly" viewBox="0 0 640 280" role="img" aria-label="Animated flywheel diagram: talent, autonomy, accountability, and risk tolerance driving excellence">
+            <title>The excellence flywheel</title>
+            <circle cx="320" cy="140" r="110" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+            <circle cx="320" cy="140" r="26" fill="none" stroke="var(--ink3)" stroke-width="1.5"/>
+            <g font-family="Georgia,serif" font-size="13.5" text-anchor="middle" fill="var(--ink2)">
+              <text x="320" y="16">Talent density</text>
+              <text x="320" y="262">Risk tolerance</text>
+              <text x="176" y="148" transform="rotate(-90 176,148)">Autonomy</text>
+              <text x="464" y="148" transform="rotate(90 464,148)">Accountability</text>
+            </g>
+            <circle id="flyDot" cx="320" cy="30" r="7" fill="var(--accent)"/>
+            <text id="flyLabel" x="320" y="148" text-anchor="middle" fill="var(--accent)" font-size="14" font-family="Georgia,serif">Excellence</text>
+          </svg>
+          <div class="stage-label" id="flyStage">Inputs spin the flywheel → excellence comes out</div>
+          <div class="anim-controls">
+            <button data-anim-play="fly">▶ Play</button>
+            <button data-anim-pause="fly">⏸ Pause</button>
+            <button data-anim-replay="fly">↺ Replay</button>
+          </div>
+          <figcaption>The culture elements are inputs; excellence is the output. The wheel only turns if the inputs keep coming.</figcaption>
+        </figure>
+
+        <div class="myth" id="myth6">
+          <button class="myth-q" aria-expanded="false"><span class="mark">✕</span><span>What People Get Wrong: &#34;The keeper test is about firing people.&#34;</span></button>
+          <div class="myth-a">It&#39;s cited that way, but Elizabeth says it&#39;s used <em>equally</em> to celebrate the extraordinary: &#34;How am I doing on your keeper test?&#34; — and the lion&#39;s share of the time the answer is, &#34;I would fight so hard to keep you,&#34; followed by strengths, impact, and how to be even better. It&#39;s feedback hygiene and an anchor for honest conversation — in both directions.</div>
+        </div>
+
+        <h3 class="subhead">Why This Matters</h3>
+        <p class="prose" style="font-size:15.5px;color:var(--ink2)">If you lead a team or are building one, this module is the playbook the frontier AI labs are copying — high agency, dense talent, decisions pushed deep. The uncomfortable parts are the point: letting people make decisions you&#39;d make differently, resisting the process reflex, and having the keeper-test conversation in both directions. Culture like this is &#34;constant diligence,&#34; not a one-time setup — and it&#39;s exactly what attracts and keeps the people who make everything else in this lesson possible.</p>
+
+        <h3 class="subhead">Check Your Understanding</h3>
+        <div class="quiz" id="quiz6">
+          <p class="q">According to Elizabeth, when things go wrong, the instinct to avoid is…</p>
+          <div class="opts">
+            <button class="opt">Adding more process to prevent the failure from recurring</button>
+            <button class="opt" data-correct="true">Holding a blameless retro and trusting people to learn</button>
+            <button class="opt">Making decisions at a higher level of the org</button>
+          </div>
+          <div class="explain"><b>Correct.</b> The unnatural discipline is resisting the process reflex: she has never seen more process produce better outcomes — but she has seen blameless retros and individual responsibility make teams stronger over time.</div>
+        </div>
+
+        <p class="link-next">Up next: what this culture is being pointed at — the shape of entertainment five to ten years out. <a href="#m7">The Horizon →</a></p>
+      </section>
+
+      <!-- ======================= MODULE 7 ======================= -->
+      <section class="module" id="m7">
+        <div class="module-head">
+          <div class="module-num">7</div>
+          <div>
+            <div class="when">Next 5–10 Years · The Horizon</div>
+            <h2>The Future of Entertainment: One Seamless Journey</h2>
+            <p class="tagline">Film, TV, games, live, podcasts, vertical clips — with humans still at the heart of every story.</p>
+          </div>
+        </div>
+
+        <div class="prose">
+          <p>What does entertainment look like in five to ten years? Elizabeth&#39;s answer is that it&#39;s already changing: <strong>entertainment is not going to be one thing</strong>. Netflix is going beyond film and TV into games, live events, podcasts, and a vertical video feed (&#34;Clips&#34;) — because consumers expect variety across formats, devices, and moments of the day. The experience she describes is a <strong>seamless journey</strong>: you listen to a podcast in the morning, watch a documentary at lunch, play a cloud game on your phone on the commute — all on one service, across TV and mobile, with discovery that feels effortless.</p>
+          <p>That seamless layer is the hard problem. More content means more fragmentation, and &#34;we&#39;ve got to make discovery and engagement much easier than it feels today.&#34; This is exactly where the earlier modules connect: systems thinking builds the platform, AI fluency runs it, and the culture&#39;s tolerance for risk lets Netflix launch imperfect new formats (like live) and iterate. The product/tech/design trinity&#39;s job is to make &#34;a lot of complexity invisible.&#34;</p>
+          <p>On AI in Hollywood, Elizabeth describes a spectrum, not a war: some creators say absolutely no AI; a growing number want to explore what gen-AI makes possible; most sit in between. Netflix&#39;s stance is <strong>creator enablement</strong> — support whatever tools each creator wants, never prescriptive. And on the question of fully AI-generated entertainment: &#34;I have a hard time picturing entertainment that doesn&#39;t have humans at the heart of it.&#34; Storytelling is &#34;one and the same with humanity&#34; — the scarce, valuable skill is knowing what connects with people. AI will amplify stories; it won&#39;t replace the storyteller.</p>
+        </div>
+
+        <h3 class="subhead">Step-by-Step: Building the Journey</h3>
+        <ol class="steps">
+          <li><span><b>Expand the formats.</b> Film and TV plus games, live, podcasts, and vertical video — entertainment becomes many things.</span></li>
+          <li><span><b>Cross the devices.</b> The same journey flows from TV to mobile, matching moments of the day.</span></li>
+          <li><span><b>Solve discovery.</b> With breadth comes fragmentation — making it easy to find the next thing is the core challenge.</span></li>
+          <li><span><b>Enable every creator.</b> Support the no-AI creators, the explorers, and everyone between — never one prescriptive way.</span></li>
+          <li><span><b>Keep humans at the heart.</b> AI amplifies storytelling; it doesn&#39;t replace the human understanding of what connects.</span></li>
+        </ol>
+
+        <h3 class="subhead">Three Examples</h3>
+        <div class="examples">
+          <div class="ex"><span class="tag"><span class="kind">Obvious</span> · everyday version</span><p>Tonight you open Netflix, watch a movie, and it&#39;s over. That single-format evening is already a minority of how entertainment is consumed — and shrinking.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Counter-intuitive</span> · the twist</span><p>The future journey runs <em>across</em> formats: Bill Simmons podcast in the morning → Quarterback documentary at lunch → FIFA cloud game on your phone on the train. Same service, many worlds, one thread.</p></div>
+          <div class="ex"><span class="tag"><span class="kind">Edge case</span> · where it can break</span><p>A creator who refuses AI entirely still gets fully supported. The spectrum is the strategy: enablement, not enforcement, is what keeps the broadest range of stories coming.</p></div>
+        </div>
+
+        <div class="card analogy">
+          <h4><span class="ic">◆</span> Visual Analogy: One Ticket, Many Stages</h4>
+          <p class="label">A festival, not a single screen</p>
+          <p style="margin-top:6px">Imagine a festival with dozens of stages — a main theater, a live arena, a game hall, a podcast tent, a short-film corner. One wristband, and you wander between stages depending on mood and time of day. The magic isn&#39;t any single stage; it&#39;s that wandering feels effortless. That&#39;s the future Netflix is building — and discovery is the festival map that makes it work.</p>
+        </div>
+
+        <figure class="visual">
+          <svg id="anim-hub" viewBox="0 0 640 300" role="img" aria-label="Animated hub-and-spoke diagram: Netflix at the center with film, TV, games, live, podcasts, and clips, plus a journey path">
+            <title>Entertainment as a hub with many spokes</title>
+            <circle cx="320" cy="150" r="34" fill="var(--bg2)" stroke="var(--accent)" stroke-width="1.5"/>
+            <text x="320" y="155" text-anchor="middle" fill="var(--accent)" font-size="12" font-family="Georgia,serif">Netflix</text>
+            <g stroke="var(--ink3)" stroke-width="1.5">
+              <line x1="320" y1="116" x2="320" y2="50"/>
+              <line x1="350" y1="132" x2="470" y2="60"/>
+              <line x1="354" y1="150" x2="560" y2="150"/>
+              <line x1="350" y1="168" x2="470" y2="240"/>
+              <line x1="320" y1="184" x2="320" y2="250"/>
+              <line x1="290" y1="168" x2="170" y2="240"/>
+            </g>
+            <g font-family="Georgia,serif" font-size="12.5" text-anchor="middle" fill="var(--ink2)">
+              <text x="320" y="36">Film</text>
+              <text x="482" y="52">TV</text>
+              <text x="566" y="155">Games</text>
+              <text x="482" y="256">Live</text>
+              <text x="320" y="266">Podcasts</text>
+              <text x="160" y="256">Clips</text>
+            </g>
+            <g class="hub-node">
+              <circle cx="320" cy="50" r="7" fill="var(--accent)"/>
+            </g>
+            <g class="hub-node">
+              <circle cx="470" cy="60" r="7" fill="var(--accent)"/>
+            </g>
+            <g class="hub-node">
+              <circle cx="560" cy="150" r="7" fill="var(--accent)"/>
+            </g>
+            <g class="hub-node">
+              <circle cx="470" cy="240" r="7" fill="var(--accent)"/>
+            </g>
+            <g class="hub-node">
+              <circle cx="320" cy="250" r="7" fill="var(--accent)"/>
+            </g>
+            <g class="hub-node">
+              <circle cx="170" cy="240" r="7" fill="var(--accent)"/>
+            </g>
+            <circle id="hubDot" cx="320" cy="150" r="6" fill="var(--accent-soft)"/>
+            <text id="hubLabel" x="320" y="290" text-anchor="middle" fill="var(--accent)" font-size="13" font-family="Georgia,serif">Start here</text>
+          </svg>
+          <div class="stage-label" id="hubStage">A journey across formats — podcast → documentary → cloud game</div>
+          <div class="anim-controls">
+            <button data-anim-play="hub">▶ Play</button>
+            <button data-anim-pause="hub">⏸ Pause</button>
+            <button data-anim-replay="hub">↺ Replay</button>
+          </div>
+          <figcaption>Many spokes, one hub. The journey (the moving dot) crosses formats the way members cross devices and moments of the day.</figcaption>
+        </figure>
+
+        <figure class="photo-placeholder">
+          <div class="placeholder-box" role="img" aria-label="Photo placeholder: a Netflix interface showing a mix of film, games, live events, and vertical clips on a phone and TV">
+            What you&#39;d see in real life: the Netflix app spanning TV and phone — a row of films, a live event tile, a cloud game, and a vertical &#34;Clips&#34; feed. (Replace with real app screenshots.)
+          </div>
+          <figcaption>Caption: The seamless journey in practice — many formats, one interface, across devices. Source suggestion: Netflix app screenshots on TV and mobile.</figcaption>
+        </figure>
+
+        <div class="myth" id="myth7">
+          <button class="myth-q" aria-expanded="false"><span class="mark">✕</span><span>What People Get Wrong: &#34;AI will replace human storytelling.&#34;</span></button>
+          <div class="myth-a">Elizabeth is direct: &#34;I have a hard time picturing entertainment that doesn&#39;t have humans at the heart of it.&#34; Storytelling is &#34;one and the same with humanity&#34; — knowing what connects with people is a scarce, valuable skill. AI will play a material part in production and polish, but watching characters without that humanity is &#34;less compelling.&#34; Technology amplifies the story; it doesn&#39;t replace the storyteller.</div>
+        </div>
+
+        <h3 class="subhead">Why This Matters</h3>
+        <p class="prose" style="font-size:15.5px;color:var(--ink2)">This reframes what product and tech are actually building: not another screen, but the seamlessness <em>between</em> screens and formats. It&#39;s also the through-line back to module one — the storming phase will produce these new formats, and the forming phase will decide which ones survive. The teams that combine systems thinking, craft, AI fluency, and a risk-tolerant culture are the ones that will define what entertainment becomes.</p>
+
+        <div class="card analogy" id="analogy7">
+          <h4><span class="ic">◆</span> Toggle Analogy</h4>
+          <p class="label">The &#34;tell me a story&#34; test</p>
+          <button class="toggle-btn" data-toggle="analogy7">Show the storytelling lens</button>
+          <div class="analogy-body">
+            <p style="margin-top:10px">There&#39;s a quote (misattributed to Salman Rushdie) that Elizabeth loves: when a child is born, they first ask for food and water and projection — and then they ask, &#34;tell me a story.&#34; Storytelling predates every screen, every platform, every algorithm. Technology can amplify and reinvent how stories reach us; it can&#39;t replace the human need they answer.</p>
+          </div>
+        </div>
+
+        <p class="link-next">That closes the arc — from the storm to the horizon. <a href="#summary">Review everything →</a></p>
+      </section>
+
+      <!-- ======================= MEMORY + SUMMARY ======================= -->
+      <section class="block" id="summary">
+        <h2 class="sec">Memory Anchors &amp; Cheat Sheet</h2>
+
+        <div class="pills">
+          <span class="pill"><span class="p-ic">★</span>Mnemonic — Storm before form: expect chaos before clarity</span>
+          <span class="pill"><span class="p-ic">★</span>Mnemonic — T.A.R.S.: Talent, Accountability, Risk, Selflessness</span>
+          <span class="pill"><span class="p-ic">★</span>Mnemonic — One click out, not the whole ocean</span>
+        </div>
+
+        <div class="recall"><span class="r-ic">◉</span> <b>Spaced recall prompt (write before you peek):</b> list the three guardrails Netflix pairs with AI experimentation. Then scroll to the cheat sheet and check.</div>
+
+        <div class="cheatsheet">
+          <table class="summary">
+            <thead><tr><th>Concept</th><th>One-liner to remember</th></tr></thead>
+            <tbody>
+              <tr><td>Storming phase</td><td>Role-blurring chaos is a phase before forming — grab the benefits, add guardrails, keep humans accountable.</td></tr>
+              <tr><td>Comparative advantage</td><td>PM owns the <em>what</em>, engineer the <em>how</em>, data science trust in data, design coherence. Craft is still scarce.</td></tr>
+              <tr><td>Systems thinking</td><td>Step out one click; question assumptions; build shared building blocks; leave systems stronger.</td></tr>
+              <tr><td>AI fluency</td><td>An overlay on all ladders: experiment, know where AI helps, have built with it. Varies by level and function.</td></tr>
+              <tr><td>AI at Netflix</td><td>Beyond recs: data distillation, pre-vis, post-production (relight/reframe/reshoot), localization, trailers at scale.</td></tr>
+              <tr><td>Excellence as an OS</td><td>Talent density → push decisions deep → take risks, recover fast → resist the process reflex → keeper test both ways.</td></tr>
+              <tr><td>Future of entertainment</td><td>Not one thing: many formats, one seamless journey. Humans stay at the heart of storytelling.</td></tr>
+            </tbody>
+          </table>
+          <pre id="cheatText">NETFLIX AI PLAYBOOK — CHEAT SHEET
+1. Storming phase: role blurring is temporary. Guardrails = source of truth, review before production, humans accountable.
+2. Craft endures: PM = the What, Engineer = the How, Data Science = trust, Design = coherence. Craft is scarce.
+3. Systems thinking: one click out — "what am I assuming about the broader space?" Build paved paths, leave systems stronger.
+4. AI fluency: overlay on all ladders. Experiment, know where AI helps, have built with it. Executives included.
+5. AI at Netflix: data distillation, pre-vis, post-prod (relight/reframe/reshoot), localization, trailers at scale. Not just recs.
+6. Excellence as an OS: Talent, Accountability, Risk, Selflessness (T.A.R.S.). Resist the process reflex. Keeper test both ways.
+7. Future of entertainment: many formats, one seamless journey. Humans at the heart of every story.</pre>
+          <button class="copy-btn" data-copy="cheatText">Copy cheat sheet</button><span class="copy-msg" id="copyMsg">Copied ✓</span>
+        </div>
+
+        <div class="recall"><span class="r-ic">◉</span> <b>Analogy recall:</b> what were the three analogies in this lesson — the kitchen remodel, the synthesizer, the city planner? Try to recall each before scrolling back. (Bonus: the festival map and the librarian.)</div>
+      </section>
+
+      <!-- ======================= FAQ ======================= -->
+      <section class="block" id="faq">
+        <h2 class="sec">FAQ</h2>
+        <div class="faq">
+          <details>
+            <summary>Does Elizabeth think AI will replace engineers?</summary>
+            <div class="faq-a">No — but it changes what engineers do. You may not write lines of code, but you must <b>understand how systems work</b>: to judge whether output is good, and to fix it when it breaks. Agent-written code is often faster but harder to follow — rationalizing it is the steep new learning curve.</div>
+          </details>
+          <details>
+            <summary>What exactly is the keeper test?</summary>
+            <div class="faq-a">Ask: <b>would I fight to keep this person?</b> It&#39;s used in both directions — to celebrate extraordinary performance (&#34;I would fight so hard to keep you&#34; + growth feedback) and to force the hard conversation when someone isn&#39;t passing. Corollary: if someone leaving would feel like relief, act sooner.</div>
+          </details>
+          <details>
+            <summary>Is Netflix actually using AI in production and post-production?</summary>
+            <div class="faq-a">Yes, extensively. Examples include <b>pre-visualization</b> (seeing a vision before the set), <b>localization</b> (subtitles/dubs at scale), promotional assets and trailers, and post-production via <b>Inner Positive</b> (founded by Ben Affleck) — relighting, reframing, reshooting, and changing dialogue after filming, always led by the filmmaker.</div>
+          </details>
+          <details>
+            <summary>What does &#34;step out one click&#34; actually look like day to day?</summary>
+            <div class="faq-a">Take the task you own and zoom out exactly one level: <b>what am I assuming is true about the broader space?</b> Does this scale across content types? Could it be a shared capability? Don&#39;t boil the whole ocean and don&#39;t stay in the questioning state too long — one click, then get back to work.</div>
+          </details>
+          <details>
+            <summary>Does everyone at Netflix need to be an AI expert now?</summary>
+            <div class="faq-a">No — everyone needs <b>AI fluency</b>, which varies by function and level: an experimentation mindset, knowing where AI is useful (and where it isn&#39;t), and having built something with it. Even executives are expected to be fluent — but nobody has to be a model builder.</div>
+          </details>
+        </div>
+      </section>
+
+      <!-- ======================= NEXT STEPS ======================= -->
+      <section class="block" id="next">
+        <h2 class="sec">Next Steps</h2>
+        <div class="next">
+          <div class="step-card"><span class="n">01</span><p><b>Do the one-click-out exercise this week.</b> Pick one task you own and write down what you&#39;re assuming about the broader space. Then check: does your approach scale across teams or content types?</p></div>
+          <div class="step-card"><span class="n">02</span><p><b>Audit your paved paths.</b> What building blocks does your team keep re-creating? Find one shared capability worth building once — and volunteer to build it.</p></div>
+          <div class="step-card"><span class="n">03</span><p><b>Run the keeper test as a positive ritual.</b> Ask your manager (or a teammate) the question — and be ready to say, concretely, why you&#39;d fight to keep the people around you.</p></div>
+        </div>
+      </section>
+
+      <!-- ======================= CLOSING ======================= -->
+      <div class="closing">
+        <h3>A Field Note From the Lightning Round</h3>
+        <p>Two pieces of advice Elizabeth carries from her parents, offered for work and life:</p>
+        <div class="quote">&#34;Something good happens every day. Watch for it. Even in the most stressful times.&#34;</div>
+        <div class="quote" style="margin-top:10px">&#34;The last 5% of effort usually makes all the difference.&#34;</div>
+        <p style="margin-top:14px">Books she recommends: <em>Into Thin Air</em> (Jon Krakauer) and <em>Liar&#39;s Poker</em> (Michael Lewis). And her homework for listeners: try the new stuff — live events, games, Clips — and send feedback.</p>
+      </div>
+
+      <footer>
+        Lesson built from Lenny&#39;s Podcast — Elizabeth Stone (Product &amp; Technology Officer, Netflix). All ideas and quotes are hers; the structure, visuals, and interactivity are this lesson&#39;s. No external libraries — pure HTML, CSS, and SVG.
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ---------- theme ---------- */
+  var root = document.documentElement;
+  function applyTheme(t){ root.setAttribute('data-theme', t); try{ localStorage.setItem('nl-theme', t); }catch(e){} }
+  var saved = null; try{ saved = localStorage.getItem('nl-theme'); }catch(e){}
+  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(saved || (prefersDark ? 'dark' : 'light'));
+  document.getElementById('themeToggle').addEventListener('click', function(){
+    applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+
+  /* ---------- progress bar ---------- */
+  var bar = document.getElementById('progress');
+  window.addEventListener('scroll', function(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    bar.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + '%';
+  }, {passive:true});
+
+  /* ---------- knowledge map + rail active state ---------- */
+  var nodes = document.querySelectorAll('#kmap .node');
+  nodes.forEach(function(n){
+    n.addEventListener('click', function(){
+      var t = document.getElementById(n.getAttribute('data-target'));
+      if(t) t.scrollIntoView({behavior:'smooth'});
+    });
+  });
+  var railLinks = Array.prototype.slice.call(document.querySelectorAll('.rail a'));
+  var modules = Array.prototype.slice.call(document.querySelectorAll('.module'));
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){
+        var id = en.target.id;
+        railLinks.forEach(function(a){ a.classList.toggle('active', a.getAttribute('href') === '#' + id); });
+      }
+    });
+  }, {rootMargin:'-30% 0px -55% 0px'});
+  modules.forEach(function(m){ obs.observe(m); });
+
+  /* ---------- generic SVG animator (JS-driven, play/pause/replay) ---------- */
+  var animators = {};
+
+  function Animator(cfg){
+    this.svg = document.getElementById(cfg.svg);
+    this.steps = cfg.steps;                 // array of {apply, label}
+    this.onEnd = cfg.onEnd || null;
+    this.pos = -1; this.timer = null; this.playing = false;
+    this.stepDur = cfg.stepDur || 1400;
+  }
+  Animator.prototype.show = function(i){
+    if(i >= 0 && this.steps[i]) this.steps[i].apply();
+    var lab = document.getElementById(this.svg.id + 'Label') || document.getElementById(cfgLabel(this.svg.id));
+    this.pos = i;
+  };
+  Animator.prototype.tick = function(){
+    if(!this.playing) return;
+    if(this.pos < this.steps.length - 1){
+      this.pos++;
+      this.steps[this.pos].apply();
+      this.timer = setTimeout(this.tick.bind(this), this.stepDur);
+    } else {
+      this.playing = false;
+      if(this.onEnd) this.onEnd();
+    }
+  };
+  Animator.prototype.play = function(){
+    if(this.playing) return;
+    this.playing = true;
+    if(this.pos >= this.steps.length - 1){ this.pos = -1; }
+    this.tick();
+  };
+  Animator.prototype.pause = function(){
+    this.playing = false;
+    if(this.timer){ clearTimeout(this.timer); this.timer = null; }
+  };
+  Animator.prototype.replay = function(){
+    this.pause();
+    this.pos = -1;
+    if(this.steps[0]) this.steps[0].apply();
+    this.play();
+  };
+
+  function cfgLabel(id){
+    return { 'anim-storm':'stormLabel', 'anim-zoom':'zoomLabel', 'anim-pipe':'pipeLabel', 'anim-hub':'hubStage', 'anim-fly':'flyStage' }[id] || null;
+  }
+  /* set a stage label text if present */
+  function setLabel(id, text){
+    var el = document.getElementById(id);
+    if(el) el.textContent = text;
+  }
+
+  /* --- storm: dot along path --- */
+  var stormPath = document.getElementById('stormPath');
+  var stormDot = document.getElementById('stormDot');
+  var stormLen = stormPath.getTotalLength();
+  animators.storm = new Animator({
+    svg:'anim-storm',
+    stepDur:1500,
+    steps:[
+      {apply:function(){ stormDot.setAttribute('cx',60); stormDot.setAttribute('cy',110); setLabel('stormLabel','Storming — role confusion peaks'); }},
+      {apply:function(){ var p=stormPath.getPointAtLength(stormLen*0.25); stormDot.setAttribute('cx',p.x); stormDot.setAttribute('cy',p.y); setLabel('stormLabel','Storming — experimentation is noisy'); }},
+      {apply:function(){ var p=stormPath.getPointAtLength(stormLen*0.5); stormDot.setAttribute('cx',p.x); stormDot.setAttribute('cy',p.y); setLabel('stormLabel','Transition — guardrails arrive'); }},
+      {apply:function(){ var p=stormPath.getPointAtLength(stormLen*0.78); stormDot.setAttribute('cx',p.x); stormDot.setAttribute('cy',p.y); setLabel('stormLabel','Forming — clarity smooths the path'); }},
+      {apply:function(){ var p=stormPath.getPointAtLength(stormLen); stormDot.setAttribute('cx',p.x); stormDot.setAttribute('cy',p.y); setLabel('stormLabel','Forming — new division of labor'); }}
+    ]
+  });
+
+  /* --- zoom: expand highlight through rings --- */
+  function zoomReset(){
+    ['zoom-r1','zoom-r2','zoom-r3','zoom-r4'].forEach(function(id){ document.getElementById(id).style.stroke=''; });
+    ['zoom-t1','zoom-t2','zoom-t3','zoom-t4'].forEach(function(id,i){ var el=document.getElementById(id); el.style.opacity = i===0 ? 1 : 0; });
+    zoomDot.setAttribute('cx',270); zoomDot.setAttribute('cy',100);
+    setLabel('zoomLabel','Click 1 — your feature');
+  }
+  var zoomDot = document.getElementById('zoomDot');
+  animators.zoom = new Animator({
+    svg:'anim-zoom',
+    stepDur:1300,
+    onEnd:function(){ /* keep last state */ },
+    steps:[
+      {apply:function(){ zoomReset(); }},
+      {apply:function(){ ['zoom-r1','zoom-r2'].forEach(function(id){ document.getElementById(id).style.stroke='var(--accent)'; }); zoomDot.setAttribute('cx',320); zoomDot.setAttribute('cy',130); setLabel('zoomLabel','Click 2 — the problem space'); }},
+      {apply:function(){ ['zoom-r1','zoom-r2','zoom-r3'].forEach(function(id){ document.getElementById(id).style.stroke='var(--accent)'; }); zoomDot.setAttribute('cx',320); zoomDot.setAttribute('cy',130); setLabel('zoomLabel','Click 3 — business bets'); }},
+      {apply:function(){ ['zoom-r1','zoom-r2','zoom-r3','zoom-r4'].forEach(function(id){ document.getElementById(id).style.stroke='var(--accent)'; }); zoomDot.setAttribute('cx',320); zoomDot.setAttribute('cy',130); setLabel('zoomLabel','The ecosystem — never the whole ocean'); }}
+    ]
+  });
+
+  /* --- pipe: move dot through pipeline --- */
+  var pipeDot = document.getElementById('pipeDot');
+  var pipeGlow = document.getElementById('pipeGlow');
+  var pipeStops = [
+    {x:70, box:'20', label:'Capture — a creator&#39;s vision, brought to life'},
+    {x:200, box:'150', label:'Post-prod — relight, reframe, reshoot, change dialogue'},
+    {x:330, box:'280', label:'Localize — dubs and subtitles at scale'},
+    {x:460, box:'410', label:'Trailers &amp; artwork — titles find their audiences'},
+    {x:580, box:'540', label:'Your screen — personalized and seamless'}
+  ];
+  animators.pipe = new Animator({
+    svg:'anim-pipe',
+    stepDur:1500,
+    steps: pipeStops.map(function(s, i){
+      return {apply:function(){
+        pipeDot.setAttribute('cx', s.x);
+        pipeGlow.setAttribute('x', s.box);
+        setLabel('pipeLabel', s.label.replace(/&#39;/g,"'").replace(/&amp;/g,'&'));
+      }};
+    })
+  });
+
+  /* --- fly: rotate marker around flywheel --- */
+  var flyDot = document.getElementById('flyDot');
+  var flyAngles = [0, 90, 180, 270];
+  var flyLabs = ['Talent density fuels the wheel','Autonomy — push decisions deep','Accountability — outcomes owned','Risk tolerance — recover fast, resist process'];
+  animators.fly = new Animator({
+    svg:'anim-fly',
+    stepDur:1500,
+    steps: flyAngles.map(function(a, i){
+      return {apply:function(){
+        var r = a * Math.PI / 180;
+        flyDot.setAttribute('cx', 320 + 110 * Math.sin(r));
+        flyDot.setAttribute('cy', 140 - 110 * Math.cos(r));
+        setLabel('flyStage', flyLabs[i]);
+      }};
+    })
+  });
+
+  /* --- hub: journey across spokes --- */
+  var hubDot = document.getElementById('hubDot');
+  var hubNodes = [[320,150],[320,50],[470,60],[560,150],[320,150],[320,250],[170,240],[320,150]];
+  var hubLabs = ['Start at the hub','Film — the classic screen','TV — the second screen','Games — the interactive world','Back through the hub','Podcasts — the audio moment','Clips — vertical, on mobile','One seamless journey'];
+  animators.hub = new Animator({
+    svg:'anim-hub',
+    stepDur:1200,
+    steps: hubNodes.map(function(n, i){
+      return {apply:function(){
+        hubDot.setAttribute('cx', n[0]);
+        hubDot.setAttribute('cy', n[1]);
+        setLabel('hubStage', hubLabs[i]);
+      }};
+    })
+  });
+
+  /* wire animation controls */
+  document.querySelectorAll('.anim-controls button').forEach(function(btn){
+    var name = btn.getAttribute('data-anim-play') || btn.getAttribute('data-anim-pause') || btn.getAttribute('data-anim-replay');
+    if(!name) return;
+    var a = animators[name];
+    if(!a) return;
+    btn.addEventListener('click', function(){
+      if(btn.hasAttribute('data-anim-play')) a.play();
+      else if(btn.hasAttribute('data-anim-pause')) a.pause();
+      else a.replay();
+    });
+  });
+
+  /* ---------- quizzes ---------- */
+  document.querySelectorAll('.quiz').forEach(function(quiz){
+    var btns = quiz.querySelectorAll('.opt');
+    btns.forEach(function(b){
+      b.addEventListener('click', function(){
+        if(quiz.classList.contains('done')) return;
+        quiz.classList.add('done');
+        btns.forEach(function(x){
+          x.disabled = true;
+          if(x === b) x.classList.add(b.hasAttribute('data-correct') ? 'correct' : 'wrong');
+          else if(x.hasAttribute('data-correct')) x.classList.add('correct');
+        });
+      });
+    });
+  });
+
+  /* ---------- myths (expandable misconception) ---------- */
+  document.querySelectorAll('.myth-q').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var myth = btn.closest('.myth');
+      var open = myth.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  });
+
+  /* ---------- toggle analogy ---------- */
+  document.querySelectorAll('.toggle-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var card = document.getElementById(btn.getAttribute('data-toggle'));
+      if(card) card.classList.toggle('open');
+    });
+  });
+
+  /* ---------- slider ---------- */
+  var slider = document.getElementById('zoomSlider');
+  if(slider){
+    var range = slider.querySelector('input[type=range]');
+    var steps = slider.querySelectorAll('.slider-step');
+    function setStep(v){
+      steps.forEach(function(s){ s.classList.toggle('show', s.getAttribute('data-step') === v); });
+      range.setAttribute('aria-valuetext', 'Level ' + v);
+    }
+    range.addEventListener('input', function(){ setStep(String(range.value)); });
+  }
+
+  /* ---------- flashcards ---------- */
+  document.querySelectorAll('.fc').forEach(function(fc){
+    var btn = fc.querySelector('button');
+    btn.addEventListener('click', function(){ fc.classList.toggle('flipped'); });
+    btn.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fc.classList.toggle('flipped'); }
+    });
+  });
+
+  /* ---------- copy cheat sheet ---------- */
+  document.querySelectorAll('.copy-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = document.getElementById(btn.getAttribute('data-copy'));
+      var msg = document.getElementById('copyMsg');
+      var text = pre.textContent;
+      function done(){ msg.classList.add('show'); setTimeout(function(){ msg.classList.remove('show'); }, 1800); }
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(done, function(){ fallback(); });
+      } else { fallback(); }
+      function fallback(){
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand('copy'); done(); }catch(e){}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

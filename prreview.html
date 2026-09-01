@@ -1,0 +1,2948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Building a Production AI PR-Review Agent — Interactive Course</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS
+   ============================================================ */
+:root{
+  --bg: #0e1013;
+  --bg-raised: #14171c;
+  --panel: #191d24;
+  --panel-2: #1f242c;
+  --line: #2a2f3a;
+  --line-soft: #21252d;
+  --ink: #e9e7df;
+  --ink-dim: #a7ada6;
+  --ink-faint: #6c7178;
+  --accent: #7fd8bd;      /* verified / teal */
+  --accent-dim: #4f9484;
+  --amber: #e0a151;       /* critical / attention */
+  --amber-dim: #a97c3f;
+  --red: #d9705f;         /* fail / review-again */
+  --blue: #7aa2d8;        /* info */
+  --mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --serif: 'Fraunces', 'Iowan Old Style', 'Georgia', serif;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius: 3px;
+  --sidebar-w: 320px;
+  --gutter-w: 64px;
+}
+
+*{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+
+::selection{ background:var(--accent-dim); color:#04120e; }
+
+/* subtle grid texture on the base background */
+body::before{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(var(--line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity:.25;
+}
+
+/* ============================================================
+   LAYOUT SHELL
+   ============================================================ */
+.shell{ display:flex; min-height:100vh; position:relative; z-index:1; }
+
+/* ---- Sidebar ---- */
+.sidebar{
+  width:var(--sidebar-w); flex:0 0 var(--sidebar-w);
+  border-right:1px solid var(--line);
+  background:var(--bg-raised);
+  height:100vh; position:sticky; top:0;
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+.brand{
+  padding:22px 22px 16px; border-bottom:1px solid var(--line);
+}
+.brand .tag{
+  font-family:var(--mono); font-size:11px; letter-spacing:.14em;
+  color:var(--accent); text-transform:uppercase;
+}
+.brand h1{
+  font-family:var(--serif); font-size:21px; font-weight:600; margin:6px 0 4px;
+  color:var(--ink); line-height:1.25;
+}
+.brand .desc{ color:var(--ink-faint); font-size:12.5px; }
+
+.progress-wrap{ padding:14px 22px; border-bottom:1px solid var(--line); }
+.progress-label{
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-family:var(--mono); font-size:11px; color:var(--ink-dim); margin-bottom:7px;
+}
+.progress-label b{ color:var(--accent); font-weight:600; }
+.progress-track{
+  height:5px; background:var(--panel-2); border-radius:3px; overflow:hidden;
+  border:1px solid var(--line);
+}
+.progress-fill{
+  height:100%; width:0%; background:linear-gradient(90deg, var(--accent-dim), var(--accent));
+  transition:width .4s cubic-bezier(.4,0,.2,1);
+}
+
+.search-wrap{ padding:12px 22px; border-bottom:1px solid var(--line); }
+.search-wrap input{
+  width:100%; background:var(--panel); border:1px solid var(--line);
+  color:var(--ink); font-family:var(--sans); font-size:13px;
+  padding:8px 10px; border-radius:var(--radius); outline:none;
+}
+.search-wrap input:focus{ border-color:var(--accent-dim); }
+.search-wrap input::placeholder{ color:var(--ink-faint); }
+
+.nav-scroll{ flex:1; overflow-y:auto; padding:10px 0 20px; }
+.nav-scroll::-webkit-scrollbar{ width:8px; }
+.nav-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+.nav-scroll::-webkit-scrollbar-track{ background:transparent; }
+
+.nav-mod{ margin:2px 10px 6px; border-radius:var(--radius); }
+.nav-mod-head{
+  display:flex; align-items:center; gap:10px; padding:9px 10px;
+  cursor:pointer; border-radius:var(--radius); user-select:none;
+}
+.nav-mod-head:hover{ background:var(--panel); }
+.nav-mod-head .num{
+  font-family:var(--mono); font-size:11px; color:var(--bg);
+  background:var(--ink-faint); width:22px; height:22px; border-radius:3px;
+  display:flex; align-items:center; justify-content:center; flex:0 0 22px;
+  transition:background .2s, color .2s;
+}
+.nav-mod.done .nav-mod-head .num{ background:var(--accent); color:#04120e; }
+.nav-mod-head .title{ font-size:13.5px; color:var(--ink); flex:1; font-weight:500; }
+.nav-mod-head .chev{ color:var(--ink-faint); font-size:10px; transition:transform .2s; }
+.nav-mod.open .nav-mod-head .chev{ transform:rotate(90deg); }
+.nav-mod.active > .nav-mod-head{ background:var(--panel-2); }
+.nav-mod.active > .nav-mod-head .title{ color:var(--accent); }
+
+.nav-subs{
+  max-height:0; overflow:hidden; transition:max-height .25s ease;
+  padding-left:38px; border-left:1px solid var(--line-soft); margin-left:20px;
+}
+.nav-mod.open .nav-subs{ max-height:600px; }
+.nav-subs a{
+  display:block; padding:5px 8px; font-size:12px; color:var(--ink-faint);
+  text-decoration:none; border-radius:3px; line-height:1.4;
+}
+.nav-subs a:hover{ color:var(--ink); background:var(--panel); }
+.nav-subs a.active{ color:var(--accent); }
+
+.sidebar-foot{
+  padding:12px 22px; border-top:1px solid var(--line);
+  font-family:var(--mono); font-size:10.5px; color:var(--ink-faint);
+  display:flex; justify-content:space-between;
+}
+.kbd{
+  display:inline-block; border:1px solid var(--line); border-bottom-width:2px;
+  border-radius:3px; padding:0 5px; font-family:var(--mono); font-size:10px;
+  color:var(--ink-dim); background:var(--panel);
+}
+
+/* ---- Main column ---- */
+.main{ flex:1; min-width:0; }
+.topbar{
+  position:sticky; top:0; z-index:5; height:0;
+}
+.reading-bar{
+  position:fixed; top:0; left:var(--sidebar-w); right:0; height:2px; z-index:20;
+  background:transparent;
+}
+.reading-bar-fill{ height:100%; width:0%; background:var(--accent); transition:width .1s linear; }
+
+.content{
+  max-width:840px; margin:0 auto; padding:64px var(--gutter-w) 120px;
+}
+
+/* ---- Hero ---- */
+.hero{
+  padding:100px var(--gutter-w) 70px; max-width:840px; margin:0 auto;
+  border-bottom:1px solid var(--line);
+}
+.hero .eyebrow{
+  font-family:var(--mono); font-size:12px; letter-spacing:.16em; color:var(--accent);
+  text-transform:uppercase; margin-bottom:18px; display:flex; align-items:center; gap:10px;
+}
+.hero .eyebrow .rule{ height:1px; width:36px; background:var(--accent-dim); }
+.hero h1{
+  font-family:var(--serif); font-size:52px; line-height:1.08; font-weight:600;
+  margin:0 0 20px; color:var(--ink); letter-spacing:-.01em;
+}
+.hero h1 em{ color:var(--accent); font-style:normal; }
+.hero p.lead{ font-size:18px; color:var(--ink-dim); max-width:640px; line-height:1.6; margin-bottom:34px; }
+.hero-meta{ display:flex; gap:28px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; color:var(--ink-faint); }
+.hero-meta b{ color:var(--ink); font-weight:600; }
+.hero-actions{ margin-top:34px; display:flex; gap:12px; }
+.btn{
+  font-family:var(--sans); font-size:13.5px; font-weight:600; padding:11px 20px;
+  border-radius:var(--radius); border:1px solid var(--line); cursor:pointer;
+  background:var(--panel); color:var(--ink); transition:all .15s;
+}
+.btn:hover{ border-color:var(--accent-dim); color:var(--accent); }
+.btn.primary{ background:var(--accent); color:#04120e; border-color:var(--accent); }
+.btn.primary:hover{ background:#93e2c9; color:#04120e; }
+
+/* ---- Module header ---- */
+.module{ padding-top:56px; scroll-margin-top:24px; }
+.module:first-of-type{ padding-top:0; }
+.module-head{
+  display:flex; gap:18px; align-items:flex-start; margin-bottom:8px;
+  padding-bottom:22px; border-bottom:1px solid var(--line);
+}
+.module-num{
+  font-family:var(--serif); font-size:44px; color:var(--line); line-height:1;
+  font-weight:600; flex:0 0 auto;
+}
+.module-titles h2{
+  font-family:var(--serif); font-size:30px; margin:2px 0 8px; color:var(--ink); font-weight:600;
+}
+.module-titles .subtitle{ color:var(--ink-dim); font-size:14.5px; }
+.module-mark{
+  margin-left:auto; flex:0 0 auto; display:flex; align-items:center; gap:8px;
+  font-family:var(--mono); font-size:11px; color:var(--ink-faint); cursor:pointer;
+  border:1px solid var(--line); padding:7px 12px; border-radius:var(--radius);
+  background:var(--panel); white-space:nowrap; user-select:none; transition:all .15s;
+}
+.module-mark:hover{ border-color:var(--accent-dim); }
+.module-mark.done{ color:var(--accent); border-color:var(--accent-dim); background:rgba(127,216,189,.08); }
+.module-mark .dot{ width:7px; height:7px; border-radius:50%; background:var(--ink-faint); }
+.module-mark.done .dot{ background:var(--accent); }
+
+/* ============================================================
+   MARKDOWN CONTENT TYPOGRAPHY
+   ============================================================ */
+.md h2{
+  font-family:var(--serif); font-size:23px; font-weight:600; color:var(--ink);
+  margin:46px 0 16px; padding-top:6px; scroll-margin-top:24px;
+  border-top:1px solid var(--line-soft); padding-top:28px;
+}
+.md > h2:first-child{ border-top:none; padding-top:0; margin-top:30px; }
+.md h3{
+  font-family:var(--sans); font-size:16px; font-weight:700; color:var(--accent);
+  margin:28px 0 12px; text-transform:none; scroll-margin-top:24px;
+}
+.md p{ color:#d7d5cc; margin:0 0 15px; }
+.md ul, .md ol{ color:#d7d5cc; margin:0 0 16px; padding-left:24px; }
+.md li{ margin-bottom:7px; }
+.md li::marker{ color:var(--ink-faint); }
+.md strong{ color:var(--ink); font-weight:700; }
+.md em{ color:var(--ink); }
+.md a{ color:var(--blue); text-decoration:underline; text-decoration-color:rgba(122,162,216,.35); }
+.md hr{ border:none; border-top:1px solid var(--line); margin:36px 0; }
+
+.md code{
+  font-family:var(--mono); font-size:.86em; background:var(--panel-2);
+  border:1px solid var(--line); padding:1.5px 5px; border-radius:3px; color:var(--accent);
+}
+.md pre{
+  margin:0 0 18px; border-radius:var(--radius); overflow-x:auto;
+  border:1px solid var(--line); background:var(--bg-raised) !important;
+}
+.md pre code{
+  background:none; border:none; padding:0; color:#c9d1c4; font-size:13px;
+}
+.md .codehilite{
+  margin:0 0 18px; border-radius:var(--radius); overflow-x:auto;
+  border:1px solid var(--line); background:#0b0d10;
+}
+.md .codehilite pre{ margin:0; border:none; padding:18px 20px; }
+.md .codehilite code{ background:none; border:none; padding:0; font-size:12.8px; line-height:1.6; color:#c9d1c4; }
+
+.md blockquote{
+  margin:20px 0; padding:4px 22px; border-left:2px solid var(--accent);
+  background:rgba(127,216,189,.05); border-radius:0 var(--radius) var(--radius) 0;
+}
+.md blockquote p{ color:var(--ink); font-family:var(--serif); font-size:16.5px; font-style:italic; line-height:1.55; }
+
+.md table{
+  width:100%; border-collapse:collapse; margin:8px 0 22px; font-size:13.5px;
+  border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;
+}
+.md th{
+  text-align:left; font-family:var(--mono); font-size:11px; text-transform:uppercase;
+  letter-spacing:.05em; color:var(--accent); background:var(--panel-2);
+  padding:10px 14px; border-bottom:1px solid var(--line);
+}
+.md td{
+  padding:10px 14px; border-bottom:1px solid var(--line-soft); color:#d7d5cc;
+  vertical-align:top;
+}
+.md tr:last-child td{ border-bottom:none; }
+.md tr:hover td{ background:rgba(255,255,255,.015); }
+
+/* ============================================================
+   INTERACTIVE COMPONENTS
+   ============================================================ */
+
+/* ---- Recall quiz block ---- */
+.quiz-block{
+  margin:40px 0; border:1px solid var(--line); border-radius:6px; overflow:hidden;
+  background:var(--panel);
+}
+.quiz-block-head{
+  display:flex; align-items:center; gap:10px; padding:14px 20px;
+  border-bottom:1px solid var(--line); background:var(--panel-2);
+}
+.quiz-block-head .icon{ font-family:var(--mono); font-size:12px; color:var(--amber); }
+.quiz-block-head h4{
+  font-family:var(--sans); font-size:12.5px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink-dim); margin:0; font-weight:700;
+}
+.quiz-block-head .count{ margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--ink-faint); }
+.quiz-items{ padding:6px 20px 18px; }
+.quiz-item{ padding:18px 0; border-bottom:1px solid var(--line-soft); }
+.quiz-item:last-child{ border-bottom:none; }
+.quiz-q{ font-size:15px; color:var(--ink); margin-bottom:10px; font-weight:500; line-height:1.5; }
+.quiz-reveal-btn{
+  font-family:var(--mono); font-size:11.5px; color:var(--accent); background:none;
+  border:1px dashed var(--accent-dim); padding:6px 12px; border-radius:3px; cursor:pointer;
+}
+.quiz-reveal-btn:hover{ background:rgba(127,216,189,.08); }
+.quiz-a{
+  display:none; margin-top:12px; padding:14px 16px; background:var(--bg-raised);
+  border-left:2px solid var(--accent); border-radius:0 4px 4px 0; font-size:14px;
+  color:#d7d5cc; line-height:1.6;
+}
+.quiz-item.revealed .quiz-a{ display:block; }
+.quiz-item.revealed .quiz-reveal-btn{ display:none; }
+.quiz-self{ display:none; gap:8px; margin-top:12px; }
+.quiz-item.revealed .quiz-self{ display:flex; }
+.quiz-self button{
+  font-family:var(--mono); font-size:11px; padding:6px 12px; border-radius:3px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel); color:var(--ink-dim);
+}
+.quiz-self button.got:hover{ border-color:var(--accent-dim); color:var(--accent); }
+.quiz-self button.miss:hover{ border-color:var(--red); color:var(--red); }
+.quiz-item.marked-got{ opacity:.65; }
+.quiz-item.marked-got .quiz-q::after{ content:" ✓"; color:var(--accent); }
+.quiz-item.marked-miss .quiz-q::after{ content:" — flagged for review"; color:var(--red); font-family:var(--mono); font-size:11px; font-weight:400; }
+
+/* ---- Callout / gap boxes reused from md (none native, added via JS for "known gap" style) ---- */
+
+/* ---- Flashcard deck (glossary) ---- */
+.deck-wrap{
+  margin:36px 0; padding:26px; border:1px solid var(--line); border-radius:8px;
+  background:var(--panel); text-align:center;
+}
+.deck-head{ font-family:var(--mono); font-size:11px; color:var(--ink-faint); margin-bottom:18px; letter-spacing:.08em; text-transform:uppercase;}
+.flashcard{
+  max-width:520px; margin:0 auto; height:220px; perspective:1200px; cursor:pointer;
+}
+.flashcard-inner{
+  position:relative; width:100%; height:100%; transition:transform .5s cubic-bezier(.4,0,.2,1);
+  transform-style:preserve-3d;
+}
+.flashcard.flipped .flashcard-inner{ transform:rotateY(180deg); }
+.flashcard-face{
+  position:absolute; inset:0; backface-visibility:hidden; border-radius:8px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:24px; border:1px solid var(--line-soft);
+}
+.flashcard-front{ background:var(--bg-raised); }
+.flashcard-back{ background:var(--bg-raised); transform:rotateY(180deg); border-color:var(--accent-dim); }
+.flashcard-tag{ font-family:var(--mono); font-size:10px; color:var(--ink-faint); margin-bottom:14px; letter-spacing:.1em; }
+.flashcard-term{ font-family:var(--serif); font-size:26px; color:var(--ink); font-weight:600; }
+.flashcard-def{ font-size:14.5px; color:#d7d5cc; line-height:1.55; }
+.deck-controls{
+  display:flex; align-items:center; justify-content:center; gap:14px; margin-top:20px;
+}
+.deck-controls button{
+  font-family:var(--mono); font-size:12px; padding:8px 16px; border-radius:4px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel-2); color:var(--ink-dim);
+}
+.deck-controls button:hover{ border-color:var(--accent-dim); color:var(--accent); }
+.deck-progress{ font-family:var(--mono); font-size:11px; color:var(--ink-faint); }
+.deck-hint{ font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); margin-top:14px; }
+
+/* ---- Weak spots review panel (floating) ---- */
+.review-fab{
+  position:fixed; bottom:24px; right:24px; z-index:30;
+  background:var(--panel); border:1px solid var(--line); border-radius:30px;
+  padding:12px 18px 12px 14px; display:flex; align-items:center; gap:10px;
+  cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.4); transition:all .2s;
+}
+.review-fab:hover{ border-color:var(--red); }
+.review-fab .badge{
+  background:var(--red); color:#160707; font-family:var(--mono); font-size:11px; font-weight:700;
+  width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+}
+.review-fab span.label{ font-size:12.5px; color:var(--ink-dim); font-family:var(--mono); }
+.review-fab.hidden{ display:none; }
+
+.review-panel{
+  position:fixed; bottom:80px; right:24px; z-index:31; width:360px; max-height:60vh;
+  background:var(--bg-raised); border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6); display:none; flex-direction:column; overflow:hidden;
+}
+.review-panel.open{ display:flex; }
+.review-panel-head{
+  padding:14px 18px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;
+}
+.review-panel-head h4{ margin:0; font-size:13px; color:var(--ink); font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em;}
+.review-panel-head button{ background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:16px; }
+.review-list{ overflow-y:auto; padding:8px 18px 16px; }
+.review-list-item{ padding:10px 0; border-bottom:1px solid var(--line-soft); font-size:13px; color:var(--ink-dim); }
+.review-list-item a{ color:var(--accent); text-decoration:none; font-family:var(--mono); font-size:11px; display:block; margin-top:4px;}
+.review-empty{ padding:30px 0; text-align:center; color:var(--ink-faint); font-size:13px; font-family:var(--mono);}
+
+/* ---- Section checkboxes / mark-understood micro control inline in subheads ---- */
+.subhead-row{ display:flex; align-items:center; gap:10px; }
+
+/* ---- Footer nav between modules ---- */
+.module-footnav{
+  display:flex; justify-content:space-between; gap:16px; margin-top:56px; padding-top:24px;
+  border-top:1px solid var(--line);
+}
+.module-footnav a{
+  flex:1; text-decoration:none; border:1px solid var(--line); border-radius:6px; padding:16px 18px;
+  color:var(--ink-dim); transition:all .15s; display:block;
+}
+.module-footnav a:hover{ border-color:var(--accent-dim); background:var(--panel); }
+.module-footnav .dir{ font-family:var(--mono); font-size:10px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px;}
+.module-footnav .ttl{ font-family:var(--serif); font-size:15px; color:var(--ink); }
+.module-footnav .next{ text-align:right; }
+
+/* ---- Command palette / jump ---- */
+.jump-overlay{
+  position:fixed; inset:0; background:rgba(6,7,9,.7); backdrop-filter:blur(3px);
+  z-index:50; display:none; align-items:flex-start; justify-content:center; padding-top:14vh;
+}
+.jump-overlay.open{ display:flex; }
+.jump-box{
+  width:560px; max-width:90vw; background:var(--bg-raised); border:1px solid var(--line);
+  border-radius:8px; box-shadow:0 30px 80px rgba(0,0,0,.6); overflow:hidden;
+}
+.jump-box input{
+  width:100%; border:none; background:none; color:var(--ink); font-size:16px;
+  padding:18px 20px; outline:none; border-bottom:1px solid var(--line); font-family:var(--sans);
+}
+.jump-results{ max-height:340px; overflow-y:auto; padding:8px; }
+.jump-result{
+  padding:10px 12px; border-radius:5px; cursor:pointer; display:flex; justify-content:space-between; gap:12px;
+}
+.jump-result:hover, .jump-result.sel{ background:var(--panel); }
+.jump-result .t{ font-size:13.5px; color:var(--ink); }
+.jump-result .m{ font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); flex:0 0 auto; }
+
+/* ---- mobile ---- */
+.menu-toggle{ display:none; }
+@media (max-width: 920px){
+  .sidebar{ position:fixed; left:0; top:0; z-index:40; transform:translateX(-100%); transition:transform .25s; box-shadow:0 0 60px rgba(0,0,0,.5);}
+  .sidebar.open{ transform:translateX(0); }
+  .reading-bar{ left:0; }
+  .menu-toggle{
+    display:flex; position:fixed; top:16px; left:16px; z-index:41; width:40px; height:40px;
+    background:var(--panel); border:1px solid var(--line); border-radius:8px; align-items:center; justify-content:center;
+    color:var(--ink); cursor:pointer;
+  }
+  .hero, .content{ padding-left:24px; padding-right:24px; }
+  .hero h1{ font-size:36px; }
+  .module-head{ flex-wrap:wrap; }
+  .module-mark{ margin-left:0; }
+}
+
+/* print / focus visibility */
+a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px;
+}
+@media (prefers-reduced-motion: reduce){
+  *{ transition:none !important; scroll-behavior:auto !important; }
+}
+
+</style>
+</head>
+<body>
+
+<div class="menu-toggle" id="menuToggle">☰</div>
+<div class="reading-bar"><div class="reading-bar-fill" id="readingFill"></div></div>
+
+<div class="shell">
+  
+<aside class="sidebar" id="sidebar">
+  <div class="brand">
+    <div class="tag">Systems Notebook</div>
+    <h1>Building a Production<br>AI PR-Review Agent</h1>
+    <div class="desc">9 modules · first-principles design → harness-driven build</div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Course progress</span><b id="progressCount">0 / 9</b></div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+  <div class="search-wrap">
+    <input type="text" id="sidebarSearch" placeholder="Filter modules... ( / or ⌘K to jump )" autocomplete="off">
+  </div>
+  <nav class="nav-scroll" id="navScroll"></nav>
+  <div class="sidebar-foot">
+    <span>j / k to move</span>
+    <span class="kbd">⌘K</span>
+  </div>
+</aside>
+
+
+  <main class="main" id="top">
+    <div class="hero">
+      <div class="eyebrow"><span class="rule"></span>Interactive course · active recall built in</div>
+      <h1>Building a Production<br><em>AI PR-Review Agent</em></h1>
+      <p class="lead">A complete system-design methodology — from "why does this system exist"
+      to a harness-driven build workflow — reconstructed as nine modules, each ending in
+      active-recall prompts so it actually sticks.</p>
+      <div class="hero-meta">
+        <span><b>9</b> modules</span>
+        <span><b>54</b> recall prompts</span>
+        <span><b>25</b> glossary flashcards</span>
+        <span><b>~50</b> min read</span>
+      </div>
+      <div class="hero-actions">
+        <button class="btn primary" onclick="document.getElementById('mod-00').scrollIntoView({behavior:'smooth'})">Start with Module 00 →</button>
+        <button class="btn" id="jumpTrigger">Jump to section (⌘K)</button>
+      </div>
+    </div>
+
+    <div class="content">
+      
+<section class="module" id="mod-00">
+  <div class="module-head">
+    <div class="module-num">00</div>
+    <div class="module-titles">
+      <h2>Overview & Philosophy</h2>
+      <div class="subtitle">Why this course exists, and the 'feel the problem first' method</div>
+    </div>
+    <div class="module-mark" data-mod="mod-00">
+      <span class="dot"></span><span class="txt">Mark understood</span>
+    </div>
+  </div>
+  <div class="md">
+    <blockquote>
+<p>Source: a system-design walkthrough for architecting an "AI PR Review Agent."
+This is <strong>not</strong> a tutorial on calling an LLM API with a diff. It's a full
+methodology for designing agentic systems in general, using the PR-review
+agent as the running example.</p>
+</blockquote>
+<h2 id="mod-00--why-this-course-exists">Why this course exists</h2>
+<p>The naive version of this project takes 20 minutes:</p>
+<div class="codehilite"><pre><span></span><code>diff = git_diff(pr)
+prompt = f&quot;Tell me what&#39;s wrong with this code:\n{diff}&quot;
+response = call_llm(prompt)
+post_comment(pr, response)
+</code></pre></div>
+
+<p>This works as a demo. It is not production-ready, and it will not behave like
+a good senior engineer. The entire point of this course is to show <strong>how to
+get from "demo" to "production agentic system"</strong> — not by adding more
+prompt engineering, but by doing real system design first.</p>
+<h2 id="mod-00--the-core-insight-read-this-twice">The core insight (read this twice)</h2>
+<blockquote>
+<p>The problem is <strong>not</strong> "build an agent that reviews PRs automatically."
+The problem is <strong>selectivity</strong>: which findings does the agent act on,
+and which ones get deferred to a human's judgment?</p>
+</blockquote>
+<p>A senior engineer reviewing their 20th PR of the day is not as sharp as on
+their 1st — fatigue, inconsistency, and missed details creep in. The system
+we're designing exists to solve exactly <strong>one</strong> problem:</p>
+<blockquote>
+<p><strong>Reclaim senior-reviewer attention by automating the mechanical part of
+review, while keeping human judgment for what genuinely needs it.</strong></p>
+</blockquote>
+<p>This single sentence — <strong>selectivity</strong> — is called <strong>L0</strong> in this course,
+and it drives every architectural decision downstream. The system should
+optimize for <strong>surfacing findings worth a senior's attention</strong>, not for
+maximal coverage of every possible comment.</p>
+<h2 id="mod-00--the-design-philosophy-feel-the-problem-before-you-solve-it">The design philosophy: "Feel the problem before you solve it"</h2>
+<p>The author's method, used repeatedly throughout, is:</p>
+<ol>
+<li><strong>Remove the system and observe the pain.</strong> Before writing any code, ask:
+   "What happens today if this AI agent doesn't exist?" Watch (mentally or
+   literally) how a human currently solves the problem. Write down every
+   micro-decision they make — even unconscious ones.</li>
+<li><strong>Only then design the fix.</strong> Once you've felt <em>why</em> something is needed
+   (retrieval, observability, human-in-the-loop, etc.), the design "writes
+   itself" instead of being copied from a template.</li>
+<li><strong>Necessity is manufactured on purpose.</strong> "We'll create that necessity
+   intentionally" — i.e., deliberately strip the system down to find where
+   it hurts, rather than pre-emptively bolting on every best practice you've
+   read about (rate limiting, observability, security) without knowing why
+   you need them <em>for this system specifically</em>.</li>
+</ol>
+<p>This is contrasted with the common (bad) approach: "let's use LangGraph,
+let's use Postgres, let's add rate limiting and observability" — chosen
+because they're popular, not because a specific failure mode demanded them.</p>
+<h2 id="mod-00--the-five-move-design-template">The five-move design template</h2>
+<p>Applied to <em>every component</em> of the system, not just the system as a whole:</p>
+<table>
+<thead>
+<tr>
+<th>Move</th>
+<th>Question</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Map the mess</td>
+<td>What does a human do today, step by step, without this agent?</td>
+</tr>
+<tr>
+<td>2. Name trigger &amp; output</td>
+<td>What precisely starts the work, and what precisely comes out?</td>
+</tr>
+<tr>
+<td>3. Assign components</td>
+<td>Which step is a trigger, a tool/API, an LLM, deterministic ML, or a human checkpoint?</td>
+</tr>
+<tr>
+<td>4. Decide autonomy</td>
+<td>How much does the system do alone vs. defer to a human? (depends on cost-of-error)</td>
+</tr>
+<tr>
+<td>5. Assume everything breaks</td>
+<td>For every component: what fails, and what's the fallback?</td>
+</tr>
+</tbody>
+</table>
+<p>This loop is run <strong>once per component</strong> — orchestrator, retriever, event
+spine, confidence gate, specialist agents — five separate times, not once
+for the whole system.</p>
+<h2 id="mod-00--the-two-column-failure-analysis">The two-column failure analysis</h2>
+<p>For every component, failures are split into two <em>directions</em>:</p>
+<ul>
+<li><strong>Engineering failures</strong> — timeouts, retries, malformed payloads, replay
+  attacks, GitHub's 10-second webhook ack window, etc.</li>
+<li><strong>LLM failures</strong> — hallucination, bad retrieval, prompt drift, low
+  confidence, disagreement between parallel agents, etc.</li>
+</ul>
+<p>These get placed into a <strong>2×2 known/unknown matrix</strong> (what you know, what
+you'll recognize when you see it, what you've never considered) — and the
+component design emerges from filling that matrix in, not from a checklist.</p>
+<h2 id="mod-00--what-youll-actually-build">What you'll actually build</h2>
+<p>By the end of this course's methodology (not necessarily by the end of this
+repo, since the author intentionally leaves later milestones as an exercise):</p>
+<ul>
+<li>A GitHub-webhook-triggered, queue-backed ingestion service</li>
+<li>A LangGraph orchestrator that fans out to 4 parallel specialist agents
+  (security, quality, testing, docs)</li>
+<li>A retrieval layer grounding every specialist in the actual codebase
+  (vector search + hybrid full-text search)</li>
+<li>An aggregator that merges, deduplicates, and scores findings</li>
+<li>A confidence-gated human-in-the-loop escalation path</li>
+<li>A single unified Postgres-compatible database (Tiger Cloud / TimescaleDB)
+  holding <strong>three data shapes</strong>: semantic memory (vectors), truth (relational
+  findings), and time (observability event spine)</li>
+<li>A full reliability layer: retries, circuit breakers, idempotency,
+  deduplication, timeouts on every node</li>
+<li>A harness-driven build workflow ("Genesis Kit") for actually writing the
+  code with an AI coding agent without losing context or vibe-coding</li>
+</ul>
+<h2 id="mod-00--how-this-course-is-organized">How this course is organized</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>01-first-principles-mapping-the-mess.md</code></td>
+<td>The full first-principles walkthrough: why the system exists, trigger/output design, the "structured finding" data shape</td>
+</tr>
+<tr>
+<td><code>02-architecture-design-patterns.md</code></td>
+<td>Fan-out/fan-in, retrieval grounding, orchestration engine choice, framework-agnostic abstraction</td>
+</tr>
+<tr>
+<td><code>03-data-engineering-three-shapes.md</code></td>
+<td>Memory / Truth / Time data shapes, why one unified DB beats three separate ones, TigerData specifics</td>
+</tr>
+<tr>
+<td><code>04-tech-stack-decisions.md</code></td>
+<td>LangGraph vs. Temporal, Tiger Cloud vs. Qdrant, Redis+ARQ, the full deployed architecture diagram in prose</td>
+</tr>
+<tr>
+<td><code>05-failure-modes-and-reliability.md</code></td>
+<td>Every named failure mode (hallucination, drift, deadlock, poisoning, almost-right problem) and its designed mitigation</td>
+</tr>
+<tr>
+<td><code>06-genesis-kit-harness-engineering.md</code></td>
+<td>The "harness" methodology for building this with an AI coding agent: done.html, gates, loops, verifiers, kickoff interviews</td>
+</tr>
+<tr>
+<td><code>07-implementation-milestones.md</code></td>
+<td>The concrete milestone-by-milestone build plan (M1–M8+) with demo commands and success criteria</td>
+</tr>
+<tr>
+<td><code>08-glossary-and-key-quotes.md</code></td>
+<td>Every key term defined in one place, plus the load-bearing quotes from the transcript</td>
+</tr>
+</tbody>
+</table>
+<p>Read them roughly in order — each one assumes the concepts from before it.</p>
+  </div>
+  
+  <div class="quiz-target" data-mod="mod-00"></div>
+  <div class="module-footnav"><div></div><a href="#mod-01" class="next"><div class="dir">Next →</div><div class="ttl">01 · First Principles: Mapping the Mess</div></a></div>
+</section>
+
+
+<section class="module" id="mod-01">
+  <div class="module-head">
+    <div class="module-num">01</div>
+    <div class="module-titles">
+      <h2>First Principles: Mapping the Mess</h2>
+      <div class="subtitle">L0 selectivity, the structured finding schema, trust & autonomy</div>
+    </div>
+    <div class="module-mark" data-mod="mod-01">
+      <span class="dot"></span><span class="txt">Mark understood</span>
+    </div>
+  </div>
+  <div class="md">
+    <h2 id="mod-01--step-0-why-does-this-system-exist-at-all">Step 0: Why does this system exist at all?</h2>
+<p>Before any architecture, ask what happens <strong>without</strong> the agent.</p>
+<p>Without automated review, on a team of any size:</p>
+<ul>
+<li>Every PR waits for a senior engineer's attention — junior/mid-level review
+  isn't sufficient trust.</li>
+<li>Senior attention is a <strong>scarce resource</strong>. PRs queue for hours or days
+  (the author cites real experience: "at least a week" for review comments
+  at past jobs).</li>
+<li>Quality is <strong>inconsistent</strong>: the 10th review of the day is not the same
+  quality as the 1st, because of human fatigue.</li>
+<li>The cost of <em>no</em> review is enormous: people burn huge amounts of time
+  either waiting or reviewing badly.</li>
+</ul>
+<p><strong>Conclusion (L0 — the single sentence the whole architecture is built on):</strong></p>
+<blockquote>
+<p>An automated reviewer exists to solve exactly one problem: reclaiming
+senior-reviewer attention by automating the mechanical part of review.
+The system optimizes for <strong>surfacing findings worth a senior's attention</strong>
+and deferring the rest — not for maximal output/coverage.</p>
+</blockquote>
+<p>This reframes the project. It is <strong>not</strong> "build a PR review bot." It is
+"build a triage system that protects human judgment as a scarce resource."
+Every subsequent design decision (confidence gates, escalation, selective
+posting) traces back to this one sentence.</p>
+<h2 id="mod-01--step-1-watch-how-a-human-already-does-this-map-the-mess">Step 1: Watch how a human already does this ("map the mess")</h2>
+<p>Before touching any tooling, write down <strong>every micro-decision</strong> a human
+reviewer makes, including unconscious ones. This is manual, non-technical
+work — the point is to surface the <em>mess</em> so you know what to organize.</p>
+<p>The observed human flow:</p>
+<ol>
+<li>A developer pushes a commit and opens a PR.</li>
+<li>It waits — pure queueing cost.</li>
+<li>A reviewer eventually notices (Slack ping, GitHub notification, or a
+   colleague directly asking "can you review this?").</li>
+<li>The reviewer <strong>context-switches</strong> into the change (a real cost — this is
+   why "the queue" itself is a design concern later).</li>
+<li>They read the diff, sometimes pull the branch to actually run it.</li>
+<li>They bring in <strong>codebase context</strong>: past architecture decisions,
+   conventions, documentation, prior related discussions.</li>
+<li>They reason across <strong>separate concerns</strong> (see below), each from a
+   different mindset.</li>
+<li>They stay <strong>skeptical</strong> and <strong>cite evidence</strong> — "this can NPE because
+   <code>x</code> is nullable on line 40," never a vague "this looks off."</li>
+<li>They leave a comment. The author reads it, clarifies, or fixes and
+   re-submits. Sometimes they escalate to someone even more senior.</li>
+<li><strong>Sensitive findings are not posted publicly.</strong> If a reviewer at a big
+    org finds a serious security vulnerability in an open-source PR, they
+    do <strong>not</strong> comment it publicly — they escalate privately (e.g., Slack
+    DM) to avoid tipping off anyone who could exploit it before a fix ships.</li>
+</ol>
+<h3 id="mod-01--the-four-things-a-human-reviewer-actually-does">The four things a human reviewer actually does</h3>
+<p>Distilled from the above, every senior reviewer does four things, and this
+becomes the direct blueprint for the agentic system:</p>
+<table>
+<thead>
+<tr>
+<th>Human behavior</th>
+<th>Engineering translation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Brings codebase context (conventions, ADRs, related code)</td>
+<td><strong>Retrieval</strong> (RAG)</td>
+</tr>
+<tr>
+<td>Reasons across separate concerns (security / quality / testing / docs), each a different mindset</td>
+<td><strong>Multi-agent architecture</strong> — not one big prompt</td>
+</tr>
+<tr>
+<td>Stays skeptical, cites evidence for every claim</td>
+<td>Every finding must carry <strong>confidence + rationale</strong></td>
+</tr>
+<tr>
+<td>Escalates instead of self-certifying on high-stakes issues</td>
+<td><strong>Human-in-the-loop (HITL) gate</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Key rule:</strong> the four specialist agents in this system (Security,
+Quality, Testing, Docs) were <strong>not</strong> invented by asking "how many agents
+should we have?" — they were derived directly from observing what a human
+reviewer actually does. Agent design should come <em>from</em> the human system
+you mapped, not from an abstract "let's design 4 agents" brainstorm.</p>
+</blockquote>
+<h2 id="mod-01--step-2-name-the-precise-trigger-and-precise-output">Step 2: Name the precise trigger and precise output</h2>
+<p>A vague trigger is a design smell. Example of a <em>bad</em> trigger: "any email
+that comes in" for an insurance-claims agent. A <em>precise</em> trigger: "an email
+arriving at this specific address, containing the word 'claim'."</p>
+<p>For the PR agent:</p>
+<ul>
+<li><strong>Trigger:</strong> GitHub emits a <code>pull_request</code> webhook when a PR is opened.
+  This is precise — GitHub explicitly fires this event type, so there's no
+  ambiguity about what starts the workflow.</li>
+<li><strong>Output:</strong> A single <strong>structured</strong> review posted back to the PR via
+  GitHub's API, with findings attached to specific files and lines.</li>
+</ul>
+<p>The word <strong>structured</strong> is doing a lot of work here. The output is <em>not</em>
+prose. It is a list of typed findings, each carrying:</p>
+<div class="codehilite"><pre><span></span><code><span class="nt">finding</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">agent_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">security | quality | testing | docs</span>
+<span class="w">  </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">critical | warning | info</span>
+<span class="w">  </span><span class="nt">category</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;e.g. &quot;sql-injection&quot;, &quot;missing-test-coverage&quot;&gt;</span>
+<span class="w">  </span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">path/to/file.py</span>
+<span class="w">  </span><span class="nt">line</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">142</span>
+<span class="w">  </span><span class="nt">confidence</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0-1.0</span>
+<span class="w">  </span><span class="nt">rationale</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;why</span><span class="nv"> </span><span class="s">this</span><span class="nv"> </span><span class="s">was</span><span class="nv"> </span><span class="s">flagged,</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">agent&#39;s</span><span class="nv"> </span><span class="s">own</span><span class="nv"> </span><span class="s">words&quot;</span>
+</code></pre></div>
+
+<p>Why every field matters:</p>
+<ul>
+<li><strong>agent_type / category</strong> — traceability: which "mindset" raised this?</li>
+<li><strong>severity</strong> — drives urgency and whether it must be escalated regardless
+  of confidence (a critical finding is <em>always</em> escalated).</li>
+<li><strong>file / line</strong> — exact location, not "somewhere in this file."</li>
+<li><strong>confidence</strong> — drives the <strong>human-review gate</strong>: below a threshold,
+  don't auto-post, route to a human instead.</li>
+<li><strong>rationale</strong> — makes the finding <strong>auditable and disputable</strong>. If a
+  developer disputes a finding, you can trace back exactly why the agent
+  said what it said, and use that to debug/improve the system later.</li>
+</ul>
+<p>This finding object is <strong>the unit that flows through the entire system</strong> —
+from specialist agent → aggregator → confidence gate → GitHub post or
+human queue → (optionally) dispute → feedback loop.</p>
+<h2 id="mod-01--step-3-survey-the-industry-standard-approaches-and-why-each-fails">Step 3: Survey the industry-standard approaches — and why each fails</h2>
+<p>Before picking an architecture, four common approaches were evaluated and
+rejected (or accepted with caveats):</p>
+<ol>
+<li><strong>Linters</strong> — pattern/syntax/style rules only. Cannot reason about
+   intent or logic. No semantic understanding at all.</li>
+<li><strong>Static analysis</strong> — real data-flow and type analysis, finds genuine
+   bugs, but: high false-positive rate, no codebase-wide judgment, can't
+   read documentation or understand intent.</li>
+<li><strong>Single LLM review (one prompt, whole diff)</strong> — the "naive tutorial"
+   version. Fails because:
+   - One agent trying to hold 4 different mindsets (security, quality,
+     testing, docs) at once performs worse than 4 focused agents.
+   - No grounding in the actual repo → hallucinates with false confidence.
+   - No auditability, no observability, no way to know <em>why</em> it said what
+     it said.</li>
+<li><strong>Agentic fan-out / fan-in</strong> (the chosen pattern) — roll out specialist
+   agents in parallel (security, docs, tests, quality), then an aggregator
+   combines ("fans in") their outputs. This is the correct pattern <em>for
+   this problem</em> because the four concerns are genuinely independent of
+   each other (no agent needs another agent's output to do its job).</li>
+</ol>
+<h2 id="mod-01--step-4-the-grounding-problem">Step 4: The grounding problem</h2>
+<p>A senior human reviewer doesn't hallucinate about the codebase because they
+<em>already know it</em>. An LLM given only a diff has no such knowledge.</p>
+<ul>
+<li>You <strong>cannot</strong> stuff the entire repository into the prompt — it exhausts
+  the context window and degrades quality.</li>
+<li>The fix: <strong>retrieval</strong>. For every diff, fetch only the most relevant
+  slices of the codebase and inject those into the prompt. This is
+  "context engineering," and it's what "turns the stranger into the
+  colleague" — i.e., what gives the agent the equivalent of a senior's
+  tacit repo knowledge.</li>
+</ul>
+<h2 id="mod-01--step-5-what-kind-of-memory-does-a-reviewer-actually-need">Step 5: What kind of memory does a reviewer actually need?</h2>
+<p>Borrowing directly from how humans hold different <em>kinds</em> of knowledge,
+three memory types are identified, each needing a different storage shape:</p>
+<table>
+<thead>
+<tr>
+<th>Memory type</th>
+<th>Human analogy</th>
+<th>What it holds</th>
+<th>Storage shape needed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Semantic</strong></td>
+<td>"I know this codebase"</td>
+<td>Functions, classes, current code</td>
+<td>Vector embeddings + similarity search</td>
+</tr>
+<tr>
+<td><strong>Episodic</strong></td>
+<td>"I remember what happened last time"</td>
+<td>Past reviews, what was flagged, what was disputed</td>
+<td>Time-ordered relational rows</td>
+</tr>
+<tr>
+<td><strong>Procedural</strong></td>
+<td>"This is how our team likes things done"</td>
+<td>Conventions, architectural decisions, team preferences</td>
+<td>Small structured facts/rules</td>
+</tr>
+</tbody>
+</table>
+<p>This three-way split becomes the direct basis for the data-layer design in
+<code>03-data-engineering-three-shapes.md</code>.</p>
+<h2 id="mod-01--step-6-trust-requires-more-than-reasoning-grounding-it-requires-proof">Step 6: Trust requires more than reasoning + grounding — it requires proof</h2>
+<p>Imagine the agent posts: <em>"This endpoint is vulnerable to SQL injection,
+confidence 60%,"</em> and a developer disputes it. Without a record of:</p>
+<ul>
+<li><em>why</em> the finding was raised,</li>
+<li><em>which</em> context was retrieved,</li>
+<li><em>which</em> prompt version ran,</li>
+<li><em>what</em> the model actually returned,</li>
+<li><em>what</em> it cost,</li>
+</ul>
+<p>...you cannot defend the finding, debug it, or improve the system. The
+saying used here: <strong>"If something can be measured, it can be improved."</strong></p>
+<p>This is why an <strong>event spine</strong> (durable, time-ordered log of every LLM
+call, tool call, and decision) is required — it's not a "nice to have
+observability feature," it's a prerequisite for <strong>trust</strong>. It powers three
+downstream capabilities:</p>
+<ol>
+<li><strong>Trace viewer</strong> — reconstruct any review end-to-end.</li>
+<li><strong>Audit trail</strong> — defend or dispute any finding.</li>
+<li><strong>Cost economics</strong> — know what the system is spending, in near real time.</li>
+</ol>
+<h2 id="mod-01--step-7-when-not-to-trust-the-agent-the-confidence-gate">Step 7: When <em>not</em> to trust the agent — the confidence gate</h2>
+<p>Given L0 (selectivity) and the confidence field on every finding, the
+system defines explicit trust rules:</p>
+<ul>
+<li><strong>No critical findings + confidence above threshold</strong> → auto-post to
+  GitHub.</li>
+<li><strong>Confidence below threshold</strong> → route to a human approval queue.</li>
+<li><strong>Any critical finding, regardless of confidence</strong> → always escalate to
+  a human. Severity overrides confidence.</li>
+<li><strong>Developer disputes a posted finding</strong> → record it as feedback
+  (this is the reversibility / learning loop, discussed more in file 05).</li>
+</ul>
+<p><strong>Maturity owns the autonomy.</strong> The threshold isn't fixed forever — a brand
+new, unproven system should start with a <em>conservative</em> threshold (e.g.
+0.6) and route more to humans. As the system proves itself over time, the
+threshold can be relaxed and more autonomy earned. This mirrors general
+advice for any AI system: <strong>new systems need more human override, proven
+ones earn less.</strong></p>
+<h2 id="mod-01--step-8-the-full-first-principles-synthesis-one-paragraph-to-memorize">Step 8: The full first-principles synthesis (one paragraph to memorize)</h2>
+<blockquote>
+<p>A pull request triggers the work. It's queued because the trigger must be
+acknowledged fast. An orchestrator fans work out to four parallel
+specialists. Each specialist is grounded by retrieval over the codebase
+(three memory shapes: code, past reviews, conventions). Each specialist
+returns structured findings with confidence and rationale. An aggregator
+merges, deduplicates, and computes overall confidence. It routes: post
+automatically when confident, route to a human when not. Every action
+along the way is written to an event spine so the whole thing can be
+traced, audited, and priced. A reliability layer keeps every component
+degrading gracefully instead of failing hard.</p>
+</blockquote>
+<p>Everything in files 02–07 is just <em>expanding</em> this one paragraph.</p>
+<h2 id="mod-01--three-factors-that-decide-how-much-autonomy-any-component-gets">Three factors that decide how much autonomy any component gets</h2>
+<p>Used repeatedly as a general rule, not just for this project:</p>
+<ol>
+<li><strong>Consequence of error</strong> — a wrong style comment is annoying; a missed
+   SQL-injection finding is dangerous. Match autonomy to blast radius.</li>
+<li><strong>Reversibility</strong> — an auto-posted review comment can be disputed and
+   removed; a merged database migration cannot be un-run. Give less
+   autonomy to irreversible actions.</li>
+<li><strong>System maturity</strong> — new, unproven systems earn less autonomy; systems
+   that have proven themselves over time earn more.</li>
+</ol>
+<h3 id="mod-01--a-cautionary-real-story-why-how-fast-can-this-go-wrong-matters">A cautionary real story (why "how fast can this go wrong" matters)</h3>
+<p>The author recounts a real incident at a previous company (SPL): an
+autonomous LinkedIn outreach agent, expected to take 2–3 days to schedule
+anything, actually scheduled and completed an in-person dinner with a major
+prospect in <strong>under 9 hours</strong> — faster than anyone anticipated, catching
+the team completely off guard. The lesson: <strong>the system failed because an
+assumption failed</strong> ("this can't happen that fast"). Design your autonomy
+boundaries assuming your worst-case timing assumption is wrong, not just
+your worst-case output-quality assumption.</p>
+  </div>
+  
+  <div class="quiz-target" data-mod="mod-01"></div>
+  <div class="module-footnav"><a href="#mod-00"><div class="dir">← Previous</div><div class="ttl">00 · Overview & Philosophy</div></a><a href="#mod-02" class="next"><div class="dir">Next →</div><div class="ttl">02 · Architecture & Design Patterns</div></a></div>
+</section>
+
+
+<section class="module" id="mod-02">
+  <div class="module-head">
+    <div class="module-num">02</div>
+    <div class="module-titles">
+      <h2>Architecture & Design Patterns</h2>
+      <div class="subtitle">Fan-out/fan-in, queueing, LangGraph vs Temporal</div>
+    </div>
+    <div class="module-mark" data-mod="mod-02">
+      <span class="dot"></span><span class="txt">Mark understood</span>
+    </div>
+  </div>
+  <div class="md">
+    <h2 id="mod-02--the-end-to-end-flow-prose-diagram">The end-to-end flow (prose diagram)</h2>
+<div class="codehilite"><pre><span></span><code>GitHub PR opened
+      │
+      ▼
+[Webhook Ingress — FastAPI, stateless]
+  - verify HMAC signature (reject forgeries)
+  - verify idempotency key (dedupe retried deliveries)
+  - enqueue job to Redis (ARQ)
+  - return 200 to GitHub IMMEDIATELY (&lt;10-12s)
+      │
+      ▼
+[Redis / ARQ queue]  ← durable handoff point
+      │
+      ▼
+[Orchestrator worker — separate process/pool, LangGraph]
+  - fan OUT to 4 parallel specialist nodes
+      │
+      ├──▶ [Security Agent]
+      ├──▶ [Quality Agent]
+      ├──▶ [Testing Agent]
+      └──▶ [Docs Agent]
+             │  (each grounded via retrieval — see below)
+      ▼
+[Aggregator — fan IN]
+  - merge findings
+  - deduplicate
+  - compute overall confidence
+      │
+      ▼
+[Confidence Gate]
+  - critical finding? → escalate to human, always
+  - confidence ≥ threshold? → auto-post to GitHub
+  - confidence &lt; threshold? → human-in-the-loop approval queue
+      │
+      ▼
+[GitHub PR comment posted]   or   [Human approval UI]
+
+(in parallel, EVERY step above writes an event to the Event Spine
+ for tracing / audit / cost)
+</code></pre></div>
+
+<h2 id="mod-02--why-a-queue-sits-between-ingress-and-orchestration">Why a queue sits between ingress and orchestration</h2>
+<p>This is not an arbitrary architectural flourish — it's forced by a hard
+constraint: <strong>GitHub expects webhook acknowledgment within roughly 10–12
+seconds.</strong> An LLM-based review can easily take 30–40+ seconds. If you make
+GitHub wait for the LLM to finish, GitHub will time out and consider the
+delivery failed (and retry it, creating duplicate-processing risk).</p>
+<p>The fix, explained with an analogy: think of a restaurant. The receptionist
+(ingress service) takes your order and immediately says "got it, we'll
+have it ready" — they don't disappear into the kitchen to cook it
+themselves. The chef (orchestrator worker) picks up the order from a
+ticket queue and cooks on their own timeline. <strong>One receptionist, one
+kitchen, decoupled by a queue.</strong></p>
+<p>Concretely:</p>
+<ol>
+<li>Ingress verifies the signature + idempotency key.</li>
+<li>Ingress enqueues the job into <strong>Redis via ARQ</strong> and returns 200 to
+   GitHub immediately.</li>
+<li>A <strong>separate worker pool</strong> picks jobs off the queue one at a time and
+   runs the actual LangGraph orchestration.</li>
+</ol>
+<h3 id="mod-02--where-this-breaks-and-the-fix">Where this breaks, and the fix</h3>
+<p>At high throughput (e.g., 10,000 PRs/minute), a <em>single</em> ARQ worker becomes
+the bottleneck — queue depth outgrows the worker drain rate. The fix
+(applying the <strong>modular monolith</strong> philosophy) is to extract:</p>
+<ul>
+<li>the webhook receiver as a <strong>stateless ingress service</strong>, and</li>
+<li>the orchestrator as a <strong>separate, independently scalable worker pool</strong>.</li>
+</ul>
+<p>You scale the two independently instead of scaling one monolithic process.</p>
+<h2 id="mod-02--security-at-the-ingress-boundary">Security at the ingress boundary</h2>
+<p>Two checks happen <strong>before any processing</strong>, and their order matters:</p>
+<ol>
+<li><strong>HMAC signature verification</strong> — confirms the payload genuinely came
+   from GitHub (using a shared webhook secret) and rejects forgeries.</li>
+<li><strong>Idempotency key check</strong> (a.k.a. "unaltered key" in the transcript,
+   really meaning idempotency) — GitHub may retry the same delivery;
+   this check acknowledges and drops duplicates so the same PR isn't
+   processed twice.</li>
+</ol>
+<h3 id="mod-02--worked-example-why-verification-must-happen-before-parsing">Worked example: why verification must happen before parsing</h3>
+<p>A concrete design decision, presented as a mini case study:</p>
+<ul>
+<li>
+<p><strong>Question 1:</strong> Should signature verification happen before or after
+  any payload processing?
+  <strong>Answer:</strong> Always <strong>before</strong>. If you don't yet know the request is
+  from GitHub, you must not do any real work on it — you return a fixed
+  rejection response regardless of what's inside, so you leak nothing
+  useful to an attacker probing your endpoint.</p>
+</li>
+<li>
+<p><strong>Question 2:</strong> A signature-valid but malformed JSON body previously
+  caused a raw <code>500</code>. Should it be <code>400</code> instead?
+  <strong>Answer:</strong> Yes, <code>400</code>. Once HMAC verification succeeds, the request is
+  <strong>authenticated</strong> (it came from someone holding the shared secret). If
+  the <em>authenticated</em> body is malformed, that's a <strong>client error</strong> (<code>400</code>),
+  not a server fault (<code>500</code>). Correct ordering: <strong>verify signature → parse
+  JSON → 400 if malformed → continue processing if valid.</strong>
+  Practical benefits: prevents false alarms in server monitoring (a <code>500</code>
+  spike looks like <em>your</em> system broke; a <code>400</code> correctly signals "bad
+  input"), and it aligns with standard HTTP semantics.</p>
+</li>
+</ul>
+<h2 id="mod-02--the-orchestration-pattern-fan-out-fan-in">The orchestration pattern: fan-out / fan-in</h2>
+<p>Because the four specialist concerns (security, quality, testing, docs)
+are <strong>genuinely independent</strong> — none needs another's output to do its
+job — the correct agentic design pattern is <strong>fan-out/fan-in</strong>, not a
+sequential pipeline:</p>
+<ul>
+<li><strong>Fan-out:</strong> the orchestrator dispatches the PR diff + retrieved context
+  to all four specialists <strong>in parallel</strong>.</li>
+<li><strong>Fan-in:</strong> a single aggregator node waits for all four, merges their
+  structured findings, deduplicates overlapping ones, and computes an
+  overall confidence.</li>
+</ul>
+<p>This is chosen specifically because sequential review (security → quality
+→ testing → docs, one after another) would be strictly slower with no
+correctness benefit, since the four concerns don't depend on each other.</p>
+<h2 id="mod-02--choosing-an-orchestration-engine-langgraph-vs-temporal">Choosing an orchestration engine: LangGraph vs. Temporal</h2>
+<p>Both were seriously considered. Comparison:</p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>LangGraph</th>
+<th>Temporal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Runtime</td>
+<td>Runs inside your own Python process — no extra infra</td>
+<td>Separate server infrastructure required</td>
+</tr>
+<tr>
+<td>Parallel fan-out</td>
+<td>First-class via the <code>Send</code> API</td>
+<td>Supported, but heavier to express</td>
+</tr>
+<tr>
+<td>Checkpointing</td>
+<td>Manual — you checkpoint to the same Redis you already use for the queue</td>
+<td>Strong, built-in guarantees; resume-from-failure is native</td>
+</tr>
+<tr>
+<td>LLM tooling</td>
+<td>Built specifically for LLM workflows, has rich integrations</td>
+<td>Generic — not LLM-specific at all</td>
+</tr>
+<tr>
+<td>Maturity</td>
+<td>Newer, less proven at large scale</td>
+<td>Enterprise-grade, proven at scale</td>
+</tr>
+<tr>
+<td>Operational cost</td>
+<td>None beyond your app</td>
+<td>You must run and understand your own Temporal server</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Decision for the MVP: LangGraph.</strong> Reasoning: no extra infrastructure to
+stand up, first-class support for the exact fan-out pattern needed, and
+the checkpoint mechanism can reuse the Redis instance already required for
+the job queue. Temporal is <strong>not</strong> rejected as "wrong" — it's explicitly
+flagged as the right choice <em>if/when scale demands it</em>.</p>
+<h3 id="mod-02--the-critical-follow-on-decision-dont-marry-the-framework">The critical follow-on decision: don't marry the framework</h3>
+<p>To make a future LangGraph → Temporal migration painless, the code defines
+a single <strong>abstract interface</strong>:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">WorkflowEngine</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workflow_input</span><span class="p">):</span> <span class="o">...</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">resume</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workflow_id</span><span class="p">):</span> <span class="o">...</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">workflow_id</span><span class="p">):</span> <span class="o">...</span>
+</code></pre></div>
+
+<p>The LangGraph implementation is just one concrete class implementing this
+interface. If Temporal is needed later, you add a <em>new</em> class implementing
+the same three methods — <strong>zero changes to the rest of the codebase.</strong>
+General principle worth remembering: <strong>make your code framework-agnostic
+by coding to an interface you own, not to the framework's own API surface
+directly throughout your business logic.</strong></p>
+<h2 id="mod-02--the-retrieval-layer-grounding-concretely">The retrieval layer (grounding, concretely)</h2>
+<p>For every incoming PR:</p>
+<ol>
+<li>Take the PR diff (the <code>+</code>/<code>-</code> lines).</li>
+<li>Compute its embedding.</li>
+<li>Query the vector store (code chunks previously embedded from the main
+   branch) using <strong>hybrid search</strong>: ANN vector similarity <strong>+</strong> full-text
+   search (FTS), filtered by things like repo and freshness.</li>
+<li>Merge and take the top-K most relevant code chunks.</li>
+<li>Inject those chunks into each specialist's prompt.</li>
+</ol>
+<p>This is standard RAG, applied specifically to source code rather than
+documents — and it's what prevents specialists from hallucinating about
+code they've never actually seen.</p>
+<h2 id="mod-02--observability-as-an-architectural-component-not-an-afterthought">Observability as an architectural component, not an afterthought</h2>
+<p>Every specialist's LLM call, every retrieval, every routing decision is
+recorded as a timestamped event ("agent event") — see file 03 for the
+storage shape. This isn't bolted on after the fact; it's treated as a
+first-class component of the orchestrator design because file 01 already
+established that <strong>trust requires proof</strong>, not just good reasoning.</p>
+<h2 id="mod-02--summary-the-five-architectural-decisions-and-their-one-line-justification">Summary: the five architectural decisions and their one-line justification</h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>One-line justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Webhook → Queue → Worker (not direct call)</td>
+<td>GitHub's ack window is too short for synchronous LLM calls</td>
+</tr>
+<tr>
+<td>Fan-out/fan-in over sequential</td>
+<td>The four concerns are independent — no benefit to serializing them</td>
+</tr>
+<tr>
+<td>LangGraph over Temporal (for MVP)</td>
+<td>No extra infra, first-class parallel fan-out, reuses existing Redis for checkpoints</td>
+</tr>
+<tr>
+<td>Abstract <code>WorkflowEngine</code> interface</td>
+<td>Keeps the option to migrate to Temporal open without a rewrite</td>
+</tr>
+<tr>
+<td>Retrieval before every specialist call</td>
+<td>Prevents hallucination — grounds the agent the way a senior's repo knowledge grounds them</td>
+</tr>
+</tbody>
+</table>
+  </div>
+  
+  <div class="quiz-target" data-mod="mod-02"></div>
+  <div class="module-footnav"><a href="#mod-01"><div class="dir">← Previous</div><div class="ttl">01 · First Principles: Mapping the Mess</div></a><a href="#mod-03" class="next"><div class="dir">Next →</div><div class="ttl">03 · Data Engineering: Three Shapes</div></a></div>
+</section>
+
+
+<section class="module" id="mod-03">
+  <div class="module-head">
+    <div class="module-num">03</div>
+    <div class="module-titles">
+      <h2>Data Engineering: Three Shapes</h2>
+      <div class="subtitle">Memory, Truth, Time — and why one unified DB wins</div>
+    </div>
+    <div class="module-mark" data-mod="mod-03">
+      <span class="dot"></span><span class="txt">Mark understood</span>
+    </div>
+  </div>
+  <div class="md">
+    <h2 id="mod-03--why-data-engineering-gets-its-own-design-phase">Why data engineering gets its own design phase</h2>
+<p>Once the cognitive design (file 01) is settled, the next question is
+purely mechanical but critically important: <strong>where does everything
+actually get stored, and in what shape?</strong> This is treated as one of the
+most important layers of the whole system — get it wrong and every other
+layer inherits the pain.</p>
+<h2 id="mod-03--the-three-data-shapes-restated-precisely">The three data shapes, restated precisely</h2>
+<table>
+<thead>
+<tr>
+<th>Shape</th>
+<th>What it is</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Memory</strong></td>
+<td>Chunks of the codebase + past reviews + conventions — what the agent needs to <em>understand a new diff</em></td>
+<td>Semantic + episodic + procedural memory (from file 01)</td>
+</tr>
+<tr>
+<td><strong>Truth</strong></td>
+<td>The findings themselves — GitHub review ID, HITL escalation status, findings, human decisions</td>
+<td>The output of a completed review</td>
+</tr>
+<tr>
+<td><strong>Time</strong></td>
+<td>Every span of work: LLM calls, tool calls, cost, latency, decisions</td>
+<td>The observability event spine</td>
+</tr>
+</tbody>
+</table>
+<p>Concretely, per shape:</p>
+<ul>
+<li><strong>Memory</strong> → needs <strong>similarity search over embeddings</strong> → a <strong>vector
+  store</strong>.</li>
+<li><strong>Truth</strong> → needs <strong>timestamped, queryable relational rows</strong> → standard
+  <strong>Postgres tables</strong>.</li>
+<li><strong>Time</strong> → needs <strong>high-volume time-series writes with fast rollups</strong> →
+  a <strong>time-series-optimized table</strong> (hypertables).</li>
+</ul>
+<h2 id="mod-03--the-naive-and-wrong-instinct-three-separate-databases">The naive (and wrong) instinct: three separate databases</h2>
+<p>The obvious-seeming plan is: a vector DB (e.g. Qdrant) for memory, Postgres
+for truth, and a time-series DB for observability. This is explicitly
+called out as <strong>over-engineering</strong>.</p>
+<h3 id="mod-03--why-three-databases-is-the-wrong-call">Why three databases is the wrong call</h3>
+<p>Consider a simple diagnostic question: <em>"For this PR, what code did we
+retrieve, what review did we produce, and which model call was
+expensive?"</em> Answering that single question across three separate
+databases means:</p>
+<ul>
+<li>Three separate queries against three separate systems.</li>
+<li>Stitching the results together manually in application code.</li>
+<li>Three times the operational surface area: connection pools, backup
+  strategies, failure modes, and "what happens if store #2 is down but
+  #1 and #3 are fine?" scenarios.</li>
+</ul>
+<p><strong>The actual goal is not "avoid a popular database," it's "avoid
+unnecessary failure surface for a single logical question."</strong> The three
+<em>data shapes</em> are not compromised on — but they don't need three <em>separate
+physical databases</em> to exist.</p>
+<h2 id="mod-03--the-chosen-solution-one-unified-postgres-compatible-database-tiger-cloud">The chosen solution: one unified Postgres-compatible database (Tiger Cloud)</h2>
+<p><strong>Tiger Cloud</strong> = a managed, Postgres-compatible database with the
+following extensions layered on top, each one solving exactly one of the
+three shapes:</p>
+<h3 id="mod-03--1-memory-pgvector-pgvectorscale">1. Memory → <code>pgvector</code> + <code>pgvectorscale</code></h3>
+<ul>
+<li><code>pgvector</code> lets a normal Postgres column store an embedding (a list of
+  floats) — e.g. a <code>code_chunks</code> table with an <code>embedding vector(1536)</code>
+  column.</li>
+<li>At scale (millions of code-chunk embeddings), naive <code>pgvector</code> search
+  gets slow. <strong><code>pgvectorscale</code></strong> adds a faster index so Postgres can find
+  nearby vectors far more efficiently — described as "a fast librarian"
+  that knows where things are instead of scanning everything.</li>
+<li><strong>DiskANN</strong> — an indexing algorithm that builds the nearest-neighbor
+  search structure on disk/SSD rather than requiring everything to live in
+  RAM. Necessary once code-chunk counts get into the millions, since you
+  can't keep an unbounded index resident in memory forever.</li>
+</ul>
+<h3 id="mod-03--2-truth-plain-postgres-tables">2. Truth → plain Postgres tables</h3>
+<p>Standard relational tables for reviews, findings, HITL rows, and GitHub
+IDs — nothing exotic needed here; Postgres was already going to be the
+right tool for this shape on its own.</p>
+<h3 id="mod-03--3-time-hypertables-continuous-aggregates">3. Time → <strong>hypertables</strong> + <strong>continuous aggregates</strong></h3>
+<ul>
+<li>A <strong>hypertable</strong> (from TimescaleDB, which Tiger Cloud is built on)
+  stores time-series rows (e.g. <code>agent_events</code>) but internally partitions
+  them into time-based chunks behind the scenes (e.g. "Monday's rows,"
+  "Tuesday's rows") — you interact with it as one logical table, but
+  storage and queries are chunk-aware for efficiency.</li>
+<li><strong>Why this matters</strong>: a dashboard asking "what happened in the last
+  hour" doesn't need to scan the entire history — it only touches the
+  relevant recent chunk(s).</li>
+<li><strong>Continuous aggregates</strong> are pre-computed, automatically-kept-updated
+  summary tables. Instead of scanning 10 million raw <code>agent_events</code> rows
+  every time a dashboard refreshes to answer "what did we spend today?",
+  you read a small, continuously maintained rollup table (cost/minute,
+  P95 latency, token totals, etc.).</li>
+<li>Practical payoff: a <strong>budget guard</strong> can check the rollup ("has today's
+  spend already crossed the limit?") cheaply and <strong>block further LLM
+  calls</strong> if so — without ever touching the raw event table.</li>
+</ul>
+<h2 id="mod-03--why-tiger-cloud-over-a-pure-vector-db-eg-qdrant">Why Tiger Cloud over a pure vector DB (e.g. Qdrant)</h2>
+<p>The reasoning given: <em>vector similarity is not the only question this
+agent asks.</em> A real PR review needs, together, in one query:</p>
+<ul>
+<li>vector similarity (which code is related to this diff),</li>
+<li>repo filters,</li>
+<li>freshness filters,</li>
+<li>exact identifier matching,</li>
+<li>plus joining against review records, cost records, and audit history.</li>
+</ul>
+<p>A pure vector database is excellent at the first bullet but weak at
+combining it with the rest. Keeping everything in one Postgres-compatible
+store means retrieval results can live <strong>beside</strong> metadata, review trails,
+and hypertables in the same query surface — no cross-database joins in
+application code.</p>
+<h2 id="mod-03--the-invariant-that-shapes-the-schema-agent_events-is-append-only">The invariant that shapes the schema: <code>agent_events</code> is append-only</h2>
+<p>A hard rule baked into the database itself (not just convention): the
+<code>agent_events</code> hypertable is <strong>immutable — append-only.</strong> You can insert,
+but <code>UPDATE</code> and <code>DELETE</code> are hard-rejected. This matters because:</p>
+<ul>
+<li>Observability data must be trustworthy for <strong>auditing and disputing</strong>
+  findings — if rows could be silently edited or deleted, the trace
+  viewer's story could be tampered with.</li>
+<li>Enforcing this <strong>at the database level</strong> (not just "we promise not to
+  update rows in application code") is a stronger guarantee — it survives
+  bugs, bad migrations, and rogue scripts.</li>
+</ul>
+<h3 id="mod-03--implementation-detail-worth-knowing-postgresql-rules-dont-work-on-hypertables">Implementation detail worth knowing: PostgreSQL rules don't work on hypertables</h3>
+<p>While building this, an actual schema-design gotcha surfaced (documented
+here because it's a genuinely useful, non-obvious PostgreSQL fact):</p>
+<ul>
+<li><strong>Attempted approach:</strong> a Postgres <code>RULE</code> intercepting <code>UPDATE</code>/<code>DELETE</code>
+  and rejecting them.</li>
+<li><strong>Why it failed:</strong> Postgres <code>RULE</code>s operate at the <strong>query-rewrite
+  stage</strong>. TimescaleDB hypertables internally distribute data across many
+  underlying chunk tables and <strong>never rewrite rules</strong> against that
+  distributed structure — attempting to create such a rule throws an error.</li>
+<li><strong>The fix:</strong> use a <strong>trigger</strong> (<code>BEFORE UPDATE</code> / <code>BEFORE DELETE</code>)
+  instead of a rule. Triggers operate at the row level and work correctly
+  against hypertables.</li>
+<li><strong>A related edge case caught by verification:</strong> if a caller runs
+  <code>TRUNCATE agent_events</code> instead of <code>DELETE</code>, does the delete trigger
+  fire? <strong>No</strong> — <code>TRUNCATE</code> is a distinct SQL command with its own
+  execution path; row-level <code>BEFORE DELETE</code> / <code>AFTER DELETE</code> triggers do
+  <strong>not</strong> fire on it. You need a <strong>separate <code>BEFORE TRUNCATE</code> /
+  <code>AFTER TRUNCATE</code> trigger</strong> if you want to guard against that too.</li>
+</ul>
+<p>This is a good general lesson: <strong>an invariant stated in English ("this
+table is append-only") is not actually enforced until you've checked every
+SQL code path that could violate it — including the ones nobody thinks
+about, like <code>TRUNCATE</code>.</strong></p>
+<h2 id="mod-03--another-real-gotcha-caught-during-build-embedding-dimension-mismatch">Another real gotcha caught during build: embedding dimension mismatch</h2>
+<p>A configuration inconsistency was flagged during verification: the schema
+declared <code>vector(1536)</code> (matching, e.g., OpenAI's <code>text-embedding-3-large</code>
+default), but the <code>.env</code> file specified <code>EMBEDDING_DIMENSION=256</code>. If
+these don't match:</p>
+<ul>
+<li><code>pgvector</code> stores the dimension as part of the column type.</li>
+<li>Insert time will <strong>mismatch and fail</strong> (or silently misbehave, depending
+  on the client) — it will <strong>not</strong> pad or truncate the vector to fit.</li>
+</ul>
+<p><strong>Lesson:</strong> the embedding model's actual output dimension and the schema's
+declared vector dimension must be kept in lockstep, and this should be
+checked explicitly rather than assumed — it's an easy one-line
+misconfiguration with a confusing downstream failure.</p>
+<h2 id="mod-03--redis-the-fourth-store-thats-allowed-to-exist-separately">Redis: the fourth store that's allowed to exist separately</h2>
+<p>Redis (with ARQ) is kept as a <strong>separate</strong> store from Tiger Cloud, on
+purpose — it's a job queue / scratchpad, not one of the three "shapes."
+It's ephemeral by nature (webhook job queue), so it doesn't need the
+durability guarantees or query flexibility of the unified Postgres store.
+Splitting <em>this</em> out doesn't reintroduce the "three databases" problem,
+because its failure mode and access pattern are fundamentally different
+from Memory/Truth/Time.</p>
+<h2 id="mod-03--summary-table">Summary table</h2>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Store</th>
+<th>Extension/Mechanism</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Code embeddings, semantic search</td>
+<td>Tiger Cloud (Postgres)</td>
+<td><code>pgvector</code> + <code>pgvectorscale</code> + DiskANN</td>
+</tr>
+<tr>
+<td>Reviews, findings, HITL rows</td>
+<td>Tiger Cloud (Postgres)</td>
+<td>Plain relational tables</td>
+</tr>
+<tr>
+<td>Every LLM/tool call, cost, latency</td>
+<td>Tiger Cloud (Postgres)</td>
+<td>Hypertables + continuous aggregates</td>
+</tr>
+<tr>
+<td>Job queue for incoming webhooks</td>
+<td>Redis</td>
+<td>ARQ (Automatic Repeat reQuest-style job queue)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>One durable database. One backup story. One place to query. One
+identity connecting memory, truth, and time.</strong></p>
+  </div>
+  
+  <div class="quiz-target" data-mod="mod-03"></div>
+  <div class="module-footnav"><a href="#mod-02"><div class="dir">← Previous</div><div class="ttl">02 · Architecture & Design Patterns</div></a><a href="#mod-04" class="next"><div class="dir">Next →</div><div class="ttl">04 · Tech Stack Decisions</div></a></div>
+</section>
+
+
+<section class="module" id="mod-04">
+  <div class="module-head">
+    <div class="module-num">04</div>
+    <div class="module-titles">
+      <h2>Tech Stack Decisions</h2>
+      <div class="subtitle">The full deployed architecture, credential checklist</div>
+    </div>
+    <div class="module-mark" data-mod="mod-04">
+      <span class="dot"></span><span class="txt">Mark understood</span>
+    </div>
+  </div>
+  <div class="md">
+    <h2 id="mod-04--guiding-principle-for-every-tech-choice">Guiding principle for every tech choice</h2>
+<blockquote>
+<p>"Choosing a framework is not a big deal — frameworks are easy to learn.
+What matters is the cost and gain of the <em>shape</em> of your architecture,
+not which specific library implements it."</p>
+</blockquote>
+<p>Every decision below follows a <strong>cost vs. gain</strong> framing rather than
+"what's popular."</p>
+<h2 id="mod-04--full-component-list-and-their-chosen-technology">Full component list and their chosen technology</h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Technology</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Webhook ingress</td>
+<td>FastAPI</td>
+<td>Fast, async-friendly, minimal, good for a stateless HTTP receiver</td>
+</tr>
+<tr>
+<td>Job queue</td>
+<td>Redis + ARQ</td>
+<td>Meets GitHub's fast-ack requirement; ARQ = async job queue with retry semantics</td>
+</tr>
+<tr>
+<td>Orchestration</td>
+<td>LangGraph</td>
+<td>First-class parallel fan-out, no extra infra, LLM-native tooling (see file 02)</td>
+</tr>
+<tr>
+<td>Unified database</td>
+<td>Tiger Cloud (managed Postgres + TimescaleDB + pgvector + pgvectorscale)</td>
+<td>One store for all 3 data shapes (see file 03)</td>
+</tr>
+<tr>
+<td>Frontend/dashboard</td>
+<td>Next.js (kept deliberately minimal)</td>
+<td>Only needed to show HITL queue + review status — not a place to over-invest tokens/time</td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>Railway</td>
+<td>Simple managed deployment target for the MVP</td>
+</tr>
+<tr>
+<td>LLM provider(s)</td>
+<td>OpenAI (embeddings + some agents) / model-routed per agent (e.g. cheaper models for docs, stronger models for security)</td>
+<td>Cost/quality tradeoff decided <strong>per specialist</strong>, not globally</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mod-04--why-redis-arq-specifically">Why Redis + ARQ specifically</h2>
+<ul>
+<li><strong>Redis</strong> acts as a durable-enough scratchpad: as soon as a PR webhook
+  arrives, a job is pushed onto it.</li>
+<li><strong>ARQ</strong> stands for "Automatic Repeat reQuest" — an error-control pattern
+  from networking, adapted here as an async Python job queue with
+  FIFO semantics and retry support. The queue guarantees that jobs aren't
+  lost and aren't (easily) processed twice.</li>
+<li>Chosen provider for hosting in the walkthrough: <strong>Upstash</strong> (free tier
+  Redis, ~30MB, sufficient for prototyping).</li>
+</ul>
+<h2 id="mod-04--langgraph-vs-temporal-recap-full-detail-in-file-02">LangGraph vs. Temporal — recap (full detail in file 02)</h2>
+<p>Quick summary table (see file 02 for full reasoning):</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>LangGraph</th>
+<th>Temporal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Infra</td>
+<td>None extra</td>
+<td>Dedicated server</td>
+</tr>
+<tr>
+<td>Fan-out</td>
+<td>First-class (<code>Send</code> API)</td>
+<td>Possible, heavier</td>
+</tr>
+<tr>
+<td>Checkpointing</td>
+<td>Manual, reuses existing Redis</td>
+<td>Native, very strong guarantees</td>
+</tr>
+<tr>
+<td>Chosen for MVP?</td>
+<td>✅ Yes</td>
+<td>Reserved for future scale</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mod-04--tiger-cloud-vs-a-pure-vector-database-eg-qdrant-recap">Tiger Cloud vs. a pure vector database (e.g. Qdrant) — recap</h2>
+<p>Chosen because PR review needs vector similarity <strong>combined with</strong>
+relational filters (repo, freshness, exact IDs) and needs to sit beside
+review/cost/audit history in the same query surface — not because vector
+search itself is better in Tiger Cloud than in a dedicated vector DB (see
+file 03 for the full reasoning).</p>
+<h2 id="mod-04--deployment-topology-as-actually-built">Deployment topology (as actually built)</h2>
+<div class="codehilite"><pre><span></span><code>                        ┌─────────────────────┐
+   GitHub Webhook  ───▶ │ FastAPI Ingress       │
+                        │ (Railway, stateless)  │
+                        └──────────┬────────────┘
+                                   │ enqueue
+                                   ▼
+                        ┌─────────────────────┐
+                        │ Redis (Upstash) + ARQ │
+                        └──────────┬────────────┘
+                                   │ dequeue
+                                   ▼
+                        ┌─────────────────────┐
+                        │ Orchestrator Worker   │
+                        │ (LangGraph, Railway)  │
+                        └──────────┬────────────┘
+                    fan-out to 4 specialist nodes
+                                   │
+                                   ▼
+                        ┌─────────────────────┐
+                        │ Tiger Cloud            │
+                        │ (Postgres + pgvector   │
+                        │  + pgvectorscale +     │
+                        │  hypertables)          │
+                        └──────────┬────────────┘
+                                   │ read/write
+                                   ▼
+                        ┌─────────────────────┐
+                        │ Next.js Dashboard      │
+                        │ (HITL queue, traces)   │
+                        └─────────────────────┘
+</code></pre></div>
+
+<h2 id="mod-04--model-routing-per-agent-cost-aware-design">Model routing per agent (cost-aware design)</h2>
+<p>Not every specialist needs the same model. Example strategy discussed:</p>
+<ul>
+<li><strong>Docs agent</strong> — lower-stakes, more mechanical → cheaper model (e.g.
+  GLM 5.2, or a smaller Claude/other model).</li>
+<li><strong>Security agent</strong> — highest consequence-of-error → stronger/more
+  capable model (e.g. "Fable" or an Opus-tier model in the author's
+  vocabulary).</li>
+</ul>
+<p>This routing decision is stored in a <strong>prompt/model registry</strong> so that:</p>
+<ul>
+<li>You know exactly which model + which prompt version produced any given
+  finding (traceable back through the event spine).</li>
+<li>You can roll out a new prompt as "version 2" without silently
+  overwriting version 1 — enabling rollback and A/B comparison.</li>
+</ul>
+<h2 id="mod-04--credentialssetup-checklist-what-you-actually-need-to-provision">Credentials/setup checklist (what you actually need to provision)</h2>
+<table>
+<thead>
+<tr>
+<th>Credential</th>
+<th>Source</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GitHub webhook secret</td>
+<td>Self-generated</td>
+<td>Used for HMAC signature verification</td>
+</tr>
+<tr>
+<td>GitHub token</td>
+<td>GitHub App/PAT</td>
+<td>Needed to post review comments back</td>
+</tr>
+<tr>
+<td>Tiger Cloud connection string</td>
+<td>console.cloud.timescale.com</td>
+<td>Free tier / trial credits available</td>
+</tr>
+<tr>
+<td>Redis URL</td>
+<td>Upstash (free tier, ~30MB)</td>
+<td>Sufficient for prototyping</td>
+</tr>
+<tr>
+<td>OpenAI API key</td>
+<td>platform.openai.com</td>
+<td>Pay-as-you-go, used for embeddings + some agent calls</td>
+</tr>
+<tr>
+<td>(Optional) Anthropic/other model keys</td>
+<td>Provider console</td>
+<td>For model-routed specialist agents</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mod-04--economics-cost-design-mentioned-deferred-to-later-work">Economics / cost design (mentioned, deferred to later work)</h2>
+<p>Explicitly flagged as a <strong>separate future design pass</strong>, not part of the
+MVP build, but worth noting as a pattern:</p>
+<ul>
+<li>Track <strong>PR cost hourly</strong>, read from the continuous-aggregate rollups
+  (file 03), not the raw event table.</li>
+<li>If spend crosses a budget threshold, <strong>block further LLM calls</strong> rather
+  than let costs run away silently.</li>
+<li>Token optimization (caching, smarter routing) is called out as a topic
+  for a dedicated future session — the author is explicit that "if you
+  cannot justify the output of a generated token, don't spend it."</li>
+</ul>
+  </div>
+  
+  <div class="quiz-target" data-mod="mod-04"></div>
+  <div class="module-footnav"><a href="#mod-03"><div class="dir">← Previous</div><div class="ttl">03 · Data Engineering: Three Shapes</div></a><a href="#mod-05" class="next"><div class="dir">Next →</div><div class="ttl">05 · Failure Modes & Reliability</div></a></div>
+</section>
+
+
+<section class="module" id="mod-05">
+  <div class="module-head">
+    <div class="module-num">05</div>
+    <div class="module-titles">
+      <h2>Failure Modes & Reliability</h2>
+      <div class="subtitle">Every named failure mode and its mitigation</div>
+    </div>
+    <div class="module-mark" data-mod="mod-05">
+      <span class="dot"></span><span class="txt">Mark understood</span>
+    </div>
+  </div>
+  <div class="md">
+    <h2 id="mod-05--the-core-mindset-everything-will-break">The core mindset: "everything will break"</h2>
+<p>The design methodology treats reliability as a <strong>first-class design
+input</strong>, not a checklist added at the end. For every component (file 01's
+five-move loop, move 5), you ask explicitly: "what happens when this
+breaks, and what's the fallback?"</p>
+<p>This file catalogs every named failure mode from the transcript, the
+mechanism behind it, and its designed mitigation.</p>
+<h2 id="mod-05--1-hallucination">1. Hallucination</h2>
+<ul>
+<li><strong>What it is:</strong> the model states something confidently that is simply
+  false. Framed here as <em>"a feature, not a bug"</em> of LLMs in general — the
+  point isn't to eliminate it, it's to <strong>contain the consequence</strong>.</li>
+<li><strong>Mitigation:</strong></li>
+<li>Grounding via retrieval (file 02) — reduces the <em>rate</em>.</li>
+<li><strong>Citation requirement</strong> — every finding must reference actual
+    evidence (file/line), not vague assertions.</li>
+<li><strong>Confidence field</strong> — low confidence routes to human review instead
+    of auto-posting.</li>
+<li><strong>Rationale field</strong> — makes hallucinated findings auditable/disputable
+    after the fact, which feeds back into system improvement.</li>
+</ul>
+<h2 id="mod-05--2-model-prompt-drift">2. Model / prompt drift</h2>
+<ul>
+<li><strong>What it is:</strong> a system performs great at build time on your eval
+  dataset, but degrades in the real world because the <em>distribution of
+  inputs changes</em> — the classic MLOps concept of drift, applied to LLM
+  prompts. Example given: a spam classifier that was great when trained,
+  but spammers adapt their strategy and the model's accuracy silently
+  decays.</li>
+<li><strong>Mitigation:</strong></li>
+<li>Monitoring dashboard with <strong>alert thresholds</strong>.</li>
+<li>Periodic re-training / <strong>periodic prompt updates</strong>.</li>
+<li>Rule-based <strong>fallbacks</strong> for common cases that don't need an LLM call
+    at all.</li>
+</ul>
+<h2 id="mod-05--3-tool-api-timeout">3. Tool / API timeout</h2>
+<ul>
+<li><strong>What it is:</strong> an external dependency (OpenAI, GitHub API, embedding
+  provider) is slow or down.</li>
+<li><strong>Mitigation:</strong></li>
+<li><strong>Timeout + retry</strong> on every outbound call.</li>
+<li><strong>Graceful degradation</strong> on partial data (don't fail the whole review
+    because one specialist's tool call timed out — degrade that one
+    finding, not the whole pipeline).</li>
+<li><strong>Circuit breaker</strong> — stop hammering a dead service; fail fast instead
+    of queuing up retries against something that's clearly down.</li>
+</ul>
+<h2 id="mod-05--4-feedback-loop-poisoning">4. Feedback-loop poisoning</h2>
+<ul>
+<li><strong>What it is:</strong> two related but distinct risks:
+  1. The agent doesn't actually learn from disputes/feedback at all
+     (feedback given, never used).
+  2. <strong>Bad</strong> feedback gets incorporated — e.g. a junior engineer disputes
+     a finding in an unhelpful or low-quality way, and the agent "learns"
+     the wrong lesson from it.</li>
+<li><strong>Mitigation:</strong></li>
+<li><strong>Minimum evidence threshold</strong> before acting on any single piece of
+    feedback — don't let one disputed finding retrain behavior; require a
+    pattern.</li>
+<li><strong>Decay old feedback</strong> over time — stale feedback that's no longer
+    representative shouldn't keep influencing behavior (and shouldn't keep
+    bloating your embedding storage indefinitely).</li>
+</ul>
+<h2 id="mod-05--5-orchestration-deadlock">5. Orchestration deadlock</h2>
+<ul>
+<li><strong>What it is:</strong> in a fan-out/fan-in pattern, the aggregator waits for
+  all N parallel specialists to respond. If one specialist hangs (crashes,
+  never returns), the aggregator can <strong>wait forever</strong>.</li>
+<li><strong>Mitigation:</strong></li>
+<li><strong>Timeout on every node</strong> in the graph, not just the overall workflow.
+    If a specialist doesn't respond in time, treat it as a partial failure
+    and proceed with what you have rather than blocking indefinitely.</li>
+</ul>
+<h2 id="mod-05--6-the-human-bottleneck-escalation-queue-overload">6. The human bottleneck (escalation queue overload)</h2>
+<ul>
+<li><strong>What it is:</strong> you cannot have one human clear thousands of escalations
+  per day. If everything below the confidence threshold gets dumped into
+  one undifferentiated queue, the queue grows faster than any human can
+  clear it.</li>
+<li><strong>Mitigation:</strong></li>
+<li><strong>Priority queueing</strong> — not all escalations are equal; surface
+    higher-priority PRs first.</li>
+<li><strong>Capacity planning</strong> — explicitly model how many escalations per day
+    a human reviewer can realistically absorb, and design the confidence
+    threshold and escalation logic around that number, not an arbitrary
+    default.</li>
+</ul>
+<h2 id="mod-05--7-the-almost-right-problem">7. The "almost-right" problem</h2>
+<ul>
+<li><strong>What it is:</strong> the most dangerous failure mode, arguably — a finding
+  that's ~90% correct but <strong>subtly wrong</strong> in a way that's easy to miss
+  (misattributed line, wrong root cause, etc.). This is worse than an
+  obviously-wrong finding because it's more likely to be trusted.</li>
+<li><strong>Mitigation:</strong></li>
+<li>Confidence threshold + HITL gate as the primary defense (same
+    mechanism reused from file 01).</li>
+<li><strong>Random audits</strong> — periodically (e.g. every 2–3 days) manually
+    spot-check auto-posted findings even when confidence was high.</li>
+<li><strong>Rotate reviewers/models</strong> — vary which model reviews what, to avoid
+    a single model's blind spots compounding silently over time.</li>
+<li><strong>Test with new/adversarial inputs</strong> periodically to check the system
+    hasn't quietly degraded.</li>
+</ul>
+<h2 id="mod-05--8-idempotency-duplicate-posting">8. Idempotency / duplicate posting</h2>
+<ul>
+<li><strong>What it is:</strong> GitHub may retry a webhook delivery (network hiccup,
+  timeout, etc.). Without protection, the same PR could be reviewed and
+  <strong>posted twice</strong>.</li>
+<li><strong>Mitigation:</strong></li>
+<li><strong>Deduplicate before posting</strong> — check whether this exact
+    review/delivery has already been processed before writing anything
+    back to GitHub.</li>
+<li>This ties directly back to the <strong>idempotency key check at ingress</strong>
+    (file 02) — the reliability layer isn't a separate afterthought, it's
+    the same invariant enforced at multiple points in the pipeline.</li>
+</ul>
+<h2 id="mod-05--the-reliability-layer-as-a-named-architectural-component">The reliability layer as a named architectural component</h2>
+<p>All of the above mitigations collectively form what's called the
+<strong>reliability layer</strong>: retries, circuit breakers, idempotency, dedup, and
+per-node timeouts, each one <strong>explicitly mapped to the specific failure
+mode it defends against</strong> — not added generically "because best practice
+says so."</p>
+<blockquote>
+<p>Important teaching point repeated in the transcript: reliability
+mechanisms were never introduced by saying "let's add retries and
+circuit breakers because that's standard." They were introduced only
+<em>after</em> a specific failure mode was named and felt. This keeps the
+system from being over-engineered with defenses against problems that
+don't actually apply to it.</p>
+</blockquote>
+<h2 id="mod-05--autonomy-calibration-recap-see-also-file-01">Autonomy calibration recap (see also file 01)</h2>
+<p>Three factors decide how much autonomy any given action gets:</p>
+<ol>
+<li><strong>Consequence of error</strong> (a wrong style nit vs. a missed SQL injection).</li>
+<li><strong>Reversibility</strong> (a disputed PR comment vs. an already-merged
+   migration).</li>
+<li><strong>System maturity</strong> (new system → less autonomy; proven system → more).</li>
+</ol>
+<h2 id="mod-05--the-five-human-involvement-patterns-a-general-framework">The five human-involvement patterns (a general framework)</h2>
+<p>Not every system needs the same level of human involvement. Five patterns,
+in increasing order of human control:</p>
+<ol>
+<li><strong>Full automation</strong> — appropriate only for routine, reversible,
+   low-stakes tasks; humans review periodically, not per-instance.</li>
+<li><strong>Human reviews output</strong> — the system drafts, a human verifies before
+   it goes out (used for reputational-stakes content).</li>
+<li><strong>Human handles the exception</strong> — system handles easy/high-confidence
+   cases automatically; humans see only the hard/low-confidence/anomalous
+   ones. <strong>This is the pattern chosen for the PR review agent.</strong></li>
+<li><strong>Human decides, system prepares</strong> — system gathers all context and
+   presents it, but a human makes the actual call (example given: loan
+   approval — system scores and gathers, human approves).</li>
+<li><strong>Full human with AI assist</strong> — highest-stakes domains (financial,
+   legal, health) where full autonomy is never appropriate regardless of
+   system maturity.</li>
+</ol>
+<p><strong>Golden rule stated explicitly:</strong> if your system touches financial,
+legal, or health decisions, you cannot default to full autonomy — this is
+a hard constraint, not a tuning knob.</p>
+  </div>
+  
+  <div class="quiz-target" data-mod="mod-05"></div>
+  <div class="module-footnav"><a href="#mod-04"><div class="dir">← Previous</div><div class="ttl">04 · Tech Stack Decisions</div></a><a href="#mod-06" class="next"><div class="dir">Next →</div><div class="ttl">06 · Genesis Kit: Harness Engineering</div></a></div>
+</section>
+
+
+<section class="module" id="mod-06">
+  <div class="module-head">
+    <div class="module-num">06</div>
+    <div class="module-titles">
+      <h2>Genesis Kit: Harness Engineering</h2>
+      <div class="subtitle">done.html, G0 gates, the L4 verifier, quiz-me</div>
+    </div>
+    <div class="module-mark" data-mod="mod-06">
+      <span class="dot"></span><span class="txt">Mark understood</span>
+    </div>
+  </div>
+  <div class="md">
+    <h2 id="mod-06--the-distinction-this-whole-section-rests-on">The distinction this whole section rests on</h2>
+<blockquote>
+<p>"This is not vibe coding. You spend a lot of time in system design first,
+then create steps, and only then go to the coding agent."</p>
+</blockquote>
+<p><strong>Vibe coding</strong> = typing a vague request at a coding agent and hoping the
+output is right. <strong>Harness engineering / "loop engineering"</strong> = giving an
+AI coding agent a persistent, structured <strong>state</strong> so that:</p>
+<ul>
+<li>it doesn't re-derive the whole design from scratch every session,</li>
+<li>it can't quietly drift the goal to whatever's convenient to implement,</li>
+<li>someone else (or future-you) can pick up exactly where it left off,</li>
+<li>every claim of "this works" is checked by an independent process, not
+  self-reported.</li>
+</ul>
+<p>"Genesis Kit" is the author's own open-sourced framework for this. It is
+<strong>not</strong> specific to this PR-review project — it's a general-purpose
+methodology for working with any AI coding agent (Claude Code, Codex,
+Hermes, etc.) on any project.</p>
+<h2 id="mod-06--core-artifacts-genesis-kit-creates-in-your-project">Core artifacts Genesis Kit creates in your project</h2>
+<table>
+<thead>
+<tr>
+<th>File/Artifact</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>done.html</code></td>
+<td>The <strong>locked spec</strong>. Defines the cognitive job, inputs, autonomy level, failure tolerance. <strong>The agent is never allowed to edit this file.</strong> It's the fixed target.</td>
+</tr>
+<tr>
+<td><code>implementation-notes.html</code></td>
+<td><strong>Live state.</strong> What's currently in flight, current milestone, current phase, any blockers. Read at the start of every session so a new session doesn't duplicate or contradict existing work.</td>
+</tr>
+<tr>
+<td><code>context-graph</code> (<code>.md</code>)</td>
+<td>The <strong>invariants</strong> — non-negotiable rules (e.g. "every GitHub webhook payload passes through signature verification," "every specialist finding carries confidence and rationale") — plus a dependency graph: change one thing, see what else must be re-verified.</td>
+</tr>
+<tr>
+<td><code>index.md</code></td>
+<td>Project documentation: sources, concepts, how things work — explicitly modeled on Andrej Karpathy's approach to project indexing.</td>
+</tr>
+<tr>
+<td><code>plan.md</code></td>
+<td>Detailed milestone plan: chosen approach vs. rejected alternatives, build order, files touched per milestone, demo command, success criteria, loops/skills used, external dependencies, <strong>token budget per milestone</strong>.</td>
+</tr>
+<tr>
+<td><code>loops.md</code></td>
+<td>The actual <strong>execution procedure</strong> the agent follows — described in detail below.</td>
+</tr>
+<tr>
+<td><code>current.md</code> (per milestone, e.g. <code>M1.md</code>, <code>M2.md</code>)</td>
+<td>The live checkpoint log for that specific milestone: what's been read, what gate it's at, what iteration it's on.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mod-06--why-donehtml-cannot-be-touched-by-the-agent">Why <code>done.html</code> cannot be touched by the agent</h2>
+<p>A repeatedly-observed failure mode of AI coding agents: over a long
+session, the agent quietly redefines "done" to match whatever it managed
+to build, rather than what was actually asked for. Locking the definition
+of done in a file the agent is <strong>forbidden to edit</strong> removes that failure
+mode structurally — it's not a "please don't do this" instruction, it's a
+hard boundary.</p>
+<h2 id="mod-06--the-gate-0-g0-procedure-orient-before-acting">The Gate-0 (G0) procedure — "orient before acting"</h2>
+<p>Before doing <em>any</em> work on a milestone, the agent must run through this
+checklist:</p>
+<ol>
+<li>Pick candidate existing pages/files matching the milestone by name.</li>
+<li>Drill into those existing pages (if the milestone was already started
+   or exists from a prior session).</li>
+<li>Search <code>implementation-notes</code> for a "rolling source of truth" — what's
+   already live right now?</li>
+<li><strong>Confirm the system doesn't already exist</strong> before building it again.</li>
+<li>Write a <strong>G0 checkpoint</strong> into <code>current.md</code>.</li>
+<li>Emit a <strong>verdict</strong>: "unbuilt" (proceed to build) or "already exists"
+   (skip, or refine).</li>
+</ol>
+<p>This exists specifically to prevent an agent from re-implementing
+something that already exists because it lost context between sessions —
+a very common and wasteful failure mode when working with AI coding
+agents across multiple sessions.</p>
+<h2 id="mod-06--the-five-gates-that-govern-every-loop-iteration">The five gates that govern every loop iteration</h2>
+<p>For each iteration inside a milestone's build loop, five gates must pass:</p>
+<ol>
+<li><strong>Skill gate</strong> — did we load the right domain-knowledge skills for
+   this task (e.g. security engineering skill for the webhook signature
+   work)?</li>
+<li><strong>Router gate</strong> — did we correctly determine which loop type this
+   task needs (build / debug / research)?</li>
+<li><strong>Logging gate</strong> — did we log the skills used into the checkpoint (so
+   it's auditable later)?</li>
+<li><strong>Progress gate</strong> — did this iteration <strong>measurably</strong> move the
+   milestone forward (not just "produce output")?</li>
+<li><strong>Budget gate</strong> — are we still within the token budget allocated to
+   this milestone?</li>
+</ol>
+<p>Only after all five pass does the loop consider running an independent
+<strong>verifier</strong>.</p>
+<h2 id="mod-06--the-three-loop-types">The three loop types</h2>
+<table>
+<thead>
+<tr>
+<th>Loop</th>
+<th>When it's used</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Build loop</strong></td>
+<td>Standard implementation work</td>
+</tr>
+<tr>
+<td><strong>Debug loop</strong></td>
+<td>Triggered when a test fails or the verifier rejects the work</td>
+</tr>
+<tr>
+<td><strong>Research loop</strong></td>
+<td>Triggered when a phase requires investigation before it can be implemented (e.g. "how does TimescaleDB handle rules on hypertables?")</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mod-06--the-build-loop-step-by-step">The build loop, step by step</h3>
+<div class="codehilite"><pre><span></span><code>while not milestone_done and iterations &lt; 10:
+    create_micro_plan()
+    load_skills()
+    read_wiki_pages()
+    checkpoint_initialization()
+
+    while not phase_done:
+        load_next_phase()
+        if phase_needs_research:
+            run_research_loop()
+        else:
+            edit_files()
+            run_tests()
+            if tests_fail:
+                run_debug_loop()
+
+    spawn_independent_verifier()   # &lt;-- L4, see below
+    if verifier_approves:
+        mark_milestone_done()
+    else:
+        run_debug_loop(retry_once=True)
+        update_checkpoint_and_plan()
+</code></pre></div>
+
+<h2 id="mod-06--the-independent-verifier-l4-the-single-most-important-mechanism">The independent verifier (L4) — the single most important mechanism</h2>
+<p>After the build loop believes it's finished, a <strong>separate agent instance,
+spawned fresh, with a deliberately restricted context</strong>, is asked to
+verify the work:</p>
+<blockquote>
+<p>"You are an independent code reviewer for this project. You did <strong>not</strong>
+write this code. Verify the goal and success criteria. Do not assume
+the build agent's claims are true."</p>
+</blockquote>
+<p>Crucially, this verifier is given:</p>
+<ul>
+<li>the milestone's goal,</li>
+<li>the success criteria,</li>
+<li>the invariants (non-negotiables),</li>
+</ul>
+<p>but is <strong>explicitly not</strong> given the builder's own reasoning trail. This
+mirrors a real engineering practice: the person who wrote the code is not
+the best-positioned person to catch their own blind spots, because they
+already believe their own reasoning. A fresh, skeptical reader with no
+investment in the prior work catches errors the builder can't see in
+itself.</p>
+<h3 id="mod-06--why-this-matters-writing-your-own-exam-paper">Why this matters: "writing your own exam paper"</h3>
+<p>The author's framing: if a model writes its own tests, it's like a
+student writing their own exam questions — they'll only test what they
+already know they got right. Genesis Kit deliberately <strong>separates the
+"exam writer" from the "student"</strong> — a fresh verifier agent, working only
+from goal + success criteria + invariants (not the builder's internal
+reasoning), is the one who "writes the exam" and grades it.</p>
+<h3 id="mod-06--real-example-from-the-transcript-what-the-verifier-actually-caught">Real example from the transcript: what the verifier actually caught</h3>
+<p>During M1 (webhook ingress), the build agent claimed the milestone was
+done. The independent verifier found a real bug: malformed-but-validly-signed
+JSON was returning a raw <code>500</code> instead of a <code>400</code>. This kicked off a
+<strong>debug loop</strong>: fix applied → re-verified → a <strong>regression test</strong> added
+(to make sure this specific class of bug can't silently reappear later) →
+milestone approved.</p>
+<p>During M2 (Tiger Cloud infra), the verifier caught the <code>pgvector</code> schema
+gotcha (Postgres rules vs. hypertables — detailed in file 03) before it
+became a production bug.</p>
+<h2 id="mod-06--the-quiz-me-mechanism-forcing-genuine-understanding">The "quiz me" mechanism — forcing genuine understanding</h2>
+<p>After a milestone is verified, Genesis Kit can <strong>quiz the human</strong> on the
+decisions the agent made, e.g.:</p>
+<ul>
+<li><em>"Why does the receive-check happen before HMAC verification rather
+  than giving the principle that verification should get all
+  processing?"</em></li>
+<li><em>"Before the fix, malformed-but-validly-signed JSON caused a raw 500.
+  Is 400 the right response, or should it be something else?"</em></li>
+<li><em>"The idempotency-key router is currently in-memory only — it won't
+  survive a process restart, and a later milestone (M4) will replace it
+  with Redis-backed dedup. Is that acceptable for M1?"</em></li>
+<li><em>"<code>code_chunks</code> has a hardcoded embedding dimension. If a later
+  milestone changes the embedding model without reconciling this, what
+  breaks, and where?"</em></li>
+</ul>
+<p><strong>Purpose:</strong> you cannot claim "the agent built this for me and I don't
+know why it works." The quiz forces you to actually reason through the
+design decisions the agent made, using multiple-choice-style questions
+where you have to justify the correct answer, before the milestone is
+considered genuinely closed on the human side too.</p>
+<h2 id="mod-06--explicit-token-economy-discipline">Explicit token-economy discipline</h2>
+<p>A recurring, deliberately-enforced instruction given to the coding agent:</p>
+<blockquote>
+<p>"Always spawn Haiku or Sonnet [cheaper/faster models] to do this
+particular task — never spend a lot of tokens on this. Use Opus [the
+most expensive/highest-capability tier] only as an orchestrator or
+planner, spawning cheaper sub-agents for the actual mechanical work."</p>
+</blockquote>
+<p>Personal rule stated by the author: <strong>"If you've generated one token, tell
+me what the output of that was. If you can't justify the output, you're
+out."</strong> This is a general discipline for working with AI coding agents at
+scale: route by task difficulty, don't default to the most expensive model
+for everything.</p>
+<h2 id="mod-06--the-kickoff-interview">The kickoff interview</h2>
+<p>Before a milestone's plan is even written, Genesis Kit can run a
+<strong>kickoff interview</strong> — a short structured Q&amp;A with the human to pin down
+scope before any code gets touched (e.g., "is this a new build or
+modifying existing code?", "is this a distributed/multi-service runtime
+or a single process?"). This exists to prevent the agent from making
+unstated assumptions about scope.</p>
+<h2 id="mod-06--the-named-skills-genesis-kit-draws-on">The named "skills" Genesis Kit draws on</h2>
+<p>Referred to as an "agentic SW kit" — a library of domain-knowledge skills
+(security engineering, reliability engineering, distributed systems,
+etc.) plus a set of named cognitive-process skills used throughout the
+loop:</p>
+<table>
+<thead>
+<tr>
+<th>Skill name</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Detective</strong></td>
+<td>Helps debug — root-cause investigation</td>
+</tr>
+<tr>
+<td><strong>Verify</strong></td>
+<td>Checks output against goal/success criteria</td>
+</tr>
+<tr>
+<td><strong>Blueprint</strong></td>
+<td>Design before you build</td>
+</tr>
+<tr>
+<td><strong>Scout</strong></td>
+<td>Explore multiple options before committing to one</td>
+</tr>
+<tr>
+<td><strong>Council / Mirror</strong></td>
+<td>Adversarial self-review — argue against your own plan</td>
+</tr>
+<tr>
+<td><strong>Ghost</strong></td>
+<td>"Shadow and carry" — track parallel/background context</td>
+</tr>
+<tr>
+<td><strong>Forecast</strong></td>
+<td>Predict likely failure points before they happen</td>
+</tr>
+</tbody>
+</table>
+<p>The right skill is loaded <strong>per milestone</strong> based on what that milestone
+actually needs (e.g. security-engineering + distributed-systems skills
+for the webhook ingress milestone), not loaded indiscriminately for every
+task.</p>
+<h2 id="mod-06--exit-protocol-what-happens-at-the-end-of-every-milestone">Exit protocol (what happens at the end of every milestone)</h2>
+<p>On milestone approval, three files are updated together, atomically as a
+practice (even if not a literal DB transaction):</p>
+<ul>
+<li><code>current.md</code> (the checkpoint log),</li>
+<li><code>plan.md</code> (progress log),</li>
+<li><code>implementation-notes.html</code> (the live "what's built right now" summary,
+  including explicitly listed <strong>known gaps</strong> — e.g. "job queue is
+  currently an in-process stub; M4 will replace it with Redis").</li>
+</ul>
+<p>This means a brand-new session, or a completely different person, can
+read exactly three files and know precisely what exists, what's missing,
+and what to do next — without re-reading the whole codebase or asking the
+previous session's author.</p>
+<h2 id="mod-06--practical-starting-workflow-how-a-session-actually-begins">Practical starting workflow (how a session actually begins)</h2>
+<ol>
+<li>Open a fresh AI coding agent session (any agent — Claude Code, Codex,
+   etc. — this framework is explicitly tool-agnostic).</li>
+<li>Paste the <strong>kickoff prompt</strong> (from the project's onboarding doc).</li>
+<li>The agent runs Gate-0 automatically: checks for an existing Genesis
+   state, and either initializes a new one or picks up the existing one.</li>
+<li>From there, just say <strong>"kickoff"</strong> and the agent will look up the next
+   unbuilt milestone from <code>plan.md</code> and begin the build loop for it.</li>
+</ol>
+<h2 id="mod-06--key-takeaway">Key takeaway</h2>
+<blockquote>
+<p>"If you have the harnesses set up right, you'll produce the best code
+of your life. If you don't have the harnesses, you'll produce the worst
+code of your life — because you'll have no way to catch the agent
+quietly drifting away from what you actually wanted."</p>
+</blockquote>
+<p>The technical stack (LangGraph, Tiger Cloud, etc.) is secondary to this
+methodology — the author explicitly states that if you've already done
+the system design (files 01–05), the harness makes actually writing the
+code "damn easy," because the hard thinking already happened before any
+code was written.</p>
+  </div>
+  
+  <div class="quiz-target" data-mod="mod-06"></div>
+  <div class="module-footnav"><a href="#mod-05"><div class="dir">← Previous</div><div class="ttl">05 · Failure Modes & Reliability</div></a><a href="#mod-07" class="next"><div class="dir">Next →</div><div class="ttl">07 · Implementation Milestones</div></a></div>
+</section>
+
+
+<section class="module" id="mod-07">
+  <div class="module-head">
+    <div class="module-num">07</div>
+    <div class="module-titles">
+      <h2>Implementation Milestones</h2>
+      <div class="subtitle">M1 through M9, demo commands, real bugs caught</div>
+    </div>
+    <div class="module-mark" data-mod="mod-07">
+      <span class="dot"></span><span class="txt">Mark understood</span>
+    </div>
+  </div>
+  <div class="md">
+    <h2 id="mod-07--build-ordering-philosophy">Build ordering philosophy</h2>
+<p>Milestones are sequenced to <strong>prioritize non-dependent pieces first</strong> —
+specifically, infrastructure that everything else needs (webhook ingress,
+then the unified database) is built before anything that depends on it
+(orchestration, retrieval, posting). This avoids building orchestration
+logic against a database or ingress layer that might still change shape.</p>
+<p>Each milestone in Genesis Kit is defined with: an <strong>outcome</strong>, a <strong>demo
+command</strong> that objectively proves it works, <strong>success criteria</strong>, which
+<strong>loops/skills</strong> it uses, its <strong>external dependencies</strong>, and a <strong>token
+budget</strong>. Below is the reconstructed milestone list as built in the
+walkthrough.</p>
+<hr />
+<h2 id="mod-07--m1-webhook-ingress">M1 — Webhook Ingress</h2>
+<p><strong>Outcome:</strong> A FastAPI service that authenticates, validates, and routes
+incoming GitHub PR webhooks — nothing downstream yet.</p>
+<p><strong>What it does:</strong>
+- Verifies HMAC signature against the shared webhook secret.
+- Rejects anything that isn't a <code>pull_request</code> event.
+- Checks idempotency key to prevent duplicate processing (in-memory for
+  this milestone — explicitly a <strong>temporary stub</strong>, to be replaced by
+  Redis-backed dedup in M4).
+- Parses the payload into the required internal format.
+- Pushes it into a (stubbed, in-process) job router.</p>
+<p><strong>Demo command:</strong> <code>curl</code> a correctly-signed request vs. an incorrectly-signed
+request — confirm HMAC rejects the bad one and idempotency correctly drops
+duplicate deliveries.</p>
+<p><strong>Real bug caught by the L4 verifier:</strong> malformed-but-validly-signed JSON
+was returning a raw <code>500</code> instead of the correct <code>400</code>. Fixed, then a
+regression test was added so this class of bug can't silently reappear.</p>
+<p><strong>Explicitly accepted known gap:</strong> the idempotency router is in-memory
+only and won't survive a process restart. This is fine <em>for this
+milestone</em> because M1's actual goal is just establishing the ingress
+<strong>contract</strong> (authenticate → validate → route → prevent duplicates
+<em>within a single process lifetime</em>) — full durability is scoped to M4.</p>
+<hr />
+<h2 id="mod-07--m2-tiger-cloud-infrastructure">M2 — Tiger Cloud Infrastructure</h2>
+<p><strong>Outcome:</strong> The unified database is provisioned and schema-migrated
+against a <strong>live</strong> Tiger Cloud service (not a local mock).</p>
+<p><strong>What it does:</strong>
+- Provisions a Tiger Cloud service via the Tiger MCP/CLI.
+- Enables required extensions: TimescaleDB, <code>pgvector</code>, <code>pgvectorscale</code>.
+- Creates the <code>agent_events</code> hypertable + continuous aggregates.
+- Creates relational tables for reviews/findings/HITL.
+- Enforces the <strong>append-only invariant</strong> on <code>agent_events</code> at the
+  database level (trigger-based, not rule-based — see file 03 for why).</p>
+<p><strong>Demo command:</strong> send a test webhook-equivalent event, then query
+<code>agent_events</code> and confirm the span row landed correctly.</p>
+<p><strong>Real bugs caught during this milestone (see file 03 for full technical
+detail):</strong>
+- Postgres <code>RULE</code>s don't work on hypertables (query-rewrite stage
+  conflicts with hypertable chunking) — switched to a trigger-based
+  approach instead.
+- <code>TRUNCATE</code> doesn't fire row-level <code>DELETE</code> triggers — needed a separate
+  guard.
+- Embedding dimension mismatch between schema (<code>vector(1536)</code>) and <code>.env</code>
+  config (<code>256</code>) — flagged before it caused a silent insert failure.</p>
+<hr />
+<h2 id="mod-07--m3-observability-event-spine">M3 — Observability / Event Spine</h2>
+<p><strong>Outcome:</strong> Every action in the pipeline (starting with webhook ingress)
+writes a row to <code>agent_events</code>.</p>
+<p><strong>What it does:</strong>
+- Appends a row for every delivery/action (start, end, cost, latency,
+  decision made).
+- Builds the foundation the trace viewer, audit trail, and cost
+  dashboards will all read from later.</p>
+<p><strong>Demo command:</strong> trigger a webhook, then query <code>agent_events</code> and confirm
+every step of the ingress flow produced a corresponding row.</p>
+<p><strong>Note on sequencing:</strong> the transcript explicitly shows the agent
+re-checking whether this already exists (per the G0 gate) before
+building, since <code>record_event</code>-style functionality may have been
+partially stubbed during M1/M2 already — avoiding duplicate
+implementation.</p>
+<hr />
+<h2 id="mod-07--m4-orchestration-langgraph-fan-outfan-in">M4 — Orchestration (LangGraph fan-out/fan-in)</h2>
+<p><strong>Outcome:</strong> A LangGraph-based orchestrator that fans a PR out to (at
+this stage, possibly stubbed) parallel nodes, checkpoints to Redis, and
+can resume after a worker is killed mid-run.</p>
+<p><strong>What it does:</strong>
+- Replaces M1's in-memory idempotency stub with <strong>Redis-backed</strong> dedup
+  (closing the gap explicitly flagged in M1).
+- Implements the actual <strong>fan-out</strong> to N parallel graph nodes.
+- Checkpoints workflow state to Redis so a killed worker can resume
+  rather than restart from scratch.</p>
+<p><strong>Demo command:</strong> trigger a run, kill the worker process mid-execution,
+restart it, and confirm it <strong>resumes from the checkpoint</strong> rather than
+re-running everything or losing the job.</p>
+<hr />
+<h2 id="mod-07--m5-specialist-agents">M5 — Specialist Agents</h2>
+<p><strong>Outcome:</strong> The four specialist nodes (Security, Quality, Testing, Docs)
+are implemented as real LLM-calling nodes, each producing a structured
+finding object (see file 01 for the exact schema).</p>
+<p><strong>What it does:</strong>
+- Each specialist receives the PR diff + retrieved context (from M6, or
+  a temporary simplified context source until M6 lands).
+- Each returns findings with <code>agent_type</code>, <code>severity</code>, <code>category</code>, <code>file</code>,
+  <code>line</code>, <code>confidence</code>, <code>rationale</code>.
+- Model routing per agent is applied here (cheaper model for Docs,
+  stronger model for Security — see file 04).</p>
+<p><strong>Demo command:</strong> submit a test PR diff with a known issue planted in it
+(e.g. a deliberate SQL-injection-shaped snippet) and confirm the security
+specialist flags it with a non-trivial confidence and a correct file/line.</p>
+<hr />
+<h2 id="mod-07--m6-rag-retrieval">M6 — RAG Retrieval</h2>
+<p><strong>Outcome:</strong> A retrieval layer that embeds the PR diff, performs hybrid
+search (vector similarity + full-text search) over <code>code_chunks</code>, and
+merges results before handing them to the specialists.</p>
+<p><strong>What it does:</strong>
+- Computes an embedding for the incoming diff.
+- Runs ANN search (via <code>pgvectorscale</code> + DiskANN) plus FTS over the
+  <code>code_chunks</code> table.
+- Merges/ranks the top-K chunks and injects them into each specialist's
+  prompt.</p>
+<p><strong>Demo command:</strong> a hybrid query against known code chunks — confirm the
+top-K results are actually relevant to a given diff, not arbitrary.</p>
+<hr />
+<h2 id="mod-07--m7-hitl-gate-post-to-github">M7 — HITL Gate + Post to GitHub</h2>
+<p><strong>Outcome:</strong> The aggregator merges specialist findings, deduplicates,
+computes overall confidence, and either auto-posts to GitHub or routes to
+the human approval queue — closing the loop back to the actual PR.</p>
+<p><strong>What it does:</strong>
+- Merge + dedup findings across the four specialists.
+- Apply the confidence gate rules from file 01 (critical → always
+  escalate; below threshold → human queue; otherwise → auto-post).
+- Post the structured review back to the GitHub PR via the GitHub API,
+  using the credentials from M4/deployment setup.</p>
+<p><strong>Demo command:</strong> run against a real (test) PR and confirm a review
+comment actually lands on GitHub, correctly attached to the right
+file/line — or correctly routes to the human queue when confidence is
+low.</p>
+<hr />
+<h2 id="mod-07--m8-reliability-economics-and-minimal-dashboard">M8 — Reliability, Economics, and Minimal Dashboard</h2>
+<p><strong>Outcome:</strong> The reliability layer (file 05) is wired in throughout, cost
+rollups are queryable, and a minimal Next.js dashboard exists to view the
+HITL queue and trace history.</p>
+<p><strong>What it does:</strong>
+- Retries, circuit breakers, per-node timeouts applied across the
+  pipeline (mapped to the specific failure modes in file 05, not applied
+  generically).
+- Continuous-aggregate-backed cost dashboard (cost/minute, P95 latency,
+  token totals) — explicitly told to stay <strong>tiny</strong>; front-end investment
+  is deliberately minimized in favor of the backend/data correctness.
+- A minimal UI to view escalated reviews and approve/reject them.</p>
+<p><strong>Demo command:</strong> inject a simulated fault (e.g. force a specialist
+timeout) and confirm the system degrades gracefully rather than hanging
+or crashing the whole review.</p>
+<hr />
+<h2 id="mod-07--implied-m9-evaluation">(Implied) M9 — Evaluation</h2>
+<p>Referenced in the plan but explicitly left for the reader/community to
+build out: a <strong>golden dataset</strong> of known-good PR reviews, used as a
+regression gate — any new prompt or model swap must perform at least as
+well as the currently deployed version on this dataset before being
+promoted. This closes the loop on the "model drift" failure mode from
+file 05.</p>
+<hr />
+<h2 id="mod-07--what-the-author-explicitly-leaves-as-an-exercise">What the author explicitly leaves as an exercise</h2>
+<p>The transcript is explicit that only M1 and part of M2 were built live on
+camera; the rest (M3–M9) are left for the viewer to complete using the
+same Genesis Kit harness, with the reasoning that once the <strong>system
+design</strong> is done (files 01–05) and the <strong>harness</strong> is set up (file 06),
+completing the remaining milestones is comparatively straightforward
+mechanical work — "if you've designed already, the rest is easy; if you
+haven't, the harness will expose exactly where your design was
+incomplete."</p>
+<h2 id="mod-07--suggested-self-check-before-starting-each-milestone">Suggested self-check before starting each milestone</h2>
+<p>For every milestone, before writing code, answer:</p>
+<ol>
+<li>What human behavior (file 01) does this milestone encode?</li>
+<li>What is the exact trigger and exact output of this component?</li>
+<li>What existing invariant (from <code>context-graph</code>) must this component not
+   violate?</li>
+<li>What's the demo command that will <strong>prove</strong>, not just claim, this
+   works?</li>
+<li>Which failure modes (file 05) apply to this specific component, and
+   which mitigation is actually wired in — not just planned?</li>
+</ol>
+  </div>
+  
+  <div class="quiz-target" data-mod="mod-07"></div>
+  <div class="module-footnav"><a href="#mod-06"><div class="dir">← Previous</div><div class="ttl">06 · Genesis Kit: Harness Engineering</div></a><a href="#mod-08" class="next"><div class="dir">Next →</div><div class="ttl">08 · Glossary & Key Quotes</div></a></div>
+</section>
+
+
+<section class="module" id="mod-08">
+  <div class="module-head">
+    <div class="module-num">08</div>
+    <div class="module-titles">
+      <h2>Glossary & Key Quotes</h2>
+      <div class="subtitle">Every term in one place, plus load-bearing quotes</div>
+    </div>
+    <div class="module-mark" data-mod="mod-08">
+      <span class="dot"></span><span class="txt">Mark understood</span>
+    </div>
+  </div>
+  <div class="md">
+    <h2 id="mod-08--glossary">Glossary</h2>
+<p><strong>Selectivity (L0)</strong> — The core design principle: the system should
+surface only findings worth a senior engineer's attention, deferring the
+rest, rather than maximizing output coverage.</p>
+<p><strong>Mapping the mess</strong> — The first step of the design template: documenting,
+in granular detail, what a human does today without the AI system, before
+designing anything.</p>
+<p><strong>Fan-out / fan-in</strong> — An agentic design pattern where independent
+sub-tasks are dispatched in parallel ("fan-out") and their results are
+later merged by a single aggregator ("fan-in").</p>
+<p><strong>Grounding</strong> — Supplying an LLM with actual, relevant context (via
+retrieval) so it reasons about real information instead of hallucinating.</p>
+<p><strong>Context engineering</strong> — The practice of deliberately selecting and
+shaping what goes into a prompt (e.g. via retrieval) rather than dumping
+everything available into the context window.</p>
+<p><strong>Semantic memory</strong> — Knowledge of the codebase itself (functions,
+classes, structure) — stored as vector embeddings for similarity search.</p>
+<p><strong>Episodic memory</strong> — Knowledge of past events (past reviews, disputes) —
+stored as timestamped relational rows.</p>
+<p><strong>Procedural memory</strong> — Knowledge of team conventions and rules — stored
+as small structured facts.</p>
+<p><strong>Event spine</strong> — A durable, time-ordered, append-only log of every
+action the system takes (LLM calls, tool calls, decisions), used for
+tracing, auditing, and cost tracking.</p>
+<p><strong>Hypertable</strong> — A TimescaleDB table type that looks like a normal table
+but is internally partitioned into time-based chunks for efficient
+time-series storage and querying.</p>
+<p><strong>Continuous aggregate</strong> — An automatically-maintained summary/rollup
+table over a hypertable, used so dashboards don't need to scan raw event
+data on every query.</p>
+<p><strong>Idempotency key</strong> — A unique identifier used to detect and drop
+duplicate/retried deliveries of the same event.</p>
+<p><strong>Confidence gate</strong> — The routing logic that decides whether a finding is
+auto-posted, escalated to a human, or (if critical) always escalated
+regardless of confidence.</p>
+<p><strong>HITL (Human-In-The-Loop)</strong> — Any point in the pipeline where a human
+reviews/approves before an action is finalized.</p>
+<p><strong>Reliability layer</strong> — The collection of retries, circuit breakers,
+timeouts, and deduplication logic, each mapped to a specific named failure
+mode.</p>
+<p><strong>Workflow engine abstraction</strong> — An interface (<code>run</code>/<code>resume</code>/<code>get_state</code>)
+that decouples business logic from a specific orchestration framework
+(e.g. LangGraph), enabling a future swap to another engine (e.g. Temporal)
+without rewriting application code.</p>
+<p><strong>Genesis Kit</strong> — The author's own harness-engineering framework for
+working with AI coding agents: locked spec (<code>done.html</code>), live state
+(<code>implementation-notes.html</code>), invariants (<code>context-graph</code>), milestone
+plan (<code>plan.md</code>), and a gated build/debug/research loop system
+(<code>loops.md</code>).</p>
+<p><strong>G0 (Gate Zero)</strong> — The orientation procedure run before any milestone
+work begins: check for existing work, confirm nothing is being
+duplicated, write a checkpoint, emit a built/unbuilt verdict.</p>
+<p><strong>L4 Verifier</strong> — An independently spawned agent, given only the goal,
+success criteria, and invariants (not the builder's reasoning trail),
+tasked with skeptically verifying completed work rather than trusting the
+builder's self-report.</p>
+<p><strong>Quiz me</strong> — A Genesis Kit mechanism where the human is quizzed on the
+design decisions the agent made, to force genuine understanding rather
+than passive acceptance of AI-generated code.</p>
+<p><strong>Almost-right problem</strong> — A failure mode where a finding is mostly
+correct but subtly wrong in a way that's easy to miss and dangerous to
+trust.</p>
+<p><strong>Model / prompt drift</strong> — Performance degradation over time as the
+real-world input distribution shifts away from what the system was
+built/evaluated against.</p>
+<h2 id="mod-08--key-quotes-worth-remembering">Key quotes worth remembering</h2>
+<blockquote>
+<p>"The problem is not to have an agent that can review your code
+automatically. The problem is the selectivity — which findings does the
+agent take, and which ones does human judgment get spent on."</p>
+<p>"If you remove a component and you can feel the pain, that's the problem
+your system needs to solve. Necessity is the mother of invention — so
+we'll create that necessity intentionally."</p>
+<p>"Retrieval is what turns the stranger into the colleague."</p>
+<p>"If something can be measured, it can be improved. But if you don't
+have which context was used, what prompt version ran, what the model
+returned — you can't defend the system, debug it, or improve it."</p>
+<p>"New systems need more override. Proven ones earn less."</p>
+<p>"A wrong style comment is annoying. A missed SQL injection is
+dangerous. Consequence of error decides how much autonomy you give."</p>
+<p>"This is not vibe coding. You'll spend a lot of time in system design
+itself, create a few steps, and only then go to the coding agent."</p>
+<p>"If you have the harnesses set up right, you'll produce the best code
+of your life. If you don't, you'll produce the worst code of your life."</p>
+<p>"If you've generated one token, tell me what the output of that was. If
+you can't justify the output, you're out."</p>
+<p>"Having the right assumptions about your system is one of the most
+important design problems — a system fails because an assumption
+failed."</p>
+</blockquote>
+<h2 id="mod-08--quick-reference-the-whole-methodology-in-10-lines">Quick-reference: the whole methodology in 10 lines</h2>
+<ol>
+<li>Remove the system, watch what a human does, write down every
+   micro-decision.</li>
+<li>Name a precise trigger and a precise, structured output.</li>
+<li>Derive your agent roles from what the human's mindsets actually were —
+   don't invent agent counts abstractly.</li>
+<li>Design retrieval so the agent is grounded, not guessing.</li>
+<li>Split memory into semantic / episodic / procedural, and store them in
+   the minimum number of physical databases that still preserves the
+   shapes.</li>
+<li>Require confidence + rationale on every output; gate autonomy by
+   confidence and severity.</li>
+<li>Log everything to an immutable event spine — trust requires proof, not
+   just good reasoning.</li>
+<li>For every component, ask "what breaks?" from both an engineering angle
+   and an LLM angle, and map each named failure to a specific mitigation.</li>
+<li>Calibrate autonomy by consequence of error, reversibility, and system
+   maturity — never default to full autonomy in financial/legal/health
+   domains.</li>
+<li>Build with a harness: locked spec, live state, independent
+    verification, and forced human understanding — not vibe coding.</li>
+</ol>
+  </div>
+  
+<div class="deck-wrap">
+  <div class="deck-head">Flashcard deck — glossary drill (click card to flip)</div>
+  <div class="flashcard" id="flashcard">
+    <div class="flashcard-inner">
+      <div class="flashcard-face flashcard-front">
+        <div class="flashcard-tag">TERM</div>
+        <div class="flashcard-term" id="flashTerm"></div>
+      </div>
+      <div class="flashcard-face flashcard-back">
+        <div class="flashcard-tag">DEFINITION</div>
+        <div class="flashcard-def" id="flashDef"></div>
+      </div>
+    </div>
+  </div>
+  <div class="deck-controls">
+    <button id="flashPrev" type="button">← Prev</button>
+    <span class="deck-progress" id="flashProgress"></span>
+    <button id="flashShuffle" type="button">⤮ Shuffle</button>
+    <button id="flashNext" type="button">Next →</button>
+  </div>
+  <div class="deck-hint">Click the card to reveal the definition, then self-test before hitting Next.</div>
+</div>
+
+  <div class="quiz-target" data-mod="mod-08"></div>
+  <div class="module-footnav"><a href="#mod-07"><div class="dir">← Previous</div><div class="ttl">07 · Implementation Milestones</div></a><a href="#top" class="next"><div class="dir">Back to →</div><div class="ttl">Top of course</div></a></div>
+</section>
+
+    </div>
+  </main>
+</div>
+
+<div class="review-fab hidden" id="reviewFab">
+  <span class="badge" id="reviewCount">0</span>
+  <span class="label">flagged for review</span>
+</div>
+<div class="review-panel" id="reviewPanel">
+  <div class="review-panel-head"><h4>Review queue</h4><button id="reviewClose">✕</button></div>
+  <div class="review-list" id="reviewList"></div>
+</div>
+
+<div class="jump-overlay" id="jumpOverlay">
+  <div class="jump-box">
+    <input type="text" id="jumpInput" placeholder="Jump to any module or section...">
+    <div class="jump-results" id="jumpResults"></div>
+  </div>
+</div>
+
+<script>
+window.__NAV__ = [{"id": "mod-00", "num": "00", "title": "Overview & Philosophy", "subs": [{"id": "mod-00--why-this-course-exists", "name": "Why this course exists"}, {"id": "mod-00--the-core-insight-read-this-twice", "name": "The core insight (read this twice)"}, {"id": "mod-00--the-design-philosophy-feel-the-problem-before-you-solve-it", "name": "The design philosophy: \"Feel the problem before you solve it\""}, {"id": "mod-00--the-five-move-design-template", "name": "The five-move design template"}, {"id": "mod-00--the-two-column-failure-analysis", "name": "The two-column failure analysis"}, {"id": "mod-00--what-youll-actually-build", "name": "What you'll actually build"}, {"id": "mod-00--how-this-course-is-organized", "name": "How this course is organized"}]}, {"id": "mod-01", "num": "01", "title": "First Principles: Mapping the Mess", "subs": [{"id": "mod-01--step-0-why-does-this-system-exist-at-all", "name": "Step 0: Why does this system exist at all?"}, {"id": "mod-01--step-1-watch-how-a-human-already-does-this-map-the-mess", "name": "Step 1: Watch how a human already does this (\"map the mess\")"}, {"id": "mod-01--step-2-name-the-precise-trigger-and-precise-output", "name": "Step 2: Name the precise trigger and precise output"}, {"id": "mod-01--step-3-survey-the-industry-standard-approaches-and-why-each-fails", "name": "Step 3: Survey the industry-standard approaches \u2014 and why each fails"}, {"id": "mod-01--step-4-the-grounding-problem", "name": "Step 4: The grounding problem"}, {"id": "mod-01--step-5-what-kind-of-memory-does-a-reviewer-actually-need", "name": "Step 5: What kind of memory does a reviewer actually need?"}, {"id": "mod-01--step-6-trust-requires-more-than-reasoning-grounding-it-requires-proof", "name": "Step 6: Trust requires more than reasoning + grounding \u2014 it requires proof"}, {"id": "mod-01--step-7-when-not-to-trust-the-agent-the-confidence-gate", "name": "Step 7: When not to trust the agent \u2014 the confidence gate"}, {"id": "mod-01--step-8-the-full-first-principles-synthesis-one-paragraph-to-memorize", "name": "Step 8: The full first-principles synthesis (one paragraph to memorize)"}, {"id": "mod-01--three-factors-that-decide-how-much-autonomy-any-component-gets", "name": "Three factors that decide how much autonomy any component gets"}]}, {"id": "mod-02", "num": "02", "title": "Architecture & Design Patterns", "subs": [{"id": "mod-02--the-end-to-end-flow-prose-diagram", "name": "The end-to-end flow (prose diagram)"}, {"id": "mod-02--why-a-queue-sits-between-ingress-and-orchestration", "name": "Why a queue sits between ingress and orchestration"}, {"id": "mod-02--security-at-the-ingress-boundary", "name": "Security at the ingress boundary"}, {"id": "mod-02--the-orchestration-pattern-fan-out-fan-in", "name": "The orchestration pattern: fan-out / fan-in"}, {"id": "mod-02--choosing-an-orchestration-engine-langgraph-vs-temporal", "name": "Choosing an orchestration engine: LangGraph vs. Temporal"}, {"id": "mod-02--the-retrieval-layer-grounding-concretely", "name": "The retrieval layer (grounding, concretely)"}, {"id": "mod-02--observability-as-an-architectural-component-not-an-afterthought", "name": "Observability as an architectural component, not an afterthought"}, {"id": "mod-02--summary-the-five-architectural-decisions-and-their-one-line-justification", "name": "Summary: the five architectural decisions and their one-line justification"}]}, {"id": "mod-03", "num": "03", "title": "Data Engineering: Three Shapes", "subs": [{"id": "mod-03--why-data-engineering-gets-its-own-design-phase", "name": "Why data engineering gets its own design phase"}, {"id": "mod-03--the-three-data-shapes-restated-precisely", "name": "The three data shapes, restated precisely"}, {"id": "mod-03--the-naive-and-wrong-instinct-three-separate-databases", "name": "The naive (and wrong) instinct: three separate databases"}, {"id": "mod-03--the-chosen-solution-one-unified-postgres-compatible-database-tiger-cloud", "name": "The chosen solution: one unified Postgres-compatible database (Tiger Cloud)"}, {"id": "mod-03--why-tiger-cloud-over-a-pure-vector-db-eg-qdrant", "name": "Why Tiger Cloud over a pure vector DB (e.g. Qdrant)"}, {"id": "mod-03--the-invariant-that-shapes-the-schema-agent_events-is-append-only", "name": "The invariant that shapes the schema: agent_events is append-only"}, {"id": "mod-03--another-real-gotcha-caught-during-build-embedding-dimension-mismatch", "name": "Another real gotcha caught during build: embedding dimension mismatch"}, {"id": "mod-03--redis-the-fourth-store-thats-allowed-to-exist-separately", "name": "Redis: the fourth store that's allowed to exist separately"}, {"id": "mod-03--summary-table", "name": "Summary table"}]}, {"id": "mod-04", "num": "04", "title": "Tech Stack Decisions", "subs": [{"id": "mod-04--guiding-principle-for-every-tech-choice", "name": "Guiding principle for every tech choice"}, {"id": "mod-04--full-component-list-and-their-chosen-technology", "name": "Full component list and their chosen technology"}, {"id": "mod-04--why-redis-arq-specifically", "name": "Why Redis + ARQ specifically"}, {"id": "mod-04--langgraph-vs-temporal-recap-full-detail-in-file-02", "name": "LangGraph vs. Temporal \u2014 recap (full detail in file 02)"}, {"id": "mod-04--tiger-cloud-vs-a-pure-vector-database-eg-qdrant-recap", "name": "Tiger Cloud vs. a pure vector database (e.g. Qdrant) \u2014 recap"}, {"id": "mod-04--deployment-topology-as-actually-built", "name": "Deployment topology (as actually built)"}, {"id": "mod-04--model-routing-per-agent-cost-aware-design", "name": "Model routing per agent (cost-aware design)"}, {"id": "mod-04--credentialssetup-checklist-what-you-actually-need-to-provision", "name": "Credentials/setup checklist (what you actually need to provision)"}, {"id": "mod-04--economics-cost-design-mentioned-deferred-to-later-work", "name": "Economics / cost design (mentioned, deferred to later work)"}]}, {"id": "mod-05", "num": "05", "title": "Failure Modes & Reliability", "subs": [{"id": "mod-05--the-core-mindset-everything-will-break", "name": "The core mindset: \"everything will break\""}, {"id": "mod-05--1-hallucination", "name": "1. Hallucination"}, {"id": "mod-05--2-model-prompt-drift", "name": "2. Model / prompt drift"}, {"id": "mod-05--3-tool-api-timeout", "name": "3. Tool / API timeout"}, {"id": "mod-05--4-feedback-loop-poisoning", "name": "4. Feedback-loop poisoning"}, {"id": "mod-05--5-orchestration-deadlock", "name": "5. Orchestration deadlock"}, {"id": "mod-05--6-the-human-bottleneck-escalation-queue-overload", "name": "6. The human bottleneck (escalation queue overload)"}, {"id": "mod-05--7-the-almost-right-problem", "name": "7. The \"almost-right\" problem"}, {"id": "mod-05--8-idempotency-duplicate-posting", "name": "8. Idempotency / duplicate posting"}, {"id": "mod-05--the-reliability-layer-as-a-named-architectural-component", "name": "The reliability layer as a named architectural component"}, {"id": "mod-05--autonomy-calibration-recap-see-also-file-01", "name": "Autonomy calibration recap (see also file 01)"}, {"id": "mod-05--the-five-human-involvement-patterns-a-general-framework", "name": "The five human-involvement patterns (a general framework)"}]}, {"id": "mod-06", "num": "06", "title": "Genesis Kit: Harness Engineering", "subs": [{"id": "mod-06--the-distinction-this-whole-section-rests-on", "name": "The distinction this whole section rests on"}, {"id": "mod-06--core-artifacts-genesis-kit-creates-in-your-project", "name": "Core artifacts Genesis Kit creates in your project"}, {"id": "mod-06--why-donehtml-cannot-be-touched-by-the-agent", "name": "Why done.html cannot be touched by the agent"}, {"id": "mod-06--the-gate-0-g0-procedure-orient-before-acting", "name": "The Gate-0 (G0) procedure \u2014 \"orient before acting\""}, {"id": "mod-06--the-five-gates-that-govern-every-loop-iteration", "name": "The five gates that govern every loop iteration"}, {"id": "mod-06--the-three-loop-types", "name": "The three loop types"}, {"id": "mod-06--the-independent-verifier-l4-the-single-most-important-mechanism", "name": "The independent verifier (L4) \u2014 the single most important mechanism"}, {"id": "mod-06--the-quiz-me-mechanism-forcing-genuine-understanding", "name": "The \"quiz me\" mechanism \u2014 forcing genuine understanding"}, {"id": "mod-06--explicit-token-economy-discipline", "name": "Explicit token-economy discipline"}, {"id": "mod-06--the-kickoff-interview", "name": "The kickoff interview"}, {"id": "mod-06--the-named-skills-genesis-kit-draws-on", "name": "The named \"skills\" Genesis Kit draws on"}, {"id": "mod-06--exit-protocol-what-happens-at-the-end-of-every-milestone", "name": "Exit protocol (what happens at the end of every milestone)"}, {"id": "mod-06--practical-starting-workflow-how-a-session-actually-begins", "name": "Practical starting workflow (how a session actually begins)"}, {"id": "mod-06--key-takeaway", "name": "Key takeaway"}]}, {"id": "mod-07", "num": "07", "title": "Implementation Milestones", "subs": [{"id": "mod-07--build-ordering-philosophy", "name": "Build ordering philosophy"}, {"id": "mod-07--m1-webhook-ingress", "name": "M1 \u2014 Webhook Ingress"}, {"id": "mod-07--m2-tiger-cloud-infrastructure", "name": "M2 \u2014 Tiger Cloud Infrastructure"}, {"id": "mod-07--m3-observability-event-spine", "name": "M3 \u2014 Observability / Event Spine"}, {"id": "mod-07--m4-orchestration-langgraph-fan-outfan-in", "name": "M4 \u2014 Orchestration (LangGraph fan-out/fan-in)"}, {"id": "mod-07--m5-specialist-agents", "name": "M5 \u2014 Specialist Agents"}, {"id": "mod-07--m6-rag-retrieval", "name": "M6 \u2014 RAG Retrieval"}, {"id": "mod-07--m7-hitl-gate-post-to-github", "name": "M7 \u2014 HITL Gate + Post to GitHub"}, {"id": "mod-07--m8-reliability-economics-and-minimal-dashboard", "name": "M8 \u2014 Reliability, Economics, and Minimal Dashboard"}, {"id": "mod-07--implied-m9-evaluation", "name": "(Implied) M9 \u2014 Evaluation"}, {"id": "mod-07--what-the-author-explicitly-leaves-as-an-exercise", "name": "What the author explicitly leaves as an exercise"}, {"id": "mod-07--suggested-self-check-before-starting-each-milestone", "name": "Suggested self-check before starting each milestone"}]}, {"id": "mod-08", "num": "08", "title": "Glossary & Key Quotes", "subs": [{"id": "mod-08--glossary", "name": "Glossary"}, {"id": "mod-08--key-quotes-worth-remembering", "name": "Key quotes worth remembering"}, {"id": "mod-08--quick-reference-the-whole-methodology-in-10-lines", "name": "Quick-reference: the whole methodology in 10 lines"}]}];
+window.__QUIZZES__ = {"mod-00": [["What is the ONE sentence (L0) that the entire architecture is built on?", "The system optimizes for surfacing findings worth a senior's attention and deferring the rest \u2014 selectivity, not maximal coverage. It reclaims senior-reviewer attention by automating the mechanical part of review."], ["Why does a senior engineer's 20th PR review of the day tend to be worse than their 1st?", "Human fatigue and inconsistency \u2014 the same energy, intelligence, and attention to detail isn't sustainable across many reviews in a row. This is the core pain the agent exists to remove."], ["What's the difference between the 'naive tutorial' approach and this course's approach to building the agent?", "The naive approach jumps straight to prompting an LLM with a diff. This course insists on system design FIRST \u2014 mapping the human process, defining triggers/outputs, designing failure modes \u2014 before any code is written."], ["What does 'necessity is manufactured on purpose' mean in this design philosophy?", "Instead of pre-emptively bolting on best practices (rate limiting, observability, security) because they're 'standard,' you deliberately strip the system down to feel exactly where it breaks \u2014 then design the fix for that specific, felt pain."]], "mod-01": [["A senior reviewer finds a serious security vulnerability in an open-source PR. What do they NOT do, and why?", "They don't post it publicly as a PR comment \u2014 that could tip off anyone looking to exploit it before a fix ships. Instead they escalate privately (e.g. Slack DM). This directly informs why the agent needs a private escalation path for sensitive findings."], ["List the 4 fields every 'finding' object must carry, and what each one enables.", "file/line (exact location), severity (drives urgency/always-escalate for critical), confidence (drives the human-review gate), rationale (makes the finding auditable and disputable). Also agent_type/category for traceability."], ["Why were the four specialist agents (security, quality, testing, docs) chosen specifically, rather than some other number or split?", "They weren't invented abstractly \u2014 they were derived directly from watching what a real senior reviewer actually does: reasoning across those exact four concerns, each from a different mindset."], ["What's the difference between a 'vague trigger' and a 'precise trigger'? Give the example used.", "A vague trigger reacts to too much ('any email that comes in'). A precise trigger is narrowly scoped ('a claim email at this specific address containing the word claims'). For the PR agent: GitHub's exact pull_request webhook event."], ["Under what condition does a finding get escalated to a human REGARDLESS of its confidence score?", "When it's marked critical severity \u2014 severity overrides confidence. A high-confidence critical finding still goes to a human, because the consequence of being wrong is too high to auto-post."], ["Match each memory type to its storage shape: Semantic, Episodic, Procedural.", "Semantic \u2192 vector embeddings + similarity search (the codebase itself). Episodic \u2192 time-ordered relational rows (past reviews/disputes). Procedural \u2192 small structured facts/rules (team conventions)."], ["Why is an event spine described as a prerequisite for TRUST, not just a nice observability feature?", "Without a record of why a finding was raised, what context was retrieved, what prompt/model ran, and what it cost \u2014 you can't defend, debug, or improve the system when a developer disputes a finding. Trust = reasoning + grounding + PROOF."], ["What real incident illustrates 'a system fails because an assumption failed'?", "An autonomous LinkedIn outreach agent was assumed to take 2-3 days to schedule a meeting; it actually scheduled and nearly completed an in-person dinner with a major prospect in under 9 hours \u2014 far faster than the team's safety assumptions accounted for."]], "mod-02": [["Why must a queue (Redis/ARQ) sit between the webhook ingress and the orchestrator, instead of calling the LLM synchronously?", "GitHub expects a webhook acknowledgment within roughly 10-12 seconds, but an LLM-based review can take 30-40+ seconds. Making GitHub wait would cause a timeout and retry. The queue lets ingress ack immediately and process asynchronously."], ["In the ingress security check, why must HMAC signature verification happen BEFORE JSON parsing?", "If you don't yet know the request is genuinely from GitHub, you must not do any real processing on it. You return a fixed rejection regardless of content, so you leak nothing useful to an attacker probing the endpoint."], ["A validly-signed but malformed JSON payload should return what HTTP status, and why not the alternative?", "400 Bad Request, not 500. Once HMAC verification succeeds, the request is authenticated \u2014 a malformed body from an authenticated source is a CLIENT error, not a server fault. This also avoids false alarms in server monitoring."], ["Why is fan-out/fan-in the correct pattern for the four specialist agents, rather than a sequential pipeline?", "The four concerns (security, quality, testing, docs) are genuinely independent \u2014 none needs another's output to do its job. Running them sequentially would be strictly slower with zero correctness benefit."], ["Give one reason LangGraph was chosen over Temporal for the MVP, and one reason Temporal might be chosen later.", "LangGraph: no extra infrastructure, first-class parallel fan-out via the Send API, reuses the existing Redis for checkpointing. Temporal: much stronger built-in checkpoint/resume guarantees and proven enterprise-scale reliability \u2014 worth it once scale demands it."], ["What problem does the abstract WorkflowEngine interface (run/resume/get_state) solve?", "It decouples business logic from LangGraph specifically, so migrating to Temporal later means adding one new class implementing the same interface \u2014 zero changes to the rest of the codebase."]], "mod-03": [["What are the three data 'shapes' and their corresponding storage need?", "Memory \u2192 vector store (similarity search). Truth \u2192 relational Postgres tables (timestamped, queryable). Time \u2192 time-series hypertables (high-volume writes, fast rollups)."], ["Why was using THREE separate databases (vector DB + Postgres + time-series DB) rejected as over-engineering?", "Answering one simple cross-cutting question ('what did we retrieve, what review resulted, which call was expensive?') would require querying 3 systems and stitching results in app code \u2014 tripling connection pools, backup strategies, and failure modes for no real benefit."], ["What is a continuous aggregate, and what problem does it solve for the cost dashboard?", "An automatically-maintained rollup/summary table over a hypertable (e.g. cost/minute, P95 latency). It lets a dashboard or budget guard answer 'what did we spend today?' by reading a small summary table instead of scanning millions of raw event rows."], ["Why did a Postgres RULE fail to enforce the append-only invariant on agent_events, and what was used instead?", "Postgres RULEs operate at the query-rewrite stage, but TimescaleDB hypertables distribute data across many internal chunk tables and never rewrite rules against that structure \u2014 it throws an error. A trigger (BEFORE UPDATE/DELETE) was used instead, since triggers work at the row level."], ["Does a BEFORE DELETE trigger fire when someone runs TRUNCATE on the table? What's the implication?", "No \u2014 TRUNCATE is a distinct SQL command with its own execution path; row-level DELETE triggers do not fire on it. You need a SEPARATE BEFORE/AFTER TRUNCATE trigger to guard against that specific bypass."], ["What real misconfiguration bug was caught around embeddings, and why didn't Postgres just auto-fix it?", "The schema declared vector(1536) but the .env file specified EMBEDDING_DIMENSION=256. pgvector stores the dimension as part of the column type, so a mismatched insert fails outright \u2014 it does not pad or truncate the vector to fit."], ["Why is Tiger Cloud chosen over a pure vector database like Qdrant for this specific agent?", "A PR review query needs vector similarity PLUS repo filters, freshness, exact identifier matching, and joins against review/cost/audit history \u2014 all in one query surface. A pure vector DB is weak at combining vector search with that much relational context."]], "mod-04": [["What's the guiding principle behind every technology choice in this stack?", "Cost vs. gain of the architectural SHAPE, not popularity. 'Choosing a framework is not a big deal \u2014 frameworks are easy to learn.'"], ["Why does the Docs agent use a cheaper model while the Security agent uses a stronger one?", "Model routing is done per-specialist based on consequence of error: docs findings are lower-stakes and mechanical (cheap model is fine), while security findings carry the highest cost-of-error and need the strongest reasoning available."], ["What does a prompt/model registry give you that just editing the prompt in place doesn't?", "Full traceability \u2014 you know exactly which model + which prompt VERSION produced any given finding, can roll out 'version 2' without silently overwriting version 1, and can roll back or A/B compare."], ["Where should cost dashboards read from, and why not directly from agent_events?", "From the continuous-aggregate rollups, not the raw agent_events hypertable \u2014 so a budget check doesn't have to scan potentially millions of raw rows on every query."]], "mod-05": [["Is hallucination framed as something to eliminate or something to contain? What are the two fields that make it manageable?", "Framed as inherent to LLMs ('a feature, not a bug') \u2014 the goal is containing the CONSEQUENCE, not eliminating the rate. Confidence (routes low-confidence findings to a human) and rationale (makes findings auditable/disputable) are the two containment mechanisms."], ["What's the difference between 'tool/API timeout' mitigation and 'orchestration deadlock' mitigation, even though they sound similar?", "Timeout+retry+circuit-breaker handles a single external call failing. Deadlock mitigation is about the AGGREGATOR \u2014 it must have a timeout on EVERY node so it never waits forever for one hung specialist in a fan-out/fan-in graph."], ["Why is 'the almost-right problem' considered more dangerous than an obviously wrong finding?", "A finding that's ~90% correct but subtly wrong (misattributed line, wrong root cause) is MORE likely to be trusted and acted on than an obviously bad one \u2014 trust without full accuracy is the dangerous case."], ["Name two mitigations for the almost-right problem beyond the confidence/HITL gate.", "Random periodic audits of even high-confidence auto-posted findings, and rotating reviewers/models to avoid one model's blind spots compounding silently over time."], ["What are the two distinct risks under 'feedback-loop poisoning,' and their respective fixes?", "(1) Feedback given but never actually used \u2192 minimum evidence threshold before acting on it, so a pattern is required, not one disputed finding. (2) Bad feedback incorporated (e.g. low-quality dispute) \u2192 decay old/stale feedback over time so it doesn't keep influencing behavior indefinitely."], ["What is the hard, non-negotiable rule about autonomy in financial, legal, or health domains?", "You cannot default to full autonomy in those domains \u2014 regardless of system maturity or track record. This is a hard constraint, not a tuning knob."], ["Which of the 5 human-involvement patterns did the PR review agent actually adopt, and what does it mean concretely?", "'Human handles the exception' \u2014 the system auto-handles easy/high-confidence cases, and humans only see the hard, low-confidence, or anomalous ones."]], "mod-06": [["What is the single-sentence distinction between 'vibe coding' and this course's harness methodology?", "Vibe coding = typing a vague request and hoping the output is right. Harness engineering = giving the AI coding agent persistent, structured STATE so it can't drift, forgets nothing between sessions, and is independently verified rather than self-reported."], ["Why is done.html explicitly a file the AI agent is NEVER allowed to edit?", "Because a common failure mode is an agent quietly redefining 'done' to match whatever it managed to build over a long session. Locking the spec in an uneditable file removes that failure mode structurally, not just by instruction."], ["What are the 5 gates every loop iteration must pass, in order?", "Skill gate (right domain knowledge loaded), Router gate (correct loop type chosen), Logging gate (skills logged to checkpoint), Progress gate (measurable forward movement), Budget gate (still within token budget)."], ["Why is the L4 verifier deliberately spawned as a FRESH agent instance without the builder's reasoning trail?", "Because the person/agent who wrote the code already believes their own reasoning and can't easily catch their own blind spots. A fresh, skeptical reader given only the goal/success-criteria/invariants (not the build trail) catches errors the builder structurally cannot see in itself."], ["Explain the 'writing your own exam paper' analogy.", "If a model writes its own tests, it only tests what it already believes it got right \u2014 like a student writing their own exam questions. Genesis Kit separates the 'exam writer' (fresh L4 verifier) from the 'student' (the build agent) so the exam is genuinely independent."], ["What real bug did the L4 verifier catch in Milestone 1, and what was added afterward to prevent recurrence?", "Malformed-but-validly-signed JSON was returning a raw 500 instead of 400. After the fix, a REGRESSION TEST was added so this specific class of bug can't silently reappear later."], ["What is the purpose of the 'quiz me' mechanism, and why does it matter even after code is verified?", "It quizzes the human on the actual design decisions the agent made, forcing genuine understanding rather than passive acceptance \u2014 you can't claim 'the agent built this and I don't know why it works.'"], ["What is the author's personal token-economy rule, stated almost verbatim?", "'If you've generated one token, tell me what the output of that was. If you can't justify the output, you're out.' \u2014 cheaper models (Haiku/Sonnet) do the mechanical work; the most expensive tier (Opus) is reserved for orchestration/planning only."], ["What three files get updated together at the exit of every completed milestone, and why does that matter?", "current.md (checkpoint log), plan.md (progress log), implementation-notes.html (live 'what's built now' + known gaps). A brand-new session or different person can read just these three files and know exactly what exists and what's next \u2014 no need to re-read the whole codebase."]], "mod-07": [["Why is M1 (webhook ingress) built before M4 (orchestration) even though the idempotency check in M1 is 'only a stub'?", "Build order prioritizes non-dependent infrastructure first. M1's actual goal is just establishing the ingress CONTRACT (authenticate \u2192 validate \u2192 route \u2192 prevent duplicates within one process lifetime) \u2014 full Redis-backed durability is explicitly deferred to M4, which is an accepted, stated known gap, not an oversight."], ["What two real bugs were caught during M2 (Tiger Cloud infra) by the independent verifier?", "(1) Postgres RULEs don't work on hypertables \u2014 switched to a trigger. (2) Embedding dimension mismatch between the schema (1536) and .env config (256), caught before it caused a silent insert failure."], ["What does the M4 demo command actually prove, and why is that specific proof important for an orchestrator?", "Kill the worker process mid-execution, restart it, and confirm it RESUMES from the checkpoint instead of re-running everything or losing the job \u2014 proving the orchestration layer survives real-world crashes, not just the happy path."], ["What is the purpose of planting a deliberate SQL-injection-shaped snippet in the M5 demo?", "To verify the Security specialist agent actually flags a known, planted issue with a non-trivial confidence and the CORRECT file/line \u2014 a concrete, falsifiable test rather than just eyeballing 'the output looks reasonable.'"], ["Why is 'inject a simulated fault, confirm graceful degradation' the demo command for M8, rather than a normal happy-path test?", "Because M8 is specifically about the reliability layer \u2014 its entire job is to handle failure gracefully. A happy-path test wouldn't actually exercise what M8 was built to do."], ["What closes the loop on the 'model drift' failure mode from file 05, and why is it left as M9/an exercise?", "A golden dataset used as a regression gate \u2014 any new prompt/model swap must match or beat the currently deployed version on it before being promoted. It's left as an exercise because the author explicitly only built M1 and part of M2 live, trusting that with the design (01-05) and harness (06) done, the rest becomes comparatively mechanical."]], "mod-08": [["Define 'grounding' and 'context engineering' in your own words, then check against the glossary.", "Grounding = supplying an LLM with actual relevant context so it reasons about real information instead of hallucinating. Context engineering = the deliberate practice of selecting/shaping exactly what goes into a prompt (e.g. via retrieval) rather than dumping everything available into the context window."], ["What's the difference between G0 and the L4 Verifier in Genesis Kit?", "G0 (Gate Zero) runs BEFORE any work starts on a milestone \u2014 it's an orientation check to avoid duplicating existing work. The L4 Verifier runs AFTER the build loop believes it's done \u2014 a fresh, skeptical, independent check of the actual output."], ["Recite the 10-line methodology summary from memory, then check yourself against the file.", "1) Map the mess. 2) Precise trigger+output. 3) Derive agent roles from human mindsets. 4) Ground via retrieval. 5) Split memory into 3 shapes, minimize physical DBs. 6) Confidence+rationale gate autonomy. 7) Immutable event spine = proof. 8) Map every failure mode (engineering + LLM angle) to a mitigation. 9) Calibrate autonomy by error-cost/reversibility/maturity. 10) Build with a harness, not vibes."]]};
+window.__FLASHCARDS__ = [["Selectivity (L0)", "The core design principle: surface only findings worth a senior's attention, defer the rest \u2014 optimize for value, not coverage."], ["Mapping the mess", "Documenting, in granular detail, what a human does today WITHOUT the AI system, before designing anything."], ["Fan-out / fan-in", "Dispatch independent sub-tasks in parallel ('fan-out'), then merge results with one aggregator ('fan-in')."], ["Grounding", "Supplying an LLM with actual relevant context (via retrieval) so it reasons about real information instead of hallucinating."], ["Context engineering", "Deliberately selecting and shaping what goes INTO a prompt, rather than dumping everything available into the context window."], ["Semantic memory", "Knowledge of the codebase itself \u2014 stored as vector embeddings for similarity search."], ["Episodic memory", "Knowledge of past events (past reviews, disputes) \u2014 stored as timestamped relational rows."], ["Procedural memory", "Knowledge of team conventions and rules \u2014 stored as small structured facts."], ["Event spine", "A durable, time-ordered, APPEND-ONLY log of every action the system takes \u2014 powers tracing, auditing, and cost tracking."], ["Hypertable", "A TimescaleDB table that looks normal but is internally partitioned into time-based chunks for efficient time-series storage."], ["Continuous aggregate", "An automatically-maintained summary/rollup table over a hypertable \u2014 avoids scanning raw event data on every dashboard query."], ["Idempotency key", "A unique identifier used to detect and drop duplicate/retried deliveries of the same event."], ["Confidence gate", "Routing logic deciding: auto-post, escalate to human, or (if critical) ALWAYS escalate regardless of confidence."], ["HITL", "Human-In-The-Loop \u2014 any point in the pipeline where a human reviews/approves before an action finalizes."], ["Reliability layer", "Retries, circuit breakers, timeouts, and dedup \u2014 each mapped to one specific NAMED failure mode, not added generically."], ["Workflow engine abstraction", "An interface (run/resume/get_state) decoupling business logic from a specific orchestration framework, e.g. LangGraph \u2192 Temporal."], ["Genesis Kit", "The harness-engineering framework: locked spec (done.html), live state (implementation-notes.html), invariants, milestone plan, gated loops."], ["G0 (Gate Zero)", "The orientation procedure run BEFORE any milestone work: check for existing work, confirm nothing duplicated, emit built/unbuilt verdict."], ["L4 Verifier", "A fresh, independently-spawned agent given only goal + success criteria + invariants \u2014 verifies work skeptically, not by trusting the builder's self-report."], ["Quiz me", "A Genesis Kit mechanism quizzing the HUMAN on the agent's design decisions, forcing genuine understanding, not passive acceptance."], ["Almost-right problem", "A finding that's ~90% correct but subtly wrong \u2014 more dangerous than an obviously wrong one because it's more likely to be trusted."], ["Model / prompt drift", "Performance degradation over time as the real-world input distribution shifts away from what the system was built/evaluated against."], ["Consequence of error", "One of 3 factors calibrating autonomy: how bad is it if this specific action is wrong? (style nit vs. missed SQL injection)"], ["Reversibility", "One of 3 factors calibrating autonomy: can this action be undone? (disputed PR comment vs. an already-merged migration)"], ["System maturity", "One of 3 factors calibrating autonomy: new systems earn less autonomy; proven systems earn more, over time."]];
+</script>
+<script>
+// ============================================================
+// STATE (in-memory only — no persistence across reloads)
+// ============================================================
+const STATE = {
+  modulesDone: new Set(),
+  quizStatus: {},      // quizId -> 'got' | 'miss'
+  flashIndex: 0,
+  flashFlipped: false,
+  flashOrder: [],
+};
+
+const TOTAL_MODULES = window.__NAV__.length;
+
+// ============================================================
+// SIDEBAR: build + toggle + scrollspy
+// ============================================================
+function buildSidebarNav(){
+  const wrap = document.getElementById('navScroll');
+  wrap.innerHTML = '';
+  window.__NAV__.forEach(mod => {
+    const el = document.createElement('div');
+    el.className = 'nav-mod';
+    el.id = 'nav-' + mod.id;
+    el.innerHTML = `
+      <div class="nav-mod-head" data-target="${mod.id}">
+        <div class="num">${mod.num}</div>
+        <div class="title">${mod.title}</div>
+        <div class="chev">▸</div>
+      </div>
+      <div class="nav-subs">
+        ${mod.subs.map(s => `<a href="#${s.id}" data-id="${s.id}">${s.name}</a>`).join('')}
+      </div>`;
+    wrap.appendChild(el);
+
+    el.querySelector('.nav-mod-head').addEventListener('click', (e) => {
+      const isOpen = el.classList.contains('open');
+      document.querySelectorAll('.nav-mod.open').forEach(o => { if(o!==el) o.classList.remove('open'); });
+      el.classList.toggle('open', !isOpen);
+      if(!isOpen){
+        document.getElementById(mod.id).scrollIntoView({behavior:'smooth', block:'start'});
+      }
+    });
+  });
+}
+
+function markModuleDone(modId, done){
+  if(done) STATE.modulesDone.add(modId); else STATE.modulesDone.delete(modId);
+  const navEl = document.getElementById('nav-' + modId);
+  if(navEl) navEl.classList.toggle('done', done);
+  const btn = document.querySelector(`.module-mark[data-mod="${modId}"]`);
+  if(btn) btn.classList.toggle('done', done);
+  updateProgress();
+}
+
+function updateProgress(){
+  const pct = Math.round((STATE.modulesDone.size / TOTAL_MODULES) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressCount').textContent = `${STATE.modulesDone.size} / ${TOTAL_MODULES}`;
+}
+
+// scrollspy for both module-level and subsection-level highlighting
+function initScrollSpy(){
+  const sectionEls = [...document.querySelectorAll('.module')];
+  const subEls = [...document.querySelectorAll('.md h2[id]')];
+
+  const spy = () => {
+    const y = window.scrollY + 120;
+    let currentMod = sectionEls[0];
+    for(const s of sectionEls){ if(s.offsetTop <= y) currentMod = s; }
+    document.querySelectorAll('.nav-mod').forEach(n => n.classList.remove('active'));
+    if(currentMod){
+      const nav = document.getElementById('nav-' + currentMod.id);
+      if(nav){ nav.classList.add('active'); nav.classList.add('open'); }
+    }
+    let currentSub = null;
+    for(const s of subEls){ if(s.offsetTop <= y) currentSub = s; }
+    document.querySelectorAll('.nav-subs a').forEach(a => a.classList.remove('active'));
+    if(currentSub){
+      const link = document.querySelector(`.nav-subs a[data-id="${currentSub.id}"]`);
+      if(link) link.classList.add('active');
+    }
+    // reading progress bar (visual only)
+    const doc = document.documentElement;
+    const scrollPct = (window.scrollY) / (doc.scrollHeight - doc.clientHeight) * 100;
+    document.getElementById('readingFill').style.width = Math.min(100,Math.max(0,scrollPct)) + '%';
+  };
+  document.addEventListener('scroll', throttle(spy, 80));
+  spy();
+}
+
+function throttle(fn, wait){
+  let t = 0;
+  return (...args) => {
+    const now = Date.now();
+    if(now - t > wait){ t = now; fn(...args); }
+  };
+}
+
+// ============================================================
+// QUIZ BLOCKS
+// ============================================================
+function renderQuizBlocks(){
+  document.querySelectorAll('.quiz-target').forEach(target => {
+    const modId = target.dataset.mod;
+    const items = window.__QUIZZES__[modId];
+    if(!items || !items.length) return;
+
+    const block = document.createElement('div');
+    block.className = 'quiz-block';
+    block.innerHTML = `
+      <div class="quiz-block-head">
+        <span class="icon">◆</span>
+        <h4>Active recall — before you move on</h4>
+        <span class="count">${items.length} prompts</span>
+      </div>
+      <div class="quiz-items"></div>`;
+    const itemsWrap = block.querySelector('.quiz-items');
+
+    items.forEach((pair, i) => {
+      const qid = `${modId}-q${i}`;
+      const item = document.createElement('div');
+      item.className = 'quiz-item';
+      item.id = 'quiz-' + qid;
+      item.innerHTML = `
+        <div class="quiz-q">${pair[0]}</div>
+        <button class="quiz-reveal-btn" type="button">Reveal answer →</button>
+        <div class="quiz-a">${pair[1]}</div>
+        <div class="quiz-self">
+          <button class="got" type="button">✓ I knew this</button>
+          <button class="miss" type="button">↻ Need review</button>
+        </div>`;
+      item.querySelector('.quiz-reveal-btn').addEventListener('click', () => {
+        item.classList.add('revealed');
+      });
+      item.querySelector('.got').addEventListener('click', () => setQuizStatus(qid, item, 'got', modId, pair[0]));
+      item.querySelector('.miss').addEventListener('click', () => setQuizStatus(qid, item, 'miss', modId, pair[0]));
+      itemsWrap.appendChild(item);
+    });
+
+    target.appendChild(block);
+  });
+}
+
+function setQuizStatus(qid, item, status, modId, qtext){
+  STATE.quizStatus[qid] = status;
+  item.classList.remove('marked-got','marked-miss');
+  item.classList.add(status === 'got' ? 'marked-got' : 'marked-miss');
+  updateReviewFab();
+}
+
+function updateReviewFab(){
+  const missCount = Object.values(STATE.quizStatus).filter(s => s === 'miss').length;
+  const fab = document.getElementById('reviewFab');
+  document.getElementById('reviewCount').textContent = missCount;
+  fab.classList.toggle('hidden', missCount === 0);
+  renderReviewList();
+}
+
+function renderReviewList(){
+  const list = document.getElementById('reviewList');
+  const missIds = Object.entries(STATE.quizStatus).filter(([k,v]) => v === 'miss').map(([k]) => k);
+  if(missIds.length === 0){
+    list.innerHTML = `<div class="review-empty">Nothing flagged. Nice work.</div>`;
+    return;
+  }
+  list.innerHTML = missIds.map(qid => {
+    const el = document.getElementById('quiz-' + qid);
+    const q = el ? el.querySelector('.quiz-q').textContent.replace(' — flagged for review','') : qid;
+    const modId = qid.split('-q')[0];
+    const modTitle = (window.__NAV__.find(m => m.id === modId) || {}).title || modId;
+    return `<div class="review-list-item">${q}<a href="#quiz-${qid}" data-jump="${qid}">${modTitle} →</a></div>`;
+  }).join('');
+  list.querySelectorAll('[data-jump]').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const qid = a.dataset.jump;
+      const el = document.getElementById('quiz-' + qid);
+      if(el){
+        el.classList.add('revealed');
+        el.scrollIntoView({behavior:'smooth', block:'center'});
+        el.style.outline = '2px solid var(--red)';
+        setTimeout(()=> el.style.outline = '', 1400);
+      }
+      document.getElementById('reviewPanel').classList.remove('open');
+    });
+  });
+}
+
+// ============================================================
+// FLASHCARD DECK
+// ============================================================
+function initFlashcards(){
+  const cards = window.__FLASHCARDS__;
+  STATE.flashOrder = cards.map((_, i) => i);
+  const cardEl = document.getElementById('flashcard');
+  const termEl = document.getElementById('flashTerm');
+  const defEl = document.getElementById('flashDef');
+  const progEl = document.getElementById('flashProgress');
+
+  function render(){
+    const idx = STATE.flashOrder[STATE.flashIndex];
+    const [term, def] = cards[idx];
+    termEl.textContent = term;
+    defEl.textContent = def;
+    progEl.textContent = `${STATE.flashIndex+1} / ${cards.length}`;
+    cardEl.classList.remove('flipped');
+    STATE.flashFlipped = false;
+  }
+  cardEl.addEventListener('click', () => {
+    STATE.flashFlipped = !STATE.flashFlipped;
+    cardEl.classList.toggle('flipped', STATE.flashFlipped);
+  });
+  document.getElementById('flashNext').addEventListener('click', () => {
+    STATE.flashIndex = (STATE.flashIndex + 1) % cards.length;
+    render();
+  });
+  document.getElementById('flashPrev').addEventListener('click', () => {
+    STATE.flashIndex = (STATE.flashIndex - 1 + cards.length) % cards.length;
+    render();
+  });
+  document.getElementById('flashShuffle').addEventListener('click', () => {
+    for(let i = STATE.flashOrder.length -1; i>0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [STATE.flashOrder[i], STATE.flashOrder[j]] = [STATE.flashOrder[j], STATE.flashOrder[i]];
+    }
+    STATE.flashIndex = 0;
+    render();
+  });
+  render();
+}
+
+// ============================================================
+// MODULE "MARK UNDERSTOOD" BUTTONS
+// ============================================================
+function initMarkButtons(){
+  document.querySelectorAll('.module-mark').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const modId = btn.dataset.mod;
+      const done = !STATE.modulesDone.has(modId);
+      markModuleDone(modId, done);
+    });
+  });
+}
+
+// ============================================================
+// REVIEW PANEL TOGGLE
+// ============================================================
+function initReviewPanel(){
+  const fab = document.getElementById('reviewFab');
+  const panel = document.getElementById('reviewPanel');
+  fab.addEventListener('click', () => panel.classList.toggle('open'));
+  document.getElementById('reviewClose').addEventListener('click', () => panel.classList.remove('open'));
+}
+
+// ============================================================
+// JUMP / SEARCH OVERLAY (cmd+k)
+// ============================================================
+function buildSearchIndex(){
+  const index = [];
+  window.__NAV__.forEach(mod => {
+    index.push({t: mod.title, m: mod.num + ' · module', id: mod.id});
+    mod.subs.forEach(s => index.push({t: s.name, m: mod.num, id: s.id}));
+  });
+  return index;
+}
+
+function initJump(){
+  const overlay = document.getElementById('jumpOverlay');
+  const input = document.getElementById('jumpInput');
+  const results = document.getElementById('jumpResults');
+  const index = buildSearchIndex();
+  let sel = 0;
+  let filtered = index;
+
+  function open(){
+    overlay.classList.add('open');
+    input.value=''; input.focus();
+    filtered = index; sel = 0; renderResults();
+  }
+  function close(){ overlay.classList.remove('open'); }
+  function renderResults(){
+    results.innerHTML = filtered.slice(0,40).map((r,i) => `
+      <div class="jump-result ${i===sel?'sel':''}" data-id="${r.id}">
+        <span class="t">${r.t}</span><span class="m">${r.m}</span>
+      </div>`).join('') || `<div style="padding:20px;color:var(--ink-faint);font-family:var(--mono);font-size:12px;">No matches</div>`;
+    results.querySelectorAll('.jump-result').forEach(el => {
+      el.addEventListener('click', () => jumpTo(el.dataset.id));
+    });
+  }
+  function jumpTo(id){
+    close();
+    const el = document.getElementById(id);
+    if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+  input.addEventListener('input', () => {
+    const q = input.value.toLowerCase();
+    filtered = index.filter(r => r.t.toLowerCase().includes(q));
+    sel = 0; renderResults();
+  });
+  input.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape') close();
+    if(e.key === 'ArrowDown'){ e.preventDefault(); sel = Math.min(sel+1, filtered.length-1); renderResults(); }
+    if(e.key === 'ArrowUp'){ e.preventDefault(); sel = Math.max(sel-1, 0); renderResults(); }
+    if(e.key === 'Enter'){ if(filtered[sel]) jumpTo(filtered[sel].id); }
+  });
+  overlay.addEventListener('click', (e) => { if(e.target === overlay) close(); });
+
+  document.addEventListener('keydown', (e) => {
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); open(); }
+    if(e.key === '/' && document.activeElement.tagName !== 'INPUT'){ e.preventDefault(); open(); }
+  });
+  document.getElementById('jumpTrigger').addEventListener('click', open);
+
+  // sidebar search box filters nav instead of opening overlay
+  document.getElementById('sidebarSearch').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('.nav-mod').forEach(mod => {
+      const text = mod.textContent.toLowerCase();
+      const match = text.includes(q);
+      mod.style.display = match || !q ? '' : 'none';
+      if(q && match) mod.classList.add('open');
+    });
+  });
+}
+
+// ============================================================
+// KEYBOARD NAV (j/k between modules)
+// ============================================================
+function initKeyboardNav(){
+  document.addEventListener('keydown', (e) => {
+    if(document.activeElement.tagName === 'INPUT') return;
+    const mods = [...document.querySelectorAll('.module')];
+    const y = window.scrollY + 140;
+    let idx = 0;
+    mods.forEach((m,i) => { if(m.offsetTop <= y) idx = i; });
+    if(e.key === 'j'){ const t = mods[Math.min(idx+1, mods.length-1)]; t.scrollIntoView({behavior:'smooth'}); }
+    if(e.key === 'k'){ const t = mods[Math.max(idx-1, 0)]; t.scrollIntoView({behavior:'smooth'}); }
+  });
+}
+
+// ============================================================
+// MOBILE SIDEBAR TOGGLE
+// ============================================================
+function initMobileToggle(){
+  const toggle = document.getElementById('menuToggle');
+  const sidebar = document.getElementById('sidebar');
+  if(!toggle) return;
+  toggle.addEventListener('click', () => sidebar.classList.toggle('open'));
+  document.querySelectorAll('.nav-subs a').forEach(a => a.addEventListener('click', () => sidebar.classList.remove('open')));
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  buildSidebarNav();
+  renderQuizBlocks();
+  initFlashcards();
+  initMarkButtons();
+  initReviewPanel();
+  initJump();
+  initScrollSpy();
+  initKeyboardNav();
+  initMobileToggle();
+  updateProgress();
+});
+
+</script>
+</body>
+</html>

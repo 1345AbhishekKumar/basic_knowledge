@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entropy — An Interactive Lesson</title>
+<style>
+:root {
+  --bg: #faf9f7;
+  --bg-alt: #f3f1ee;
+  --text: #2c2c2c;
+  --text-muted: #6b6b6b;
+  --accent: #4a7c7e;
+  --accent-light: rgba(74, 124, 126, 0.12);
+  --border: #e0ddd8;
+  --card-bg: #ffffff;
+  --code-bg: #f0eeeb;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --transition: 0.3s ease;
+}
+
+[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --bg-alt: #222222;
+  --text: #e8e6e3;
+  --text-muted: #9a9a9a;
+  --accent: #6db8ba;
+  --accent-light: rgba(109, 184, 186, 0.12);
+  --border: #333333;
+  --card-bg: #242424;
+  --code-bg: #2a2a2a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 17px;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+/* Progress bar */
+#progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: var(--accent);
+  z-index: 1000;
+  transition: width 0.2s ease;
+  width: 0%;
+}
+
+/* Theme toggle */
+#theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  z-index: 999;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: all var(--transition);
+}
+#theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Layout */
+.container {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Header */
+.lesson-header {
+  padding: 80px 0 60px;
+  text-align: center;
+}
+.lesson-header h1 {
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+.lesson-header .subtitle {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Sections */
+section {
+  padding: 48px 0;
+}
+section + section {
+  border-top: 1px solid var(--border);
+}
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 24px;
+  letter-spacing: -0.01em;
+}
+h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  margin-top: 28px;
+}
+h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  margin-top: 20px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+p { margin-bottom: 16px; }
+p:last-child { margin-bottom: 0; }
+
+/* Overview list */
+.overview-list {
+  list-style: none;
+  margin-top: 20px;
+}
+.overview-list li {
+  padding: 8px 0;
+  padding-left: 20px;
+  position: relative;
+  color: var(--text-muted);
+}
+.overview-list li::before {
+  content: '—';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+/* Knowledge Map */
+.knowledge-map {
+  margin: 32px 0;
+  text-align: center;
+}
+.knowledge-map svg {
+  max-width: 100%;
+  height: auto;
+}
+.map-node {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.map-node:hover { opacity: 0.7; }
+.map-node circle, .map-node rect {
+  fill: var(--bg);
+  stroke: var(--text);
+  stroke-width: 1.5;
+  transition: all 0.2s;
+}
+.map-node:hover circle, .map-node:hover rect {
+  stroke: var(--accent);
+}
+.map-node text {
+  fill: var(--text);
+  font-size: 11px;
+  font-family: var(--font-sans);
+}
+.map-line {
+  stroke: var(--border);
+  stroke-width: 1;
+  fill: none;
+}
+
+/* Module styles */
+.module {
+  padding: 56px 0;
+}
+.module + .module {
+  border-top: 1px solid var(--border);
+}
+.module-number {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.module h2 {
+  margin-bottom: 20px;
+}
+
+/* Step-by-step */
+.steps {
+  margin: 20px 0;
+  padding-left: 0;
+  list-style: none;
+  counter-reset: step;
+}
+.steps li {
+  counter-increment: step;
+  padding: 12px 0 12px 36px;
+  position: relative;
+  border-left: 1px solid var(--border);
+  margin-left: 12px;
+}
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: -12px;
+  top: 12px;
+  width: 24px;
+  height: 24px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Analogy card */
+.analogy-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 28px 0;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.analogy-card .side { text-align: center; }
+.analogy-card .side h4 {
+  margin-top: 0;
+  color: var(--text);
+  text-transform: none;
+  font-size: 0.85rem;
+  letter-spacing: 0;
+}
+.analogy-card .side p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.analogy-card svg {
+  max-width: 100%;
+  margin: 12px auto;
+  display: block;
+}
+.analogy-caption {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Misconception */
+details {
+  margin: 20px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+details summary {
+  padding: 14px 20px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.95rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+details summary::before {
+  content: '❌';
+  font-size: 0.85rem;
+}
+details summary::-webkit-details-marker { display: none; }
+details[open] summary { border-bottom: 1px solid var(--border); }
+details .details-content {
+  padding: 16px 20px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+/* Why this matters */
+.why-matters {
+  font-style: italic;
+  color: var(--text-muted);
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin: 24px 0;
+  font-size: 0.95rem;
+}
+
+/* Inter-module link */
+.inter-link {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-top: 20px;
+}
+.inter-link a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+.inter-link a:hover { border-bottom-color: var(--accent); }
+
+/* Diagrams */
+.diagram-container {
+  margin: 32px 0;
+  text-align: center;
+}
+.diagram-container svg {
+  max-width: 100%;
+  height: auto;
+}
+.diagram-container figcaption {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 12px;
+  font-style: italic;
+}
+
+/* Interactive elements */
+
+/* Flashcards */
+.flashcard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.flashcard {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+.flashcard:hover { border-color: var(--accent); }
+.flashcard .front { font-weight: 500; font-size: 0.95rem; }
+.flashcard .back {
+  display: none;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.flashcard.flipped .front { display: none; }
+.flashcard.flipped .back { display: block; }
+.flashcard .extra {
+  display: none;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.flashcard.flipped .extra { display: block; }
+.flashcard-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* Quiz */
+.quiz-container { margin: 24px 0; }
+.quiz-question {
+  margin-bottom: 28px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.quiz-question:last-child { border-bottom: none; }
+.quiz-question p {
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.quiz-options { list-style: none; }
+.quiz-options li {
+  padding: 10px 16px;
+  margin: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.quiz-options li:hover { border-color: var(--accent); }
+.quiz-options li.selected { border-color: var(--accent); background: var(--accent-light); }
+.quiz-options li.correct { border-color: #4a8c5c; background: rgba(74, 140, 92, 0.08); }
+.quiz-options li.incorrect { border-color: #8c4a4a; background: rgba(140, 74, 74, 0.08); }
+.quiz-feedback {
+  margin-top: 12px;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-left: 2px solid var(--accent);
+  display: none;
+}
+.quiz-feedback.show { display: block; }
+
+/* Fill in the blank */
+.fill-blank {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.fill-blank p { margin-bottom: 12px; }
+.fill-blank input {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  width: 160px;
+  transition: border-color 0.2s;
+}
+.fill-blank input:focus { outline: none; border-color: var(--accent); }
+.fill-blank .hint-link {
+  font-size: 0.8rem;
+  color: var(--accent);
+  cursor: pointer;
+  margin-left: 12px;
+  border: none;
+  background: none;
+  font-family: var(--font-sans);
+}
+.fill-blank .hint-text {
+  display: none;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+  font-style: italic;
+}
+.fill-blank .check-btn {
+  margin-left: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+  color: var(--text);
+  transition: all 0.2s;
+}
+.fill-blank .check-btn:hover { border-color: var(--accent); color: var(--accent); }
+.fill-blank .result {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: none;
+}
+
+/* Mini challenge */
+.challenge {
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.challenge-scenario {
+  font-size: 0.95rem;
+  margin-bottom: 16px;
+  line-height: 1.7;
+}
+.challenge-options { list-style: none; }
+.challenge-options li {
+  padding: 10px 16px;
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.challenge-options li:hover { border-color: var(--accent); }
+.challenge-options li.selected { border-color: var(--accent); background: var(--accent-light); }
+.challenge-reasoning {
+  display: none;
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg-alt);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+.challenge-reasoning.show { display: block; }
+
+/* Hotspot diagram */
+.hotspot-container {
+  position: relative;
+  margin: 32px 0;
+}
+.hotspot-container svg { width: 100%; }
+.hotspot-area {
+  cursor: pointer;
+  stroke-dasharray: 4 3;
+  stroke: transparent;
+  fill: transparent;
+  transition: all 0.2s;
+}
+.hotspot-area:hover {
+  stroke: var(--accent);
+  fill: var(--accent-light);
+}
+.hotspot-tooltip {
+  display: none;
+  position: absolute;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 16px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  max-width: 220px;
+  line-height: 1.5;
+  z-index: 10;
+}
+.hotspot-tooltip.show { display: block; }
+
+/* Review schedule */
+.review-schedule {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.review-schedule h4 {
+  margin-top: 0;
+  color: var(--text);
+  text-transform: none;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+}
+.review-schedule ul {
+  list-style: none;
+  margin-top: 12px;
+}
+.review-schedule li {
+  padding: 6px 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+}
+.review-schedule li span:first-child { font-weight: 500; color: var(--text); }
+
+/* Summary */
+.cheat-sheet {
+  margin: 24px 0;
+}
+.cheat-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.cheat-sheet th, .cheat-sheet td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.cheat-sheet th {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.cheat-sheet td { color: var(--text-muted); }
+.cheat-sheet td:first-child { color: var(--text); font-weight: 500; }
+
+/* FAQ */
+.faq details summary { font-size: 0.95rem; }
+.faq details summary::before { content: 'Q'; font-size: 0.7rem; font-weight: 600; color: var(--accent); }
+
+/* Next steps */
+.next-steps ul {
+  list-style: none;
+  margin-top: 16px;
+}
+.next-steps li {
+  padding: 8px 0;
+  padding-left: 20px;
+  position: relative;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+.next-steps li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+/* Completion badge */
+.completion-badge {
+  text-align: center;
+  padding: 40px 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-style: italic;
+  display: none;
+}
+.completion-badge.show { display: block; }
+
+/* Loading */
+#loading {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  transition: opacity 0.3s;
+}
+#loading.hidden { opacity: 0; pointer-events: none; }
+
+/* Teach-back */
+.teach-back {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.teach-back textarea {
+  width: 100%;
+  min-height: 100px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+  line-height: 1.6;
+}
+.teach-back textarea:focus { outline: none; border-color: var(--accent); }
+.teach-back .keywords {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.teach-back .keyword-match {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 2px;
+  border-radius: 3px;
+  font-size: 0.75rem;
+}
+.teach-back .keyword-match.found { background: rgba(74, 140, 92, 0.1); color: #4a8c5c; }
+.teach-back .keyword-match.missing { background: var(--bg-alt); color: var(--text-muted); }
+
+/* But why */
+.but-why {
+  margin: 12px 0;
+}
+.but-why-trigger {
+  font-size: 0.85rem;
+  color: var(--accent);
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font-sans);
+  font-style: italic;
+}
+.but-why-content {
+  display: none;
+  margin-top: 8px;
+  padding: 12px 16px;
+  background: var(--bg-alt);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.but-why-content.show { display: block; }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .lesson-header h1 { font-size: 1.8rem; }
+  .analogy-card { grid-template-columns: 1fr; }
+  .flashcard-grid { grid-template-columns: 1fr 1fr; }
+  section { padding: 36px 0; }
+  .module { padding: 40px 0; }
+}
+
+/* SVG animation */
+@keyframes drawPath {
+  to { stroke-dashoffset: 0; }
+}
+.animate-draw {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: drawPath 2s ease forwards;
+}
+
+/* Scroll margin for nav */
+[id] { scroll-margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<div id="loading">Preparing your lesson…</div>
+<div id="progress-bar"></div>
+<button id="theme-toggle" aria-label="Toggle dark mode">☀</button>
+
+<div class="container">
+
+<header class="lesson-header">
+  <h1>Entropy</h1>
+  <p class="subtitle">The law that governs everything from cooling tea to the fate of the universe</p>
+</header>
+
+<!-- WHAT YOU'LL LEARN -->
+<section id="overview">
+  <h2>What You'll Learn</h2>
+  <p>This lesson explores entropy — not as abstract disorder, but as the tendency of energy to spread out. You'll see how this single idea connects steam engines to living cells, explains why time has a direction, and determines the ultimate fate of the cosmos.</p>
+  <ul class="overview-list">
+    <li>What Earth really receives from the Sun (hint: it's not just energy)</li>
+    <li>Why no heat engine can ever be 100% efficient</li>
+    <li>How entropy measures the dispersal of energy</li>
+    <li>Why heat flows from hot to cold — a statistical inevitability</li>
+    <li>How life persists in a universe trending toward equilibrium</li>
+    <li>Why the arrow of time points in one direction</li>
+  </ul>
+</section>
+
+<!-- KNOWLEDGE MAP -->
+<section id="knowledge-map">
+  <h2>Knowledge Map</h2>
+  <p style="color: var(--text-muted); font-size: 0.9rem;">Click any node to jump to that module.</p>
+  <div class="knowledge-map">
+    <svg viewBox="0 0 700 300" aria-label="Knowledge map showing six interconnected modules about entropy">
+      <line class="map-line" x1="120" y1="80" x2="280" y2="80"/>
+      <line class="map-line" x1="280" y1="80" x2="440" y2="80"/>
+      <line class="map-line" x1="440" y1="80" x2="580" y2="80"/>
+      <line class="map-line" x1="120" y1="80" x2="200" y2="200"/>
+      <line class="map-line" x1="280" y1="80" x2="350" y2="200"/>
+      <line class="map-line" x1="440" y1="80" x2="500" y2="200"/>
+      <line class="map-line" x1="200" y1="200" x2="350" y2="200"/>
+      <line class="map-line" x1="350" y1="200" x2="500" y2="200"/>
+      
+      <g class="map-node" onclick="scrollToModule('module1')">
+        <circle cx="120" cy="80" r="24"/>
+        <text x="120" y="84" text-anchor="middle">Energy</text>
+      </g>
+      <g class="map-node" onclick="scrollToModule('module2')">
+        <circle cx="280" cy="80" r="24"/>
+        <text x="280" y="84" text-anchor="middle">Engines</text>
+      </g>
+      <g class="map-node" onclick="scrollToModule('module3')">
+        <circle cx="440" cy="80" r="24"/>
+        <text x="440" y="84" text-anchor="middle">Entropy</text>
+      </g>
+      <g class="map-node" onclick="scrollToModule('module4')">
+        <circle cx="580" cy="80" r="24"/>
+        <text x="580" y="84" text-anchor="middle">Statistics</text>
+      </g>
+      <g class="map-node" onclick="scrollToModule('module5')">
+        <circle cx="200" cy="200" r="24"/>
+        <text x="200" y="204" text-anchor="middle">Life</text>
+      </g>
+      <g class="map-node" onclick="scrollToModule('module6')">
+        <circle cx="500" cy="200" r="24"/>
+        <text x="500" y="204" text-anchor="middle">Time</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<!-- MODULE 1: Energy vs. Entropy -->
+<section class="module" id="module1">
+  <p class="module-number">Module 1</p>
+  <h2>What Earth Really Gets from the Sun</h2>
+  
+  <p>Ask anyone what Earth receives from the Sun and they'll say "energy" — or "heat and light." They're not wrong, but they're missing something crucial. The Earth receives exactly as much energy as it radiates back into space. If it didn't, our planet would continuously heat up or cool down.</p>
+  
+  <p>So what's special about solar energy? It arrives in a different <em>form</em>. The Sun sends us roughly 1 high-energy photon (visible light), and Earth radiates back about 20 low-energy photons (infrared). The total energy is the same, but the <em>quality</em> is different. The incoming energy is concentrated and bundled; the outgoing energy is dispersed and diluted.</p>
+  
+  <p>What Earth truly receives from the Sun is <strong>low entropy</strong> — energy in a compact, usable form that can be put to work before it inevitably spreads out.</p>
+
+  <h3>Step-by-Step: The Energy Budget</h3>
+  <ol class="steps">
+    <li>The Sun emits high-energy, short-wavelength photons (visible and ultraviolet light).</li>
+    <li>Earth's surface and atmosphere absorb these photons, using them to drive weather, photosynthesis, and ocean currents.</li>
+    <li>At each step, energy is transformed and some is degraded into heat.</li>
+    <li>Earth radiates an equal total amount of energy back to space, but as many more low-energy, long-wavelength infrared photons.</li>
+    <li>The net result: same energy in and out, but entropy has increased enormously.</li>
+  </ol>
+
+  <h3>Examples</h3>
+  <p><strong>1. A sunlit forest:</strong> Photons strike leaves. Trees convert concentrated solar energy into chemical bonds (sugars). As organisms metabolize those sugars, energy disperses as body heat. Eventually all the original solar energy leaves Earth as infrared radiation — but it powered an entire ecosystem along the way.</p>
+  <p><strong>2. A solar panel:</strong> It captures concentrated photons and converts them to electricity. No energy is "lost" — but the electricity eventually becomes heat in your home, which radiates away as infrared. The panel exploited the low-entropy gap between sunlight and the cold sky.</p>
+
+  <!-- Analogy Card -->
+  <div class="analogy-card">
+    <div class="side">
+      <h4>The Concept</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Diagram showing few high-energy photons arriving and many low-energy photons leaving">
+        <line x1="30" y1="20" x2="80" y2="50" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="50" y1="15" x2="80" y2="50" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="70" y1="18" x2="80" y2="50" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="80" cy="50" r="12" fill="none" stroke="var(--text)" stroke-width="1.5"/>
+        <text x="80" y="54" text-anchor="middle" font-size="7" fill="var(--text-muted)">Earth</text>
+        <line x1="80" y1="62" x2="40" y2="90" stroke="var(--text-muted)" stroke-width="1" stroke-linecap="round"/>
+        <line x1="80" y1="62" x2="55" y2="92" stroke="var(--text-muted)" stroke-width="1" stroke-linecap="round"/>
+        <line x1="80" y1="62" x2="70" y2="93" stroke="var(--text-muted)" stroke-width="1" stroke-linecap="round"/>
+        <line x1="80" y1="62" x2="85" y2="93" stroke="var(--text-muted)" stroke-width="1" stroke-linecap="round"/>
+        <line x1="80" y1="62" x2="100" y2="92" stroke="var(--text-muted)" stroke-width="1" stroke-linecap="round"/>
+        <line x1="80" y1="62" x2="115" y2="90" stroke="var(--text-muted)" stroke-width="1" stroke-linecap="round"/>
+        <line x1="80" y1="62" x2="125" y2="88" stroke="var(--text-muted)" stroke-width="1" stroke-linecap="round"/>
+        <text x="30" y="14" font-size="7" fill="var(--text-muted)">Few photons</text>
+        <text x="95" y="98" font-size="7" fill="var(--text-muted)">Many photons</text>
+      </svg>
+      <p>1 high-energy photon in → 20 low-energy photons out</p>
+    </div>
+    <div class="side">
+      <h4>The Analogy</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Analogy: one large bill exchanged for many small coins">
+        <rect x="50" y="20" width="60" height="30" rx="3" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="80" y="40" text-anchor="middle" font-size="9" fill="var(--text)">$100</text>
+        <line x1="80" y1="55" x2="80" y2="65" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowSmall)"/>
+        <circle cx="45" cy="80" r="6" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        <circle cx="60" cy="82" r="6" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        <circle cx="75" cy="80" r="6" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        <circle cx="90" cy="82" r="6" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        <circle cx="105" cy="80" r="6" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        <circle cx="120" cy="82" r="6" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        <text x="80" y="98" text-anchor="middle" font-size="7" fill="var(--text-muted)">Same value, harder to use</text>
+      </svg>
+      <p>One $100 bill → many loose coins. Same total value, but the coins scatter easily and are harder to spend purposefully.</p>
+    </div>
+    <div class="analogy-caption">
+      Concentrated energy is like a large bill — easy to direct toward a purpose. Dispersed energy is like scattered change — the same total value, but no longer useful for focused work.
+    </div>
+  </div>
+
+  <!-- Diagram: Photon comparison -->
+  <div class="diagram-container">
+    <svg viewBox="0 0 500 160" aria-label="Chart comparing incoming and outgoing photons">
+      <text x="125" y="20" text-anchor="middle" font-size="11" fill="var(--text-muted)">Incoming from Sun</text>
+      <text x="375" y="20" text-anchor="middle" font-size="11" fill="var(--text-muted)">Outgoing to Space</text>
+      <rect x="80" y="40" width="90" height="80" rx="3" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="125" y="85" text-anchor="middle" font-size="24" font-weight="600" fill="var(--accent)">1</text>
+      <text x="125" y="140" text-anchor="middle" font-size="9" fill="var(--text-muted)">high-energy photon</text>
+      <rect x="310" y="40" width="130" height="80" rx="3" fill="var(--text)" fill-opacity="0.06" stroke="var(--text-muted)" stroke-width="1"/>
+      <text x="375" y="85" text-anchor="middle" font-size="24" font-weight="600" fill="var(--text-muted)">~20</text>
+      <text x="375" y="140" text-anchor="middle" font-size="9" fill="var(--text-muted)">low-energy photons</text>
+      <text x="250" y="85" text-anchor="middle" font-size="10" fill="var(--text-muted)">= same total energy</text>
+    </svg>
+    <figcaption>For every high-energy photon Earth receives, it radiates roughly 20 low-energy photons back to space.</figcaption>
+  </div>
+
+  <details>
+    <summary>What People Get Wrong</summary>
+    <div class="details-content">
+      <p>Many people think Earth "uses up" energy from the Sun. But energy is never destroyed — the first law of thermodynamics guarantees that. What changes is not the <em>amount</em> of energy but its <em>arrangement</em>. The Sun delivers energy in a concentrated, low-entropy form. Earth returns it in a dispersed, high-entropy form. The energy budget balances perfectly; it's the entropy budget that doesn't.</p>
+    </div>
+  </details>
+
+  <div class="why-matters">
+    Understanding this distinction — energy vs. entropy — is the key to understanding why anything interesting happens in the universe at all.
+  </div>
+
+  <p class="inter-link">🔗 This sets the stage for <a href="#module2">Module 2: Carnot's Engine</a>, which reveals why we can never fully exploit this low-entropy energy.</p>
+</section>
+
+<!-- MODULE 2: Carnot's Heat Engine -->
+<section class="module" id="module2">
+  <p class="module-number">Module 2</p>
+  <h2>Carnot's Engine and the Limits of Efficiency</h2>
+  
+  <p>In 1824, a 26-year-old French military engineer named Sadi Carnot asked a deceptively simple question: what is the maximum possible efficiency of a heat engine? His answer would reshape physics forever.</p>
+  
+  <p>Carnot imagined an ideal engine — one with no friction, no heat leaks, operating between a hot reservoir and a cold reservoir. He discovered that even this perfect engine cannot convert all heat into work. Some energy <em>must</em> be dumped into the cold reservoir. The efficiency depends only on the temperatures of the two reservoirs, not on the engine's design or materials.</p>
+  
+  <p>The formula is elegant: Efficiency = 1 − (T_cold / T_hot), where temperatures are measured in Kelvin. To reach 100% efficiency, you'd need the cold reservoir at absolute zero (impossible) or the hot reservoir at infinite temperature (also impossible). Nature sets a hard ceiling.</p>
+
+  <h3>The Carnot Cycle, Step by Step</h3>
+  <ol class="steps">
+    <li><strong>Isothermal expansion:</strong> Gas in a chamber contacts the hot reservoir. It absorbs heat and expands at constant temperature, pushing a piston and turning a flywheel.</li>
+    <li><strong>Adiabatic expansion:</strong> The chamber is insulated. The gas continues expanding, but now its temperature drops (no heat enters) until it matches the cold reservoir.</li>
+    <li><strong>Isothermal compression:</strong> The chamber contacts the cold reservoir. The flywheel pushes the piston down, compressing the gas. Heat flows out into the cold reservoir.</li>
+    <li><strong>Adiabatic compression:</strong> The chamber is insulated again. Compression continues, raising the gas temperature back to just below the hot reservoir. The cycle repeats.</li>
+  </ol>
+
+  <!-- Interactive Carnot Cycle Diagram -->
+  <div class="diagram-container">
+    <svg viewBox="0 0 500 280" aria-label="Interactive Carnot cycle diagram showing four stages" id="carnot-diagram">
+      <!-- Stage indicators -->
+      <rect x="30" y="30" width="100" height="60" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5" class="carnot-stage" data-stage="1" style="cursor:pointer"/>
+      <text x="80" y="55" text-anchor="middle" font-size="9" fill="var(--text)">1. Isothermal</text>
+      <text x="80" y="68" text-anchor="middle" font-size="9" fill="var(--text)">Expansion</text>
+      <text x="80" y="82" text-anchor="middle" font-size="7" fill="var(--text-muted)">Heat in → Work out</text>
+      
+      <line x1="130" y1="60" x2="160" y2="60" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowC)"/>
+      
+      <rect x="165" y="30" width="100" height="60" rx="4" fill="none" stroke="var(--text-muted)" stroke-width="1.5" class="carnot-stage" data-stage="2" style="cursor:pointer"/>
+      <text x="215" y="55" text-anchor="middle" font-size="9" fill="var(--text)">2. Adiabatic</text>
+      <text x="215" y="68" text-anchor="middle" font-size="9" fill="var(--text)">Expansion</text>
+      <text x="215" y="82" text-anchor="middle" font-size="7" fill="var(--text-muted)">Temp drops</text>
+      
+      <line x1="265" y1="60" x2="295" y2="60" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowC)"/>
+      
+      <rect x="300" y="30" width="100" height="60" rx="4" fill="none" stroke="var(--text-muted)" stroke-width="1.5" class="carnot-stage" data-stage="3" style="cursor:pointer"/>
+      <text x="350" y="55" text-anchor="middle" font-size="9" fill="var(--text)">3. Isothermal</text>
+      <text x="350" y="68" text-anchor="middle" font-size="9" fill="var(--text)">Compression</text>
+      <text x="350" y="82" text-anchor="middle" font-size="7" fill="var(--text-muted)">Heat out → Work in</text>
+      
+      <line x1="400" y1="60" x2="430" y2="60" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowC)"/>
+      
+      <rect x="30" y="120" width="100" height="60" rx="4" fill="none" stroke="var(--text-muted)" stroke-width="1.5" class="carnot-stage" data-stage="4" style="cursor:pointer"/>
+      <text x="80" y="145" text-anchor="middle" font-size="9" fill="var(--text)">4. Adiabatic</text>
+      <text x="80" y="158" text-anchor="middle" font-size="9" fill="var(--text)">Compression</text>
+      <text x="80" y="172" text-anchor="middle" font-size="7" fill="var(--text-muted)">Temp rises</text>
+      
+      <!-- Curved arrows showing cycle -->
+      <path d="M 400 70 Q 460 100 430 140" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="4 3"/>
+      <path d="M 130 150 Q 30 140 30 90" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="4 3"/>
+      
+      <!-- Efficiency formula -->
+      <text x="250" y="220" text-anchor="middle" font-size="12" fill="var(--text)" font-family="var(--font-mono)">η = 1 − T_cold / T_hot</text>
+      <text x="250" y="240" text-anchor="middle" font-size="9" fill="var(--text-muted)">Click any stage above to learn more</text>
+      
+      <!-- Stage info panel -->
+      <rect id="carnot-info-bg" x="165" y="120" width="240" height="50" rx="4" fill="var(--bg-alt)" stroke="var(--border)" stroke-width="1" opacity="0"/>
+      <text id="carnot-info-text" x="175" y="140" font-size="9" fill="var(--text-muted)" opacity="0"></text>
+      <text id="carnot-info-text2" x="175" y="155" font-size="9" fill="var(--text-muted)" opacity="0"></text>
+      
+      <defs>
+        <marker id="arrowC" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        </marker>
+      </defs>
+    </svg>
+    <figcaption>The four stages of Carnot's ideal heat engine. Click each stage for details.</figcaption>
+  </div>
+
+  <h3>Examples</h3>
+  <p><strong>1. A coal power plant:</strong> Steam at 500°C (773 K) drives a turbine, exhausting heat to a river at 20°C (293 K). Maximum theoretical efficiency: 1 − 293/773 = 62%. Real efficiency: about 35–40%, because of friction, heat leaks, and non-ideal heat transfer.</p>
+  <p><strong>2. A car engine:</strong> Combustion reaches ~2000°C (2273 K), exhaust is ~400°C (673 K). Carnot limit: 1 − 673/2273 = 70%. Actual efficiency: about 25–30%. Most of the fuel's energy escapes as waste heat.</p>
+
+  <div class="analogy-card">
+    <div class="side">
+      <h4>The Concept</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Heat engine between hot and cold reservoirs">
+        <rect x="20" y="10" width="40" height="30" rx="3" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="40" y="30" text-anchor="middle" font-size="8" fill="var(--accent)">HOT</text>
+        <line x1="40" y1="40" x2="40" y2="55" stroke="var(--accent)" stroke-width="1.5"/>
+        <rect x="20" y="55" width="40" height="25" rx="3" fill="none" stroke="var(--text)" stroke-width="1.5"/>
+        <text x="40" y="71" text-anchor="middle" font-size="7" fill="var(--text-muted)">Engine</text>
+        <line x1="60" y1="67" x2="90" y2="67" stroke="var(--text)" stroke-width="1.5" marker-end="url(#arrowC)"/>
+        <text x="75" y="62" text-anchor="middle" font-size="7" fill="var(--text-muted)">Work</text>
+        <line x1="40" y1="80" x2="40" y2="90" stroke="var(--text-muted)" stroke-width="1.5"/>
+        <rect x="20" y="90" width="40" height="0" rx="0" fill="none"/>
+        <text x="40" y="98" text-anchor="middle" font-size="8" fill="var(--text-muted)">COLD</text>
+        <line x1="40" y1="80" x2="130" y2="80" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="130" y="76" font-size="7" fill="var(--text-muted)">Waste heat</text>
+      </svg>
+      <p>Some heat must always flow to the cold side — no engine avoids this.</p>
+    </div>
+    <div class="side">
+      <h4>The Analogy</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Water wheel analogy">
+        <path d="M20,20 L20,80" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M25,20 Q60,20 60,50 Q60,80 25,80" fill="none" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 2"/>
+        <circle cx="80" cy="55" r="15" fill="none" stroke="var(--text)" stroke-width="1.5"/>
+        <line x1="80" y1="40" x2="80" y2="70" stroke="var(--text)" stroke-width="1"/>
+        <line x1="65" y1="55" x2="95" y2="55" stroke="var(--text)" stroke-width="1"/>
+        <path d="M95,55 Q130,55 130,80" fill="none" stroke="var(--text-muted)" stroke-width="1.5"/>
+        <text x="80" y="90" text-anchor="middle" font-size="7" fill="var(--text-muted)">Water must flow downhill</text>
+        <text x="15" y="15" font-size="7" fill="var(--text-muted)">High</text>
+        <text x="125" y="95" font-size="7" fill="var(--text-muted)">Low</text>
+      </svg>
+      <p>A water wheel extracts work from falling water, but the water must still reach the bottom. You can't get work without a lower level to discharge to.</p>
+    </div>
+    <div class="analogy-caption">
+      Just as a water wheel needs both a high source and a low outlet, a heat engine needs both a hot and a cold reservoir. The "fall" of heat is what produces work — and some heat must always reach the bottom.
+    </div>
+  </div>
+
+  <details>
+    <summary>What People Get Wrong</summary>
+    <div class="details-content">
+      <p>People often assume that better engineering will eventually yield 100% efficiency. But Carnot proved this is impossible <em>in principle</em>, not just in practice. The limitation isn't friction or poor materials — it's built into the nature of heat and work themselves. Even a perfectly frictionless engine must reject some heat to its cold reservoir to complete its cycle.</p>
+    </div>
+  </details>
+
+  <div class="why-matters">
+    Carnot's insight revealed that the universe has a built-in tax on every energy conversion — a toll that must be paid in waste heat, no matter how clever the design.
+  </div>
+
+  <p class="inter-link">🔗 This connects to <a href="#module3">Module 3: Entropy Defined</a>, where we meet the quantity that measures this unavoidable waste.</p>
+</section>
+
+<!-- MODULE 3: Entropy Defined -->
+<section class="module" id="module3">
+  <p class="module-number">Module 3</p>
+  <h2>Entropy — Energy's Tendency to Spread</h2>
+  
+  <p>Decades after Carnot, the German physicist Rudolf Clausius needed a word for the quantity that measures how "spread out" energy has become. He coined <em>entropy</em>. When energy is concentrated — all in one hot object — entropy is low. When that same energy has dispersed into the surroundings, warming walls, axles, and air molecules, entropy is high.</p>
+  
+  <p>The most common description of entropy is "disorder," and while that's not entirely wrong, it's misleading. A better framing: entropy measures how widely energy is distributed among the available ways it can be arranged. High entropy doesn't mean "messy" — it means the energy has explored more possibilities and settled into a more probable state.</p>
+  
+  <p>In 1865, Clausius summarized the two laws of thermodynamics: (1) The energy of the universe is constant. (2) The entropy of the universe tends to a maximum. Energy is conserved, but its usability is not.</p>
+
+  <h3>Key Principles</h3>
+  <ol class="steps">
+    <li><strong>Energy conservation (1st Law):</strong> The total energy in a closed system never changes. It only transforms from one form to another.</li>
+    <li><strong>Energy dispersal (2nd Law):</strong> Left to itself, energy spreads out. Concentrated energy becomes distributed energy. This process is irreversible.</li>
+    <li><strong>Entropy as a measure:</strong> Entropy quantifies this dispersal. More ways to arrange the energy = higher entropy.</li>
+    <li><strong>Usability decreases:</strong> The same total energy can do less useful work as entropy increases. Energy doesn't disappear — it just becomes harder to harness.</li>
+  </ol>
+
+  <!-- Hotspot Diagram: Energy spreading -->
+  <div class="hotspot-container" id="entropy-hotspots">
+    <svg viewBox="0 0 500 200" aria-label="Interactive diagram showing energy spreading from concentrated to dispersed states">
+      <!-- Concentrated state -->
+      <text x="80" y="20" text-anchor="middle" font-size="10" fill="var(--text-muted)">Low Entropy</text>
+      <circle cx="80" cy="80" r="30" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)" stroke-width="1.5"/>
+      <circle cx="80" cy="80" r="5" fill="var(--accent)"/>
+      <circle cx="72" cy="72" r="3" fill="var(--accent)" opacity="0.7"/>
+      <circle cx="88" cy="75" r="3" fill="var(--accent)" opacity="0.7"/>
+      <circle cx="78" cy="90" r="3" fill="var(--accent)" opacity="0.7"/>
+      <circle cx="85" cy="85" r="3" fill="var(--accent)" opacity="0.7"/>
+      <text x="80" y="130" text-anchor="middle" font-size="8" fill="var(--text-muted)">Energy concentrated</text>
+      <text x="80" y="142" text-anchor="middle" font-size="8" fill="var(--text-muted)">in one place</text>
+      
+      <!-- Arrow -->
+      <line x1="140" y1="80" x2="200" y2="80" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowC)"/>
+      <text x="170" y="72" text-anchor="middle" font-size="8" fill="var(--text-muted)">time</text>
+      
+      <!-- Medium state -->
+      <text x="280" y="20" text-anchor="middle" font-size="10" fill="var(--text-muted)">Medium Entropy</text>
+      <circle cx="280" cy="80" r="45" fill="var(--accent)" fill-opacity="0.08" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="4 3"/>
+      <circle cx="265" cy="65" r="3" fill="var(--accent)" opacity="0.6"/>
+      <circle cx="290" cy="70" r="3" fill="var(--accent)" opacity="0.6"/>
+      <circle cx="275" cy="90" r="3" fill="var(--accent)" opacity="0.6"/>
+      <circle cx="295" cy="85" r="3" fill="var(--accent)" opacity="0.6"/>
+      <circle cx="270" cy="78" r="3" fill="var(--accent)" opacity="0.6"/>
+      <text x="280" y="140" text-anchor="middle" font-size="8" fill="var(--text-muted)">Energy beginning</text>
+      <text x="280" y="152" text-anchor="middle" font-size="8" fill="var(--text-muted)">to disperse</text>
+      
+      <!-- Arrow -->
+      <line x1="340" y1="80" x2="380" y2="80" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowC)"/>
+      
+      <!-- High entropy state -->
+      <text x="440" y="20" text-anchor="middle" font-size="10" fill="var(--text-muted)">High Entropy</text>
+      <rect x="390" y="40" width="100" height="80" rx="4" fill="var(--text)" fill-opacity="0.03" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="4 3"/>
+      <circle cx="405" cy="55" r="2" fill="var(--accent)" opacity="0.4"/>
+      <circle cx="425" cy="60" r="2" fill="var(--accent)" opacity="0.4"/>
+      <circle cx="450" cy="50" r="2" fill="var(--accent)" opacity="0.4"/>
+      <circle cx="470" cy="65" r="2" fill="var(--accent)" opacity="0.4"/>
+      <circle cx="410" cy="80" r="2" fill="var(--accent)" opacity="0.4"/>
+      <circle cx="440" cy="75" r="2" fill="var(--accent)" opacity="0.4"/>
+      <circle cx="465" cy="85" r="2" fill="var(--accent)" opacity="0.4"/>
+      <circle cx="420" cy="100" r="2" fill="var(--accent)" opacity="0.4"/>
+      <circle cx="455" cy="105" r="2" fill="var(--accent)" opacity="0.4"/>
+      <circle cx="480" cy="95" r="2" fill="var(--accent)" opacity="0.4"/>
+      <text x="440" y="140" text-anchor="middle" font-size="8" fill="var(--text-muted)">Energy evenly</text>
+      <text x="440" y="152" text-anchor="middle" font-size="8" fill="var(--text-muted)">distributed</text>
+      
+      <!-- Clickable hotspot areas -->
+      <rect class="hotspot-area" data-tooltip="hotspot1" x="45" y="45" width="70" height="70" rx="35"/>
+      <rect class="hotspot-area" data-tooltip="hotspot2" x="230" y="30" width="100" height="100" rx="50"/>
+      <rect class="hotspot-area" data-tooltip="hotspot3" x="385" y="35" width="110" height="90" rx="4"/>
+    </svg>
+    <div class="hotspot-tooltip" id="hotspot1" style="top: 120px; left: 20px;">
+      <strong>Low entropy:</strong> All energy is concentrated in one location. Maximum ability to do work — like a wound-up spring.
+    </div>
+    <div class="hotspot-tooltip" id="hotspot2" style="top: 120px; left: 220px;">
+      <strong>Medium entropy:</strong> Energy is spreading. Some remains concentrated, but some has leaked into the surroundings. Work potential is decreasing.
+    </div>
+    <div class="hotspot-tooltip" id="hotspot3" style="top: 120px; left: 380px;">
+      <strong>High entropy:</strong> Energy is uniformly distributed. No temperature differences remain. No further work is possible — equilibrium.
+    </div>
+    <figcaption style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; font-style: italic;">Hover over each state to learn more. Energy goes from concentrated → dispersed, and the process is irreversible.</figcaption>
+  </div>
+
+  <h3>Examples</h3>
+  <p><strong>1. A hot cup of coffee:</strong> Thermal energy is initially concentrated in the coffee. Over time, it disperses into the cup, the table, the air. The total energy is unchanged, but it's now spread across trillions of air molecules. You can't spontaneously gather it back into the coffee.</p>
+  <p><strong>2. A compressed gas:</strong> Open a pressurized can and the gas rushes out, filling the room. The molecules' kinetic energy was concentrated inside the can; now it's dispersed throughout the atmosphere. The gas will never spontaneously re-compress itself.</p>
+
+  <div class="analogy-card">
+    <div class="side">
+      <h4>The Concept</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Entropy as energy spreading">
+        <rect x="20" y="30" width="30" height="40" rx="2" fill="var(--accent)" fill-opacity="0.3" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="35" y="55" text-anchor="middle" font-size="7" fill="var(--text)">Energy</text>
+        <line x1="55" y1="50" x2="80" y2="50" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowC)"/>
+        <rect x="85" y="20" width="60" height="60" rx="2" fill="var(--accent)" fill-opacity="0.08" stroke="var(--text-muted)" stroke-width="1"/>
+        <circle cx="95" cy="35" r="2" fill="var(--accent)" opacity="0.5"/>
+        <circle cx="110" cy="40" r="2" fill="var(--accent)" opacity="0.5"/>
+        <circle cx="125" cy="30" r="2" fill="var(--accent)" opacity="0.5"/>
+        <circle cx="100" cy="55" r="2" fill="var(--accent)" opacity="0.5"/>
+        <circle cx="120" cy="60" r="2" fill="var(--accent)" opacity="0.5"/>
+        <circle cx="135" cy="50" r="2" fill="var(--accent)" opacity="0.5"/>
+        <circle cx="105" cy="70" r="2" fill="var(--accent)" opacity="0.5"/>
+        <circle cx="130" cy="72" r="2" fill="var(--accent)" opacity="0.5"/>
+      </svg>
+      <p>Same energy, more locations. Less able to do work.</p>
+    </div>
+    <div class="side">
+      <h4>The Analogy</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Ink drop in water analogy">
+        <circle cx="40" cy="50" r="15" fill="var(--accent)" fill-opacity="0.4" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="40" y="53" text-anchor="middle" font-size="6" fill="var(--text)">Drop</text>
+        <line x1="60" y1="50" x2="80" y2="50" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowC)"/>
+        <rect x="85" y="25" width="60" height="50" rx="3" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        <circle cx="100" cy="40" r="3" fill="var(--accent)" opacity="0.15"/>
+        <circle cx="115" cy="55" r="4" fill="var(--accent)" opacity="0.12"/>
+        <circle cx="130" cy="42" r="3" fill="var(--accent)" opacity="0.1"/>
+        <circle cx="105" cy="60" r="3" fill="var(--accent)" opacity="0.12"/>
+        <circle cx="125" cy="65" r="3" fill="var(--accent)" opacity="0.1"/>
+        <text x="115" y="85" text-anchor="middle" font-size="7" fill="var(--text-muted)">Dispersed</text>
+      </svg>
+      <p>A drop of ink in water. The ink molecules spread out until the water is uniformly tinted. The ink is still there — but you can't un-mix it.</p>
+    </div>
+    <div class="analogy-caption">
+      Entropy is like ink diffusing in water: the substance doesn't disappear, but it becomes so evenly distributed that it can no longer be harnessed for anything.
+    </div>
+  </div>
+
+  <details>
+    <summary>What People Get Wrong</summary>
+    <div class="details-content">
+      <p>Entropy is often described as "disorder," which leads to confusion. A messy room isn't high-entropy in the thermodynamic sense — what matters is how energy is distributed among microscopic states, not whether things look tidy. A crystal at absolute zero is "ordered" and low-entropy, but a shuffled deck of cards is merely rearranged — the energy content hasn't changed. Entropy is about energy dispersal, not visual messiness.</p>
+    </div>
+  </details>
+
+  <div class="why-matters">
+    Entropy is the reason the universe has a direction. Without it, every process would be reversible, and nothing would ever truly happen.
+  </div>
+
+  <p class="inter-link">🔗 This connects to <a href="#module4">Module 4: The Statistical Secret</a>, which explains <em>why</em> energy spreads out — the answer is probability.</p>
+</section>
+
+<!-- MODULE 4: Statistical Mechanics -->
+<section class="module" id="module4">
+  <p class="module-number">Module 4</p>
+  <h2>The Statistical Secret — Why Heat Flows One Way</h2>
+  
+  <p>The laws of physics at the microscopic level are time-reversible. A single atom bouncing off a wall looks the same played forward or backward. So how does the irreversible arrow of entropy emerge from reversible microscopic rules?</p>
+  
+  <p>Ludwig Boltzmann answered this in the 1870s. His insight: heat flowing from hot to cold isn't <em>impossible</em> — it's just overwhelmingly <em>improbable</em>. There are astronomically more ways for energy to be spread evenly than concentrated in one place. Given random motion, the system will almost certainly evolve toward the most probable arrangement — which is the one with the highest entropy.</p>
+  
+  <p>With just 16 atoms and 10 energy packets, there's a meaningful chance (about 10%) that energy could spontaneously concentrate. But with 10²³ atoms (a everyday amount of matter), the probability becomes so vanishingly small that it would never happen in the lifetime of the universe. The second law is statistical, not absolute — but for macroscopic systems, it might as well be absolute.</p>
+
+  <h3>How It Works</h3>
+  <ol class="steps">
+    <li>Consider two bars of metal touching each other — one hot (many energy packets), one cold (few).</li>
+    <li>Energy packets hop randomly between atoms. Each possible arrangement (microstate) is equally likely.</li>
+    <li>There are vastly more arrangements where energy is roughly evenly shared than where it's all on one side.</li>
+    <li>So the system naturally evolves toward even distribution — not because any force pushes it there, but because there are overwhelmingly more ways to be even than uneven.</li>
+    <li>For small systems, fluctuations matter — energy can briefly concentrate. For large systems, the probability of a significant fluctuation is effectively zero.</li>
+  </ol>
+
+  <!-- Probability chart -->
+  <div class="diagram-container">
+    <svg viewBox="0 0 500 220" aria-label="Bar chart showing probability of energy distributions for different system sizes">
+      <text x="250" y="20" text-anchor="middle" font-size="11" fill="var(--text)">Probability of heat flowing cold → hot</text>
+      
+      <!-- Axis -->
+      <line x1="60" y1="180" x2="460" y2="180" stroke="var(--text-muted)" stroke-width="1"/>
+      <line x1="60" y1="40" x2="60" y2="180" stroke="var(--text-muted)" stroke-width="1"/>
+      
+      <!-- Bars -->
+      <rect x="90" y="56" width="60" height="124" rx="2" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="120" y="150" text-anchor="middle" font-size="10" fill="var(--accent)" font-weight="600">10.5%</text>
+      <text x="120" y="200" text-anchor="middle" font-size="8" fill="var(--text-muted)">8 atoms</text>
+      <text x="120" y="210" text-anchor="middle" font-size="8" fill="var(--text-muted)">10 packets</text>
+      
+      <rect x="200" y="172" width="60" height="8" rx="2" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="230" y="168" text-anchor="middle" font-size="10" fill="var(--accent)" font-weight="600">0.05%</text>
+      <text x="230" y="200" text-anchor="middle" font-size="8" fill="var(--text-muted)">80 atoms</text>
+      <text x="230" y="210" text-anchor="middle" font-size="8" fill="var(--text-muted)">100 packets</text>
+      
+      <rect x="310" y="179" width="60" height="1" rx="0.5" fill="var(--accent)" fill-opacity="0.3" stroke="var(--accent)" stroke-width="1"/>
+      <text x="340" y="174" text-anchor="middle" font-size="9" fill="var(--accent)">~0%</text>
+      <text x="340" y="200" text-anchor="middle" font-size="8" fill="var(--text-muted)">10¹⁸ atoms</text>
+      <text x="340" y="210" text-anchor="middle" font-size="8" fill="var(--text-muted)">everyday object</text>
+      
+      <rect x="420" y="179.5" width="30" height="0.5" rx="0.25" fill="var(--text-muted)" fill-opacity="0.5"/>
+      <text x="435" y="174" text-anchor="middle" font-size="9" fill="var(--text-muted)">≈ 0</text>
+      <text x="435" y="200" text-anchor="middle" font-size="8" fill="var(--text-muted)">10²³ atoms</text>
+      <text x="435" y="210" text-anchor="middle" font-size="8" fill="var(--text-muted)">macroscopic</text>
+      
+      <text x="250" y="38" text-anchor="middle" font-size="8" fill="var(--text-muted)">As system size grows, spontaneous concentration becomes impossible</text>
+    </svg>
+    <figcaption>The probability of heat flowing from cold to hot drops to effectively zero as the number of atoms increases.</figcaption>
+  </div>
+
+  <h3>Examples</h3>
+  <p><strong>1. The Rubik's Cube:</strong> A solved cube has exactly one configuration. Make random turns and it will almost certainly get more scrambled — not because any force drives it toward disorder, but because there are 43 quintillion scrambled states and only one solved state. Entropy is a numbers game.</p>
+  <p><strong>2. Gas in a box:</strong> If you open a valve between an empty chamber and one filled with gas, the gas expands to fill both. There are enormously more microstates where molecules are spread across both chambers than where they're all in one. The gas doesn't "want" to expand — it just almost certainly will, because the alternative is astronomically unlikely.</p>
+
+  <div class="analogy-card">
+    <div class="side">
+      <h4>The Concept</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Microstates diagram">
+        <text x="40" y="15" text-anchor="middle" font-size="7" fill="var(--text-muted)">Uneven (few states)</text>
+        <rect x="15" y="20" width="50" height="30" rx="2" fill="var(--accent)" fill-opacity="0.3" stroke="var(--accent)" stroke-width="1"/>
+        <rect x="15" y="55" width="50" height="30" rx="2" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        <text x="40" y="40" text-anchor="middle" font-size="7" fill="var(--text)">•••••••</text>
+        <text x="40" y="73" text-anchor="middle" font-size="7" fill="var(--text-muted)">•••</text>
+        
+        <text x="120" y="15" text-anchor="middle" font-size="7" fill="var(--text-muted)">Even (many states)</text>
+        <rect x="95" y="20" width="50" height="30" rx="2" fill="var(--accent)" fill-opacity="0.15" stroke="var(--text-muted)" stroke-width="1"/>
+        <rect x="95" y="55" width="50" height="30" rx="2" fill="var(--accent)" fill-opacity="0.15" stroke="var(--text-muted)" stroke-width="1"/>
+        <text x="120" y="40" text-anchor="middle" font-size="7" fill="var(--text)">•••••</text>
+        <text x="120" y="73" text-anchor="middle" font-size="7" fill="var(--text)">•••••</text>
+        <text x="80" y="98" text-anchor="middle" font-size="7" fill="var(--text-muted)">6× more arrangements</text>
+      </svg>
+      <p>Fewer ways to be uneven → more ways to be even → system evolves toward even.</p>
+    </div>
+    <div class="side">
+      <h4>The Analogy</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Lottery analogy">
+        <rect x="20" y="20" width="120" height="25" rx="3" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="80" y="37" text-anchor="middle" font-size="8" fill="var(--text)">1 winning ticket</text>
+        <rect x="20" y="55" width="120" height="25" rx="3" fill="none" stroke="var(--text-muted)" stroke-width="1"/>
+        <text x="80" y="72" text-anchor="middle" font-size="8" fill="var(--text-muted)">6,000,000 other tickets</text>
+        <text x="80" y="95" text-anchor="middle" font-size="7" fill="var(--text-muted)">Buy a random ticket → almost certainly not the winner</text>
+      </svg>
+      <p>Buying a random ticket is like a system exploring random microstates. The "concentrated energy" state is the one winning ticket — possible, but almost never found by chance.</p>
+    </div>
+    <div class="analogy-caption">
+      The second law isn't a force — it's a probability. With enough particles, the most likely outcome becomes a near-certainty.
+    </div>
+  </div>
+
+  <details>
+    <summary>What People Get Wrong</summary>
+    <div class="details-content">
+      <p>People sometimes think the second law can be "violated" at small scales, as if nature occasionally breaks its own rules. In reality, for tiny systems (a few atoms), fluctuations are normal and expected — energy <em>does</em> occasionally flow from cold to hot. The second law is statistical: it describes what almost certainly happens with large numbers, not what must happen with every particle. This isn't a violation — it's the law working exactly as intended.</p>
+    </div>
+  </details>
+
+  <div class="why-matters">
+    Boltzmann showed that the arrow of time isn't imposed by some cosmic force — it emerges from the simple mathematics of counting possibilities.
+  </div>
+
+  <!-- Flashcards -->
+  <h3>Key Terms — Flashcards</h3>
+  <p style="font-size: 0.85rem; color: var(--text-muted);">Click to reveal the definition.</p>
+  <div class="flashcard-grid">
+    <div class="flashcard" onclick="flipCard(this)">
+      <div class="front">Entropy</div>
+      <div class="back">A measure of how dispersed energy is among the available microstates of a system.</div>
+      <div class="extra">Clausius defined it as dS = dQ/T. Boltzmann connected it to microstates: S = k·ln(W).</div>
+      <div class="flashcard-hint">tap to flip</div>
+    </div>
+    <div class="flashcard" onclick="flipCard(this)">
+      <div class="front">Microstate</div>
+      <div class="back">A specific arrangement of all particles and energy in a system.</div>
+      <div class="extra">Two systems can have the same macroscopic properties (temperature, pressure) but completely different microstates.</div>
+      <div class="flashcard-hint">tap to flip</div>
+    </div>
+    <div class="flashcard" onclick="flipCard(this)">
+      <div class="front">Carnot Efficiency</div>
+      <div class="back">The maximum possible efficiency of a heat engine: η = 1 − T_cold/T_hot.</div>
+      <div class="extra">It depends only on the temperatures of the hot and cold reservoirs, not on the engine's design.</div>
+      <div class="flashcard-hint">tap to flip</div>
+    </div>
+    <div class="flashcard" onclick="flipCard(this)">
+      <div class="front">Absolute Zero</div>
+      <div class="back">0 Kelvin (−273.15°C). The temperature at which particles have minimal motion.</div>
+      <div class="extra">At absolute zero, a Carnot engine would be 100% efficient — but reaching it is impossible (Third Law of Thermodynamics).</div>
+      <div class="flashcard-hint">tap to flip</div>
+    </div>
+    <div class="flashcard" onclick="flipCard(this)">
+      <div class="front">Heat Death</div>
+      <div class="back">The theoretical end-state where the universe reaches maximum entropy and no work is possible.</div>
+      <div class="extra">Estimated to occur after ~10^100 years, when all black holes have evaporated and all energy is uniformly distributed.</div>
+      <div class="flashcard-hint">tap to flip</div>
+    </div>
+    <div class="flashcard" onclick="flipCard(this)">
+      <div class="front">Past Hypothesis</div>
+      <div class="back">The assumption that the universe began in a state of very low entropy.</div>
+      <div class="extra">It doesn't explain <em>why</em> entropy was low — just that it must have been, for the second law to produce the universe we observe.</div>
+      <div class="flashcard-hint">tap to flip</div>
+    </div>
+  </div>
+
+  <p class="inter-link">🔗 This connects to <a href="#module5">Module 5: Life and Entropy</a>, where we ask how ordered structures like living things can exist at all.</p>
+</section>
+
+<!-- MODULE 5: Life and Entropy -->
+<section class="module" id="module5">
+  <p class="module-number">Module 5</p>
+  <h2>How Life Exists Despite the Second Law</h2>
+  
+  <p>If entropy always increases — if energy always spreads out and things always decay — how do living organisms maintain their extraordinary internal order? How do cells build complex molecules, organisms grow, and ecosystems become more intricate over time?</p>
+  
+  <p>The answer is that Earth is not a closed system. Life can decrease entropy locally — building order within an organism — as long as it increases entropy by a greater amount elsewhere. Plants capture low-entropy sunlight and use it to build sugars. Animals eat those sugars, extracting order while radiating heat. At every step, the total entropy of the system plus surroundings increases.</p>
+  
+  <p>Life doesn't defy the second law. It <em>exploits</em> it. Living things are extraordinarily efficient at converting low-entropy energy into high-entropy waste. Some researchers, like Jeremy England, have even proposed that life is an inevitable consequence of the second law — given a steady stream of concentrated energy, matter will self-organize into structures that dissipate that energy more effectively.</p>
+
+  <h3>The Energy Flow Through Life</h3>
+  <ol class="steps">
+    <li><strong>Sun → Plants:</strong> Concentrated solar energy drives photosynthesis. Plants build ordered molecules (sugars) from CO₂ and water, decreasing local entropy.</li>
+    <li><strong>Plants → Herbivores:</strong> Animals eat plants, breaking down sugars to power their bodies. Most energy becomes heat. Some builds animal tissue.</li>
+    <li><strong>Herbivores → Predators:</strong> Each trophic level loses ~90% of energy as heat. The food chain is an entropy cascade.</li>
+    <li><strong>All → Heat → Space:</strong> Ultimately, every joule of solar energy that touched a living thing is radiated back to space as infrared — 20 low-energy photons for every 1 that arrived.</li>
+  </ol>
+
+  <!-- Flow diagram -->
+  <div class="diagram-container">
+    <svg viewBox="0 0 500 180" aria-label="Energy flow through living systems showing entropy increase at each step">
+      <!-- Sun -->
+      <circle cx="50" cy="50" r="25" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="50" y="54" text-anchor="middle" font-size="9" fill="var(--text)">Sun</text>
+      <text x="50" y="90" text-anchor="middle" font-size="7" fill="var(--text-muted)">Low entropy</text>
+      
+      <line x1="75" y1="50" x2="120" y2="50" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arrowC)"/>
+      <text x="97" y="42" text-anchor="middle" font-size="7" fill="var(--text-muted)">1 photon</text>
+      
+      <!-- Plant -->
+      <rect x="125" y="30" width="60" height="40" rx="4" fill="var(--accent)" fill-opacity="0.08" stroke="var(--text-muted)" stroke-width="1.5"/>
+      <text x="155" y="54" text-anchor="middle" font-size="9" fill="var(--text)">Plant</text>
+      <text x="155" y="90" text-anchor="middle" font-size="7" fill="var(--text-muted)">Order ↑</text>
+      
+      <line x1="185" y1="50" x2="230" y2="50" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowC)"/>
+      <text x="207" y="42" text-anchor="middle" font-size="7" fill="var(--text-muted)">~10%</text>
+      
+      <!-- Herbivore -->
+      <rect x="235" y="30" width="60" height="40" rx="4" fill="var(--text)" fill-opacity="0.05" stroke="var(--text-muted)" stroke-width="1.5"/>
+      <text x="265" y="54" text-anchor="middle" font-size="9" fill="var(--text)">Animal</text>
+      <text x="265" y="90" text-anchor="middle" font-size="7" fill="var(--text-muted)">Order ↑</text>
+      
+      <line x1="295" y1="50" x2="340" y2="50" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arrowC)"/>
+      <text x="317" y="42" text-anchor="middle" font-size="7" fill="var(--text-muted)">~1%</text>
+      
+      <!-- Predator -->
+      <rect x="345" y="30" width="60" height="40" rx="4" fill="var(--text)" fill-opacity="0.03" stroke="var(--text-muted)" stroke-width="1"/>
+      <text x="375" y="54" text-anchor="middle" font-size="9" fill="var(--text)">Predator</text>
+      <text x="375" y="90" text-anchor="middle" font-size="7" fill="var(--text-muted)">Order ↑</text>
+      
+      <!-- Heat arrows going down -->
+      <line x1="155" y1="70" x2="155" y2="130" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2"/>
+      <line x1="265" y1="70" x2="265" y2="130" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2"/>
+      <line x1="375" y1="70" x2="375" y2="130" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2"/>
+      
+      <text x="155" y="145" text-anchor="middle" font-size="7" fill="var(--text-muted)">Heat</text>
+      <text x="265" y="145" text-anchor="middle" font-size="7" fill="var(--text-muted)">Heat</text>
+      <text x="375" y="145" text-anchor="middle" font-size="7" fill="var(--text-muted)">Heat</text>
+      
+      <!-- Space -->
+      <rect x="430" y="110" width="55" height="40" rx="4" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="457" y="134" text-anchor="middle" font-size="8" fill="var(--text-muted)">Space</text>
+      <text x="457" y="160" text-anchor="middle" font-size="7" fill="var(--text-muted)">20 photons out</text>
+      
+      <path d="M155,150 Q300,170 430,130" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arrowC)"/>
+    </svg>
+    <figcaption>Energy flows through life in a one-way cascade. At each step, local order increases but total entropy increases even more.</figcaption>
+  </div>
+
+  <h3>Examples</h3>
+  <p><strong>1. Air conditioning:</strong> An AC unit decreases entropy inside your house (making it cooler and more ordered) but increases entropy far more at the power plant, in the transmission lines, and in the heat exhaust on the outside. The net entropy of the universe always goes up.</p>
+  <p><strong>2. Cyanobacteria in the ocean:</strong> Research shows that surface seawater with cyanobacteria produces 30–680% more entropy than sterile seawater. Life doesn't resist entropy — it accelerates it. Organisms are extraordinarily effective at converting concentrated energy into dispersed heat.</p>
+
+  <div class="analogy-card">
+    <div class="side">
+      <h4>The Concept</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Life as entropy accelerator">
+        <rect x="20" y="20" width="40" height="60" rx="3" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="40" y="55" text-anchor="middle" font-size="7" fill="var(--text)">Life</text>
+        <line x1="60" y1="50" x2="85" y2="50" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arrowC)"/>
+        <text x="72" y="42" text-anchor="middle" font-size="6" fill="var(--text-muted)">speeds up</text>
+        <rect x="90" y="25" width="55" height="50" rx="3" fill="var(--text)" fill-opacity="0.05" stroke="var(--text-muted)" stroke-width="1.5"/>
+        <text x="117" y="45" text-anchor="middle" font-size="7" fill="var(--text-muted)">Entropy</text>
+        <text x="117" y="57" text-anchor="middle" font-size="7" fill="var(--text-muted)">increase</text>
+        <text x="117" y="69" text-anchor="middle" font-size="10" fill="var(--accent)">↑↑↑</text>
+      </svg>
+      <p>Life doesn't fight entropy — it's a catalyst for entropy production.</p>
+    </div>
+    <div class="side">
+      <h4>The Analogy</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Rock in stream analogy">
+        <path d="M10,50 Q40,40 80,50 Q120,60 150,50" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M10,55 Q40,45 80,55 Q120,65 150,55" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.4"/>
+        <ellipse cx="80" cy="50" rx="15" ry="10" fill="var(--text)" fill-opacity="0.1" stroke="var(--text)" stroke-width="1.5"/>
+        <text x="80" y="54" text-anchor="middle" font-size="6" fill="var(--text)">Rock</text>
+        <text x="80" y="80" text-anchor="middle" font-size="7" fill="var(--text-muted)">The rock creates turbulence —</text>
+        <text x="80" y="90" text-anchor="middle" font-size="7" fill="var(--text-muted)">it dissipates the stream's energy faster</text>
+      </svg>
+      <p>A rock in a stream creates turbulence, dissipating the water's energy more quickly than smooth flow would. Life is the rock — it creates "turbulence" that accelerates energy dispersal.</p>
+    </div>
+    <div class="analogy-caption">
+      Living things are like rocks in a stream of energy: they create structure, but that structure speeds up the overall dissipation. Life is nature's way of reaching equilibrium faster.
+    </div>
+  </div>
+
+  <details>
+    <summary>What People Get Wrong</summary>
+    <div class="details-content">
+      <p>Some people cite the existence of life as a "refutation" of the second law — how can order arise if entropy always increases? The error is treating Earth as a closed system. Earth receives a constant stream of low-entropy energy from the Sun. Life decreases entropy locally (inside organisms) while increasing it globally (as waste heat). The second law is never violated — it's the very reason life exists. Without the entropy gradient between the Sun and cold space, there would be no energy flow to power biology.</p>
+    </div>
+  </details>
+
+  <div class="why-matters">
+    Life is not an exception to the second law — it's a consequence of it. We are the universe's way of turning concentrated energy into heat, beautifully and efficiently.
+  </div>
+
+  <!-- Mini challenge -->
+  <div class="challenge">
+    <h4 style="margin-top:0; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 0.95rem;">🎮 Mini-Challenge</h4>
+    <p class="challenge-scenario">You're designing a self-sustaining colony on an asteroid with no sunlight. You have a nuclear reactor (heat source) and the cold vacuum of space (heat sink). Can you sustain life here, and what role does entropy play?</p>
+    <ul class="challenge-options">
+      <li onclick="selectChallenge(this, 'c1')">A) No — without sunlight, the second law prevents any ordered structures from forming.</li>
+      <li onclick="selectChallenge(this, 'c1')">B) Yes — the reactor provides concentrated energy and space provides a cold sink, creating the entropy gradient life needs.</li>
+      <li onclick="selectChallenge(this, 'c1')">C) Yes — but only if the reactor is 100% efficient, which requires violating the second law.</li>
+    </ul>
+    <div class="challenge-reasoning" id="c1-reasoning">
+      <strong>B is correct.</strong> Life needs a source of low-entropy energy and a place to dump high-entropy waste heat. A nuclear reactor provides concentrated energy (low entropy input), and the cold vacuum of space serves as the heat sink. The colony would function much like Earth: using the energy gradient to power biology while radiating waste heat outward. The second law doesn't require sunlight specifically — it requires an entropy gradient, which any hot source + cold sink can provide.
+    </div>
+  </div>
+
+  <p class="inter-link">🔗 This connects to <a href="#module6">Module 6: The Arrow of Time</a>, where entropy reveals why the universe has a past and a future.</p>
+</section>
+
+<!-- MODULE 6: The Arrow of Time -->
+<section class="module" id="module6">
+  <p class="module-number">Module 6</p>
+  <h2>The Arrow of Time</h2>
+  
+  <p>Almost all fundamental laws of physics are time-symmetric — they work the same forward and backward. Newton's equations, Maxwell's equations, Schrödinger's equation, general relativity: none of them distinguish past from future. So why do <em>we</em> experience time as flowing in one direction?</p>
+  
+  <p>The answer is entropy. The "arrow of time" — the difference between past and future — is the difference between low entropy and high entropy. The universe began in an extraordinarily low-entropy state (the "Past Hypothesis"), and it has been increasing in entropy ever since. That gradient is what gives time its direction.</p>
+  
+  <p>We don't see eggs un-break or asteroids un-crash because those events would require entropy to decrease — moving from a more probable state to a less probable one. The arrow of time is statistical: the future is simply the direction in which entropy increases.</p>
+
+  <h3>The Timeline of Universal Entropy</h3>
+  <ol class="steps">
+    <li><strong>The Big Bang (~13.8 billion years ago):</strong> The universe begins hot, dense, and almost perfectly uniform. Paradoxically, this is extremely low entropy because gravity makes uniform distribution of matter very unlikely. Entropy: ~10⁸⁸ k_B (Boltzmann constants).</li>
+    <li><strong>Structure formation:</strong> Gravity clumps matter into stars, galaxies, and planets. Potential energy converts to kinetic energy, then to heat through collisions. Entropy increases enormously.</li>
+    <li><strong>Today:</strong> Stars radiate, black holes grow, life evolves. Most of the universe's entropy is now locked in black holes. The Milky Way's central black hole alone has ~10⁹¹ k_B — a thousand times more than the entire early universe.</li>
+    <li><strong>The far future (>10¹⁰⁰ years):</strong> All stars die. All black holes evaporate via Hawking radiation. Energy becomes uniformly distributed. Maximum entropy. The "heat death." Time loses its arrow — forward and backward become indistinguishable.</li>
+  </ol>
+
+  <!-- Interactive Timeline -->
+  <div class="diagram-container">
+    <svg viewBox="0 0 500 200" aria-label="Interactive timeline of the universe's entropy from Big Bang to heat death" id="timeline-svg">
+      <!-- Timeline line -->
+      <line x1="40" y1="100" x2="460" y2="100" stroke="var(--text-muted)" stroke-width="1.5"/>
+      
+      <!-- Big Bang -->
+      <g class="timeline-node" data-info="bigbang" style="cursor:pointer">
+        <circle cx="60" cy="100" r="8" fill="var(--accent)" fill-opacity="0.3" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="60" y="80" text-anchor="middle" font-size="8" fill="var(--text)">Big Bang</text>
+        <text x="60" y="130" text-anchor="middle" font-size="7" fill="var(--text-muted)">10⁸⁸ k_B</text>
+      </g>
+      
+      <!-- Stars form -->
+      <g class="timeline-node" data-info="stars" style="cursor:pointer">
+        <circle cx="160" cy="100" r="8" fill="var(--accent)" fill-opacity="0.25" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="160" y="80" text-anchor="middle" font-size="8" fill="var(--text)">Stars form</text>
+        <text x="160" y="130" text-anchor="middle" font-size="7" fill="var(--text-muted)">10⁹⁰ k_B</text>
+      </g>
+      
+      <!-- Today -->
+      <g class="timeline-node" data-info="today" style="cursor:pointer">
+        <circle cx="280" cy="100" r="10" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)" stroke-width="2"/>
+        <text x="280" y="78" text-anchor="middle" font-size="8" fill="var(--text)" font-weight="600">Today</text>
+        <text x="280" y="130" text-anchor="middle" font-size="7" fill="var(--text-muted)">10¹⁰⁴ k_B</text>
+      </g>
+      
+      <!-- Black hole era -->
+      <g class="timeline-node" data-info="blackholes" style="cursor:pointer">
+        <circle cx="380" cy="100" r="8" fill="var(--text)" fill-opacity="0.1" stroke="var(--text-muted)" stroke-width="1.5"/>
+        <text x="380" y="80" text-anchor="middle" font-size="8" fill="var(--text-muted)">Black hole era</text>
+        <text x="380" y="130" text-anchor="middle" font-size="7" fill="var(--text-muted)">10¹⁰⁷ k_B</text>
+      </g>
+      
+      <!-- Heat death -->
+      <g class="timeline-node" data-info="heatdeath" style="cursor:pointer">
+        <circle cx="450" cy="100" r="8" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="450" y="80" text-anchor="middle" font-size="8" fill="var(--text-muted)">Heat Death</text>
+        <text x="450" y="130" text-anchor="middle" font-size="7" fill="var(--text-muted)">Maximum</text>
+      </g>
+      
+      <!-- Info panel -->
+      <rect id="timeline-info-bg" x="100" y="150" width="300" height="40" rx="4" fill="var(--bg-alt)" stroke="var(--border)" stroke-width="1" opacity="0"/>
+      <text id="timeline-info-text" x="110" y="168" font-size="9" fill="var(--text-muted)" opacity="0"></text>
+      <text id="timeline-info-text2" x="110" y="182" font-size="9" fill="var(--text-muted)" opacity="0"></text>
+      
+      <!-- Entropy curve (subtle) -->
+      <path d="M60,95 Q160,90 280,70 Q380,50 450,40" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.3" stroke-dasharray="4 3"/>
+      <text x="470" y="38" font-size="7" fill="var(--accent)" opacity="0.5">S</text>
+    </svg>
+    <figcaption>Click any point on the timeline to learn more. The dashed curve shows entropy increasing over cosmic time.</figcaption>
+  </div>
+
+  <h3>Examples</h3>
+  <p><strong>1. A video played backward:</strong> If you watch a video of an egg breaking played in reverse, you immediately know something is wrong — eggs don't un-break. Your brain detects the entropy decrease. But a video of a single planet orbiting a star looks fine either way. The arrow of time only appears in systems with many particles where entropy changes are visible.</p>
+  <p><strong>2. Memory and causation:</strong> We remember the past but not the future. We cause effects but aren't caused by them. Both asymmetries trace back to entropy: memories are physical records that require entropy increase to form, and causation relies on the low-entropy past providing the energy gradients that drive processes forward.</p>
+
+  <div class="analogy-card">
+    <div class="side">
+      <h4>The Concept</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="Entropy gradient as time's arrow">
+        <line x1="20" y1="80" x2="140" y2="80" stroke="var(--text-muted)" stroke-width="1"/>
+        <path d="M20,75 Q80,60 140,25" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="20" y="95" font-size="7" fill="var(--text-muted)">Past</text>
+        <text x="130" y="95" font-size="7" fill="var(--text-muted)">Future</text>
+        <text x="145" y="22" font-size="7" fill="var(--accent)">S↑</text>
+        <polygon points="140,25 135,30 138,28" fill="var(--accent)"/>
+        <text x="80" y="15" text-anchor="middle" font-size="7" fill="var(--text-muted)">Entropy gradient</text>
+        <text x="80" y="25" text-anchor="middle" font-size="7" fill="var(--text-muted)">= Arrow of time</text>
+      </svg>
+      <p>Time points in the direction entropy increases. No gradient → no arrow.</p>
+    </div>
+    <div class="side">
+      <h4>The Analogy</h4>
+      <svg viewBox="0 0 160 100" width="160" aria-label="River flow analogy for time">
+        <path d="M20,30 Q50,25 80,35 Q110,45 140,40" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M20,40 Q50,35 80,45 Q110,55 140,50" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.4"/>
+        <path d="M20,50 Q50,45 80,55 Q110,65 140,60" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.2"/>
+        <text x="15" y="25" font-size="7" fill="var(--text-muted)">Source</text>
+        <text x="125" y="75" font-size="7" fill="var(--text-muted)">Sea</text>
+        <polygon points="140,40 135,37 135,43" fill="var(--accent)"/>
+        <text x="80" y="85" text-anchor="middle" font-size="7" fill="var(--text-muted)">A river flows downhill because of</text>
+        <text x="80" y="95" text-anchor="middle" font-size="7" fill="var(--text-muted)">a height gradient. Time flows because of an entropy gradient.</text>
+      </svg>
+      <p>A river flows from high ground to sea level. Remove the height difference and the river stops. Remove the entropy difference and time loses its direction.</p>
+    </div>
+    <div class="analogy-caption">
+      Time's arrow is like a river's flow: it exists because of a gradient. When the gradient disappears (heat death), the "river" stops — and past and future become indistinguishable.
+    </div>
+  </div>
+
+  <details>
+    <summary>What People Get Wrong</summary>
+    <div class="details-content">
+      <p>People often think the second law "causes" things to decay, as if entropy is an active force. But entropy isn't a force — it's a statistical tendency. Things don't decay because entropy "pushes" them; they evolve toward more probable states because there are overwhelmingly more such states. Also, the early universe's low entropy is sometimes called a "paradox," but it's really just a boundary condition — the Past Hypothesis. Physics can describe what happened; the question of <em>why</em> initial entropy was low remains open.</p>
+    </div>
+  </details>
+
+  <div class="why-matters">
+    The arrow of time is not a fundamental feature of physics — it's an emergent property of statistics. The universe doesn't have a built-in clock; it has an entropy gradient, and we experience that gradient as the flow of time.
+  </div>
+
+  <!-- But why -->
+  <div class="but-why">
+    <button class="but-why-trigger" onclick="toggleButWhy(this)">But why was the early universe's entropy so low?</button>
+    <div class="but-why-content">
+      <p>This is one of the deepest unsolved questions in physics. The "Past Hypothesis" simply states that it was low — it doesn't explain why. Some physicists (like Roger Penrose) suggest it relates to the specific way gravity behaved at the Big Bang. Others propose multiverse scenarios where low-entropy beginnings are inevitable in some branches. For now, it remains an assumption — but a necessary one. Without it, the arrow of time, the formation of structure, and life itself would have no explanation.</p>
+    </div>
+  </div>
+
+  <p class="inter-link">🔗 This connects back to <a href="#module1">Module 1: What Earth Gets from the Sun</a> — the low-entropy energy we receive is a tiny echo of the universe's initial low-entropy state.</p>
+</section>
+
+<!-- INTERACTIVE QUIZ (Cumulative after modules) -->
+<section id="quiz-section">
+  <h2>Check Your Understanding</h2>
+  <p style="color: var(--text-muted); font-size: 0.9rem;">Test what you've absorbed so far. Select an answer for each question.</p>
+  
+  <div class="quiz-container" id="main-quiz">
+    <div class="quiz-question" data-correct="2">
+      <p>1. What does Earth truly receive from the Sun?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) More energy than it radiates back</li>
+        <li onclick="selectQuiz(this)">B) Low-entropy energy — concentrated, usable photons</li>
+        <li onclick="selectQuiz(this)">C) Vitamin D only</li>
+        <li onclick="selectQuiz(this)">D) The same entropy it sends back</li>
+      </ul>
+      <div class="quiz-feedback">Earth receives the same total <em>energy</em> it radiates, but in a much more concentrated form — roughly 1 high-energy photon in for every 20 low-energy photons out. What we receive is low entropy, not extra energy.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="1">
+      <p>2. Why can't a heat engine be 100% efficient?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Because of friction in the moving parts</li>
+        <li onclick="selectQuiz(this)">B) Because some heat must always be rejected to the cold reservoir to complete the cycle</li>
+        <li onclick="selectQuiz(this)">C) Because fuel is never pure enough</li>
+        <li onclick="selectQuiz(this)">D) Because engineers haven't tried hard enough</li>
+      </ul>
+      <div class="quiz-feedback">Even a perfectly frictionless (Carnot) engine must dump waste heat to its cold reservoir. This isn't an engineering limitation — it's a fundamental requirement of converting heat into work in a cyclic process. Friction makes real engines even less efficient, but the Carnot limit applies even without it.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="3">
+      <p>3. What is the best way to think about entropy?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) The amount of disorder in a system</li>
+        <li onclick="selectQuiz(this)">B) The total energy contained in a system</li>
+        <li onclick="selectQuiz(this)">C) A measure of how spread out energy is among available arrangements</li>
+        <li onclick="selectQuiz(this)">D) The temperature of a system</li>
+      </ul>
+      <div class="quiz-feedback">While "disorder" is a common shorthand, the more precise framing is that entropy measures how widely energy is distributed among the possible microstates. A system with energy concentrated in few locations has low entropy; the same energy spread across many locations has high entropy.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="2">
+      <p>4. Why does heat flow from hot to cold?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Because a fundamental force pushes it that way</li>
+        <li onclick="selectQuiz(this)">B) Because cold objects attract heat</li>
+        <li onclick="selectQuiz(this)">C) Because there are overwhelmingly more arrangements where energy is evenly shared than concentrated</li>
+        <li onclick="selectQuiz(this)">D) Because hot objects are heavier</li>
+      </ul>
+      <div class="quiz-feedback">Boltzmann showed that heat flow is statistical: there are vastly more microstates with energy evenly distributed than concentrated. Random motion will almost certainly lead to the more probable (evenly distributed) state. It's not impossible for heat to flow cold → hot — just astronomically unlikely for large systems.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="1">
+      <p>5. How does life relate to the second law of thermodynamics?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Life violates the second law by creating order</li>
+        <li onclick="selectQuiz(this)">B) Life decreases local entropy while increasing total entropy even more, consistent with the second law</li>
+        <li onclick="selectQuiz(this)">C) Life is unaffected by entropy</li>
+        <li onclick="selectQuiz(this)">D) Life only exists because the second law is sometimes suspended</li>
+      </ul>
+      <div class="quiz-feedback">Life maintains internal order by increasing entropy elsewhere — primarily as waste heat. The total entropy of the system plus surroundings always increases. Far from violating the second law, life is arguably a consequence of it: organisms are excellent at dissipating energy gradients.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="0">
+      <p>6. What gives time its direction (the "arrow of time")?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) The increase of entropy from a low-entropy beginning</li>
+        <li onclick="selectQuiz(this)">B) The expansion of space</li>
+        <li onclick="selectQuiz(this)">C) Gravity pulling things together</li>
+        <li onclick="selectQuiz(this)">D) The speed of light</li>
+      </ul>
+      <div class="quiz-feedback">The arrow of time emerges from the entropy gradient. The universe began in a very low-entropy state, and entropy has been increasing since. The direction in which entropy increases is what we experience as "the future." Without this gradient, there would be no distinguishable past and future.</div>
+    </div>
+  </div>
+</section>
+
+<!-- FILL IN THE BLANK -->
+<section id="fill-blank-section">
+  <h2>Fill in the Blanks</h2>
+  
+  <div class="fill-blank">
+    <p>The Carnot efficiency formula is: η = 1 − <input type="text" id="blank1" placeholder="???"> / T_hot</p>
+    <button class="check-btn" onclick="checkBlank('blank1', 't_cold')">Check</button>
+    <button class="hint-link" onclick="toggleHint(this)">Hint</button>
+    <div class="hint-text">Think about which reservoir's temperature appears in the numerator.</div>
+    <div class="result" id="blank1-result"></div>
+  </div>
+  
+  <div class="fill-blank">
+    <p>Boltzmann's entropy formula is: S = k · ln(<input type="text" id="blank2" placeholder="???">)</p>
+    <button class="check-btn" onclick="checkBlank('blank2', 'w')">Check</button>
+    <button class="hint-link" onclick="toggleHint(this)">Hint</button>
+    <div class="hint-text">This letter represents the number of microstates (possible arrangements).</div>
+    <div class="result" id="blank2-result"></div>
+  </div>
+  
+  <div class="fill-blank">
+    <p>For each photon Earth receives from the Sun, it radiates approximately <input type="text" id="blank3" placeholder="???" style="width:60px"> photons back to space.</p>
+    <button class="check-btn" onclick="checkBlank('blank3', '20')">Check</button>
+    <button class="hint-link" onclick="toggleHint(this)">Hint</button>
+    <div class="hint-text">It's a number between 10 and 30.</div>
+    <div class="result" id="blank3-result"></div>
+  </div>
+</section>
+
+<!-- MEMORY: Review Schedule -->
+<section id="review-section">
+  <h2>Spaced Repetition Schedule</h2>
+  <p style="color: var(--text-muted); font-size: 0.9rem;">Revisit these concepts at increasing intervals to move them from short-term to long-term memory.</p>
+  
+  <div class="review-schedule">
+    <h4>Review Plan</h4>
+    <ul>
+      <li><span>1st review</span><span>1 hour after finishing this lesson</span></li>
+      <li><span>2nd review</span><span>1 day later</span></li>
+      <li><span>3rd review</span><span>3 days later</span></li>
+      <li><span>4th review</span><span>1 week later</span></li>
+      <li><span>5th review</span><span>2 weeks later</span></li>
+      <li><span>6th review</span><span>1 month later</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- TEACH-BACK (Feynman Exercise) -->
+<section id="teachback-section">
+  <h2>Teach It Back</h2>
+  <p style="color: var(--text-muted); font-size: 0.9rem;">Explain entropy to a 10-year-old in your own words. Try to use these key terms:</p>
+  
+  <div class="teach-back">
+    <textarea id="teachback-input" placeholder="Imagine you're explaining entropy to a curious 10-year-old..." oninput="checkKeywords()"></textarea>
+    <div class="keywords" id="keyword-display">
+      <span class="keyword-match missing">energy</span>
+      <span class="keyword-match missing">spread</span>
+      <span class="keyword-match missing">heat</span>
+      <span class="keyword-match missing">probability</span>
+      <span class="keyword-match missing">time</span>
+      <span class="keyword-match missing">order</span>
+      <span class="keyword-match missing">sun</span>
+    </div>
+  </div>
+</section>
+
+<!-- SUMMARY & CHEAT SHEET -->
+<section id="summary">
+  <h2>Summary & Cheat Sheet</h2>
+  
+  <div class="cheat-sheet">
+    <table>
+      <thead>
+        <tr>
+          <th>Concept</th>
+          <th>Key Idea</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>What Earth gets from the Sun</td>
+          <td>Low-entropy energy — concentrated photons that can do work before dispersing</td>
+        </tr>
+        <tr>
+          <td>Carnot Efficiency</td>
+          <td>η = 1 − T_cold/T_hot. No engine can exceed this, regardless of design.</td>
+        </tr>
+        <tr>
+          <td>Entropy</td>
+          <td>Measures how spread out energy is. Increases naturally over time.</td>
+        </tr>
+        <tr>
+          <td>2nd Law of Thermodynamics</td>
+          <td>Total entropy of a closed system always increases (or stays the same).</td>
+        </tr>
+        <tr>
+          <td>Boltzmann's Insight</td>
+          <td>Entropy increase is statistical — more microstates = more probable.</td>
+        </tr>
+        <tr>
+          <td>Life & Entropy</td>
+          <td>Life decreases local entropy by increasing global entropy even more.</td>
+        </tr>
+        <tr>
+          <td>Arrow of Time</td>
+          <td>Time's direction = the direction entropy increases, from a low-entropy Big Bang.</td>
+        </tr>
+        <tr>
+          <td>Heat Death</td>
+          <td>When entropy is maximized, no gradients remain, and nothing interesting happens.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- FINAL ASSESSMENT (15 questions) -->
+<section id="final-assessment">
+  <h2>Final Assessment</h2>
+  <p style="color: var(--text-muted); font-size: 0.9rem;">15 questions covering all modules. Take your time.</p>
+  
+  <div class="quiz-container" id="final-quiz">
+    <div class="quiz-question" data-correct="1">
+      <p>1. If Earth radiated less energy than it receives, what would happen?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Nothing — energy is conserved</li>
+        <li onclick="selectQuiz(this)">B) Earth would continuously heat up</li>
+        <li onclick="selectQuiz(this)">C) Earth would cool down</li>
+        <li onclick="selectQuiz(this)">D) The Sun would get hotter</li>
+      </ul>
+      <div class="quiz-feedback">If Earth absorbed more energy than it radiated, the excess would accumulate as thermal energy, raising the planet's temperature. This is essentially what the greenhouse effect does — it temporarily slows the rate of radiation, causing warming.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="2">
+      <p>2. Carnot's ideal engine is completely reversible. What does this mean?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) It can run forever without fuel</li>
+        <li onclick="selectQuiz(this)">B) It converts all heat into work</li>
+        <li onclick="selectQuiz(this)">C) Running it backward returns everything to its original state with no additional energy</li>
+        <li onclick="selectQuiz(this)">D) It works at any temperature</li>
+      </ul>
+      <div class="quiz-feedback">A reversible engine can run in either direction. Forward: heat → work. Backward: work → heat transfer from cold to hot. After equal cycles in each direction, everything returns to its starting state. This is what makes it "ideal" — no irreversible losses.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="0">
+      <p>3. To increase the efficiency of a Carnot engine, you could:</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Increase the hot reservoir temperature or decrease the cold reservoir temperature</li>
+        <li onclick="selectQuiz(this)">B) Use better materials to reduce friction</li>
+        <li onclick="selectQuiz(this)">C) Make the engine larger</li>
+        <li onclick="selectQuiz(this)">D) Run the engine faster</li>
+      </ul>
+      <div class="quiz-feedback">Carnot efficiency depends only on the two temperatures: η = 1 − T_cold/T_hot. A bigger temperature gap means higher efficiency. Better materials help real engines approach the Carnot limit but can never exceed it.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="3">
+      <p>4. Clausius's statement of the second law says:</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Energy can be created but not destroyed</li>
+        <li onclick="selectQuiz(this)">B) All engines are equally efficient</li>
+        <li onclick="selectQuiz(this)">C) Temperature always decreases over time</li>
+        <li onclick="selectQuiz(this)">D) The entropy of the universe tends to a maximum</li>
+      </ul>
+      <div class="quiz-feedback">Clausius summarized: (1) Energy of the universe is constant. (2) Entropy of the universe tends to a maximum. Energy is conserved, but its usability steadily decreases as it spreads out.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="1">
+      <p>5. In Boltzmann's model with 8 atoms per bar and 10 energy packets, what's the approximate probability of heat flowing cold → hot?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) 0%</li>
+        <li onclick="selectQuiz(this)">B) About 10.5%</li>
+        <li onclick="selectQuiz(this)">C) 50%</li>
+        <li onclick="selectQuiz(this)">D) 100%</li>
+      </ul>
+      <div class="quiz-feedback">With small numbers (8 atoms, 10 packets), there's about a 10.5% chance the left bar ends up with more energy than it started — meaning heat flowed "backward." This shows the second law is statistical: it's not impossible, just unlikely. With more atoms, the probability drops toward zero.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="2">
+      <p>6. Why don't we observe heat flowing from cold to hot in everyday life?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) It violates a fundamental law of nature</li>
+        <li onclick="selectQuiz(this)">B) Cold objects don't contain energy</li>
+        <li onclick="selectQuiz(this)">C) With ~10²³ atoms, the probability is so small it effectively never happens</li>
+        <li onclick="selectQuiz(this)">D) Gravity prevents it</li>
+      </ul>
+      <div class="quiz-feedback">It's not that heat <em>can't</em> flow cold → hot — it's that with macroscopic numbers of atoms, the probability becomes vanishingly small (far less than 0.001%). The second law is statistical, but for large systems, the statistics are so overwhelming that the law is practically absolute.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="0">
+      <p>7. An air conditioner cools your house. Does this violate the second law?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) No — because the entropy increase at the power plant and in the exhaust exceeds the entropy decrease inside the house</li>
+        <li onclick="selectQuiz(this)">B) Yes — but only slightly</li>
+        <li onclick="selectQuiz(this)">C) Yes — the second law has exceptions for technology</li>
+        <li onclick="selectQuiz(this)">D) No — because cold air has low entropy</li>
+      </ul>
+      <div class="quiz-feedback">The AC decreases entropy inside your home but increases it far more elsewhere: at the power plant (burning fuel), in transmission lines (resistive heating), and in the hot exhaust blowing outside. Total entropy always increases. Local decreases are fine as long as they're "paid for" by larger increases elsewhere.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="3">
+      <p>8. Jeremy England's hypothesis suggests that life:</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Is a cosmic accident with no physical explanation</li>
+        <li onclick="selectQuiz(this)">B) Violates thermodynamics in subtle ways</li>
+        <li onclick="selectQuiz(this)">C) Only exists on Earth</li>
+        <li onclick="selectQuiz(this)">D) May be a consequence of the second law — matter exposed to energy gradients self-organizes to dissipate energy better</li>
+      </ul>
+      <div class="quiz-feedback">England proposed that given a constant stream of concentrated energy (like sunlight), matter will spontaneously form structures that dissipate that energy more efficiently. Over time, better dissipators are "selected" — and these may include living organisms. "Shine light on a clump of atoms long enough and you should not be so surprised that you get a plant."</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="1">
+      <p>9. The "Past Hypothesis" states that:</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) The universe will eventually reach maximum entropy</li>
+        <li onclick="selectQuiz(this)">B) The universe began in a state of very low entropy</li>
+        <li onclick="selectQuiz(this)">C) The past is fundamentally different from the future</li>
+        <li onclick="selectQuiz(this)">D) Time did not exist before the Big Bang</li>
+      </ul>
+      <div class="quiz-feedback">The Past Hypothesis is the assumption (not yet explained by deeper physics) that the universe's initial entropy was extraordinarily low. It's necessary for the second law to produce the arrow of time we observe. It doesn't explain <em>why</em> entropy was low — just that it must have been.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="2">
+      <p>10. Where is most of the universe's entropy currently located?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) In stars</li>
+        <li onclick="selectQuiz(this)">B) In the cosmic microwave background</li>
+        <li onclick="selectQuiz(this)">C) In black holes</li>
+        <li onclick="selectQuiz(this)">D) In dark matter</li>
+      </ul>
+      <div class="quiz-feedback">Black holes contain almost all the universe's entropy. The Milky Way's central black hole alone (~10⁹¹ k_B) has a thousand times more entropy than the entire early universe (~10⁸⁸ k_B). All black holes combined account for ~10¹⁰⁴ k_B. Bekenstein and Hawking showed that black hole entropy is proportional to surface area.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="0">
+      <p>11. Why was the early hot, uniform universe considered low-entropy?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Because gravity makes uniform matter distribution extremely unlikely — it's a very special state</li>
+        <li onclick="selectQuiz(this)">B) Because it was cold</li>
+        <li onclick="selectQuiz(this)">C) Because there were fewer particles</li>
+        <li onclick="selectQuiz(this)">D) It wasn't — early universe entropy was actually high</li>
+      </ul>
+      <div class="quiz-feedback">Without gravity, a uniform gas would be high-entropy (maximum disorder). But gravity changes everything: it makes clumping the natural tendency. So a perfectly uniform distribution of matter is actually an extraordinarily unlikely (low-entropy) state when gravity is involved. The early universe was "smooth" in a way that gravity makes very special.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="3">
+      <p>12. What is the "heat death" of the universe?</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) The universe catches fire</li>
+        <li onclick="selectQuiz(this)">B) All matter collapses into a single point</li>
+        <li onclick="selectQuiz(this)">C) The universe tears apart</li>
+        <li onclick="selectQuiz(this)">D) A state of maximum entropy where no energy gradients exist and nothing interesting happens</li>
+      </ul>
+      <div class="quiz-feedback">Heat death is the theoretical end-state: all energy uniformly distributed, no temperature differences, no gradients, no work possible. It's estimated to occur after ~10¹⁰⁰ years. At that point, you couldn't tell if time was running forward or backward — the arrow of time disappears.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="1">
+      <p>13. The relationship between entropy and complexity is:</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Higher entropy always means higher complexity</li>
+        <li onclick="selectQuiz(this)">B) Both very low and very high entropy have low complexity; complexity peaks in the middle</li>
+        <li onclick="selectQuiz(this)">C) Entropy and complexity are the same thing</li>
+        <li onclick="selectQuiz(this)">D) Complexity always decreases as entropy increases</li>
+      </ul>
+      <div class="quiz-feedback">Like milk pouring into tea: the fully separated state (low entropy) and the fully mixed state (high entropy) are both simple and featureless. The interesting, complex patterns appear in the middle — during the transition. We live in that middle phase, where structure and complexity can flourish.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="2">
+      <p>14. Hawking radiation confirmed that black holes:</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) Are truly black and emit nothing</li>
+        <li onclick="selectQuiz(this)">B) Have no entropy</li>
+        <li onclick="selectQuiz(this)">C) Have temperature and entropy, and slowly emit radiation</li>
+        <li onclick="selectQuiz(this)">D) Violate the second law</li>
+      </ul>
+      <div class="quiz-feedback">Hawking set out to disprove Bekenstein's claim that black holes have entropy, but his calculations confirmed it. Black holes have a temperature (proportional to their surface gravity) and emit thermal radiation. They slowly evaporate over immense timescales. The Milky Way's central black hole has a temperature of ~10⁻¹⁴ Kelvin — far too cold to detect.</div>
+    </div>
+    
+    <div class="quiz-question" data-correct="0">
+      <p>15. The fundamental reason we can distinguish past from future is:</p>
+      <ul class="quiz-options">
+        <li onclick="selectQuiz(this)">A) The universe is evolving from a low-entropy state toward a high-entropy state</li>
+        <li onclick="selectQuiz(this)">B) Time is a dimension that only goes forward</li>
+        <li onclick="selectQuiz(this)">C) The speed of light creates a preferred direction</li>
+        <li onclick="selectQuiz(this)">D) Human consciousness creates the arrow of time</li>
+      </ul>
+      <div class="quiz-feedback">The microscopic laws of physics are time-symmetric — they don't prefer any direction. The arrow of time emerges because the universe started in an extraordinarily low-entropy state and has been increasing in entropy ever since. The "future" is simply the direction of higher entropy. When maximum entropy is reached (heat death), past and future become indistinguishable.</div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="faq">
+  <h2>Frequently Asked Questions</h2>
+  
+  <details>
+    <summary>Is entropy the same as disorder?</summary>
+    <div class="details-content">Not exactly. "Disorder" is a loose metaphor that works for some examples (a messy room) but fails for others. A more precise definition: entropy measures how many microscopic arrangements (microstates) correspond to the same macroscopic state. Higher entropy = more possible arrangements = energy more widely dispersed. The key insight is that it's about probability and counting, not visual tidiness.</div>
+  </details>
+  
+  <details>
+    <summary>Can entropy decrease locally?</summary>
+    <div class="details-content">Yes — but only if entropy increases by a greater amount elsewhere. Your refrigerator decreases entropy inside (cooling your food) but increases it more in your kitchen (the heat exhaust on the back). Life itself is a local entropy decrease paid for by the Sun's enormous entropy increase. The total always goes up.</div>
+  </details>
+  
+  <details>
+    <summary>Will the universe really end in heat death?</summary>
+    <div class="details-content">Based on current understanding of thermodynamics and cosmology, yes — if the universe continues expanding and no new physics intervenes. After all stars die and all black holes evaporate (~10¹⁰⁰ years), the universe will approach maximum entropy: a uniform bath of extremely low-energy photons and particles. Nothing structured will remain. But this is unimaginably far in the future.</div>
+  </details>
+  
+  <details>
+    <summary>Is the second law absolute or just very probable?</summary>
+    <div class="details-content">Strictly speaking, it's statistical — not absolute. For very small systems (a few atoms), fluctuations can temporarily decrease entropy. But for macroscopic systems (~10²³ atoms), the probability of a significant entropy decrease is so vanishingly small that it would never occur in many times the age of the universe. For all practical purposes, the second law is absolute at human scales.</div>
+  </details>
+  
+  <details>
+    <summary>Why was entropy low at the Big Bang?</summary>
+    <div class="details-content">This is one of the deepest open questions in physics. The "Past Hypothesis" simply asserts that it was low, without explaining why. Some proposals involve gravitational physics (Penrose's Weyl curvature hypothesis), multiverse theory, or cosmological selection effects. We don't yet have a satisfying answer — but without low initial entropy, the arrow of time and all structure in the universe would be inexplicable.</div>
+  </details>
+  
+  <details>
+    <summary>Does life accelerate entropy?</summary>
+    <div class="details-content">Yes. Research shows that ecosystems produce significantly more entropy than sterile environments. Cyanobacteria in seawater increase entropy production by 30–680%. Life is extraordinarily effective at converting concentrated energy into dispersed heat. Rather than resisting the second law, life is one of its most efficient instruments.</div>
+  </details>
+</section>
+
+<!-- NEXT STEPS -->
+<section id="next-steps" class="next-steps">
+  <h2>Next Steps</h2>
+  <ul>
+    <li>Revisit the Knowledge Map at the top and trace connections between modules</li>
+    <li>Try explaining the Carnot cycle to someone without looking at your notes</li>
+    <li>Watch the milk-pouring analogy play out next time you make tea — notice the complex patterns that appear only in the middle</li>
+    <li>Explore information entropy (Shannon entropy) — the same mathematics applied to data and communication</li>
+    <li>Read about Maxwell's Demon — a thought experiment that challenges the second law</li>
+    <li>Investigate the connection between entropy and information theory</li>
+  </ul>
+</section>
+
+<!-- Completion badge -->
+<div class="completion-badge" id="completion-badge">
+  You finished the lesson.
+</div>
+
+</div><!-- end container -->
+
+<script>
+// ===== THEME TOGGLE =====
+const toggle = document.getElementById('theme-toggle');
+const html = document.documentElement;
+
+function setTheme(theme) {
+  html.setAttribute('data-theme', theme);
+  toggle.textContent = theme === 'dark' ? '☾' : '☀';
+  localStorage.setItem('lesson-theme', theme);
+}
+
+toggle.addEventListener('click', () => {
+  const current = html.getAttribute('data-theme');
+  setTheme(current === 'dark' ? 'light' : 'dark');
+});
+
+// Load saved theme
+const saved = localStorage.getItem('lesson-theme');
+if (saved) setTheme(saved);
+else if (window.matchMedia('(prefers-color-scheme: dark)').matches) setTheme('dark');
+
+// ===== PROGRESS BAR =====
+const progressBar = document.getElementById('progress-bar');
+function updateProgress() {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = Math.min((scrollTop / docHeight) * 100, 100);
+  progressBar.style.width = progress + '%';
+  
+  // Show completion badge
+  if (progress > 95) {
+    document.getElementById('completion-badge').classList.add('show');
+  }
+  
+  // Save progress
+  localStorage.setItem('lesson-progress', Math.round(progress));
+}
+window.addEventListener('scroll', updateProgress);
+
+// ===== LOADING =====
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('loading').classList.add('hidden');
+  }, 500);
+});
+
+// ===== KNOWLEDGE MAP NAVIGATION =====
+function scrollToModule(id) {
+  document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+}
+
+// ===== FLASHCARDS =====
+function flipCard(card) {
+  card.classList.toggle('flipped');
+}
+
+// ===== QUIZ =====
+function selectQuiz(option) {
+  const question = option.closest('.quiz-question');
+  if (question.classList.contains('answered')) return;
+  
+  const correctIdx = parseInt(question.getAttribute('data-correct'));
+  const options = question.querySelectorAll('.quiz-options li');
+  const selectedIdx = Array.from(options).indexOf(option);
+  
+  question.classList.add('answered');
+  option.classList.add('selected');
+  
+  const feedback = question.querySelector('.quiz-feedback');
+  
+  if (selectedIdx === correctIdx) {
+    option.classList.add('correct');
+    feedback.textContent = "That's right. " + feedback.textContent;
+  } else {
+    option.classList.add('incorrect');
+    options[correctIdx].classList.add('correct');
+    const correctText = options[correctIdx].textContent;
+    feedback.textContent = "Not quite. The correct answer is " + correctText + ". " + feedback.textContent;
+  }
+  
+  feedback.classList.add('show');
+}
+
+// ===== CHALLENGE =====
+function selectChallenge(option, id) {
+  const challenge = option.closest('.challenge');
+  if (challenge.classList.contains('answered')) return;
+  challenge.classList.add('answered');
+  
+  const options = challenge.querySelectorAll('.challenge-options li');
+  const selectedIdx = Array.from(options).indexOf(option);
+  option.classList.add('selected');
+  
+  // Highlight correct (B = index 1)
+  if (selectedIdx === 1) {
+    option.style.borderColor = 'var(--accent)';
+    option.style.background = 'var(--accent-light)';
+  } else {
+    option.style.borderColor = '#8c4a4a';
+    option.style.background = 'rgba(140, 74, 74, 0.08)';
+    options[1].style.borderColor = '#4a8c5c';
+    options[1].style.style.background = 'rgba(74, 140, 92, 0.08)';
+  }
+  
+  document.getElementById(id + '-reasoning').classList.add('show');
+}
+
+// ===== FILL IN THE BLANK =====
+function checkBlank(inputId, answer) {
+  const input = document.getElementById(inputId);
+  const result = document.getElementById(inputId + '-result');
+  const userAnswer = input.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+  
+  result.style.display = 'block';
+  if (userAnswer === answer.toLowerCase()) {
+    result.textContent = "That's right. Well done.";
+    result.style.color = '#4a8c5c';
+    input.style.borderColor = '#4a8c5c';
+  } else {
+    result.textContent = "Not quite. The correct answer is: " + answer;
+    result.style.color = '#8c4a4a';
+    input.style.borderColor = '#8c4a4a';
+  }
+}
+
+function toggleHint(btn) {
+  const hint = btn.nextElementSibling;
+  hint.style.display = hint.style.display === 'block' ? 'none' : 'block';
+}
+
+// ===== HOTSPOT DIAGRAMS =====
+document.querySelectorAll('.hotspot-area').forEach(area => {
+  area.addEventListener('mouseenter', function() {
+    const tooltipId = this.getAttribute('data-tooltip');
+    const tooltip = document.getElementById(tooltipId);
+    if (tooltip) tooltip.classList.add('show');
+  });
+  area.addEventListener('mouseleave', function() {
+    const tooltipId = this.getAttribute('data-tooltip');
+    const tooltip = document.getElementById(tooltipId);
+    if (tooltip) tooltip.classList.remove('show');
+  });
+});
+
+// ===== CARNOT CYCLE INTERACTIVE =====
+const carnotStages = document.querySelectorAll('.carnot-stage');
+const carnotInfoBg = document.getElementById('carnot-info-bg');
+const carnotInfoText = document.getElementById('carnot-info-text');
+const carnotInfoText2 = document.getElementById('carnot-info-text2');
+
+const stageInfo = {
+  '1': ['Gas absorbs heat from hot reservoir at constant temperature.', 'Expands, pushing piston → flywheel gains energy.'],
+  '2': ['Chamber insulated. Gas continues expanding.', 'Temperature drops from T_hot to T_cold. No heat exchange.'],
+  '3': ['Gas contacts cold reservoir at constant temperature.', 'Flywheel pushes piston down. Heat rejected to cold side.'],
+  '4': ['Chamber insulated again. Compression continues.', 'Temperature rises from T_cold back to T_hot. Cycle repeats.']
+};
+
+carnotStages.forEach(stage => {
+  stage.addEventListener('click', function() {
+    const stageNum = this.getAttribute('data-stage');
+    const info = stageInfo[stageNum];
+    
+    // Reset all stages
+    carnotStages.forEach(s => {
+      s.setAttribute('stroke', 'var(--text-muted)');
+      s.setAttribute('stroke-width', '1.5');
+    });
+    this.setAttribute('stroke', 'var(--accent)');
+    this.setAttribute('stroke-width', '2');
+    
+    // Show info
+    carnotInfoBg.setAttribute('opacity', '1');
+    carnotInfoText.setAttribute('opacity', '1');
+    carnotInfoText2.setAttribute('opacity', '1');
+    carnotInfoText.textContent = info[0];
+    carnotInfoText2.textContent = info[1];
+  });
+});
+
+// ===== TIMELINE INTERACTIVE =====
+const timelineNodes = document.querySelectorAll('.timeline-node');
+const timelineInfoBg = document.getElementById('timeline-info-bg');
+const timelineInfoText = document.getElementById('timeline-info-text');
+const timelineInfoText2 = document.getElementById('timeline-info-text2');
+
+const timelineInfo = {
+  'bigbang': ['The universe begins: hot, dense, uniform. Entropy: ~10⁸⁸ k_B.', 'Paradoxically low entropy because gravity makes uniformity extremely unlikely.'],
+  'stars': ['Gravity clumps matter. Stars ignite, converting mass to energy.', 'Entropy rises as concentrated mass-energy disperses as radiation.'],
+  'today': ['Stars shine, black holes grow, life evolves. Entropy: ~10¹⁰⁴ k_B.', 'Most entropy is in black holes. The Milky Way center: ~10⁹¹ k_B alone.'],
+  'blackholes': ['All stars dead. Black holes dominate. They slowly evaporate via Hawking radiation.', 'Entropy: ~10¹⁰⁷ k_B. The universe is mostly empty space with fading black holes.'],
+  'heatdeath': ['All black holes evaporated. Energy uniformly distributed. Maximum entropy.', 'No gradients remain. No work possible. Time loses its arrow. ~10¹⁰⁰ years from now.']
+};
+
+timelineNodes.forEach(node => {
+  node.addEventListener('click', function() {
+    const info = timelineInfo[this.getAttribute('data-info')];
+    timelineInfoBg.setAttribute('opacity', '1');
+    timelineInfoText.setAttribute('opacity', '1');
+    timelineInfoText2.setAttribute('opacity', '1');
+    timelineInfoText.textContent = info[0];
+    timelineInfoText2.textContent = info[1];
+  });
+});
+
+// ===== BUT WHY =====
+function toggleButWhy(btn) {
+  const content = btn.nextElementSibling;
+  content.classList.toggle('show');
+}
+
+// ===== TEACH-BACK KEYWORD CHECK =====
+function checkKeywords() {
+  const text = document.getElementById('teachback-input').value.toLowerCase();
+  const keywords = ['energy', 'spread', 'heat', 'probability', 'time', 'order', 'sun'];
+  const display = document.getElementById('keyword-display');
+  
+  display.innerHTML = keywords.map(kw => {
+    const found = text.includes(kw);
+    return `<span class="keyword-match ${found ? 'found' : 'missing'}">${kw}</span>`;
+  }).join('');
+}
+
+// ===== SVG ANIMATION ON SCROLL =====
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const paths = entry.target.querySelectorAll('.animate-draw');
+      paths.forEach(path => {
+        path.style.animationPlayState = 'running';
+      });
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelectorAll('.diagram-container').forEach(container => {
+  observer.observe(container);
+});
+</script>
+
+</body>
+</html>

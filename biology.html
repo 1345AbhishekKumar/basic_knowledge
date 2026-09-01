@@ -1,0 +1,2567 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Architectural Blueprint of Life — An Interactive Lesson</title>
+<style>
+/* ============================================
+   DESIGN TOKENS
+   Quiet, editorial, humane aesthetic.
+   Monochromatic core + one muted teal accent.
+   ============================================ */
+:root {
+  --bg: #faf8f3;
+  --bg-alt: #f3f0e8;
+  --text: #2a2826;
+  --text-secondary: #6b6863;
+  --text-tertiary: #94908a;
+  --accent: #4a7c7e;
+  --accent-hover: #3a6a6c;
+  --accent-soft: rgba(74, 124, 126, 0.12);
+  --border: #d8d4cc;
+  --border-strong: #b8b3a9;
+  --correct: #5a8a5e;
+  --incorrect: #b06050;
+  --fig-bg: #f0ede5;
+  --fig-fill: rgba(74, 124, 126, 0.15);
+  --fig-fill-alt: rgba(74, 124, 126, 0.08);
+  --max-width: 720px;
+  --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono-stack: "SF Mono", "Fira Code", "Consolas", monospace;
+}
+[data-theme="dark"] {
+  --bg: #1c1b19;
+  --bg-alt: #252321;
+  --text: #e4e0d8;
+  --text-secondary: #a8a49c;
+  --text-tertiary: #74706a;
+  --accent: #6dadaf;
+  --accent-hover: #8dbdbf;
+  --accent-soft: rgba(109, 173, 175, 0.15);
+  --border: #3a3835;
+  --border-strong: #524f4a;
+  --correct: #7aab7e;
+  --incorrect: #d08070;
+  --fig-bg: #252321;
+  --fig-fill: rgba(109, 173, 175, 0.18);
+  --fig-fill-alt: rgba(109, 173, 175, 0.08);
+}
+
+/* RESET */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-stack);
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--text);
+  background: var(--bg);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* PROGRESS BAR — thin, calm, no percentages */
+#progress-bar {
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: var(--accent); width: 0%; z-index: 1000;
+  transition: width 0.15s ease;
+}
+
+/* THEME TOGGLE */
+#theme-toggle {
+  position: fixed; top: 16px; right: 20px;
+  background: none; border: 1px solid var(--border);
+  width: 36px; height: 36px; border-radius: 50%;
+  cursor: pointer; font-size: 16px; color: var(--text);
+  transition: border-color 0.3s, color 0.3s; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+}
+#theme-toggle:hover { border-color: var(--accent); }
+
+/* LOADING STATE */
+#loading {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2000; transition: opacity 0.4s ease;
+  font-size: 15px; color: var(--text-secondary);
+}
+#loading.hidden { opacity: 0; pointer-events: none; }
+
+/* LAYOUT — Classic Essay: single centered column */
+.container { max-width: var(--max-width); margin: 0 auto; padding: 0 24px; }
+
+/* HEADER */
+header { padding: 80px 0 40px; }
+header .kicker {
+  font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent); font-weight: 600; margin-bottom: 12px;
+}
+header h1 {
+  font-size: 34px; font-weight: 700; line-height: 1.25;
+  margin-bottom: 16px; letter-spacing: -0.01em;
+}
+header .subtitle { font-size: 18px; color: var(--text-secondary); line-height: 1.6; }
+
+/* OVERVIEW */
+.overview { padding: 32px 0; border-top: 1px solid var(--border); }
+.overview h2 {
+  font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-secondary); margin-bottom: 16px; font-weight: 600;
+}
+.overview p { margin-bottom: 16px; }
+.overview ul { list-style: none; }
+.overview li {
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+  display: flex; align-items: baseline; gap: 12px;
+}
+.overview li:last-child { border-bottom: none; }
+.overview li .num {
+  font-family: var(--mono-stack); font-size: 12px; color: var(--accent);
+  min-width: 24px;
+}
+
+/* KNOWLEDGE MAP */
+.kmap-section { padding: 32px 0; border-top: 1px solid var(--border); }
+.kmap-section h2 {
+  font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-secondary); margin-bottom: 20px; font-weight: 600;
+}
+.kmap-svg { width: 100%; max-width: 600px; display: block; margin: 0 auto; }
+.kmap-node { cursor: pointer; transition: opacity 0.2s; }
+.kmap-node:hover { opacity: 0.7; }
+.kmap-node circle { fill: var(--bg); stroke: var(--accent); stroke-width: 1.5; }
+.kmap-node:hover circle { fill: var(--accent-soft); }
+.kmap-node text { font-size: 11px; fill: var(--text); font-family: var(--font-stack); }
+.kmap-line { stroke: var(--border-strong); stroke-width: 1; fill: none; }
+
+/* MODULES */
+.module { padding: 56px 0; border-top: 1px solid var(--border); }
+.module-num {
+  font-family: var(--mono-stack); font-size: 13px; color: var(--accent);
+  margin-bottom: 8px; font-weight: 500;
+}
+.module h2 {
+  font-size: 26px; font-weight: 700; line-height: 1.3;
+  margin-bottom: 24px; letter-spacing: -0.01em;
+}
+.module h3 {
+  font-size: 15px; font-weight: 600; color: var(--text-secondary);
+  margin: 32px 0 12px; letter-spacing: 0.02em;
+}
+.module p { margin-bottom: 16px; }
+.module .core-text { margin-bottom: 28px; }
+
+/* STEP BREAKDOWN */
+.steps { list-style: none; counter-reset: step; margin: 16px 0 28px; }
+.steps li {
+  counter-increment: step; position: relative;
+  padding-left: 40px; padding-bottom: 16px;
+  border-left: 1px solid var(--border); margin-left: 12px;
+}
+.steps li::before {
+  content: counter(step); position: absolute; left: -12px; top: 0;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--bg); border: 1.5px solid var(--accent);
+  color: var(--accent); font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono-stack);
+}
+
+/* EXAMPLES */
+.examples { margin: 16px 0 28px; }
+.example {
+  padding: 16px 0; border-bottom: 1px solid var(--border);
+}
+.example:last-child { border-bottom: none; }
+.example .tag {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--accent); font-weight: 600; margin-bottom: 6px;
+}
+.example p { margin-bottom: 0; font-size: 16px; }
+
+/* VISUAL ANALOGY CARD */
+.analogy-card {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  border: 1px solid var(--border); margin: 24px 0; border-radius: 4px;
+  overflow: hidden;
+}
+.analogy-side { padding: 20px; }
+.analogy-side.left { border-right: 1px solid var(--border); }
+.analogy-side h4 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-secondary); margin-bottom: 12px; font-weight: 600;
+}
+.analogy-side svg { width: 100%; height: auto; margin-bottom: 8px; }
+.analogy-bridge {
+  padding: 16px 20px; border-top: 1px solid var(--border);
+  font-size: 14px; color: var(--text-secondary); font-style: italic;
+  background: var(--bg-alt);
+}
+@media (max-width: 520px) {
+  .analogy-card { grid-template-columns: 1fr; }
+  .analogy-side.left { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* MISCONCEPTIONS */
+details.misconception {
+  border: 1px solid var(--border); border-radius: 4px;
+  margin: 16px 0; overflow: hidden;
+}
+details.misconception summary {
+  padding: 14px 18px; cursor: pointer; font-weight: 600;
+  font-size: 15px; list-style: none;
+  display: flex; align-items: center; gap: 8px;
+  transition: background-color 0.2s;
+}
+details.misconception summary::-webkit-details-marker { display: none; }
+details.misconception summary::before { content: "✕"; color: var(--incorrect); font-size: 14px; }
+details.misconception[open] summary { background: var(--bg-alt); }
+details.misconception .detail-body { padding: 0 18px 16px; }
+details.misconception .detail-body p { font-size: 15px; margin-bottom: 10px; }
+details.misconception .myth { color: var(--incorrect); font-weight: 500; }
+details.misconception .truth { color: var(--correct); font-weight: 500; }
+
+/* WHY THIS MATTERS */
+.why-matters {
+  font-style: italic; color: var(--text-secondary);
+  border-left: 2px solid var(--accent); padding-left: 16px;
+  margin: 24px 0; font-size: 16px;
+}
+
+/* INTER-MODULE LINK */
+.interlink {
+  font-size: 14px; color: var(--text-secondary);
+  margin: 24px 0 0; padding: 12px 16px;
+  background: var(--accent-soft); border-radius: 4px;
+}
+.interlink strong { color: var(--accent); }
+
+/* SVG FIGURES */
+figure { margin: 28px 0; }
+figure svg { width: 100%; height: auto; display: block; }
+figcaption {
+  font-size: 13px; color: var(--text-secondary);
+  margin-top: 8px; text-align: center; font-style: italic;
+}
+
+/* HOTSPOT */
+.hotspot-area { position: relative; cursor: pointer; }
+.hotspot-marker {
+  fill: none; stroke: var(--accent); stroke-width: 1.5;
+  stroke-dasharray: 3 3; opacity: 0; transition: opacity 0.2s;
+}
+.hotspot-area:hover .hotspot-marker { opacity: 1; }
+.hotspot-tooltip {
+  position: absolute; background: var(--bg-alt);
+  border: 1px solid var(--border); padding: 8px 12px;
+  font-size: 13px; border-radius: 4px; max-width: 200px;
+  pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.hotspot-tooltip.visible { opacity: 1; }
+
+/* INTERACTIVE ELEMENTS */
+.interactive {
+  border: 1px solid var(--border); border-radius: 4px;
+  margin: 24px 0; overflow: hidden;
+}
+.interactive-header {
+  padding: 12px 18px; background: var(--bg-alt);
+  font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-secondary);
+}
+.interactive-body { padding: 20px 18px; }
+
+/* FLASHCARDS */
+.flashcard {
+  width: 100%; height: 160px; perspective: 600px;
+  cursor: pointer; margin-bottom: 12px;
+}
+.flashcard-inner {
+  width: 100%; height: 100%; position: relative;
+  transition: transform 0.4s ease; transform-style: preserve-3d;
+}
+.flashcard.flipped .flashcard-inner { transform: rotateY(180deg); }
+.flashcard-face {
+  position: absolute; inset: 0; backface-visibility: hidden;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; border: 1px solid var(--border); border-radius: 4px;
+  text-align: center;
+}
+.flashcard-front { background: var(--bg); }
+.flashcard-back {
+  background: var(--bg-alt); transform: rotateY(180deg);
+  font-size: 14px; color: var(--text-secondary);
+}
+.flashcard-front .term { font-size: 18px; font-weight: 600; }
+.flashcard-controls { display: flex; gap: 8px; margin-top: 8px; }
+.flashcard-controls button {
+  background: none; border: 1px solid var(--border);
+  padding: 6px 14px; font-size: 13px; border-radius: 4px;
+  cursor: pointer; color: var(--text); transition: border-color 0.2s;
+}
+.flashcard-controls button:hover { border-color: var(--accent); }
+.extra-context {
+  margin-top: 10px; font-size: 13px; color: var(--text-secondary);
+  display: none; padding: 10px; background: var(--bg-alt); border-radius: 4px;
+}
+.extra-context.visible { display: block; }
+
+/* QUIZ */
+.quiz-question { margin-bottom: 20px; }
+.quiz-question p.q-text { font-weight: 500; margin-bottom: 12px; }
+.quiz-option {
+  display: block; width: 100%; text-align: left;
+  padding: 10px 14px; margin-bottom: 6px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg); cursor: pointer; font-size: 15px;
+  color: var(--text); transition: border-color 0.2s, background-color 0.2s;
+  font-family: var(--font-stack);
+}
+.quiz-option:hover:not(.disabled) { border-color: var(--accent); }
+.quiz-option.correct { border-color: var(--correct); background: rgba(90,138,94,0.08); }
+.quiz-option.incorrect { border-color: var(--incorrect); background: rgba(176,96,80,0.08); }
+.quiz-option.disabled { cursor: default; }
+.quiz-feedback {
+  margin-top: 8px; padding: 12px; border-radius: 4px;
+  font-size: 14px; display: none; line-height: 1.6;
+}
+.quiz-feedback.visible { display: block; }
+.quiz-feedback.correct { background: rgba(90,138,94,0.1); color: var(--text); }
+.quiz-feedback.incorrect { background: rgba(176,96,80,0.1); color: var(--text); }
+
+/* DRAG AND DROP */
+.dnd-area { display: flex; flex-direction: column; gap: 16px; }
+.dnd-items { display: flex; flex-wrap: wrap; gap: 8px; }
+.dnd-item {
+  padding: 8px 14px; border: 1px solid var(--border);
+  border-radius: 4px; font-size: 14px; cursor: grab;
+  background: var(--bg); transition: opacity 0.2s, border-color 0.2s;
+  user-select: none;
+}
+.dnd-item.dragging { opacity: 0.4; }
+.dnd-item.matched { border-color: var(--correct); opacity: 0.5; }
+.dnd-slots { display: flex; flex-direction: column; gap: 10px; }
+.dnd-slot {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border: 1px dashed var(--border-strong);
+  border-radius: 4px; min-height: 44px;
+}
+.dnd-slot-label { font-size: 14px; flex: 1; }
+.dnd-slot-drop {
+  min-width: 120px; min-height: 32px; padding: 4px 10px;
+  border: 1px solid var(--border); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; transition: border-color 0.2s, background-color 0.2s;
+}
+.dnd-slot-drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.dnd-slot-drop.correct { border-color: var(--correct); background: rgba(90,138,94,0.08); }
+.dnd-slot-drop.incorrect { border-color: var(--incorrect); background: rgba(176,96,80,0.08); }
+
+/* FILL IN THE BLANK */
+.fib-question { margin-bottom: 20px; }
+.fib-sentence {
+  font-size: 16px; line-height: 1.8; margin-bottom: 8px;
+}
+.fib-blank {
+  display: inline-block; min-width: 100px; padding: 2px 8px;
+  border-bottom: 1.5px solid var(--accent); text-align: center;
+  font-family: var(--mono-stack); font-size: 14px; color: var(--accent);
+}
+.fib-blank.filled { border-bottom-style: solid; }
+.fib-blank.correct { color: var(--correct); border-color: var(--correct); }
+.fib-blank.incorrect { color: var(--incorrect); border-color: var(--incorrect); }
+.fib-hint {
+  font-size: 13px; color: var(--text-tertiary); margin-top: 4px;
+  font-style: italic; display: none;
+}
+.fib-hint.visible { display: block; }
+.fib-hint-link {
+  font-size: 13px; color: var(--accent); cursor: pointer;
+  text-decoration: underline; display: inline-block; margin-top: 4px;
+}
+
+/* MINI CHALLENGE */
+.challenge-scenario {
+  padding: 16px; background: var(--bg-alt); border-radius: 4px;
+  margin-bottom: 16px; font-size: 15px;
+}
+.challenge-choices { display: flex; flex-direction: column; gap: 8px; }
+.challenge-choice {
+  padding: 12px 14px; border: 1px solid var(--border);
+  border-radius: 4px; cursor: pointer; font-size: 14px;
+  transition: border-color 0.2s; font-family: var(--font-stack);
+  text-align: left; background: var(--bg); color: var(--text);
+}
+.challenge-choice:hover { border-color: var(--accent); }
+.challenge-outcome {
+  margin-top: 12px; padding: 14px; border-radius: 4px;
+  font-size: 14px; display: none; line-height: 1.6;
+}
+.challenge-outcome.visible { display: block; }
+.challenge-outcome.good { background: rgba(90,138,94,0.1); }
+.challenge-outcome.bad { background: rgba(176,96,80,0.1); }
+
+/* TEACH-BACK */
+.teach-back textarea {
+  width: 100%; min-height: 100px; padding: 12px;
+  border: 1px solid var(--border); border-radius: 4px;
+  font-family: var(--font-stack); font-size: 14px; resize: vertical;
+  background: var(--bg); color: var(--text); line-height: 1.6;
+}
+.teach-back .keyword-check {
+  margin-top: 12px; padding: 12px; border: 1px solid var(--border);
+  border-radius: 4px; font-size: 13px; display: none;
+}
+.teach-back .keyword-check.visible { display: block; }
+.teach-back .expert-answer {
+  margin-top: 12px; padding: 12px; background: var(--bg-alt);
+  border-radius: 4px; font-size: 14px; display: none;
+  line-height: 1.6; border-left: 2px solid var(--accent);
+}
+.teach-back .expert-answer.visible { display: block; }
+
+/* ELABORATIVE INTERROGATION */
+.elaborative-link {
+  color: var(--accent); cursor: pointer; font-size: 14px;
+  text-decoration: underline; display: inline-block; margin: 8px 0;
+}
+.elaborative-text {
+  display: none; padding: 12px 16px; background: var(--bg-alt);
+  border-radius: 4px; font-size: 14px; margin-top: 8px;
+  border-left: 2px solid var(--accent); line-height: 1.7;
+}
+.elaborative-text.visible { display: block; }
+
+/* CHUNKING */
+.chunk-list { list-style: none; }
+.chunk-list li {
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 15px;
+}
+.chunk-more {
+  display: none; padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 15px;
+}
+.chunk-more.visible { display: block; }
+.chunk-toggle {
+  background: none; border: 1px solid var(--border);
+  padding: 6px 14px; font-size: 13px; border-radius: 4px;
+  cursor: pointer; color: var(--accent); margin-top: 8px;
+  font-family: var(--font-stack); transition: border-color 0.2s;
+}
+.chunk-toggle:hover { border-color: var(--accent); }
+
+/* SPACED REPETITION */
+.spaced-rep {
+  padding: 16px; border: 1px solid var(--border); border-radius: 4px;
+  margin: 24px 0;
+}
+.spaced-rep h4 { font-size: 14px; margin-bottom: 10px; }
+.spaced-rep ol { padding-left: 20px; font-size: 14px; color: var(--text-secondary); }
+.spaced-rep li { padding: 4px 0; }
+
+/* QUICK RECALL */
+.quick-recall {
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 20px; margin: 40px 0; background: var(--bg-alt);
+}
+.quick-recall h3 {
+  font-size: 16px; margin-bottom: 12px; color: var(--accent);
+}
+
+/* SUMMARY / CHEAT SHEET */
+.summary { padding: 56px 0; border-top: 1px solid var(--border); }
+.summary h2 { font-size: 26px; margin-bottom: 24px; }
+.cheat-grid { display: grid; gap: 20px; }
+.cheat-item {
+  padding: 16px; border: 1px solid var(--border); border-radius: 4px;
+}
+.cheat-item h4 { font-size: 15px; margin-bottom: 8px; color: var(--accent); }
+.cheat-item p { font-size: 14px; color: var(--text-secondary); margin-bottom: 0; line-height: 1.6; }
+
+/* FAQ */
+.faq { padding: 40px 0; border-top: 1px solid var(--border); }
+.faq h2 { font-size: 22px; margin-bottom: 20px; }
+.faq details {
+  border-bottom: 1px solid var(--border); padding: 14px 0;
+}
+.faq summary {
+  cursor: pointer; font-weight: 500; font-size: 16px;
+  list-style: none; display: flex; justify-content: space-between;
+  align-items: center;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-size: 18px; color: var(--accent); }
+.faq details[open] summary::after { content: "–"; }
+.faq .answer { padding-top: 10px; font-size: 15px; color: var(--text-secondary); line-height: 1.7; }
+
+/* NEXT STEPS */
+.next-steps { padding: 40px 0 80px; border-top: 1px solid var(--border); }
+.next-steps h2 { font-size: 22px; margin-bottom: 16px; }
+.next-steps ul { list-style: none; }
+.next-steps li {
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 15px;
+}
+.next-steps li::before { content: "→ "; color: var(--accent); }
+
+/* END BADGE */
+.end-badge {
+  text-align: center; padding: 40px 0 80px;
+  font-size: 15px; color: var(--accent); font-weight: 500;
+}
+
+/* PLACEHOLDER IMAGE */
+.img-placeholder {
+  border: 2px dashed var(--border-strong); border-radius: 4px;
+  padding: 40px; text-align: center; margin: 24px 0;
+  position: relative; background: var(--fig-bg);
+}
+.img-placeholder::before {
+  content: attr(data-alt); display: block; font-size: 13px;
+  color: var(--text-secondary); line-height: 1.6; max-width: 400px;
+  margin: 0 auto;
+}
+.img-placeholder img { width: 1px; height: 1px; opacity: 0; }
+.img-placeholder figcaption {
+  font-size: 12px; color: var(--text-tertiary); margin-top: 12px;
+  font-style: italic;
+}
+
+/* TABLE */
+.bio-table {
+  width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;
+}
+.bio-table th, .bio-table td {
+  border: 1px solid var(--border); padding: 8px 10px; text-align: left;
+}
+.bio-table th { background: var(--bg-alt); font-weight: 600; font-size: 13px; }
+.bio-table td { color: var(--text-secondary); }
+
+/* MOBILE */
+@media (max-width: 520px) {
+  body { font-size: 16px; }
+  header h1 { font-size: 28px; }
+  .module h2 { font-size: 22px; }
+  .container { padding: 0 18px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING STATE -->
+<div id="loading">Preparing your lesson…</div>
+
+<!-- PROGRESS BAR -->
+<div id="progress-bar"></div>
+
+<!-- THEME TOGGLE -->
+<button id="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">
+  <span id="theme-icon">☀</span>
+</button>
+
+<div class="container">
+
+<!-- ===== HEADER ===== -->
+<header>
+  <div class="kicker">Interactive Biology Lesson</div>
+  <h1>The Architectural Blueprint of Life</h1>
+  <p class="subtitle">An integrated guide to biology's core principles — from the cell to the biosphere, from DNA to ecosystem, from Darwin to CRISPR.</p>
+</header>
+
+<!-- ===== OVERVIEW ===== -->
+<section class="overview">
+  <h2>What You'll Learn</h2>
+  <p>This lesson walks through the six pillars of modern biology. Each module builds on the last, mirroring how life itself is organized: from the molecular machinery inside a single cell, up through organisms and populations, to the global systems that sustain all life on Earth. You'll explore not just what biologists know, but how they know it, why it matters, and where the field is heading next.</p>
+  <ul>
+    <li><span class="num">01</span> The Cellular Foundation of Life — cell theory, organelles, and the prokaryote–eukaryote divide</li>
+    <li><span class="num">02</span> Information Flow and Gene Expression — the central dogma, non-coding RNA, and epigenetics</li>
+    <li><span class="num">03</span> Organismal Physiology and Homeostasis — feedback loops, organ systems, and integrative regulation</li>
+    <li><span class="num">04</span> Biodiversity, Ecosystems, and Ecological Interactions — ecological hierarchy, diversity metrics, and resilience</li>
+    <li><span class="num">05</span> The Unifying Power of Evolutionary Theory — natural selection, evidence, and the Extended Synthesis</li>
+    <li><span class="num">06</span> Applications of Biological Knowledge — CRISPR, agriculture, conservation, and global challenges</li>
+  </ul>
+</section>
+
+<!-- ===== KNOWLEDGE MAP ===== -->
+<section class="kmap-section">
+  <h2>Knowledge Map</h2>
+  <svg class="kmap-svg" viewBox="0 0 600 320" role="img" aria-label="Knowledge map showing six connected biology modules">
+    <!-- Connecting lines -->
+    <line class="kmap-line" x1="300" y1="50" x2="150" y2="140" />
+    <line class="kmap-line" x1="300" y1="50" x2="450" y2="140" />
+    <line class="kmap-line" x1="150" y1="140" x2="100" y2="250" />
+    <line class="kmap-line" x1="150" y1="140" x2="250" y2="250" />
+    <line class="kmap-line" x1="450" y1="140" x2="350" y2="250" />
+    <line class="kmap-line" x1="450" y1="140" x2="500" y2="250" />
+    <line class="kmap-line" x1="250" y1="250" x2="350" y2="250" />
+    <!-- Nodes -->
+    <g class="kmap-node" data-target="mod1" tabindex="0" role="button" aria-label="Go to module 1">
+      <circle cx="300" cy="50" r="30" />
+      <text x="300" y="48" text-anchor="middle">Cells</text>
+      <text x="300" y="60" text-anchor="middle" font-size="9">Module 1</text>
+    </g>
+    <g class="kmap-node" data-target="mod2" tabindex="0" role="button" aria-label="Go to module 2">
+      <circle cx="150" cy="140" r="30" />
+      <text x="150" y="138" text-anchor="middle">Genes</text>
+      <text x="150" y="150" text-anchor="middle" font-size="9">Module 2</text>
+    </g>
+    <g class="kmap-node" data-target="mod3" tabindex="0" role="button" aria-label="Go to module 3">
+      <circle cx="450" cy="140" r="30" />
+      <text x="450" y="138" text-anchor="middle">Body</text>
+      <text x="450" y="150" text-anchor="middle" font-size="9">Module 3</text>
+    </g>
+    <g class="kmap-node" data-target="mod4" tabindex="0" role="button" aria-label="Go to module 4">
+      <circle cx="100" cy="250" r="30" />
+      <text x="100" y="248" text-anchor="middle">Eco</text>
+      <text x="100" y="260" text-anchor="middle" font-size="9">Module 4</text>
+    </g>
+    <g class="kmap-node" data-target="mod5" tabindex="0" role="button" aria-label="Go to module 5">
+      <circle cx="300" cy="250" r="30" />
+      <text x="300" y="248" text-anchor="middle">Evolution</text>
+      <text x="300" y="260" text-anchor="middle" font-size="9">Module 5</text>
+    </g>
+    <g class="kmap-node" data-target="mod6" tabindex="0" role="button" aria-label="Go to module 6">
+      <circle cx="500" cy="250" r="30" />
+      <text x="500" y="248" text-anchor="middle">Apply</text>
+      <text x="500" y="260" text-anchor="middle" font-size="9">Module 6</text>
+    </g>
+  </svg>
+  <p style="font-size:13px; color:var(--text-tertiary); text-align:center; margin-top:8px;">Click any node to jump to that module.</p>
+</section>
+
+<!-- ===== MODULE 1 ===== -->
+<section class="module" id="mod1">
+  <div class="module-num">Module 01</div>
+  <h2>The Cellular Foundation of Life</h2>
+
+  <div class="core-text">
+    <p>Every biological journey begins with the same foundational claim: life is cellular. Whether you're examining a bacterium smaller than a micron or a blue whale weighing 150 tons, the unit of structure and function is the same — the cell. This idea, formalized as <strong>cell theory</strong>, is the bedrock upon which all of biology rests. It wasn't the product of a single moment of insight but emerged gradually during the 19th century through the work of multiple scientists studying tissues under early microscopes.</p>
+
+    <p>In 1838, the German botanist <strong>Matthias Schleiden</strong> concluded after years of studying plant tissues that all plants are composed of cells. The following year, <strong>Theodor Schwann</strong> extended this observation to animal tissues, establishing the first two postulates: all living organisms are made of one or more cells, and the cell is the basic unit of structure in all living things. A critical third postulate was added in 1855 by <strong>Rudolf Virchow</strong>, who proposed that <em>all cells come from pre-existing cells</em> (<em>omnis cellula e cellula</em>). This completed the modern version of cell theory, which now encompasses seven main principles, and established that life is continuous — every cell alive today traces its lineage back through an unbroken chain of cell divisions to the earliest cells.</p>
+
+    <p>Despite this unifying principle, cells exhibit a remarkable diversity, broadly categorized into two types. <strong>Prokaryotic cells</strong> — bacteria and archaea — are generally smaller and structurally simpler. Their defining characteristic is the absence of a nucleus and other membrane-bound organelles. Their genetic material, a single circular chromosome, sits in a cytoplasm region called the <strong>nucleoid</strong>. All cellular processes occur directly in the cytoplasm or across the cell membrane. <strong>Eukaryotic cells</strong>, by contrast, possess a true nucleus enclosed within a double membrane, and they contain specialized membrane-bound compartments called <strong>organelles</strong> that perform distinct functions. This compartmentalization enables greater biochemical complexity and efficiency, allowing eukaryotes to undertake specialized roles within multicellular organisms.</p>
+
+    <p>The internal architecture of a eukaryotic cell is a highly organized system. The <strong>nucleus</strong> stores and protects DNA while controlling gene expression. <strong>Mitochondria</strong> — the "powerhouses" — produce ATP through cellular respiration. The <strong>endoplasmic reticulum</strong> comes in two forms: rough ER (studded with ribosomes for protein synthesis) and smooth ER (lipid synthesis and detoxification). The <strong>Golgi apparatus</strong> modifies, sorts, and packages proteins. <strong>Lysosomes</strong> break down waste and debris. <strong>Ribosomes</strong> — non-membrane-bound particles of RNA and protein — are the sites of translation. The <strong>cytoskeleton</strong> provides structural support, and the <strong>plasma membrane</strong> regulates transport of materials in and out. Plant cells additionally contain <strong>chloroplasts</strong> for photosynthesis and <strong>vacuoles</strong> for storage and turgor pressure.</p>
+
+    <p>At the heart of cellular life is the need to maintain a stable internal environment despite external fluctuations — a state called <strong>homeostasis</strong>. This involves regulated transport across the plasma membrane through simple diffusion, facilitated diffusion, endocytosis, and exocytosis. Every known form of life shares these universal features, underscoring the deep interconnectedness of all biological organisms.</p>
+  </div>
+
+  <!-- Step-by-Step Breakdown -->
+  <h3>Step-by-Step: How Cell Theory Was Built</h3>
+  <ol class="steps">
+    <li><strong>1838 — Schleiden's Plant Observations.</strong> After studying diverse plant tissues under the microscope, Schleiden concluded that all plants are composed of cells, establishing the cellular basis of plant life.</li>
+    <li><strong>1839 — Schwann Extends to Animals.</strong> Schwann observed that animal tissues, too, were composed of cells, unifying plants and animals under one structural principle.</li>
+    <li><strong>1855 — Virchow Adds the Third Postulate.</strong> Virchow proposed that all cells arise from pre-existing cells, completing the theory and establishing the continuity of life.</li>
+    <li><strong>Modern Expansion to Seven Principles.</strong> The theory now includes: cells are the basic unit of life, all organisms are made of cells, cells come from pre-existing cells, genetic information passes between cells, energy flow occurs within cells, all cells have the same basic chemical composition, and all cells have the same basic structure.</li>
+  </ol>
+
+  <!-- Visual: Prokaryotic vs Eukaryotic -->
+  <figure>
+    <svg viewBox="0 0 700 300" role="img" aria-label="Diagram comparing prokaryotic and eukaryotic cell structures">
+      <!-- Prokaryotic cell (left) -->
+      <g transform="translate(20, 30)">
+        <text x="130" y="0" text-anchor="middle" font-size="13" font-weight="600" fill="var(--text)">Prokaryotic Cell</text>
+        <!-- Cell outline -->
+        <ellipse cx="130" cy="130" rx="110" ry="90" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <!-- Nucleoid region -->
+        <path d="M 80 100 Q 130 85 180 110 Q 170 140 120 150 Q 85 135 80 100 Z" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="130" y="125" text-anchor="middle" font-size="10" fill="var(--text-secondary)">Nucleoid</text>
+        <text x="130" y="138" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">(circular DNA)</text>
+        <!-- Ribosomes -->
+        <circle cx="90" cy="160" r="5" fill="var(--accent)" opacity="0.4"/>
+        <circle cx="170" cy="170" r="5" fill="var(--accent)" opacity="0.4"/>
+        <circle cx="100" cy="100" r="4" fill="var(--accent)" opacity="0.4"/>
+        <text x="130" y="230" text-anchor="middle" font-size="10" fill="var(--text-secondary)">No nucleus · No organelles</text>
+        <text x="130" y="244" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">Bacteria, Archaea</text>
+      </g>
+      <!-- Arrow -->
+      <path d="M 290 150 L 370 150" stroke="var(--border-strong)" stroke-width="1.5" fill="none"/>
+      <path d="M 365 145 L 375 150 L 365 155" stroke="var(--border-strong)" stroke-width="1.5" fill="none"/>
+      <text x="330" y="140" text-anchor="middle" font-size="10" fill="var(--text-tertiary)">complexity →</text>
+      <!-- Eukaryotic cell (right) -->
+      <g transform="translate(390, 30)">
+        <text x="140" y="0" text-anchor="middle" font-size="13" font-weight="600" fill="var(--text)">Eukaryotic Cell</text>
+        <ellipse cx="140" cy="130" rx="130" ry="95" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <!-- Nucleus -->
+        <circle cx="100" cy="100" r="28" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="100" y="103" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Nucleus</text>
+        <!-- Mitochondria -->
+        <ellipse cx="180" cy="90" rx="14" ry="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="180" y="93" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Mito</text>
+        <!-- ER -->
+        <path d="M 70 140 Q 90 130 110 145 Q 130 160 100 165" fill="none" stroke="var(--accent)" stroke-width="1"/>
+        <text x="85" y="175" text-anchor="middle" font-size="8" fill="var(--text-secondary)">ER</text>
+        <!-- Golgi -->
+        <path d="M 170 140 Q 185 135 200 142 M 168 148 Q 183 143 198 150 M 166 156 Q 181 151 196 158" fill="none" stroke="var(--accent)" stroke-width="1"/>
+        <text x="185" y="175" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Golgi</text>
+        <!-- Ribosomes -->
+        <circle cx="120" cy="155" r="3" fill="var(--accent)" opacity="0.5"/>
+        <circle cx="140" cy="170" r="3" fill="var(--accent)" opacity="0.5"/>
+        <circle cx="155" cy="155" r="3" fill="var(--accent)" opacity="0.5"/>
+        <text x="140" y="230" text-anchor="middle" font-size="10" fill="var(--text-secondary)">True nucleus · Membrane organelles</text>
+        <text x="140" y="244" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">Plants, Animals, Fungi, Protists</text>
+      </g>
+    </svg>
+    <figcaption>Figure 1.1 — Structural comparison of prokaryotic and eukaryotic cells. The key innovation is compartmentalization: eukaryotes enclose DNA in a nucleus and segregate functions into organelles.</figcaption>
+  </figure>
+
+  <!-- Interactive Hotspot: Organelle Explorer -->
+  <div class="interactive">
+    <div class="interactive-header">🔍 Interactive: Explore the Eukaryotic Cell</div>
+    <div class="interactive-body">
+      <p style="font-size:14px; margin-bottom:12px;">Hover over or tap each labelled region to learn its function.</p>
+      <div id="hotspot-container" style="position:relative;">
+        <svg viewBox="0 0 500 300" style="width:100%;" role="img" aria-label="Interactive eukaryotic cell diagram">
+          <ellipse cx="250" cy="150" rx="220" ry="120" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+          <!-- Nucleus hotspot -->
+          <g class="hotspot-area" data-info="Nucleus — Stores and protects DNA; controls gene expression and all cellular activities. The double membrane (nuclear envelope) has pores that regulate molecular traffic.">
+            <circle cx="170" cy="110" r="35" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+            <circle cx="170" cy="110" r="38" class="hotspot-marker"/>
+            <text x="170" y="113" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Nucleus</text>
+          </g>
+          <!-- Mitochondria hotspot -->
+          <g class="hotspot-area" data-info="Mitochondria — The 'powerhouses' of the cell. Double-membrane organelles that produce ATP through oxidative phosphorylation (cellular respiration).">
+            <ellipse cx="310" cy="100" rx="20" ry="11" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+            <ellipse cx="310" cy="100" rx="23" ry="14" class="hotspot-marker"/>
+            <text x="310" y="103" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Mitochondria</text>
+          </g>
+          <!-- Golgi hotspot -->
+          <g class="hotspot-area" data-info="Golgi Apparatus — A stack of flattened membranous sacs that modifies, sorts, and packages proteins and lipids for transport to other destinations.">
+            <path d="M 300 155 Q 320 148 340 157 M 298 163 Q 318 156 338 165 M 296 171 Q 316 164 336 173" fill="none" stroke="var(--accent)" stroke-width="1"/>
+            <rect x="290" y="145" width="60" height="35" class="hotspot-marker" rx="4"/>
+            <text x="320" y="190" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Golgi</text>
+          </g>
+          <!-- ER hotspot -->
+          <g class="hotspot-area" data-info="Endoplasmic Reticulum — A network of membranous tubules. Rough ER (with ribosomes) synthesizes proteins; Smooth ER handles lipid synthesis and detoxification.">
+            <path d="M 130 160 Q 160 145 190 165 Q 210 180 170 185 Q 140 175 130 160 Z" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+            <rect x="120" y="140" width="90" height="55" class="hotspot-marker" rx="4"/>
+            <text x="155" y="205" text-anchor="middle" font-size="9" fill="var(--text-secondary)">ER</text>
+          </g>
+          <!-- Ribosomes -->
+          <g class="hotspot-area" data-info="Ribosomes — Non-membrane-bound particles of RNA and protein. Sites of protein synthesis (translation). Can be free in the cytoplasm or bound to the rough ER.">
+            <circle cx="200" cy="135" r="4" fill="var(--accent)" opacity="0.5"/>
+            <circle cx="220" cy="125" r="4" fill="var(--accent)" opacity="0.5"/>
+            <circle cx="180" cy="145" r="4" fill="var(--accent)" opacity="0.5"/>
+            <circle cx="200" y="135" r="30" class="hotspot-marker" cx="200"/>
+            <text x="210" y="225" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Ribosomes</text>
+          </g>
+          <!-- Lysosomes -->
+          <g class="hotspot-area" data-info="Lysosomes — Single-membrane vesicles containing digestive enzymes. They break down waste materials, cellular debris, and engulfed pathogens (phagocytosis).">
+            <circle cx="360" cy="140" r="12" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+            <circle cx="360" cy="140" r="15" class="hotspot-marker"/>
+            <text x="360" y="170" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Lysosome</text>
+          </g>
+        </svg>
+        <div class="hotspot-tooltip" id="hotspot-tooltip"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Organelle Quick Reference Table -->
+  <h3>Organelle Quick Reference</h3>
+  <table class="bio-table">
+    <thead><tr><th>Structure</th><th>Primary Function</th></tr></thead>
+    <tbody>
+      <tr><td>Nucleus</td><td>Stores DNA; controls gene expression</td></tr>
+      <tr><td>Mitochondria</td><td>ATP production via cellular respiration</td></tr>
+      <tr><td>Rough ER</td><td>Protein synthesis (ribosome-studded)</td></tr>
+      <tr><td>Smooth ER</td><td>Lipid synthesis, detoxification</td></tr>
+      <tr><td>Golgi Apparatus</td><td>Modifies, sorts, packages proteins</td></tr>
+      <tr><td>Lysosomes</td><td>Digestion of waste and pathogens</td></tr>
+      <tr><td>Ribosomes</td><td>Translation (protein assembly)</td></tr>
+      <tr><td>Cytoskeleton</td><td>Structural support, cell movement</td></tr>
+      <tr><td>Plasma Membrane</td><td>Transport regulation, communication</td></tr>
+      <tr><td>Vacuoles</td><td>Storage, turgor pressure (plants)</td></tr>
+      <tr><td>Chloroplasts</td><td>Photosynthesis (plants, algae)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Examples -->
+  <h3>Examples in Practice</h3>
+  <div class="examples">
+    <div class="example">
+      <div class="tag">Obvious</div>
+      <p>A <strong>skin cell</strong> (eukaryotic) contains a nucleus protecting its DNA, mitochondria powering its activities, and ribosomes producing the keratin that gives skin its toughness. A <strong>gut bacterium</strong> like <em>E. coli</em> (prokaryotic) carries out all the same fundamental life processes — metabolism, protein synthesis, reproduction — but without any internal compartments, its circular DNA sitting in the nucleoid region of the cytoplasm.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Counter-intuitive</div>
+      <p><strong>Mitochondria were once free-living bacteria.</strong> The endosymbiotic theory, now widely accepted, proposes that ancestral eukaryotic cells engulfed aerobic bacteria that eventually became mitochondria. The evidence is compelling: mitochondria have their own circular DNA, their own ribosomes (bacterial-style 70S, not eukaryotic 80S), and a double membrane. The same logic applies to chloroplasts in plant cells. So the "eukaryotic" organelle that defines cellular complexity is itself a former prokaryote — the divide between the two cell types is blurrier than it first appears.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Edge Case</div>
+      <p><strong>Viruses</strong> sit at the boundary of "living" and "non-living." They are not cells — they lack cytoplasm, ribosomes, or any metabolic machinery — yet they carry genetic material, evolve, and reproduce (by hijacking a host cell's organelles). Cell theory says all life is cellular, but viruses challenge where we draw the line. Most biologists classify viruses as non-living infectious agents, but the debate persists because they share so many properties with cellular life.</p>
+    </div>
+  </div>
+
+  <!-- Visual Analogy Card -->
+  <div class="analogy-card">
+    <div class="analogy-side left">
+      <h4>The Eukaryotic Cell</h4>
+      <svg viewBox="0 0 200 130" role="img" aria-label="Simplified cell">
+        <ellipse cx="100" cy="65" rx="85" ry="50" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <circle cx="70" cy="50" r="18" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <ellipse cx="130" cy="55" rx="12" ry="7" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="110" cy="80" r="4" fill="var(--accent)" opacity="0.4"/>
+        <circle cx="90" cy="85" r="4" fill="var(--accent)" opacity="0.4"/>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">Membrane-bound organelles each handle a specialized task: the nucleus manages information, mitochondria generate power, the ER and Golgi process and ship proteins, lysosomes handle waste.</p>
+    </div>
+    <div class="analogy-side">
+      <h4>A Factory</h4>
+      <svg viewBox="0 0 200 130" role="img" aria-label="Factory analogy">
+        <rect x="20" y="30" width="160" height="80" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5" rx="2"/>
+        <rect x="30" y="40" width="30" height="20" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="45" y="53" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Office</text>
+        <rect x="70" y="40" width="35" height="20" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="87" y="53" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Power</text>
+        <rect x="115" y="40" width="50" height="20" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="140" y="53" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Assembly</text>
+        <rect x="30" y="70" width="60" height="25" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="60" y="85" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Shipping</text>
+        <rect x="100" y="70" width="65" height="25" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="132" y="85" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Disposal</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">A factory has an office (managers = nucleus), a power plant (generator = mitochondria), an assembly line (ER + ribosomes), a shipping department (Golgi), and a waste disposal system (lysosomes). Each room does one job efficiently.</p>
+    </div>
+    <div class="analogy-bridge">Both systems survive by compartmentalizing: each unit handles a specialized task, and the whole functions because the parts cooperate. Without walls separating the factory's rooms, the assembly line would collide with the waste disposal — just as a cell without organelles would have chaotic, unregulated biochemistry.</div>
+  </div>
+
+  <!-- Misconceptions -->
+  <details class="misconception">
+    <summary>What People Get Wrong About Cells</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> All cells are basically the same inside — a cell is a cell.</p>
+      <p><span class="truth">Truth:</span> The difference between prokaryotic and eukaryotic cells is enormous — arguably the most important structural divide in all of biology. Prokaryotes have no nucleus, no membrane-bound organelles, and a single circular chromosome. Eukaryotes have a true nucleus, multiple organelles, and linear chromosomes. This isn't a minor variation; it's the difference between a bacterium and a human being.</p>
+      <p><strong>Reasoning:</strong> Compartmentalization allows eukaryotic cells to run incompatible biochemical reactions simultaneously in different organelles. A prokaryote must do everything in one open space, limiting the complexity of reactions it can support. This is why all multicellular organisms are eukaryotic — the cellular "plumbing" is a prerequisite for complexity.</p>
+    </div>
+  </details>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About Cell Theory</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> Virchow was the first person to say "cells come from cells."</p>
+      <p><span class="truth">Truth:</span> The concept had predecessors — Robert Remak had published similar ideas earlier — but Virchow popularized the phrase <em>omnis cellula e cellula</em> and gave it wide currency.</p>
+      <p><strong>Reasoning:</strong> The history of science is rarely as clean as textbooks suggest. The important point is that the principle — that life is continuous through cell division — was established by the mid-19th century and overturned the earlier idea of spontaneous generation.</p>
+    </div>
+  </details>
+
+  <!-- Why This Matters -->
+  <p class="why-matters">Every disease is ultimately a cellular malfunction. Every drug targets a cellular process. Every genetic therapy operates at the level of the cell. If you don't understand cellular architecture, you can't understand how life works — or how to fix it when it breaks.</p>
+
+  <!-- Inter-Module Link -->
+  <p class="interlink"><strong>🔗 This connects to Module 2</strong> because the nucleus is just a storage room — the real action of genetic information happens when DNA is read, transcribed, and translated into proteins. The cell's architecture exists to support that information flow.</p>
+
+  <!-- Elaborative Interrogation -->
+  <p style="margin-top:24px;">Want to go deeper?</p>
+  <span class="elaborative-link" onclick="toggleElaborative('elab1')">But why does compartmentalization matter so much?</span>
+  <div class="elaborative-text" id="elab1">Imagine running a chemistry lab where every reaction happens in the same beaker. An acid-base titration would be contaminated by the oxidation reaction happening beside it. Eukaryotic organelles solve this by creating separate membrane-bound "reaction chambers." The lysosome maintains an acidic interior (pH ~4.5) for its digestive enzymes, while the cytoplasm stays near neutral (pH ~7.2). Without a membrane barrier, those enzymes would digest the cell itself. The mitochondrion maintains a proton gradient across its inner membrane to drive ATP synthesis — a process that would be impossible without compartmentalization. Every organelle is, in essence, a controlled micro-environment tuned for specific chemistry.</div>
+</section>
+
+<!-- ===== MODULE 2 ===== -->
+<section class="module" id="mod2">
+  <div class="module-num">Module 02</div>
+  <h2>Information Flow and Gene Expression</h2>
+
+  <div class="core-text">
+    <p>If the cell is the hardware of life, then genetic information is the software — the instructions that tell the cell what to build, when to build it, and how to respond to the environment. The framework that describes how this information moves through a biological system is called the <strong>central dogma</strong>, first proposed by <strong>Francis Crick</strong> in 1958. At its core, the dogma states that genetic information flows in one direction: from DNA to RNA to protein. DNA stores the instructions, RNA carries the message, and proteins do the work. This unidirectional pathway forms the foundation of all cellular processes, because proteins are the primary molecules that carry out most of the work in a cell — from catalyzing metabolic reactions to providing structural support.</p>
+
+    <p>The central dogma consists of three main processes. <strong>Replication</strong> is the process by which a cell copies its DNA before cell division, ensuring each daughter cell receives an identical set of genetic instructions. The enzyme <strong>DNA polymerase</strong> synthesizes a new strand using the existing strand as a template, resulting in two identical DNA molecules. <strong>Transcription</strong> follows: the information in a specific segment of DNA (a gene) is copied into <strong>messenger RNA (mRNA)</strong> by the enzyme <strong>RNA polymerase</strong>, which unwinds the DNA helix and builds a complementary RNA strand. The mRNA then carries this copy from the nucleus to the ribosomes in the cytoplasm. <strong>Translation</strong> is the final stage: the sequence of nucleotides in the mRNA is decoded by a ribosome to assemble a specific chain of amino acids, forming a polypeptide or protein. <strong>Transfer RNA (tRNA)</strong> molecules act as adapters, bringing the correct amino acid to the ribosome based on the <strong>codon</strong> — a sequence of three nucleotides — presented on the mRNA. <strong>Ribosomal RNA (rRNA)</strong>, along with proteins, makes up the structure of the ribosome itself and catalyzes the formation of peptide bonds between amino acids.</p>
+
+    <p>While the central dogma provides a powerful and largely accurate model, contemporary research has revealed significant layers of complexity. One of the most profound discoveries has been the functional importance of <strong>non-coding RNA (ncRNA)</strong>. For decades, RNA transcripts that did not code for proteins were dismissed as "transcriptional noise." It is now clear that ncRNAs play crucial regulatory roles at multiple levels of gene expression. <strong>MicroRNAs (miRNAs)</strong> and <strong>long non-coding RNAs (lncRNAs)</strong> can bind to mRNA molecules to block their translation or target them for degradation, effectively silencing genes. Other ncRNAs are involved in epigenetic regulation, influencing how tightly DNA is packaged and thus whether a gene is accessible for transcription. This positions RNA not just as a passive intermediary but as an active participant in shaping cellular identity and responding to environmental cues.</p>
+
+    <p>Furthermore, the strict unidirectionality of the dogma has been challenged. <strong>Retroviruses</strong> like HIV use an enzyme called <strong>reverse transcriptase</strong> to synthesize DNA from an RNA template — <strong>reverse transcription</strong>. This violates the traditional flow and demonstrates that information can, under certain circumstances, flow backward. Additionally, RNA-guided control of DNA has been observed in epigenetics, where RNA molecules influence DNA methylation patterns, altering gene activity without changing the underlying DNA sequence. These exceptions don't invalidate the central dogma but expand it, highlighting the adaptability and complexity of genetic systems. The regulation of gene expression is a highly orchestrated process involving transcription factors, chromatin remodeling, and non-coding RNA — ensuring the right genes are turned on or off at the right time, which is essential for development, homeostasis, and adaptation.</p>
+  </div>
+
+  <!-- Step Breakdown -->
+  <h3>The Three Stages of the Central Dogma</h3>
+  <ol class="steps">
+    <li><strong>Replication (DNA → DNA).</strong> Before a cell divides, DNA polymerase reads each existing strand and synthesizes a complementary new strand. The result: two identical DNA molecules, each containing one old and one new strand (semi-conservative replication).</li>
+    <li><strong>Transcription (DNA → mRNA).</strong> RNA polymerase unwinds the DNA at the target gene, reads the template strand, and builds a complementary mRNA copy. In eukaryotes, the mRNA is processed (spliced, capped, polyadenylated) before exiting the nucleus.</li>
+    <li><strong>Translation (mRNA → Protein).</strong> The ribosome reads the mRNA codon by codon. tRNA molecules match their anticodons to each codon, delivering the correct amino acid. The ribosome links amino acids via peptide bonds. When a stop codon is reached, the completed protein is released.</li>
+  </ol>
+
+  <!-- Central Dogma Flowchart SVG -->
+  <figure>
+    <svg viewBox="0 0 700 360" role="img" aria-label="Central dogma flowchart showing DNA to RNA to protein with regulatory branches">
+      <!-- DNA -->
+      <rect x="20" y="40" width="100" height="50" rx="4" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="70" y="70" text-anchor="middle" font-size="13" font-weight="600" fill="var(--text)">DNA</text>
+      <!-- Replication arrow (self-loop) -->
+      <path d="M 40 40 Q 20 15 70 15 Q 120 15 100 40" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="70" y="10" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Replication</text>
+      <!-- Transcription arrow -->
+      <path d="M 120 65 L 240 65" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M 235 60 L 245 65 L 235 70" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <text x="180" y="55" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Transcription</text>
+      <text x="180" y="80" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">(RNA polymerase)</text>
+      <!-- mRNA -->
+      <rect x="250" y="40" width="100" height="50" rx="4" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="300" y="70" text-anchor="middle" font-size="13" font-weight="600" fill="var(--text)">mRNA</text>
+      <!-- Translation arrow -->
+      <path d="M 350 65 L 470 65" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <path d="M 465 60 L 475 65 L 465 70" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+      <text x="410" y="55" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Translation</text>
+      <text x="410" y="80" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">(ribosome)</text>
+      <!-- Protein -->
+      <rect x="480" y="40" width="100" height="50" rx="4" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="530" y="70" text-anchor="middle" font-size="13" font-weight="600" fill="var(--text)">Protein</text>
+
+      <!-- ncRNA regulation -->
+      <g transform="translate(0, 140)">
+        <rect x="180" y="0" width="160" height="40" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="260" y="18" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Non-coding RNA</text>
+        <text x="260" y="32" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">(miRNA, lncRNA)</text>
+        <!-- Arrow pointing to mRNA with inhibition symbol -->
+        <path d="M 260 40 L 300 95" stroke="var(--border-strong)" stroke-width="1" fill="none" stroke-dasharray="2 2"/>
+        <line x1="295" y1="85" x2="305" y2="95" stroke="var(--border-strong)" stroke-width="1"/>
+        <line x1="300" y1="80" x2="310" y2="90" stroke="var(--border-strong)" stroke-width="1"/>
+        <text x="270" y="115" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">blocks / degrades</text>
+      </g>
+
+      <!-- Reverse transcription -->
+      <g transform="translate(0, 200)">
+        <rect x="20" y="0" width="100" height="35" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="70" y="22" text-anchor="middle" font-size="10" fill="var(--text-secondary)">Retrovirus RNA</text>
+        <path d="M 120 25 Q 180 25 240 25" stroke="var(--border-strong)" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>
+        <path d="M 125 20 L 115 25 L 125 30" stroke="var(--border-strong)" stroke-width="1.5" fill="none"/>
+        <text x="180" y="15" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">Reverse transcriptase</text>
+      </g>
+
+      <!-- Epigenetics -->
+      <g transform="translate(0, 270)">
+        <rect x="20" y="0" width="160" height="35" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="100" y="22" text-anchor="middle" font-size="10" fill="var(--text-secondary)">Epigenetic marks</text>
+        <path d="M 70 0 L 70 -15" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="2 2"/>
+        <text x="100" y="50" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">methylation, chromatin remodeling</text>
+        <text x="100" y="62" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">→ controls DNA accessibility</text>
+      </g>
+
+      <!-- Legend -->
+      <g transform="translate(400, 200)">
+        <line x1="0" y1="10" x2="20" y2="10" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="28" y="14" font-size="10" fill="var(--text-secondary)">Core dogma</text>
+        <line x1="0" y1="30" x2="20" y2="30" stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="28" y="34" font-size="10" fill="var(--text-secondary)">Extensions / exceptions</text>
+      </g>
+    </svg>
+    <figcaption>Figure 2.1 — The central dogma and its modern extensions. Solid lines show the classical pathway (DNA → RNA → Protein). Dashed elements show regulatory layers: non-coding RNAs that block translation, reverse transcription by retroviruses, and epigenetic modifications that control DNA accessibility.</figcaption>
+  </figure>
+
+  <!-- Flashcards -->
+  <div class="interactive">
+    <div class="interactive-header">📝 Flashcards: Key Molecules of Gene Expression</div>
+    <div class="interactive-body">
+      <p style="font-size:14px; margin-bottom:12px;">Click each card to flip. Use "Show Extra Context" for deeper notes.</p>
+      <div id="flashcard-deck">
+        <!-- Flashcards populated by JS -->
+      </div>
+      <div class="flashcard-controls">
+        <button onclick="prevFlashcard()">← Prev</button>
+        <button onclick="nextFlashcard()">Next →</button>
+        <button onclick="toggleExtraContext()" id="extra-context-btn">Show Extra Context</button>
+      </div>
+      <div class="extra-context" id="extra-context-display"></div>
+      <p style="font-size:12px; color:var(--text-tertiary); margin-top:8px;">Card <span id="fc-current">1</span> of <span id="fc-total">5</span></p>
+    </div>
+  </div>
+
+  <!-- Examples -->
+  <h3>Examples in Practice</h3>
+  <div class="examples">
+    <div class="example">
+      <div class="tag">Obvious</div>
+      <p>The <strong>insulin gene</strong> in a pancreatic beta cell is transcribed into mRNA, which is translated into the insulin protein — a hormone that signals cells throughout the body to take up glucose. This is the textbook central dogma in action: a gene on a chromosome becomes a functional protein that does work in the body.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Counter-intuitive</div>
+      <p>Only about <strong>2% of human DNA codes for proteins</strong>. For decades, the remaining 98% was called "junk DNA." We now know that much of it is transcribed into non-coding RNAs that regulate gene expression. A microRNA called <strong>miR-21</strong>, for instance, is only ~22 nucleotides long and codes for no protein at all — yet it regulates hundreds of target genes involved in cancer, heart disease, and development. The "junk" was actually a hidden layer of regulation. The central dogma isn't wrong, but it was incomplete: RNA does far more than just carry messages.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Edge Case</div>
+      <p><strong>HIV</strong> is a retrovirus that carries its genetic information as RNA, not DNA. When it infects a cell, it uses reverse transcriptase to copy its RNA genome into DNA, which then integrates into the host's chromosomes. This is a direct reversal of the central dogma's direction (RNA → DNA instead of DNA → RNA). The discovery was so surprising that it initially met skepticism — but it earned Howard Temin and David Baltimore the 1975 Nobel Prize. It also explained why some viral infections are so persistent: the viral DNA becomes a permanent part of the host genome.</p>
+    </div>
+  </div>
+
+  <!-- Visual Analogy Card -->
+  <div class="analogy-card">
+    <div class="analogy-side left">
+      <h4>Gene Expression</h4>
+      <svg viewBox="0 0 200 130" role="img" aria-label="Gene expression simplified">
+        <rect x="15" y="20" width="30" height="90" rx="2" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="30" y="60" text-anchor="middle" font-size="8" fill="var(--text-secondary)" transform="rotate(-90 30 60)">DNA</text>
+        <path d="M 45 65 L 85 65" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+        <path d="M 80 60 L 90 65 L 80 70" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+        <rect x="90" y="50" width="25" height="30" rx="2" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="102" y="68" text-anchor="middle" font-size="7" fill="var(--text-secondary)">mRNA</text>
+        <path d="M 115 65 L 150 65" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+        <path d="M 145 60 L 155 65 L 145 70" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+        <circle cx="170" cy="65" r="15" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="170" y="68" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Protein</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">DNA holds the master copy. mRNA carries a working transcript to the ribosome. The ribosome reads the code and assembles amino acids into a functional protein.</p>
+    </div>
+    <div class="analogy-side">
+      <h4>A Restaurant Kitchen</h4>
+      <svg viewBox="0 0 200 130" role="img" aria-label="Restaurant analogy">
+        <rect x="10" y="15" width="45" height="100" rx="2" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="32" y="68" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Recipe</text>
+        <text x="32" y="78" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Book</text>
+        <path d="M 55 65 L 95 65" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+        <text x="75" y="55" text-anchor="middle" font-size="7" fill="var(--text-tertiary)">copy</text>
+        <rect x="95" y="50" width="35" height="30" rx="2" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="112" y="68" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Order</text>
+        <path d="M 130 65 L 155 65" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+        <text x="142" y="55" text-anchor="middle" font-size="7" fill="var(--text-tertiary)">cook</text>
+        <ellipse cx="172" cy="65" rx="16" ry="12" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="172" y="68" text-anchor="middle" font-size="7" fill="var(--text-secondary)">Dish</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">The recipe book (DNA) stays safe in the office. A chef copies one recipe onto an order slip (mRNA) and brings it to the kitchen. The cook (ribosome) reads the slip and makes the dish (protein).</p>
+    </div>
+    <div class="analogy-bridge">The recipe book never leaves the office — it's too precious to risk in the kitchen. Instead, a working copy is made each time. Similarly, DNA stays in the nucleus while mRNA carries the instructions to the ribosome. ncRNAs are like kitchen managers who can intercept an order slip and say "cancel that dish" — a regulatory layer the original dogma didn't anticipate.</div>
+  </div>
+
+  <!-- Misconceptions -->
+  <details class="misconception">
+    <summary>What People Get Wrong About the Central Dogma</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> The central dogma says information can never flow backward, and retroviruses proved it wrong.</p>
+      <p><span class="truth">Truth:</span> Crick's original formulation was about the informational flow between polymer types, not a claim about every possible biochemical reaction. Reverse transcription (RNA → DNA) was an expansion of the model, not a refutation. The core insight — that proteins don't generally encode information back into nucleic acids — still holds.</p>
+      <p><strong>Reasoning:</strong> Crick himself acknowledged that the dogma was a working hypothesis. The discovery of reverse transcription enriched the model rather than demolishing it. Science advances by refining frameworks, not by demanding they be perfect from the start.</p>
+    </div>
+  </details>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About "Junk DNA"</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> Non-coding DNA is "junk" — evolutionary debris with no function.</p>
+      <p><span class="truth">Truth:</span> While some non-coding DNA may indeed be non-functional, a large fraction is transcribed into regulatory RNAs (miRNAs, lncRNAs) or contains enhancers, promoters, and silencers that control when and where genes are expressed.</p>
+      <p><strong>Reasoning:</strong> The "junk" label was always a statement of ignorance, not knowledge. As sequencing technology improved, we discovered that the non-coding genome is a vast regulatory landscape. Mutations in non-coding regions can cause disease just as readily as mutations in protein-coding genes.</p>
+    </div>
+  </details>
+
+  <p class="why-matters">Every genetic disease, every cancer, every viral infection involves the central dogma going wrong. Understanding how information flows through the cell is the first step toward being able to read, write, and edit that information — which is exactly what modern medicine is learning to do.</p>
+
+  <p class="interlink"><strong>🔗 This connects to Module 3</strong> because gene expression is how cells respond to physiological signals. When blood sugar rises, insulin gene expression is upregulated; when you're stressed, cortisol changes transcription patterns across dozens of tissues. The central dogma is the mechanism by which homeostasis is achieved.</p>
+
+  <!-- Module 2 Quiz -->
+  <div class="interactive">
+    <div class="interactive-header">✅ Quick Quiz: Gene Expression</div>
+    <div class="interactive-body" id="quiz-mod2">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+</section>
+
+<!-- ===== QUICK RECALL 1 ===== -->
+<section class="quick-recall">
+  <h3>Quick Recall — Modules 1 & 2</h3>
+  <p style="font-size:14px; margin-bottom:16px;">Before moving on, test your understanding of cells and gene expression. These questions build on both modules.</p>
+  <div id="quick-recall-1"></div>
+</section>
+
+<!-- ===== MODULE 3 ===== -->
+<section class="module" id="mod3">
+  <div class="module-num">Module 03</div>
+  <h2>Organismal Physiology and Homeostasis</h2>
+
+  <div class="core-text">
+    <p>Cells are the fundamental units of life, but organisms are integrated wholes — the result of billions of cells working in concert. <strong>Physiology</strong> is the branch of biology dedicated to understanding the normal functions of these integrated systems. Its core principle is <strong>homeostasis</strong>: the maintenance of a stable internal environment despite changes in the external environment. This stability is not static but rather a <em>dynamic equilibrium</em>, representing a narrow range of conditions within which an organism's cells can function optimally. Temperature, blood glucose levels, hydration, pH, and oxygen concentration must all be precisely controlled to ensure proper metabolism, growth, and survival. Exercise, for instance, represents a major challenge to whole-body homeostasis, triggering widespread perturbations in numerous cells, tissues, and organs that the body must actively counteract to maintain balance.</p>
+
+    <p>The primary mechanism for achieving homeostasis is the <strong>feedback loop</strong> — a regulatory circuit that detects changes and initiates responses to counteract or amplify them. There are two main types. <strong>Negative feedback loops</strong> are the most common and serve to stabilize systems by reversing a deviation from a set point. When a parameter moves away from its ideal value, the loop detects the change and triggers an opposing response that brings the parameter back. A classic example is thermoregulation: if body temperature rises above the set point, mechanisms like sweating and increased skin blood flow dissipate heat; if it drops, shivering and vasoconstriction conserve heat. Blood glucose is similarly regulated by the hormones insulin (which lowers glucose) and glucagon (which raises it), creating a self-correcting loop that maintains parameters within a narrow range.</p>
+
+    <p><strong>Positive feedback loops</strong>, while less common, amplify a change rather than reversing it, moving the system further from its starting point until a specific endpoint is reached. This type of loop is associated with processes that have a clear beginning and end. During childbirth, the hormone oxytocin causes uterine contractions, which push the baby against the cervix, stimulating more oxytocin release and stronger contractions — a cycle that continues until birth, at which point the stimulus is removed. Blood clotting follows a similar pattern: platelets activate at a wound site, releasing chemicals that attract more platelets, rapidly forming a plug.</p>
+
+    <p>These regulatory processes are coordinated by two major communication networks. The <strong>nervous system</strong> provides rapid, short-term control through electrical and chemical signals transmitted along neurons. The <strong>endocrine system</strong> uses hormones — chemical messengers released into the bloodstream by glands — to exert slower, longer-lasting effects on target organs throughout the body. These two systems often work together as a unified neuroendocrine network. To achieve complex coordination, the body is organized into <strong>eleven major organ systems</strong>: integumentary, skeletal, muscular, nervous, endocrine, circulatory, lymphatic, respiratory, digestive, urinary, and reproductive. The failure of any one system can cascade across the entire organism. This integrative approach — <strong>integrative physiology</strong> — seeks to understand how these systems are coordinated to maintain homeostasis and support life, connecting molecular events to whole-organism function.</p>
+  </div>
+
+  <!-- Step Breakdown -->
+  <h3>How a Negative Feedback Loop Works</h3>
+  <ol class="steps">
+    <li><strong>Stimulus.</strong> A change occurs in the internal or external environment — body temperature rises, blood glucose spikes, blood pH drops.</li>
+    <li><strong>Sensor (Receptor).</strong> Specialized cells or proteins detect the change and send a signal. Thermoreceptors in the skin and brain sense temperature; pancreatic beta cells sense glucose levels.</li>
+    <li><strong>Control Center.</strong> Typically the brain (hypothalamus for temperature) or an endocrine gland processes the signal and determines the appropriate response by comparing it to a set point.</li>
+    <li><strong>Effector.</strong> A muscle, gland, or organ carries out the response — sweat glands activate, blood vessels dilate, insulin is released.</li>
+    <li><strong>Response & Return to Set Point.</strong> The parameter moves back toward its ideal value. The sensor detects the correction and turns off the response — closing the loop.</li>
+  </ol>
+
+  <!-- Feedback Loop SVG -->
+  <figure>
+    <svg viewBox="0 0 600 320" role="img" aria-label="Negative and positive feedback loop diagrams">
+      <!-- Negative feedback -->
+      <g transform="translate(0, 20)">
+        <text x="160" y="0" text-anchor="middle" font-size="13" font-weight="600" fill="var(--text)">Negative Feedback</text>
+        <!-- Loop circle -->
+        <circle cx="160" cy="130" r="90" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="2 0"/>
+        <!-- Nodes -->
+        <circle cx="160" cy="40" r="22" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="160" y="38" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Stimulus</text>
+        <text x="160" y="48" text-anchor="middle" font-size="7" fill="var(--text-tertiary)">(temp ↑)</text>
+        <circle cx="250" cy="130" r="22" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="250" y="128" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Sensor</text>
+        <text x="250" y="138" text-anchor="middle" font-size="7" fill="var(--text-tertiary)">(receptor)</text>
+        <circle cx="160" cy="220" r="22" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="160" y="218" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Control</text>
+        <text x="160" y="228" text-anchor="middle" font-size="7" fill="var(--text-tertiary)">(brain)</text>
+        <circle cx="70" cy="130" r="22" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="70" y="128" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Effector</text>
+        <text x="70" y="138" text-anchor="middle" font-size="7" fill="var(--text-tertiary)">(sweat)</text>
+        <!-- Arrows -->
+        <path d="M 182 48 Q 230 65 248 110" stroke="var(--accent)" stroke-width="1" fill="none"/>
+        <path d="M 248 150 Q 230 195 182 212" stroke="var(--accent)" stroke-width="1" fill="none"/>
+        <path d="M 138 212 Q 90 195 72 150" stroke="var(--accent)" stroke-width="1" fill="none"/>
+        <path d="M 72 110 Q 90 65 138 48" stroke="var(--accent)" stroke-width="1" fill="none"/>
+        <!-- Result -->
+        <text x="160" y="280" text-anchor="middle" font-size="10" fill="var(--correct)" font-style="italic">Returns to set point → stable</text>
+      </g>
+
+      <!-- Positive feedback -->
+      <g transform="translate(330, 20)">
+        <text x="160" y="0" text-anchor="middle" font-size="13" font-weight="600" fill="var(--text)">Positive Feedback</text>
+        <!-- Spiral -->
+        <path d="M 160 40 Q 250 60 250 130 Q 250 200 160 220 Q 80 220 80 140 Q 80 80 140 80 Q 200 85 200 130 Q 200 165 160 165 Q 130 165 130 135" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <!-- Nodes -->
+        <circle cx="160" cy="40" r="18" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="160" y="38" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Oxytocin</text>
+        <text x="160" y="47" text-anchor="middle" font-size="6" fill="var(--text-tertiary)">released</text>
+        <circle cx="250" cy="130" r="18" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="250" y="128" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Contractions</text>
+        <text x="250" y="137" text-anchor="middle" font-size="6" fill="var(--text-tertiary)">stronger</text>
+        <circle cx="80" cy="140" r="18" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="80" y="138" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Cervix</text>
+        <text x="80" y="147" text-anchor="middle" font-size="6" fill="var(--text-tertiary)">stretched</text>
+        <text x="160" y="280" text-anchor="middle" font-size="10" fill="var(--incorrect)" font-style="italic">Amplifies until endpoint → birth</text>
+      </g>
+    </svg>
+    <figcaption>Figure 3.1 — Negative feedback (left) creates a self-correcting cycle that returns a parameter to its set point. Positive feedback (right) amplifies a signal until a terminal event occurs, as in childbirth or blood clotting.</figcaption>
+  </figure>
+
+  <!-- Examples -->
+  <h3>Examples in Practice</h3>
+  <div class="examples">
+    <div class="example">
+      <div class="tag">Obvious</div>
+      <p><strong>Thermoregulation during exercise.</strong> Running raises body temperature above the set point of ~37°C. Thermoreceptors in the skin and hypothalamus detect the increase. The hypothalamus (control center) activates effectors: sweat glands produce sweat for evaporative cooling, and skin blood vessels dilate to radiate heat. When temperature returns to set point, the response shuts off. This is textbook negative feedback — detect, correct, return.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Counter-intuitive</div>
+      <p><strong>Childbirth is positive feedback</strong> — the body amplifies a signal rather than correcting it. The baby's head pushes against the cervix, stimulating oxytocin release. Oxytocin causes stronger uterine contractions, which push the baby harder against the cervix, which triggers more oxytocin. This loop intensifies until the baby is born and the cervical stimulus disappears. Most people assume the body always "corrects" deviations, but some biological processes are designed to escalate to completion.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Edge Case</div>
+      <p><strong>Blood clotting</strong> is positive feedback with a built-in stopping mechanism. When a blood vessel is damaged, platelets stick to the injury site and release chemicals that attract more platelets. This cascade amplifies rapidly, forming a clot. But if the amplification didn't stop, the clot would grow uncontrollably — a dangerous condition called thrombosis. The body has parallel inhibitory mechanisms that engage once the clot is large enough, demonstrating that even positive feedback loops are regulated by the broader homeostatic system.</p>
+    </div>
+  </div>
+
+  <!-- Drag and Drop: Organ Systems -->
+  <div class="interactive">
+    <div class="interactive-header">🧩 Drag-and-Drop: Match Organ Systems to Functions</div>
+    <div class="interactive-body" id="dnd-organ">
+      <p style="font-size:14px; margin-bottom:16px;">Drag each organ system name on the left into the correct slot on the right.</p>
+      <div class="dnd-area">
+        <div class="dnd-items" id="dnd-items-organ"></div>
+        <div class="dnd-slots" id="dnd-slots-organ"></div>
+      </div>
+      <p id="dnd-organ-feedback" style="font-size:13px; margin-top:12px; display:none;"></p>
+    </div>
+  </div>
+
+  <!-- Visual Analogy Card -->
+  <div class="analogy-card">
+    <div class="analogy-side left">
+      <h4>Negative Feedback</h4>
+      <svg viewBox="0 0 200 110" role="img" aria-label="Negative feedback loop simplified">
+        <circle cx="100" cy="55" r="40" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <circle cx="100" cy="15" r="10" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="140" cy="55" r="10" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="100" cy="95" r="10" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="60" cy="55" r="10" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="100" y="60" text-anchor="middle" font-size="9" fill="var(--text-secondary)">set point</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">A sensor detects deviation, a control center calculates the correction, and an effector brings the value back. The loop closes when the set point is restored.</p>
+    </div>
+    <div class="analogy-side">
+      <h4>A Thermostat</h4>
+      <svg viewBox="0 0 200 110" role="img" aria-label="Thermostat analogy">
+        <rect x="70" y="20" width="60" height="40" rx="3" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="100" y="35" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Thermostat</text>
+        <text x="100" y="48" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">set: 20°C</text>
+        <rect x="20" y="75" width="50" height="25" rx="2" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="45" y="91" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Heater</text>
+        <rect x="130" y="75" width="50" height="25" rx="2" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="155" y="91" text-anchor="middle" font-size="8" fill="var(--text-secondary)">AC</text>
+        <path d="M 85 60 L 55 75 M 115 60 L 145 75" stroke="var(--accent)" stroke-width="1" fill="none"/>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">The thermostat reads room temperature. If it drops below 20°C, the heater turns on. If it rises above, the AC kicks in. The system always pushes temperature back toward the set point.</p>
+    </div>
+    <div class="analogy-bridge">Your hypothalamus is the thermostat. It reads blood temperature and activates "heaters" (shivering, vasoconstriction) or "air conditioners" (sweating, vasodilation) to keep your core near 37°C. The principle is identical — detect, compare, correct.</div>
+  </div>
+
+  <!-- Misconceptions -->
+  <details class="misconception">
+    <summary>What People Get Wrong About Homeostasis</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> Homeostasis means everything stays exactly the same all the time.</p>
+      <p><span class="truth">Truth:</span> Homeostasis is a <em>dynamic</em> equilibrium. Parameters fluctuate within a range — body temperature might be 36.5°C in the morning and 37.2°C after exercise. The system constantly adjusts; it never holds perfectly still.</p>
+      <p><strong>Reasoning:</strong> "Stable" doesn't mean "static." Think of a tightrope walker — they're constantly making small corrections to stay upright. The body does the same: blood glucose, pH, and temperature oscillate around set points in a controlled way. Disease occurs when the oscillation exceeds the normal range.</p>
+    </div>
+  </details>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About Positive Feedback</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> Positive feedback is always harmful — it means the system is out of control.</p>
+      <p><span class="truth">Truth:</span> Positive feedback is a normal, essential part of certain physiological processes. Childbirth, blood clotting, and the generation of nerve signals all rely on controlled amplification.</p>
+      <p><strong>Reasoning:</strong> Positive feedback is dangerous only when it's <em>unregulated</em>. In healthy physiology, every positive feedback loop has a defined endpoint — birth, clot formation, or the peak of an action potential — that breaks the cycle. The body uses it deliberately, not accidentally.</p>
+    </div>
+  </details>
+
+  <p class="why-matters">Most diseases are homeostatic failures. Diabetes is a broken glucose feedback loop. Hypertension is dysregulated blood pressure. Fever is the set point itself being moved. If you understand feedback loops, you understand the logic of disease.</p>
+
+  <p class="interlink"><strong>🔗 This connects to Module 4</strong> because homeostasis operates at every level of biological organization — not just within individual organisms, but across populations and ecosystems. Predator–prey dynamics, for instance, are essentially ecological feedback loops that maintain balance at the population level.</p>
+</section>
+
+<!-- ===== MODULE 4 ===== -->
+<section class="module" id="mod4">
+  <div class="module-num">Module 04</div>
+  <h2>Biodiversity, Ecosystems, and Ecological Interactions</h2>
+
+  <div class="core-text">
+    <p>Beyond the confines of the individual organism lies the world of <strong>ecology</strong> — the scientific study of the relationships between living organisms and their environment. Ecology examines how organisms interact with both the physical (<strong>abiotic</strong>) and biological (<strong>biotic</strong>) components of their surroundings. Abiotic factors include nonliving elements such as sunlight, temperature, water, soil composition, and atmospheric gases, which fundamentally shape the distribution and abundance of life. Biotic factors encompass all living components — the availability of food, the presence of predators, and interactions with other species. These interactions range from direct encounters like a lion hunting a gazelle to subtle connections like pollination or seed dispersal.</p>
+
+    <p>The hierarchy of ecological organization begins with <strong>individuals</strong>, which form <strong>populations</strong> (groups of the same species in an area), which in turn form <strong>communities</strong> (multiple interacting populations). Communities and their abiotic environment constitute an <strong>ecosystem</strong>, and all the planet's ecosystems combined make up the <strong>biosphere</strong>. This nested hierarchy is one of biology's most important organizing frameworks — it shows how phenomena at one scale emerge from processes at the scale below.</p>
+
+    <p>Central to ecology is the concept of <strong>biodiversity</strong> — the variety of life on Earth at all its levels. Scientists describe biodiversity at three primary levels. <strong>Genetic diversity</strong> refers to the variation of genes within a species, providing the raw material for adaptation and evolution. <strong>Species diversity</strong> is the variety of species within a given area, encompassing both the number of species (<em>richness</em>) and their relative abundance (<em>evenness</em>). <strong>Ecosystem diversity</strong> refers to the variety of habitats, communities, and ecological processes. These three levels are interconnected — changes at one level affect the others. Some ecologists also consider <strong>functional diversity</strong> (the range of ways species utilize resources and affect their environment) and <strong>phylogenetic diversity</strong> (the evolutionary history represented by the species in a community) as important dimensions.</p>
+
+    <p>Quantifying biodiversity is essential for monitoring ecosystems and guiding conservation. While simply counting species (species richness) is common, more sophisticated indices provide a richer picture by incorporating abundance. The <strong>Shannon index (H')</strong> accounts for both richness and evenness, with higher values indicating greater diversity. The <strong>Simpson index (D)</strong> measures the probability that two randomly selected individuals belong to the same species — a lower value indicates higher diversity. <strong>Phylogenetic diversity</strong> quantifies the total evolutionary history (branch length) represented by species in a community, offering insight into lineage uniqueness.</p>
+
+    <p>Biodiversity is not merely academic — it is critically important for ecosystem health and stability. Higher biodiversity is strongly linked to increased <strong>ecosystem resilience</strong>, the ability to withstand and recover from disturbances like fires, droughts, floods, or pest outbreaks. Diverse ecosystems are more resilient because they contain species with <em>functional redundancy</em> — if one species is lost, another can take over its role, preventing catastrophic collapse. Genetic diversity within a population enhances its ability to adapt to changing conditions. This resilience sustains <strong>ecosystem services</strong> — benefits humans derive from nature, including clean air and water, fertile soils, crop pollination, and climate regulation. However, the current era is characterized by unprecedented rates of biodiversity loss, driven by habitat destruction, pollution, and climate change, posing risks to food security, climate stability, and public health.</p>
+  </div>
+
+  <!-- Step Breakdown -->
+  <h3>The Hierarchy of Ecological Organization</h3>
+  <ol class="steps">
+    <li><strong>Individual.</strong> A single organism — one tree, one wolf, one bacterium. The smallest unit of ecology.</li>
+    <li><strong>Population.</strong> All individuals of the same species living in a given area. A population of wolves in Yellowstone, a population of pine trees in a forest.</li>
+    <li><strong>Community.</strong> All the interacting populations of different species in an area. The wolves, elk, rabbits, grasses, and trees together form a community.</li>
+    <li><strong>Ecosystem.</strong> The community plus its abiotic environment — the soil, water, sunlight, and climate that shape what can live there.</li>
+    <li><strong>Biosphere.</strong> All ecosystems on Earth combined — the thin layer of the planet where life exists, from the deep ocean to the upper atmosphere.</li>
+  </ol>
+
+  <!-- Ecological Hierarchy SVG -->
+  <figure>
+    <svg viewBox="0 0 600 300" role="img" aria-label="Ecological hierarchy from individual to biosphere">
+      <!-- Nested circles -->
+      <ellipse cx="300" cy="150" rx="280" ry="130" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="300" y="285" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Biosphere</text>
+      <ellipse cx="300" cy="155" rx="220" ry="95" fill="var(--bg)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="300" y="240" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Ecosystem</text>
+      <ellipse cx="300" cy="160" rx="160" ry="65" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="300" y="215" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Community</text>
+      <ellipse cx="300" cy="165" rx="100" ry="40" fill="var(--bg)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="300" y="200" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Population</text>
+      <circle cx="300" cy="160" r="25" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="300" y="163" text-anchor="middle" font-size="10" fill="var(--text-secondary)">Individual</text>
+      <!-- Labels -->
+      <text x="55" y="40" font-size="10" fill="var(--text-tertiary)">Larger scale →</text>
+      <text x="55" y="55" font-size="10" fill="var(--text-tertiary)">More inclusive</text>
+    </svg>
+    <figcaption>Figure 4.1 — Ecological hierarchy. Each level encompasses the one below. An individual belongs to a population, which belongs to a community, which exists within an ecosystem, which is part of the biosphere.</figcaption>
+  </figure>
+
+  <!-- Biodiversity Comparison Chart -->
+  <figure>
+    <svg viewBox="0 0 600 200" role="img" aria-label="Bar chart comparing Shannon diversity index across ecosystem types">
+      <text x="300" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">Shannon Diversity Index (H') Across Ecosystems</text>
+      <!-- Axes -->
+      <line x1="60" y1="40" x2="60" y2="160" stroke="var(--border-strong)" stroke-width="1"/>
+      <line x1="60" y1="160" x2="560" y2="160" stroke="var(--border-strong)" stroke-width="1"/>
+      <!-- Bars -->
+      <rect x="90" y="90" width="60" height="70" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+      <text x="120" y="155" text-anchor="middle" font-size="9" fill="var(--text-secondary)">3.5</text>
+      <text x="120" y="175" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Rainforest</text>
+      <rect x="190" y="115" width="60" height="45" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+      <text x="220" y="155" text-anchor="middle" font-size="9" fill="var(--text-secondary)">2.2</text>
+      <text x="220" y="175" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Coral Reef</text>
+      <rect x="290" y="130" width="60" height="30" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+      <text x="320" y="155" text-anchor="middle" font-size="9" fill="var(--text-secondary)">1.5</text>
+      <text x="320" y="175" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Grassland</text>
+      <rect x="390" y="145" width="60" height="15" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+      <text x="420" y="155" text-anchor="middle" font-size="9" fill="var(--text-secondary)">0.7</text>
+      <text x="420" y="175" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Pine Plantation</text>
+      <rect x="490" y="152" width="60" height="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+      <text x="520" y="155" text-anchor="middle" font-size="9" fill="var(--text-secondary)">0.3</text>
+      <text x="520" y="175" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Corn Monoculture</text>
+      <!-- Y-axis label -->
+      <text x="30" y="100" text-anchor="middle" font-size="9" fill="var(--text-tertiary)" transform="rotate(-90 30 100)">Diversity (H')</text>
+    </svg>
+    <figcaption>Figure 4.2 — Higher Shannon index values indicate greater biodiversity. Tropical rainforests and coral reefs are among the most diverse ecosystems on Earth; agricultural monocultures are the least. Data are illustrative.</figcaption>
+  </figure>
+
+  <!-- Examples -->
+  <h3>Examples in Practice</h3>
+  <div class="examples">
+    <div class="example">
+      <div class="tag">Obvious</div>
+      <p>A <strong>tropical rainforest</strong> has enormous species diversity — a single hectare may contain over 300 tree species, plus thousands of insect, bird, and microbial species. This richness provides functional redundancy: if one pollinator species disappears, others can fill the gap. The ecosystem is resilient because so many species overlap in their ecological roles.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Counter-intuitive</div>
+      <p>A <strong>palm oil plantation</strong> looks green and lush from a distance — it's full of trees. But it's a monoculture: thousands of genetically identical palm trees. Its species diversity is near zero, its genetic diversity is negligible, and its ecosystem diversity is minimal. Despite appearing "natural," it's biologically impoverished compared to even a modestly diverse secondary forest. This is why conservationists distinguish between <em>green cover</em> and <em>biodiversity</em> — they are not the same thing.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Edge Case</div>
+      <p><strong>Cryptic species</strong> look identical to the eye but are genetically distinct. The <em>Anopheles gambiae</em> mosquito complex contains at least seven species that are morphologically indistinguishable but differ in behavior, ecology, and ability to transmit malaria. A species count based on appearance alone would say "one species" — but the actual species diversity is far higher. This is why DNA barcoding has revolutionized biodiversity assessment: it reveals diversity invisible to traditional taxonomy.</p>
+    </div>
+  </div>
+
+  <!-- Teach-Back -->
+  <div class="interactive">
+    <div class="interactive-header">✍️ Teach-Back: Explain Biodiversity to a 5-Year-Old</div>
+    <div class="interactive-body teach-back">
+      <p style="font-size:14px; margin-bottom:12px;">Write your explanation below. The system will check whether you've covered the key concepts, then show you an expert's version for comparison.</p>
+      <textarea id="teach-back-input" placeholder="Imagine you're explaining biodiversity to a young child. Use simple words and a relatable example..."></textarea>
+      <button class="chunk-toggle" onclick="checkTeachBack()" style="margin-top:8px;">Check My Explanation</button>
+      <div class="keyword-check" id="teach-back-check"></div>
+      <div style="margin-top:12px;">
+        <button class="chunk-toggle" onclick="showExpertAnswer()">Show Expert Answer</button>
+      </div>
+      <div class="expert-answer" id="expert-answer">
+        <strong>Expert version:</strong> Biodiversity means "lots of different kinds of living things." Imagine a toy box. If it has only one type of toy — 500 identical blocks — it's boring, and if one block breaks, you still have the same thing. But if it has blocks, dolls, cars, and puzzles, that's more fun and more useful, because each toy does something different. Nature works the same way: a forest with many kinds of trees, birds, bugs, and mushrooms is healthier than a forest with just one kind of tree. If a bug eats all the one kind of tree, the whole forest dies. But in a diverse forest, the other trees survive. "Bio" means life, "diversity" means lots of different kinds — so biodiversity means <em>lots of different kinds of life</em>, and that's what keeps nature strong.
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual Analogy Card -->
+  <div class="analogy-card">
+    <div class="analogy-side left">
+      <h4>Ecosystem Resilience</h4>
+      <svg viewBox="0 0 200 110" role="img" aria-label="Ecosystem with redundant species">
+        <rect x="10" y="10" width="180" height="90" rx="3" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <circle cx="40" cy="40" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="70" cy="50" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="55" cy="70" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="100" cy="45" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="130" cy="60" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="120" cy="80" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="160" cy="40" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="165" cy="75" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="100" y="105" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Diverse — redundant roles</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">Many species fill similar ecological niches. If one is lost to disease or disturbance, others compensate. The ecosystem's function is preserved.</p>
+    </div>
+    <div class="analogy-side">
+      <h4>A Diversified Portfolio</h4>
+      <svg viewBox="0 0 200 110" role="img" aria-label="Investment portfolio analogy">
+        <rect x="10" y="10" width="180" height="90" rx="3" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <rect x="20" y="25" width="20" height="60" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <rect x="50" y="35" width="20" height="50" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <rect x="80" y="20" width="20" height="65" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <rect x="110" y="40" width="20" height="45" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <rect x="140" y="30" width="20" height="55" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="100" y="105" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Diversified — spreads risk</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">An investor who holds stocks across many sectors is protected if one sector crashes. A diversified portfolio is more resilient — exactly like a biodiverse ecosystem.</p>
+    </div>
+    <div class="analogy-bridge">In finance, diversification reduces risk because not all assets fail simultaneously. In ecology, biodiversity reduces extinction risk because not all species are vulnerable to the same threat. Functional redundancy is nature's version of portfolio diversification — and monoculture is nature's version of putting all your eggs in one basket.</div>
+  </div>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About Biodiversity</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> More species always means a healthier ecosystem.</p>
+      <p><span class="truth">Truth:</span> It's not just about the number of species — it's about what those species <em>do</em>. A community with 100 species that all fill the same niche is less resilient than one with 50 species that fill 50 different niches.</p>
+      <p><strong>Reasoning:</strong> Functional diversity and functional redundancy matter more than raw species count. An invasive species might increase the species count of an ecosystem while actually reducing its functional diversity by outcompeting species that performed unique roles. Quality of diversity, not just quantity, determines ecosystem health.</p>
+    </div>
+  </details>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About Species Richness</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> Counting the number of species (richness) tells you everything about an area's biodiversity.</p>
+      <p><span class="truth">Truth:</span> Richness alone is incomplete. Two forests might both have 50 tree species, but if one is dominated by a single species (low evenness) and the other has equal numbers of all 50 (high evenness), their ecological dynamics are very different.</p>
+      <p><strong>Reasoning:</strong> The Shannon and Simpson indices were created precisely to address this limitation. They combine richness with evenness to give a more accurate picture. A community where one species makes up 99% of individuals is ecologically very different from one where all species are equally represented — even if the species count is identical.</p>
+    </div>
+  </details>
+
+  <p class="why-matters">We are living through the sixth mass extinction in Earth's history — the only one caused by a single species. Biodiversity loss threatens food security, clean water, climate stability, and human health. Understanding what biodiversity is and why it matters is not just academic; it's a survival imperative.</p>
+
+  <p class="interlink"><strong>🔗 This connects to Module 5</strong> because biodiversity is the product of evolution. Every species, every genetic variant, every ecological interaction is the outcome of billions of years of evolutionary change. You can't understand why biodiversity matters without understanding how it came to be.</p>
+</section>
+
+<!-- ===== QUICK RECALL 2 ===== -->
+<section class="quick-recall">
+  <h3>Quick Recall — Modules 3 & 4</h3>
+  <p style="font-size:14px; margin-bottom:16px;">Check your understanding of physiology and ecology before tackling evolution and applications.</p>
+  <div id="quick-recall-2"></div>
+</section>
+
+<!-- ===== MODULE 5 ===== -->
+<section class="module" id="mod5">
+  <div class="module-num">Module 05</div>
+  <h2>The Unifying Power of Evolutionary Theory</h2>
+
+  <div class="core-text">
+    <p>The theory of evolution by natural selection is widely considered the most important unifying concept in all of biology. It provides a comprehensive framework for understanding the vast diversity of life on Earth and explains how species change over time. <strong>Charles Darwin</strong>, in his seminal work <em>On the Origin of Species</em> (1859), proposed that all species are related through common descent and have evolved from earlier forms of life. He defined evolution as <strong>"descent with modification"</strong> — the idea that species change over time, give rise to new species, and share a common ancestor. The core mechanism driving this process is <strong>natural selection</strong>, a theory Darwin developed in parallel with <strong>Alfred Russel Wallace</strong>.</p>
+
+    <p>Natural selection is the differential survival and reproduction of individuals due to differences in phenotype. For it to occur, three conditions must be met: there must be <strong>variation</strong> among individuals within a population; some of this variation must be <strong>heritable</strong> (passed from parents to offspring); and this variation must lead to differences in <strong>fitness</strong> — the relative ability to survive and reproduce in a given environment. Individuals with traits better suited to their environment are more likely to survive and pass those advantageous traits to the next generation. Over many generations, this leads to the gradual accumulation of favorable traits, resulting in <strong>adaptation</strong> and evolutionary change.</p>
+
+    <p>The evidence supporting evolution is extensive and comes from multiple independent lines of inquiry. <strong>Fossil records</strong> provide a direct window into the past, showing a progression of life forms over geological time and revealing transitional forms that link different species. <strong>Comparative anatomy</strong> reveals <em>homologous structures</em> — body parts with similar underlying structure but potentially different functions, such as the forelimbs of humans, bats, and whales — suggesting shared evolutionary origin. <strong>Comparative embryology</strong> shows that early-stage embryos of very different species often look remarkably similar. Perhaps the strongest evidence comes from <strong>molecular biology</strong>: all organisms share the same genetic code and use DNA as hereditary material. The degree of similarity in DNA and protein sequences reflects evolutionary relatedness — humans and chimpanzees share about 98.8% of their DNA, consistent with a recent common ancestor. <strong>Biogeography</strong>, the study of species' geographic distribution, provides further support: the unique assemblage of species on islands like the Galápagos often shows close relationships to the nearest mainland species.</p>
+
+    <p>In the 20th century, a major milestone was the <strong>Modern Synthesis</strong>, which integrated Mendelian genetics with Darwinian evolution. This synthesis showed how the discrete inheritance of genes could provide the variation upon which natural selection acts. The <strong>Chromosomal Theory of Inheritance</strong> — that genes are located on chromosomes and their behavior during meiosis explains Mendel's laws — was a cornerstone. However, in recent decades, growing research has led to calls for an <strong>Extended Evolutionary Synthesis (EES)</strong>. Key concepts include <strong>developmental plasticity</strong> and Evo-Devo (the idea that development itself is a creative force in evolution), <strong>inclusive inheritance</strong> (epigenetic marks, cultural transmission, and behavioral traditions can also be passed to offspring), <strong>niche construction</strong> (organisms actively modify their own environments, altering selective pressures), and <strong>multilevel selection</strong> (selection can operate on groups, not just genes or individuals). Proponents argue these concepts provide a more complete, causal understanding of evolution, emphasizing constructive processes and the active role of organisms in their own evolutionary history.</p>
+  </div>
+
+  <!-- Step Breakdown -->
+  <h3>The Logic of Natural Selection</h3>
+  <ol class="steps">
+    <li><strong>Variation exists.</strong> In any population, individuals differ in traits — size, color, enzyme efficiency, behavior. This variation arises from random mutations, recombination, and genetic drift.</li>
+    <li><strong>Variation is heritable.</strong> Some of these differences are encoded in DNA and passed from parent to offspring. Traits acquired during life (like muscle growth) are generally not inherited.</li>
+    <li><strong>Variation affects fitness.</strong> In a given environment, some traits give individuals an advantage in surviving and reproducing. A thicker fur coat is advantageous in a cold climate; a thinner one is advantageous in a warm one.</li>
+    <li><strong>Differential reproduction accumulates.</strong> Individuals with advantageous traits produce more offspring, who inherit those traits. Over many generations, the trait becomes more common in the population — this is adaptation.</li>
+  </ol>
+
+  <!-- Phylogenetic Tree SVG -->
+  <figure>
+    <svg viewBox="0 0 600 280" role="img" aria-label="Phylogenetic tree showing common descent">
+      <!-- Root -->
+      <circle cx="50" cy="140" r="6" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="40" y="160" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Common</text>
+      <text x="40" y="170" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Ancestor</text>
+      <!-- Main trunk -->
+      <path d="M 56 140 Q 150 140 200 80" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M 56 140 Q 150 140 200 140" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M 56 140 Q 150 140 200 200" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <!-- Branches -->
+      <path d="M 200 80 Q 280 80 350 50" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M 200 80 Q 280 80 350 90" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M 200 140 Q 300 140 380 130" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M 200 140 Q 300 140 380 160" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M 200 200 Q 280 200 350 210" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M 200 200 Q 280 200 350 240" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <!-- Sub-branches -->
+      <path d="M 350 50 Q 420 50 470 40" fill="none" stroke="var(--accent)" stroke-width="1"/>
+      <path d="M 350 50 Q 420 50 470 60" fill="none" stroke="var(--accent)" stroke-width="1"/>
+      <path d="M 350 90 Q 420 90 470 85" fill="none" stroke="var(--accent)" stroke-width="1"/>
+      <path d="M 350 90 Q 420 90 470 100" fill="none" stroke="var(--accent)" stroke-width="1"/>
+      <!-- Species labels -->
+      <text x="480" y="43" font-size="10" fill="var(--text-secondary)">Humans</text>
+      <text x="480" y="63" font-size="10" fill="var(--text-secondary)">Chimps</text>
+      <text x="480" y="88" font-size="10" fill="var(--text-secondary)">Gorillas</text>
+      <text x="480" y="103" font-size="10" fill="var(--text-secondary)">Orangutans</text>
+      <text x="490" y="133" font-size="10" fill="var(--text-secondary)">Dogs</text>
+      <text x="490" y="163" font-size="10" fill="var(--text-secondary)">Whales</text>
+      <text x="460" y="213" font-size="10" fill="var(--text-secondary)">Birds</text>
+      <text x="460" y="243" font-size="10" fill="var(--text-secondary)">Reptiles</text>
+      <!-- Evidence labels -->
+      <text x="150" y="25" font-size="9" fill="var(--text-tertiary)" font-style="italic">Molecular evidence:</text>
+      <text x="150" y="38" font-size="8" fill="var(--text-tertiary)">Humans & chimps share ~98.8% DNA</text>
+      <text x="300" y="270" text-anchor="middle" font-size="9" fill="var(--text-tertiary)" font-style="italic">Each branch point = a common ancestor</text>
+    </svg>
+    <figcaption>Figure 5.1 — A simplified phylogenetic tree. Branch points represent common ancestors. The closer two species are on the tree, the more recently they shared an ancestor. Molecular evidence confirms relationships that anatomy and embryology first suggested.</figcaption>
+  </figure>
+
+  <!-- Evidence of Evolution SVG -->
+  <figure>
+    <svg viewBox="0 0 600 200" role="img" aria-label="Five lines of evidence for evolution">
+      <text x="300" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">Five Lines of Evidence for Evolution</text>
+      <!-- Fossils -->
+      <g transform="translate(30, 50)">
+        <rect x="0" y="0" width="90" height="60" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="45" y="20" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">Fossils</text>
+        <text x="45" y="35" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">Transitional</text>
+        <text x="45" y="46" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">forms in</text>
+        <text x="45" y="57" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">rock layers</text>
+      </g>
+      <!-- Anatomy -->
+      <g transform="translate(140, 50)">
+        <rect x="0" y="0" width="90" height="60" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="45" y="20" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">Anatomy</text>
+        <text x="45" y="35" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">Homologous</text>
+        <text x="45" y="46" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">structures</text>
+        <text x="45" y="57" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">(forelimbs)</text>
+      </g>
+      <!-- Embryology -->
+      <g transform="translate(250, 50)">
+        <rect x="0" y="0" width="90" height="60" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="45" y="20" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">Embryology</text>
+        <text x="45" y="35" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">Early embryos</text>
+        <text x="45" y="46" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">look similar</text>
+        <text x="45" y="57" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">across species</text>
+      </g>
+      <!-- Molecules -->
+      <g transform="translate(360, 50)">
+        <rect x="0" y="0" width="90" height="60" rx="4" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="45" y="20" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">Molecules</text>
+        <text x="45" y="35" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">Shared DNA</text>
+        <text x="45" y="46" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">code & gene</text>
+        <text x="45" y="57" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">sequences</text>
+      </g>
+      <!-- Biogeography -->
+      <g transform="translate(470, 50)">
+        <rect x="0" y="0" width="90" height="60" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="45" y="20" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">Biogeography</text>
+        <text x="45" y="35" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">Island species</text>
+        <text x="45" y="46" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">resemble</text>
+        <text x="45" y="57" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">mainland ones</text>
+      </g>
+      <text x="300" y="140" text-anchor="middle" font-size="10" fill="var(--text-secondary)" font-style="italic">All five lines converge on the same conclusion:</text>
+      <text x="300" y="155" text-anchor="middle" font-size="10" fill="var(--text-secondary)" font-style="italic">life shares common ancestry and changes over time.</text>
+      <text x="300" y="180" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">Molecular evidence (highlighted) is the strongest — it provides quantifiable, testable comparisons.</text>
+    </svg>
+    <figcaption>Figure 5.2 — No single line of evidence proves evolution. But when fossils, anatomy, embryology, molecular biology, and biogeography all point to the same conclusion, the case becomes overwhelming.</figcaption>
+  </figure>
+
+  <!-- Fill in the Blank -->
+  <div class="interactive">
+    <div class="interactive-header">🎯 Fill-in-the-Blank: Evolution Terminology</div>
+    <div class="interactive-body" id="fib-mod5">
+      <p style="font-size:14px; margin-bottom:16px;">Complete each sentence. Use the "Hint" links for help. Type your answer and press Enter.</p>
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- Examples -->
+  <h3>Examples in Practice</h3>
+  <div class="examples">
+    <div class="example">
+      <div class="tag">Obvious</div>
+      <p>The <strong>peppered moth</strong> (<em>Biston betularia</em>) in industrial England. Before the Industrial Revolution, light-colored moths were common because they camouflaged against lichen-covered trees. When pollution darkened the trees, dark-colored moths became more common because they were now better camouflaged against bird predators. When clean air laws reduced pollution, the light form returned. This is natural selection observed in real time: environmental change → shift in which trait is advantageous → change in population frequency.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Counter-intuitive</div>
+      <p><strong>Niche construction</strong> shows that organisms don't just <em>adapt to</em> their environment — they <em>create</em> it. Beavers build dams, turning streams into ponds, which changes the selective pressures on themselves and every other species in the area. Earthworms modify soil chemistry, affecting which plants can grow, which in turn affects the worms' own food supply. Humans are the ultimate niche constructors: agriculture, cities, and climate change have altered selective pressures globally. The Extended Evolutionary Synthesis emphasizes this two-way street: organisms shape their environments, and those modified environments shape the organisms right back.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Edge Case</div>
+      <p><strong>Cultural transmission</strong> in whales and songbirds blurs the line between genetic and non-genetic inheritance. Humpback whales learn songs from each other; these songs spread across ocean basins in "cultural revolutions" that change faster than genetic evolution could explain. Some bird populations have regional "dialects" passed down through learning, not genetics. The Extended Evolutionary Synthesis argues that such cultural inheritance is a legitimate evolutionary mechanism — it affects survival and reproduction, and it's transmitted between generations, even though it's not encoded in DNA.</p>
+    </div>
+  </div>
+
+  <!-- Visual Analogy Card -->
+  <div class="analogy-card">
+    <div class="analogy-side left">
+      <h4>Natural Selection</h4>
+      <svg viewBox="0 0 200 110" role="img" aria-label="Natural selection simplified">
+        <!-- Population with variation -->
+        <circle cx="40" cy="55" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="60" cy="55" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="80" cy="55" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5" stroke-width="2"/>
+        <circle cx="100" cy="55" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="120" cy="55" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="80" y="85" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Variation in population</text>
+        <!-- Arrow -->
+        <path d="M 80 95 L 80 125" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+        <text x="100" y="115" font-size="8" fill="var(--text-tertiary)">environment</text>
+        <text x="100" y="125" font-size="8" fill="var(--text-tertiary)">selects</text>
+        <!-- Next generation -->
+        <circle cx="55" cy="150" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5" stroke-width="2"/>
+        <circle cx="75" cy="150" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5" stroke-width="2"/>
+        <circle cx="95" cy="150" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5" stroke-width="2"/>
+        <circle cx="115" cy="150" r="8" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5" stroke-width="2"/>
+        <text x="85" y="180" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Advantageous trait common</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">A population has random variation. The environment "filters" which variants survive and reproduce. Over generations, advantageous traits become more common.</p>
+    </div>
+    <div class="analogy-side">
+      <h4>A Sieve</h4>
+      <svg viewBox="0 0 200 110" role="img" aria-label="Sieve analogy">
+        <!-- Mixed particles -->
+        <circle cx="40" cy="30" r="6" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="60" cy="25" r="4" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="80" cy="32" r="7" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="100" cy="28" r="3" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="120" cy="30" r="5" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="140" cy="26" r="6" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <!-- Sieve line -->
+        <line x1="30" y1="50" x2="150" y2="50" stroke="var(--accent)" stroke-width="1.5"/>
+        <line x1="35" y1="48" x2="35" y2="52" stroke="var(--accent)" stroke-width="1"/>
+        <line x1="50" y1="48" x2="50" y2="52" stroke="var(--accent)" stroke-width="1"/>
+        <line x1="65" y1="48" x2="65" y2="52" stroke="var(--accent)" stroke-width="1"/>
+        <line x1="80" y1="48" x2="80" y2="52" stroke="var(--accent)" stroke-width="1"/>
+        <line x1="95" y1="48" x2="95" y2="52" stroke="var(--accent)" stroke-width="1"/>
+        <line x1="110" y1="48" x2="110" y2="52" stroke="var(--accent)" stroke-width="1"/>
+        <line x1="125" y1="48" x2="125" y2="52" stroke="var(--accent)" stroke-width="1"/>
+        <line x1="140" y1="48" x2="140" y2="52" stroke="var(--accent)" stroke-width="1"/>
+        <!-- Passed through -->
+        <circle cx="55" cy="75" r="3" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="75" cy="72" r="4" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="95" cy="78" r="3" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <circle cx="115" cy="75" r="4" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="90" y="100" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Only small particles pass through</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">A sieve doesn't consciously choose which particles to keep — it has holes of a certain size, and only particles smaller than the holes pass through. The environment works the same way.</p>
+    </div>
+    <div class="analogy-bridge">Natural selection has no mind, no goal, no plan. It's a passive filter — like a sieve — that lets some variants pass through to the next generation and blocks others. The "holes" are defined by the environment: what's advantageous in one setting may be fatal in another. Change the environment, and you change which variants "fit" through the sieve.</div>
+  </div>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About Evolution</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> Evolution has a goal or direction — organisms are "trying" to become more complex or "higher."</p>
+      <p><span class="truth">Truth:</span> Evolution has no goal. It's a blind process that favors whatever works in a given environment at a given time. "More complex" is not inherently better — many successful organisms (bacteria, tapeworms) are simpler than their ancestors.</p>
+      <p><strong>Reasoning:</strong> Natural selection is like a sieve, not a sculptor. It doesn't aim for perfection; it filters for adequacy. A trait that's "good enough" to survive and reproduce will persist, even if a theoretically better trait exists. Evolution is full of compromises and historical constraints — the human eye has a blind spot because of how the retina is wired, not because that's optimal design.</p>
+    </div>
+  </details>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About "Survival of the Fittest"</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> "Fittest" means the strongest, fastest, or most aggressive individual.</p>
+      <p><span class="truth">Truth:</span> In evolutionary biology, "fitness" means reproductive success — the number of viable offspring an individual produces. A small, timid animal that has many offspring is fitter than a large, strong one that has none.</p>
+      <p><strong>Reasoning:</strong> Fitness is defined by output (offspring), not by any particular trait. A dandelion is evolutionarily "fit" if it produces thousands of seeds, even though it's tiny and fragile. A bodybuilder who never has children has zero evolutionary fitness, regardless of physical strength.</p>
+    </div>
+  </details>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About the Extended Synthesis</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> The Extended Evolutionary Synthesis disproves Darwin and replaces natural selection.</p>
+      <p><span class="truth">Truth:</span> The EES <em>expands</em> the Modern Synthesis; it doesn't replace it. Natural selection remains the primary driver of adaptation. The EES adds mechanisms (epigenetic inheritance, niche construction, developmental plasticity) that work alongside selection.</p>
+      <p><strong>Reasoning:</strong> Science advances by incorporation, not demolition. Newtonian physics wasn't "wrong" when Einstein proposed relativity — it was a special case that works at low speeds. Similarly, the Modern Synthesis isn't wrong; it's a powerful framework that the EES enriches with additional mechanisms for specific contexts.</p>
+    </div>
+  </details>
+
+  <p class="why-matters">Evolution isn't just history — it's happening right now. Antibiotic resistance, pesticide resistance, and the emergence of new viral variants are evolution in real time. If we don't understand how it works, we can't combat the threats it creates.</p>
+
+  <p class="interlink"><strong>🔗 This connects to Module 6</strong> because every application of biology — from CRISPR to conservation to agriculture — relies on evolutionary principles. You can't design a drug without understanding how resistance evolves. You can't conserve a species without understanding its genetic diversity. Evolution is the engine that drives every biological application.</p>
+</section>
+
+<!-- ===== MODULE 6 ===== -->
+<section class="module" id="mod6">
+  <div class="module-num">Module 06</div>
+  <h2>Applications of Biological Knowledge in the Modern World</h2>
+
+  <div class="core-text">
+    <p>The foundational principles of biology — from genetics to ecology — are no longer confined to academic research. They serve as the basis for transformative technologies that address some of society's most pressing challenges. The application of genetic and genomic knowledge has revolutionized fields ranging from medicine and agriculture to conservation and forensics.</p>
+
+    <p>In <strong>medicine</strong>, genetics is used to diagnose inherited diseases, predict an individual's risk for certain conditions, and develop personalized treatments tailored to a patient's unique genetic makeup. <strong>Genetic engineering</strong> has enabled novel therapies, such as <strong>CRISPR-Cas9</strong> technology, which allows for precise editing of the genome to correct mutations responsible for genetic disorders like <strong>sickle cell disease</strong>. CRISPR works by using a guide RNA to direct the Cas9 enzyme to a specific DNA sequence, where it makes a cut. The cell's natural repair machinery then fixes the cut, either disabling a faulty gene or inserting a correct copy. <strong>Recombinant DNA technology</strong> is also used to mass-produce therapeutic proteins like insulin and clotting factors in bacteria or cultured mammalian cells — the insulin that millions of diabetics depend on is produced by genetically modified <em>E. coli</em>.</p>
+
+    <p><strong>Agriculture</strong> has undergone a profound transformation. Traditional breeding methods have long improved crop yield and quality, but modern biotechnology offers far more precise tools. Genetic engineering allows scientists to directly introduce desirable traits into plants and animals — pest resistance, herbicide tolerance, improved nutritional content, and drought resilience. CRISPR and other gene-editing tools have accelerated this process, enabling rapid, targeted modifications without necessarily introducing foreign DNA. These advancements are critical for addressing global food security and adapting agricultural systems to a changing climate. Genomic information also enhances livestock breeding by allowing accurate selection of animals with superior genetic traits.</p>
+
+    <p>In <strong>conservation biology</strong>, genetics provides powerful tools for managing and preserving biodiversity. <strong>DNA barcoding</strong> and <strong>population genomics</strong> identify species — especially cryptic ones — and assess the genetic health of populations. Low genetic diversity is a major threat to small, isolated populations, making them vulnerable to extinction. Genetic techniques inform breeding programs for endangered species, aiming to maximize diversity and avoid inbreeding. <strong>Landscape genetics</strong> helps managers understand how human-made barriers like roads fragment habitats and impede gene flow — crucial for designing effective wildlife corridors. Looking to the future, <strong>synthetic biology</strong> may offer novel solutions, such as engineering disease-resistance genes into wild populations or developing methods to revive extinct species from stored genetic material.</p>
+
+    <p>Finally, the principles of biology are indispensable for tackling <strong>global environmental issues</strong>. Understanding the links between biodiversity, ecosystem function, and climate change is critical for developing mitigation and adaptation strategies. Healthy, biodiverse ecosystems are more resilient to climate change and provide crucial services like <strong>carbon sequestration</strong> — helping buffer the impacts of global warming. Ecology informs land-use planning, sustainable resource management, and ecosystem restoration. A deep understanding of evolutionary biology is essential for public health — particularly in combating <strong>antibiotic resistance</strong> and predicting the emergence of new <strong>zoonotic diseases</strong>, which often arise from disruptions to natural ecosystems. From the laboratory bench to the farm field and the global commons, the applications of biological knowledge are pervasive, demonstrating that mastery of the core principles of life sciences is essential for navigating the complexities of the 21st century.</p>
+  </div>
+
+  <!-- Step Breakdown -->
+  <h3>How CRISPR-Cas9 Works</h3>
+  <ol class="steps">
+    <li><strong>Design a guide RNA.</strong> Scientists create a short RNA sequence (guide RNA) that matches the target DNA — the gene they want to edit. This RNA is complementary to the specific sequence to be cut.</li>
+    <li><strong>Cas9 + guide RNA form a complex.</strong> The Cas9 enzyme binds to the guide RNA, forming a search complex that scans the genome for a matching DNA sequence.</li>
+    <li><strong>Cas9 finds and binds the target.</strong> When the complex encounters DNA that matches the guide RNA, it binds. Cas9 checks for a short "PAM" sequence next to the target — a molecular safeguard that prevents Cas9 from cutting randomly.</li>
+    <li><strong>Cas9 cuts the DNA.</strong> Cas9 acts as molecular scissors, making a double-strand break at the precise target location.</li>
+    <li><strong>Cell repair enables editing.</strong> The cell's repair machinery fixes the break. Scientists can exploit this: if they provide a "template" DNA, the cell will copy it during repair, allowing precise insertion of a new sequence. Alternatively, they can let the error-prone repair pathway disrupt the gene, effectively "knocking it out."</li>
+  </ol>
+
+  <!-- CRISPR Mechanism SVG -->
+  <figure>
+    <svg viewBox="0 0 700 280" role="img" aria-label="CRISPR-Cas9 gene editing mechanism in five steps">
+      <!-- Step 1: Guide RNA design -->
+      <g transform="translate(10, 20)">
+        <text x="60" y="0" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">1. Design</text>
+        <path d="M 30 50 Q 60 40 90 50" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="60" y="75" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">guide RNA</text>
+        <text x="60" y="100" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">matches target</text>
+      </g>
+      <!-- Step 2: Complex formation -->
+      <g transform="translate(150, 20)">
+        <text x="60" y="0" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">2. Bind</text>
+        <ellipse cx="60" cy="55" rx="35" ry="25" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="60" y="53" text-anchor="middle" font-size="9" fill="var(--text-secondary)">Cas9</text>
+        <text x="60" y="63" text-anchor="middle" font-size="7" fill="var(--text-tertiary)">(enzyme)</text>
+        <path d="M 40 65 Q 60 75 80 65" fill="none" stroke="var(--accent)" stroke-width="1"/>
+        <text x="60" y="100" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">+ guide RNA</text>
+      </g>
+      <!-- Step 3: Find target -->
+      <g transform="translate(290, 20)">
+        <text x="60" y="0" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">3. Search</text>
+        <!-- DNA double helix -->
+        <path d="M 30 30 Q 50 40 30 50 Q 50 60 30 70 Q 50 80 30 90" fill="none" stroke="var(--accent)" stroke-width="1"/>
+        <path d="M 90 30 Q 70 40 90 50 Q 70 60 90 70 Q 70 80 90 90" fill="none" stroke="var(--accent)" stroke-width="1"/>
+        <ellipse cx="60" cy="60" rx="20" ry="15" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="60" y="63" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Cas9</text>
+        <text x="60" y="110" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">scans DNA</text>
+      </g>
+      <!-- Step 4: Cut -->
+      <g transform="translate(430, 20)">
+        <text x="60" y="0" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">4. Cut</text>
+        <!-- DNA with break -->
+        <path d="M 30 30 Q 50 40 30 50 L 30 55" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M 30 65 Q 50 75 30 85 Q 50 95 30 100" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M 90 30 Q 70 40 90 50 L 90 55" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M 90 65 Q 70 75 90 85 Q 70 95 90 100" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <!-- Scissor marks -->
+        <text x="60" y="62" text-anchor="middle" font-size="14" fill="var(--incorrect)">✕</text>
+        <text x="60" y="120" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">double-strand</text>
+        <text x="60" y="130" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">break</text>
+      </g>
+      <!-- Step 5: Repair -->
+      <g transform="translate(570, 20)">
+        <text x="60" y="0" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-secondary)">5. Repair</text>
+        <path d="M 30 30 Q 50 40 30 50 Q 50 60 30 70 Q 50 80 30 90 Q 50 100 30 110" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M 90 30 Q 70 40 90 50 Q 70 60 90 70 Q 70 80 90 90 Q 70 100 90 110" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="60" y="55" text-anchor="middle" font-size="7" fill="var(--correct)">corrected</text>
+        <text x="60" y="65" text-anchor="middle" font-size="7" fill="var(--correct)">gene</text>
+        <text x="60" y="130" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">cell repairs</text>
+        <text x="60" y="140" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">with template</text>
+      </g>
+      <!-- Connecting arrows -->
+      <path d="M 125 60 L 145 60" stroke="var(--border-strong)" stroke-width="1" fill="none"/>
+      <path d="M 140 55 L 150 60 L 140 65" stroke="var(--border-strong)" stroke-width="1" fill="none"/>
+      <path d="M 265 60 L 285 60" stroke="var(--border-strong)" stroke-width="1" fill="none"/>
+      <path d="M 280 55 L 290 60 L 280 65" stroke="var(--border-strong)" stroke-width="1" fill="none"/>
+      <path d="M 405 60 L 425 60" stroke="var(--border-strong)" stroke-width="1" fill="none"/>
+      <path d="M 420 55 L 430 60 L 420 65" stroke="var(--border-strong)" stroke-width="1" fill="none"/>
+      <path d="M 545 60 L 565 60" stroke="var(--border-strong)" stroke-width="1" fill="none"/>
+      <path d="M 560 55 L 570 60 L 560 65" stroke="var(--border-strong)" stroke-width="1" fill="none"/>
+      <!-- Result -->
+      <text x="350" y="250" text-anchor="middle" font-size="10" fill="var(--text-secondary)" font-style="italic">Result: a precise, targeted change to the genome — disabling a faulty gene or inserting a correct one.</text>
+    </svg>
+    <figcaption>Figure 6.1 — The CRISPR-Cas9 gene editing process. A guide RNA directs the Cas9 enzyme to a specific DNA sequence, where it makes a cut. The cell's repair machinery then fixes the break, enabling scientists to disable or correct a gene.</figcaption>
+  </figure>
+
+  <!-- Application Domains SVG -->
+  <figure>
+    <svg viewBox="0 0 600 250" role="img" aria-label="Four domains where biology is applied">
+      <text x="300" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">Biological Knowledge in Action</text>
+      <!-- Medicine -->
+      <g transform="translate(30, 50)">
+        <rect x="0" y="0" width="120" height="80" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="60" y="20" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-secondary)">Medicine</text>
+        <text x="60" y="38" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• CRISPR therapy</text>
+        <text x="60" y="50" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Personalized Rx</text>
+        <text x="60" y="62" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Recombinant insulin</text>
+        <text x="60" y="74" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Disease diagnosis</text>
+      </g>
+      <!-- Agriculture -->
+      <g transform="translate(170, 50)">
+        <rect x="0" y="0" width="120" height="80" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="60" y="20" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-secondary)">Agriculture</text>
+        <text x="60" y="38" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Pest-resistant crops</text>
+        <text x="60" y="50" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Drought tolerance</text>
+        <text x="60" y="62" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Improved nutrition</text>
+        <text x="60" y="74" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Livestock genomics</text>
+      </g>
+      <!-- Conservation -->
+      <g transform="translate(310, 50)">
+        <rect x="0" y="0" width="120" height="80" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="60" y="20" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-secondary)">Conservation</text>
+        <text x="60" y="38" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• DNA barcoding</text>
+        <text x="60" y="50" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Breeding programs</text>
+        <text x="60" y="62" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Wildlife corridors</text>
+        <text x="60" y="74" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• De-extinction</text>
+      </g>
+      <!-- Environment -->
+      <g transform="translate(450, 50)">
+        <rect x="0" y="0" width="120" height="80" rx="4" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="60" y="20" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-secondary)">Environment</text>
+        <text x="60" y="38" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Carbon storage</text>
+        <text x="60" y="50" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Ecosystem restore</text>
+        <text x="60" y="62" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Antibiotic resistance</text>
+        <text x="60" y="74" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">• Zoonotic disease</text>
+      </g>
+      <!-- Connecting lines to core -->
+      <line x1="90" y1="130" x2="300" y2="190" stroke="var(--border)" stroke-width="1"/>
+      <line x1="230" y1="130" x2="300" y2="190" stroke="var(--border)" stroke-width="1"/>
+      <line x1="370" y1="130" x2="300" y2="190" stroke="var(--border)" stroke-width="1"/>
+      <line x1="510" y1="130" x2="300" y2="190" stroke="var(--border)" stroke-width="1"/>
+      <!-- Core -->
+      <ellipse cx="300" cy="200" rx="120" ry="25" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="300" y="198" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-secondary)">Core Biology Principles</text>
+      <text x="300" y="212" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">Cells · Genes · Physiology · Ecology · Evolution</text>
+    </svg>
+    <figcaption>Figure 6.2 — Four major application domains of biological knowledge. All draw on the same core principles explored in this lesson.</figcaption>
+  </figure>
+
+  <!-- Mini Challenge -->
+  <div class="interactive">
+    <div class="interactive-header">🎮 Mini-Challenge: You Are the Biotech Advisor</div>
+    <div class="interactive-body" id="challenge-mod6">
+      <p style="font-size:14px; margin-bottom:16px;">A small island nation faces multiple challenges. As their biotech advisor, what do you recommend first?</p>
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- Examples -->
+  <h3>Examples in Practice</h3>
+  <div class="examples">
+    <div class="example">
+      <div class="tag">Obvious</div>
+      <p><strong>CRISPR for sickle cell disease.</strong> Sickle cell disease is caused by a single mutation in the beta-globin gene. In 2023, the FDA approved Casgevy, a CRISPR-based therapy that edits a patient's own blood stem cells to restore fetal hemoglobin production, which compensates for the defective adult hemoglobin. Patients who once faced chronic pain and early death now have a potential one-time cure. This is the central dogma (DNA → RNA → protein) turned into medicine: fix the DNA, and the downstream protein corrects itself.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Counter-intuitive</div>
+      <p><strong>Genetic engineering can help conservation</strong>, not just agriculture. The American chestnut tree was nearly wiped out by a fungal blight in the early 20th century. Scientists have engineered a version that expresses a gene from wheat, giving it resistance to the blight toxin. If approved for release, it would be the first genetically engineered organism designed specifically for ecological restoration — not for human profit, but for ecosystem repair. This challenges the assumption that GMOs are always about industrial agriculture.</p>
+    </div>
+    <div class="example">
+      <div class="tag">Edge Case</div>
+      <p><strong>De-extinction</strong> efforts aim to revive extinct species using stored genetic material. The most famous project attempts to recreate the passenger pigeon — extinct since 1914 — by editing the genome of its closest living relative, the band-tailed pigeon. But this isn't true resurrection: the result would be a hybrid, not a perfect replica. Ethicists debate whether creating a proxy organism is meaningful conservation or technological hubris. The edge case forces us to ask: what are we actually trying to conserve — a genome, a species, an ecosystem, or an idea?</p>
+    </div>
+  </div>
+
+  <!-- Visual Analogy Card -->
+  <div class="analogy-card">
+    <div class="analogy-side left">
+      <h4>CRISPR-Cas9</h4>
+      <svg viewBox="0 0 200 110" role="img" aria-label="CRISPR simplified">
+        <rect x="20" y="45" width="160" height="20" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="100" y="58" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Target DNA sequence</text>
+        <ellipse cx="100" cy="30" rx="30" ry="15" fill="var(--fig-fill)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="100" y="33" text-anchor="middle" font-size="8" fill="var(--text-secondary)">Cas9 + RNA</text>
+        <path d="M 100 45 L 100 55" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="100" y="85" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">Finds one specific spot</text>
+        <text x="100" y="95" text-anchor="middle" font-size="8" fill="var(--text-tertiary)">in billions of bases</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">A guide RNA directs the Cas9 enzyme to one precise location in the genome, where it cuts the DNA. The cell then repairs the cut — with or without a new template provided by scientists.</p>
+    </div>
+    <div class="analogy-side">
+      <h4>Find-and-Replace in a Document</h4>
+      <svg viewBox="0 0 200 110" role="img" aria-label="Find and replace analogy">
+        <rect x="15" y="15" width="170" height="80" rx="3" fill="var(--fig-fill-alt)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="25" y="35" font-size="7" fill="var(--text-secondary)">Search: "AGCTT"</text>
+        <text x="25" y="50" font-size="7" fill="var(--text-secondary)">Replace: "AGCCT"</text>
+        <line x1="25" y1="58" x2="175" y2="58" stroke="var(--border)" stroke-width="0.5"/>
+        <text x="25" y="73" font-size="7" fill="var(--text-tertiary)">...TCAGCTTGAT...</text>
+        <text x="25" y="87" font-size="7" fill="var(--text-tertiary)">→ ...TCAGCCTGAT...</text>
+      </svg>
+      <p style="font-size:13px; color:var(--text-secondary);">In a word processor, "Find and Replace" searches for a specific text string and replaces it with a new one. CRISPR does the same thing with DNA sequences: find the target, cut it, replace it.</p>
+    </div>
+    <div class="analogy-bridge">CRISPR is biology's version of Find-and-Replace. The guide RNA is the search query; Cas9 is the cursor that makes the cut; the repair template is the replacement text. The difference is that the "document" is a living genome — and the edit is inherited by every daughter cell forever after.</div>
+  </div>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About GMOs</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> GMOs are fundamentally "unnatural" — they're a completely new kind of organism that nature never produces.</p>
+      <p><span class="truth">Truth:</span> Genetic modification is a continuum. Selective breeding (which humans have done for 10,000 years) modifies genomes; it just does so slowly and imprecisely. CRISPR and recombinant DNA technology do the same thing, but faster and more precisely.</p>
+      <p><strong>Reasoning:</strong> What's "unnatural" is a matter of degree, not kind. Agrobacterium — a soil bacterium — has been inserting its own DNA into plant genomes for millions of years; scientists simply adapted this natural process. The question isn't "is it natural?" but "is it safe, effective, and ethically deployed?" Each GMO must be evaluated on its own merits, not dismissed wholesale.</p>
+    </div>
+  </details>
+
+  <details class="misconception">
+    <summary>What People Get Wrong About De-Extinction</summary>
+    <div class="detail-body">
+      <p><span class="myth">Myth:</span> We can bring back extinct species exactly as they were, like in Jurassic Park.</p>
+      <p><span class="truth">Truth:</span> DNA degrades over time. Even with the best-preserved samples, we can't recover a complete genome of a long-extinct species. What we can do is edit the genome of a living relative to express some traits of the extinct species — creating a "proxy," not a true resurrection.</p>
+      <p><strong>Reasoning:</strong> A passenger pigeon proxy would look and behave somewhat like the original, but it wouldn't be genetically identical. It wouldn't have the same gut microbiome, the same epigenetic marks, or the same learned behaviors. De-extinction is better understood as creating an ecological substitute than restoring a lost species.</p>
+    </div>
+  </details>
+
+  <p class="why-matters">Biology is no longer just a science of observation — it's a science of intervention. The same principles that explain how life works now allow us to edit genomes, resurrect lost traits, engineer ecosystems, and combat diseases that have plagued humanity for millennia. The question is no longer "can we?" but "should we?" — and that requires biological literacy from everyone, not just scientists.</p>
+
+  <p class="interlink"><strong>🔗 This connects back to Module 1</strong> because every biotech application ultimately operates at the cellular level. CRISPR edits DNA inside cells. Insulin is produced by cells. Conservation genetics analyzes the DNA within cells. The cell — the foundational unit of life — is also the foundational unit of biotechnology. The circle is complete.</p>
+</section>
+
+<!-- ===== SPACED REPETITION ===== -->
+<div class="spaced-rep">
+  <h4>📅 Spaced Repetition Schedule</h4>
+  <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">To move this material into long-term memory, review at these intervals:</p>
+  <ol>
+    <li><strong>1 minute</strong> — Scan the Knowledge Map below and recall each module's core idea.</li>
+    <li><strong>10 minutes</strong> — Re-attempt one quiz question from each module.</li>
+    <li><strong>1 hour</strong> — Explain the central dogma and feedback loops to yourself out loud.</li>
+    <li><strong>1 day</strong> — Re-read the Summary & Cheat Sheet.</li>
+    <li><strong>3 days</strong> — Attempt the Quick Recall sections without looking.</li>
+    <li><strong>1 week</strong> — Explain the entire lesson to someone else, or write a one-page summary from memory.</li>
+  </ol>
+</div>
+
+<!-- ===== SUMMARY & CHEAT SHEET ===== -->
+<section class="summary" id="summary">
+  <h2>Summary & Cheat Sheet</h2>
+  <div class="cheat-grid">
+    <div class="cheat-item">
+      <h4>Module 1 — Cells</h4>
+      <p>Cell theory: all life is cellular, cells are the basic unit, and cells come from pre-existing cells (Schleiden 1838, Schwann 1839, Virchow 1855). Prokaryotes (bacteria, archaea) lack a nucleus and organelles; eukaryotes (plants, animals, fungi, protists) have both. Key organelles: nucleus (DNA storage), mitochondria (ATP), ER (protein/lipid synthesis), Golgi (packaging), lysosomes (digestion), ribosomes (translation). Homeostasis at the cellular level involves transport across the plasma membrane.</p>
+    </div>
+    <div class="cheat-item">
+      <h4>Module 2 — Gene Expression</h4>
+      <p>Central dogma (Crick 1958): DNA → RNA → Protein. Replication (DNA polymerase), Transcription (RNA polymerase → mRNA), Translation (ribosome + tRNA → protein). Non-coding RNAs (miRNA, lncRNA) regulate gene expression. Retroviruses use reverse transcriptase (RNA → DNA). Epigenetics (methylation, chromatin remodeling) controls DNA accessibility without changing sequence.</p>
+    </div>
+    <div class="cheat-item">
+      <h4>Module 3 — Physiology & Homeostasis</h4>
+      <p>Homeostasis = dynamic equilibrium of internal conditions. Negative feedback reverses deviations (thermoregulation, blood glucose via insulin/glucagon). Positive feedback amplifies to an endpoint (childbirth via oxytocin, blood clotting). Nervous system = fast, electrical. Endocrine system = slow, hormonal. Eleven organ systems work as an integrated whole.</p>
+    </div>
+    <div class="cheat-item">
+      <h4>Module 4 — Ecology & Biodiversity</h4>
+      <p>Hierarchy: individual → population → community → ecosystem → biosphere. Abiotic (nonliving) vs biotic (living) factors. Biodiversity has three levels: genetic, species, ecosystem (plus functional and phylogenetic). Shannon index (richness + evenness) and Simpson index (probability of same species) quantify diversity. Higher biodiversity = greater resilience through functional redundancy. Ecosystem services: clean air/water, pollination, climate regulation.</p>
+    </div>
+    <div class="cheat-item">
+      <h4>Module 5 — Evolution</h4>
+      <p>Darwin's "descent with modification." Natural selection requires: variation, heritability, differential fitness. Developed in parallel with Wallace. Evidence: fossils, comparative anatomy (homologous structures), embryology, molecular biology (shared DNA code), biogeography (Galápagos). Modern Synthesis integrated Mendelian genetics. Extended Evolutionary Synthesis adds: developmental plasticity (Evo-Devo), inclusive inheritance, niche construction, multilevel selection.</p>
+    </div>
+    <div class="cheat-item">
+      <h4>Module 6 — Applications</h4>
+      <p>Medicine: CRISPR-Cas9 gene editing (sickle cell disease), personalized medicine, recombinant insulin. Agriculture: pest-resistant/drought-tolerant crops, CRISPR-edited livestock. Conservation: DNA barcoding, population genomics, landscape genetics, wildlife corridors, de-extinction. Environment: carbon sequestration, ecosystem restoration, combating antibiotic resistance, predicting zoonotic disease emergence.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FAQ ===== -->
+<section class="faq">
+  <h2>Still Confused?</h2>
+  <details>
+    <summary>If mitochondria were once bacteria, why can't they live on their own anymore?</summary>
+    <div class="answer">Over billions of years of endosymbiosis, mitochondria transferred most of their genes to the host cell's nucleus. They retained only a small circular genome (37 genes in humans). They can no longer survive independently because they depend on the host for most of their proteins. The relationship went from "host and guest" to a single, integrated organism — the eukaryotic cell.</div>
+  </details>
+  <details>
+    <summary>How can non-coding RNA regulate genes if it doesn't make a protein?</summary>
+    <div class="answer">Non-coding RNAs work through complementary base pairing. A microRNA (miRNA) is a short RNA sequence that binds to a matching mRNA molecule. When it binds, it either blocks the ribosome from translating that mRNA (translational repression) or targets the mRNA for destruction (degradation). Long non-coding RNAs (lncRNAs) can also recruit proteins that modify chromatin, making a gene more or less accessible to transcription machinery. RNA doesn't need to code for a protein to be functional — its sequence itself is the tool.</div>
+  </details>
+  <details>
+    <summary>Why is positive feedback used in biology if it's "unstable"?</summary>
+    <div class="answer">Positive feedback is used precisely when a process needs to escalate rapidly to completion. Childbirth can't happen gradually — contractions must intensify until the baby is delivered. Blood clotting must happen fast — a slow leak would be fatal. Nerve signals rely on positive feedback (voltage-gated sodium channels open in a cascade). The key is that every biological positive feedback loop has a built-in stopping condition: birth, clot formation, or the refractory period of a neuron. It's "unstable" by design, but bounded.</div>
+  </details>
+  <details>
+    <summary>If evolution has no goal, why do organisms seem so perfectly adapted?</summary>
+    <div class="answer">They're not perfect — they're "good enough." Every adaptation is a compromise. The human eye has a blind spot where the optic nerve exits the retina — a design flaw no engineer would choose, but one that makes sense given our evolutionary history. The panda's "thumb" is an enlarged wrist bone, not a true thumb. Organisms aren't optimally designed; they're historically constrained. Natural selection works with existing variation, not from scratch, so adaptations are modifications of what came before, not ideal solutions.</div>
+  </details>
+  <details>
+    <summary>Is CRISPR safe? Can it edit the wrong gene by mistake?</summary>
+    <div class="answer">Off-target effects are a real concern. The guide RNA can sometimes bind to DNA sequences that are similar but not identical to the target, leading to unintended cuts. Researchers mitigate this by carefully designing guide RNAs, using high-fidelity Cas9 variants, and verifying edits with sequencing. The risk is never zero, which is why CRISPR therapies undergo extensive clinical trials. The technology has improved dramatically since its introduction, but precision biology is still biology — messy, context-dependent, and never perfectly predictable.</div>
+  </details>
+  <details>
+    <summary>What's the difference between species richness and evenness?</summary>
+    <div class="answer">Richness is the number of different species in an area. Evenness is how evenly individuals are distributed among those species. Two forests might both have 10 tree species (same richness), but if one is 90% oak with 1% each of the other nine (low evenness) and the other is 10% of each (high evenness), they have very different ecological dynamics. The Shannon and Simpson indices combine both metrics to give a single diversity score that captures this nuance.</div>
+  </details>
+</section>
+
+<!-- ===== NEXT STEPS ===== -->
+<section class="next-steps">
+  <h2>Next Steps</h2>
+  <ul>
+    <li>Explore the endosymbiotic theory in depth — how Lynn Margulis's once-controversial idea became textbook biology</li>
+    <li>Learn about CRISPR's discovery — from bacterial immune defense to the 2020 Nobel Prize in Chemistry</li>
+    <li>Study the Galápagos finches — Peter and Rosemary Grant's decades-long field study documenting evolution in real time</li>
+    <li>Investigate the human microbiome — how trillions of prokaryotic cells in your body influence health, mood, and immunity</li>
+    <li>Dive into epigenetics — how environment, diet, and stress can alter gene expression without changing DNA sequence</li>
+    <li>Explore conservation genomics — how DNA analysis is reshaping wildlife management and endangered species recovery</li>
+    <li>Learn about the sixth mass extinction — current rates of biodiversity loss and what they mean for the future of life on Earth</li>
+  </ul>
+</section>
+
+<!-- ===== END BADGE ===== -->
+<div class="end-badge">
+  ✓ You finished the lesson.
+</div>
+
+<!-- ===== KNOWLEDGE MAP (END) ===== -->
+<section class="kmap-section" style="border-top: 1px solid var(--border);">
+  <h2>Knowledge Map — Revisited</h2>
+  <svg class="kmap-svg" viewBox="0 0 600 320" role="img" aria-label="Knowledge map revisited">
+    <line class="kmap-line" x1="300" y1="50" x2="150" y2="140" />
+    <line class="kmap-line" x1="300" y1="50" x2="450" y2="140" />
+    <line class="kmap-line" x1="150" y1="140" x2="100" y2="250" />
+    <line class="kmap-line" x1="150" y1="140" x2="250" y2="250" />
+    <line class="kmap-line" x1="450" y1="140" x2="350" y2="250" />
+    <line class="kmap-line" x1="450" y1="140" x2="500" y2="250" />
+    <line class="kmap-line" x1="250" y1="250" x2="350" y2="250" />
+    <g class="kmap-node" data-target="mod1" tabindex="0" role="button">
+      <circle cx="300" cy="50" r="30" />
+      <text x="300" y="48" text-anchor="middle">Cells</text>
+      <text x="300" y="60" text-anchor="middle" font-size="9">Module 1</text>
+    </g>
+    <g class="kmap-node" data-target="mod2" tabindex="0" role="button">
+      <circle cx="150" cy="140" r="30" />
+      <text x="150" y="138" text-anchor="middle">Genes</text>
+      <text x="150" y="150" text-anchor="middle" font-size="9">Module 2</text>
+    </g>
+    <g class="kmap-node" data-target="mod3" tabindex="0" role="button">
+      <circle cx="450" cy="140" r="30" />
+      <text x="450" y="138" text-anchor="middle">Body</text>
+      <text x="450" y="150" text-anchor="middle" font-size="9">Module 3</text>
+    </g>
+    <g class="kmap-node" data-target="mod4" tabindex="0" role="button">
+      <circle cx="100" cy="250" r="30" />
+      <text x="100" y="248" text-anchor="middle">Eco</text>
+      <text x="100" y="260" text-anchor="middle" font-size="9">Module 4</text>
+    </g>
+    <g class="kmap-node" data-target="mod5" tabindex="0" role="button">
+      <circle cx="300" cy="250" r="30" />
+      <text x="300" y="248" text-anchor="middle">Evolution</text>
+      <text x="300" y="260" text-anchor="middle" font-size="9">Module 5</text>
+    </g>
+    <g class="kmap-node" data-target="mod6" tabindex="0" role="button">
+      <circle cx="500" cy="250" r="30" />
+      <text x="500" y="248" text-anchor="middle">Apply</text>
+      <text x="500" y="260" text-anchor="middle" font-size="9">Module 6</text>
+    </g>
+  </svg>
+  <p style="font-size:13px; color:var(--text-tertiary); text-align:center; margin-top:8px;">You've traveled from the cell to the biosphere and back. Click any node to revisit.</p>
+</section>
+
+</div><!-- /container -->
+
+<script>
+// ============================================
+// THEME TOGGLE
+// ============================================
+const themeToggle = document.getElementById('theme-toggle');
+const themeIcon = document.getElementById('theme-icon');
+const savedTheme = localStorage.getItem('lesson-theme') || 'light';
+document.documentElement.setAttribute('data-theme', savedTheme);
+themeIcon.textContent = savedTheme === 'dark' ? '☾' : '☀';
+
+themeToggle.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  themeIcon.textContent = next === 'dark' ? '☾' : '☀';
+  localStorage.setItem('lesson-theme', next);
+});
+
+// ============================================
+// PROGRESS BAR
+// ============================================
+const progressBar = document.getElementById('progress-bar');
+window.addEventListener('scroll', () => {
+  const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const scrolled = (window.scrollY / scrollHeight) * 100;
+  progressBar.style.width = scrolled + '%';
+});
+
+// ============================================
+// KNOWLEDGE MAP NAVIGATION
+// ============================================
+document.querySelectorAll('.kmap-node').forEach(node => {
+  node.addEventListener('click', () => {
+    const target = node.getAttribute('data-target');
+    const el = document.getElementById(target);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  });
+  node.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      node.click();
+    }
+  });
+});
+
+// ============================================
+// ELABORATIVE INTERROGATION
+// ============================================
+function toggleElaborative(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('visible');
+}
+
+// ============================================
+// HOTSPOT TOOLTIPS
+// ============================================
+const hotspotTooltip = document.getElementById('hotspot-tooltip');
+const hotspotContainer = document.getElementById('hotspot-container');
+document.querySelectorAll('.hotspot-area').forEach(area => {
+  area.addEventListener('mouseenter', (e) => {
+    const info = area.getAttribute('data-info');
+    hotspotTooltip.textContent = info;
+    hotspotTooltip.classList.add('visible');
+  });
+  area.addEventListener('mousemove', (e) => {
+    const rect = hotspotContainer.getBoundingClientRect();
+    hotspotTooltip.style.left = (e.clientX - rect.left + 10) + 'px';
+    hotspotTooltip.style.top = (e.clientY - rect.top + 10) + 'px';
+  });
+  area.addEventListener('mouseleave', () => {
+    hotspotTooltip.classList.remove('visible');
+  });
+  // Touch support
+  area.addEventListener('click', (e) => {
+    const info = area.getAttribute('data-info');
+    hotspotTooltip.textContent = info;
+    hotspotTooltip.classList.add('visible');
+    const rect = hotspotContainer.getBoundingClientRect();
+    hotspotTooltip.style.left = (e.clientX - rect.left + 10) + 'px';
+    hotspotTooltip.style.top = (e.clientY - rect.top + 10) + 'px';
+    setTimeout(() => hotspotTooltip.classList.remove('visible'), 5000);
+  });
+});
+
+// ============================================
+// FLASHCARDS (Module 2)
+// ============================================
+const flashcardData = [
+  {
+    term: 'DNA Polymerase',
+    definition: 'The enzyme that synthesizes a new DNA strand using an existing strand as a template during replication. Results in two identical DNA molecules.',
+    extra: 'DNA polymerase reads the template strand in the 3\'→5\' direction and synthesizes the new strand in the 5\'→3\' direction. It also has proofreading activity — it can correct its own errors, reducing the mutation rate to about 1 in 10 billion bases.'
+  },
+  {
+    term: 'RNA Polymerase',
+    definition: 'The enzyme that unwinds the DNA helix and builds a complementary RNA strand (mRNA) from a gene during transcription.',
+    extra: 'Unlike DNA polymerase, RNA polymerase does not require a primer and does not have built-in proofreading. This means transcription is more error-prone than replication — but since mRNA is short-lived and degraded after use, occasional errors are less consequential.'
+  },
+  {
+    term: 'mRNA (Messenger RNA)',
+    definition: 'The RNA molecule that carries a copy of the genetic code from the nucleus to the ribosomes in the cytoplasm, where protein synthesis occurs.',
+    extra: 'In eukaryotes, mRNA undergoes processing before leaving the nucleus: a 5\' cap is added, a poly-A tail is attached, and introns (non-coding regions) are spliced out. This processed mRNA is then exported through nuclear pores to the cytoplasm.'
+  },
+  {
+    term: 'tRNA (Transfer RNA)',
+    definition: 'Small RNA molecules that act as adapters, bringing the correct amino acid to the ribosome based on the codon presented on the mRNA.',
+    extra: 'Each tRNA has an anticodon — a three-nucleotide sequence complementary to a specific codon on the mRNA. There are about 45 different tRNAs in humans (some recognize multiple codons due to "wobble" pairing). Without tRNA, the ribosome would have no way to match codons to amino acids.'
+  },
+  {
+    term: 'Ribosome',
+    definition: 'The molecular machine made of rRNA and proteins that reads mRNA codons and catalyzes the formation of peptide bonds between amino acids during translation.',
+    extra: 'Ribosomes have two subunits (large and small). In eukaryotes, the large subunit contains three rRNA molecules and ~49 proteins; the small subunit contains one rRNA and ~33 proteins. The ribosome is essentially a ribozyme — the catalytic activity comes from the rRNA, not the proteins, supporting the RNA World hypothesis.'
+  }
+];
+
+let currentFlashcard = 0;
+const flashcardDeck = document.getElementById('flashcard-deck');
+let extraContextVisible = false;
+
+function renderFlashcard() {
+  flashcardDeck.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'flashcard';
+  card.innerHTML = `
+    <div class="flashcard-inner">
+      <div class="flashcard-face flashcard-front">
+        <span class="term">${flashcardData[currentFlashcard].term}</span>
+      </div>
+      <div class="flashcard-face flashcard-back">
+        ${flashcardData[currentFlashcard].definition}
+      </div>
+    </div>
+  `;
+  card.addEventListener('click', () => card.classList.toggle('flipped'));
+  flashcardDeck.appendChild(card);
+  document.getElementById('fc-current').textContent = currentFlashcard + 1;
+  document.getElementById('fc-total').textContent = flashcardData.length;
+  // Reset extra context
+  const extraDisplay = document.getElementById('extra-context-display');
+  extraDisplay.classList.remove('visible');
+  extraContextVisible = false;
+  document.getElementById('extra-context-btn').textContent = 'Show Extra Context';
+}
+
+function nextFlashcard() {
+  currentFlashcard = (currentFlashcard + 1) % flashcardData.length;
+  renderFlashcard();
+}
+
+function prevFlashcard() {
+  currentFlashcard = (currentFlashcard - 1 + flashcardData.length) % flashcardData.length;
+  renderFlashcard();
+}
+
+function toggleExtraContext() {
+  const display = document.getElementById('extra-context-display');
+  const btn = document.getElementById('extra-context-btn');
+  extraContextVisible = !extraContextVisible;
+  if (extraContextVisible) {
+    display.textContent = flashcardData[currentFlashcard].extra;
+    display.classList.add('visible');
+    btn.textContent = 'Hide Extra Context';
+  } else {
+    display.classList.remove('visible');
+    btn.textContent = 'Show Extra Context';
+  }
+}
+
+renderFlashcard();
+
+// ============================================
+// QUIZ BUILDER
+// ============================================
+function buildQuiz(containerId, questions) {
+  const container = document.getElementById(containerId);
+  questions.forEach((q, qi) => {
+    const qDiv = document.createElement('div');
+    qDiv.className = 'quiz-question';
+    qDiv.innerHTML = `<p class="q-text">${qi + 1}. ${q.question}</p>`;
+    q.options.forEach((opt, oi) => {
+      const btn = document.createElement('button');
+      btn.className = 'quiz-option';
+      btn.textContent = opt.text;
+      btn.addEventListener('click', () => {
+        // Disable all options
+        qDiv.querySelectorAll('.quiz-option').forEach(o => {
+          o.classList.add('disabled');
+          o.disabled = true;
+        });
+        // Mark correct/incorrect
+        qDiv.querySelectorAll('.quiz-option')[q.correct].classList.add('correct');
+        if (oi !== q.correct) {
+          btn.classList.add('incorrect');
+        }
+        // Show feedback
+        const feedback = document.createElement('div');
+        feedback.className = 'quiz-feedback ' + (oi === q.correct ? 'correct' : 'incorrect') + ' visible';
+        if (oi === q.correct) {
+          feedback.innerHTML = `<strong>That's right.</strong> ${q.options[q.correct].explanation}`;
+        } else {
+          feedback.innerHTML = `<strong>Not quite.</strong> The correct answer is <strong>${q.options[q.correct].text}</strong> because ${q.options[q.correct].explanation} You may have confused this with: ${opt.explanation || 'another concept from this module.'} Let's review: ${q.options[q.correct].explanation}`;
+        }
+        qDiv.appendChild(feedback);
+        // Save progress
+        saveQuizProgress(containerId, qi, oi === q.correct);
+      });
+      qDiv.appendChild(btn);
+    });
+    container.appendChild(qDiv);
+  });
+}
+
+function saveQuizProgress(quizId, questionIndex, correct) {
+  const key = `quiz-${quizId}-${questionIndex}`;
+  localStorage.setItem(key, correct ? 'correct' : 'incorrect');
+}
+
+// Module 2 Quiz
+buildQuiz('quiz-mod2', [
+  {
+    question: "Which enzyme is responsible for synthesizing mRNA from a DNA template?",
+    options: [
+      { text: "DNA polymerase", explanation: "DNA polymerase synthesizes new DNA strands during replication, not mRNA during transcription." },
+      { text: "RNA polymerase", explanation: "Correct. RNA polymerase unwinds the DNA helix and builds a complementary RNA strand (mRNA) from the gene template. This is the transcription step of the central dogma." },
+      { text: "Reverse transcriptase", explanation: "Reverse transcriptase synthesizes DNA from an RNA template — the reverse of normal transcription. It's used by retroviruses like HIV, not for normal mRNA production." },
+      { text: "Ribozyme", explanation: "A ribozyme is a catalytic RNA molecule. While the ribosome itself has ribozyme activity, it's not the enzyme that transcribes DNA into mRNA." }
+    ],
+    correct: 1
+  },
+  {
+    question: "What is the role of non-coding RNA (ncRNA) in gene expression?",
+    options: [
+      { text: "It carries amino acids to the ribosome during translation.", explanation: "That's the role of tRNA, which is technically non-coding, but the question refers to regulatory ncRNAs like miRNA and lncRNA." },
+      { text: "It serves as a structural component of the ribosome only.", explanation: "rRNA is structural, but ncRNAs like miRNA and lncRNA have broader regulatory roles beyond ribosome structure." },
+      { text: "It regulates gene expression by blocking translation or targeting mRNA for degradation, and influences epigenetic modifications.", explanation: "Correct. Non-coding RNAs like miRNAs and lncRNAs bind to mRNA to block translation or cause degradation. They also participate in epigenetic regulation, controlling DNA accessibility. They're not 'junk' — they're active regulators." },
+      { text: "It has no known function and is considered transcriptional noise.", explanation: "This was the old view. We now know ncRNAs play crucial regulatory roles at multiple levels of gene expression." }
+    ],
+    correct: 2
+  },
+  {
+    question: "What does reverse transcriptase do, and which type of organism uses it?",
+    options: [
+      { text: "It converts DNA to RNA; used by all cells during normal transcription.", explanation: "Normal transcription (DNA → RNA) is performed by RNA polymerase, not reverse transcriptase." },
+      { text: "It converts RNA to DNA; used by retroviruses like HIV.", explanation: "Correct. Reverse transcriptase synthesizes DNA from an RNA template — the reverse of the normal flow. Retroviruses like HIV carry their genome as RNA and use this enzyme to integrate into the host's DNA. This was a major expansion of the central dogma." },
+      { text: "It translates mRNA into protein; used by ribosomes.", explanation: "Translation is performed by ribosomes, not reverse transcriptase." },
+      { text: "It replicates DNA; used by bacteria during binary fission.", explanation: "DNA replication is performed by DNA polymerase, not reverse transcriptase." }
+    ],
+    correct: 1
+  }
+]);
+
+// Quick Recall 1 (Modules 1 & 2)
+buildQuiz('quick-recall-1', [
+  {
+    question: "Who added the third postulate of cell theory — that all cells come from pre-existing cells?",
+    options: [
+      { text: "Matthias Schleiden (1838)", explanation: "Schleiden established that all plants are composed of cells, but didn't propose the cell-comes-from-cell principle." },
+      { text: "Theodor Schwann (1839)", explanation: "Schwann extended the cell concept to animals, but the third postulate came later." },
+      { text: "Rudolf Virchow (1855)", explanation: "Correct. Virchow proposed 'omnis cellula e cellula' — all cells come from pre-existing cells — completing the modern cell theory. This established that life is continuous." },
+      { text: "Francis Crick (1958)", explanation: "Crick proposed the central dogma, not cell theory." }
+    ],
+    correct: 2
+  },
+  {
+    question: "What is the key structural difference between prokaryotic and eukaryotic cells?",
+    options: [
+      { text: "Prokaryotes are larger; eukaryotes are smaller.", explanation: "It's the opposite — prokaryotes are generally smaller and structurally simpler." },
+      { text: "Prokaryotes have a nucleus; eukaryotes do not.", explanation: "It's the reverse — eukaryotes have a true nucleus, prokaryotes do not." },
+      { text: "Eukaryotes have membrane-bound organelles and a true nucleus; prokaryotes lack both.", explanation: "Correct. The presence or absence of a nucleus and membrane-bound organelles is the defining distinction. Eukaryotes compartmentalize functions into organelles (mitochondria, ER, Golgi, etc.), enabling greater complexity. Prokaryotes carry out all processes in the cytoplasm or across the cell membrane." },
+      { text: "Prokaryotes have DNA; eukaryotes use RNA as genetic material.", explanation: "Both use DNA as genetic material. The difference is in organization, not the molecule itself." }
+    ],
+    correct: 2
+  },
+  {
+    question: "In the central dogma, what is the correct order of information flow?",
+    options: [
+      { text: "Protein → RNA → DNA", explanation: "This is the reverse of the actual flow. Proteins don't generally encode information back into nucleic acids." },
+      { text: "RNA → DNA → Protein", explanation: "This describes reverse transcription (retroviruses), not the standard central dogma." },
+      { text: "DNA → RNA → Protein", explanation: "Correct. DNA is transcribed into RNA (mRNA), which is then translated into protein. This unidirectional flow, proposed by Crick in 1958, is the foundation of molecular biology." },
+      { text: "DNA → Protein → RNA", explanation: "Proteins are not typically converted back into RNA. The flow goes through RNA as an intermediary." }
+    ],
+    correct: 2
+  }
+]);
+
+// Quick Recall 2 (Modules 3 & 4)
+buildQuiz('quick-recall-2', [
+  {
+    question: "During exercise, sweating to cool the body is an example of which type of feedback loop?",
+    options: [
+      { text: "Positive feedback — it amplifies the response.", explanation: "Positive feedback amplifies a signal, like childbirth contractions. Sweating to cool down reverses the temperature change, which is negative feedback." },
+      { text: "Negative feedback — it reverses the deviation from the set point.", explanation: "Correct. Body temperature rises above the set point during exercise. Thermoreceptors detect this, the hypothalamus activates sweat glands and vasodilation, and temperature returns toward 37°C. This is textbook negative feedback: detect deviation, trigger opposing response, return to set point." },
+      { text: "No feedback — it's a reflex action.", explanation: "While reflexes are involved, the overall thermoregulatory response is a negative feedback loop, not a simple reflex." },
+      { text: "Endocrine feedback only — it's controlled by hormones.", explanation: "Thermoregulation is primarily controlled by the nervous system (hypothalamus), though endocrine signals can modulate metabolism." }
+    ],
+    correct: 1
+  },
+  {
+    question: "What is the difference between species richness and species evenness?",
+    options: [
+      { text: "Richness measures genetic diversity; evenness measures ecosystem diversity.", explanation: "Both richness and evenness are components of species diversity, not genetic or ecosystem diversity." },
+      { text: "Richness is the number of species; evenness is how evenly individuals are distributed among those species.", explanation: "Correct. Richness = how many different species. Evenness = whether one species dominates or all are equally represented. Two ecosystems can have the same richness but very different evenness, leading to different Shannon or Simpson index values." },
+      { text: "Richness measures abundance; evenness measures distribution.", explanation: "Richness doesn't measure abundance — it only counts the number of species, regardless of how many individuals each has." },
+      { text: "They are the same thing measured at different scales.", explanation: "They are distinct components of species diversity, not the same metric." }
+    ],
+    correct: 1
+  },
+  {
+    question: "Why does higher biodiversity increase ecosystem resilience?",
+    options: [
+      { text: "More species means more food for predators.", explanation: "While food webs are important, this doesn't explain resilience directly." },
+      { text: "More species means the ecosystem is more aesthetically pleasing.", explanation: "Aesthetic value is a human perspective, not an ecological mechanism for resilience." },
+      { text: "Functional redundancy — if one species is lost, another can fill its ecological role.", explanation: "Correct. Diverse ecosystems contain species with overlapping functions. If a disease or disturbance removes one species, others that perform similar roles can compensate, preventing ecosystem collapse. This is why monocultures are vulnerable — there's no redundancy." },
+      { text: "More species means slower reproduction, which stabilizes the system.", explanation: "Reproductive rate isn't directly linked to resilience in this way." }
+    ],
+    correct: 2
+  }
+]);
+
+// ============================================
+// DRAG AND DROP (Module 3 — Organ Systems)
+// ============================================
+const dndData = [
+  { item: 'Respiratory', slot: 'Gas exchange — lungs, trachea, bronchi' },
+  { item: 'Digestive', slot: 'Food breakdown and nutrient absorption — stomach, intestines, liver' },
+  { item: 'Circulatory', slot: 'Transport of gases, nutrients, and wastes — heart, blood vessels' },
+  { item: 'Nervous', slot: 'Control, coordination, and processing — brain, spinal cord, nerves' },
+  { item: 'Endocrine', slot: 'Hormone production and long-term regulation — pituitary, thyroid, adrenal glands' },
+  { item: 'Urinary', slot: 'Waste excretion and water balance — kidneys, ureters, bladder' }
+];
+
+// Shuffle items
+const shuffledItems = [...dndData].sort(() => Math.random() - 0.5);
+const itemsContainer = document.getElementById('dnd-items-organ');
+const slotsContainer = document.getElementById('dnd-slots-organ');
+
+shuffledItems.forEach((d, i) => {
+  const item = document.createElement('div');
+  item.className = 'dnd-item';
+  item.textContent = d.item;
+  item.draggable = true;
+  item.dataset.item = d.item;
+  item.id = `dnd-item-${i}`;
+  item.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', d.item);
+    item.classList.add('dragging');
+  });
+  item.addEventListener('dragend', () => item.classList.remove('dragging'));
+  // Touch support
+  item.addEventListener('touchstart', (e) => {
+    e.dataTransfer = { setData: () => {}, getData: () => d.item };
+  });
+  itemsContainer.appendChild(item);
+});
+
+dndData.forEach((d, i) => {
+  const slot = document.createElement('div');
+  slot.className = 'dnd-slot';
+  slot.innerHTML = `<span class="dnd-slot-label">${d.slot}</span>`;
+  const dropZone = document.createElement('div');
+  dropZone.className = 'dnd-slot-drop';
+  dropZone.dataset.correct = d.item;
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('over');
+    const draggedItem = e.dataTransfer.getData('text/plain');
+    dropZone.textContent = draggedItem;
+    const draggedEl = document.querySelector(`.dnd-item[data-item="${draggedItem}"]`);
+    if (draggedItem === d.item) {
+      dropZone.classList.add('correct');
+      if (draggedEl) draggedEl.classList.add('matched');
+    } else {
+      dropZone.classList.add('incorrect');
+      setTimeout(() => {
+        dropZone.classList.remove('incorrect');
+        dropZone.textContent = '';
+      }, 1500);
+    }
+    checkDndComplete();
+  });
+  slot.appendChild(dropZone);
+  slotsContainer.appendChild(slot);
+});
+
+function checkDndComplete() {
+  const correctCount = document.querySelectorAll('.dnd-slot-drop.correct').length;
+  const feedback = document.getElementById('dnd-organ-feedback');
+  if (correctCount === dndData.length) {
+    feedback.textContent = 'All matched correctly. Each organ system plays a specific role in maintaining homeostasis.';
+    feedback.style.color = 'var(--correct)';
+    feedback.style.display = 'block';
+  }
+}
+
+// ============================================
+// FILL IN THE BLANK (Module 5)
+// ============================================
+const fibQuestions = [
+  {
+    sentence: "Darwin defined evolution as 'descent with ______' — species change over time and share common ancestors.",
+    answer: 'modification',
+    hints: ['It starts with "m".', 'It means "change" or "alteration".', 'The full phrase is "descent with modification".']
+  },
+  {
+    sentence: "For natural selection to occur, there must be variation, ______, and differential fitness in a population.",
+    answer: 'heritability',
+    hints: ['It starts with "h".', 'It refers to traits being passed from parents to offspring.', 'The full term is "heritability" — traits must be heritable (encoded in DNA).']
+  },
+  {
+    sentence: "The ______ integrated Mendelian genetics with Darwinian evolution in the 20th century.",
+    answer: 'Modern Synthesis',
+    hints: ['Two words.', 'It starts with "Modern".', 'Also called the "Modern Synthesis" or "Neo-Darwinian Synthesis".']
+  },
+  {
+    sentence: "The concept that organisms actively modify their own environments, altering selective pressures, is called ______ construction.",
+    answer: 'niche',
+    hints: ['It starts with "n".', 'It rhymes with "rich".', 'The full term is "niche construction" — a key concept in the Extended Evolutionary Synthesis.']
+  }
+];
+
+const fibContainer = document.getElementById('fib-mod5');
+fibQuestions.forEach((fib, idx) => {
+  const qDiv = document.createElement('div');
+  qDiv.className = 'fib-question';
+  // Split sentence at blank
+  const parts = fib.sentence.split('______');
+  qDiv.innerHTML = `
+    <p class="fib-sentence">
+      ${parts[0]}<span class="fib-blank" contenteditable="true" data-answer="${fib.answer.toLowerCase()}" data-idx="${idx}" tabindex="0"></span>${parts[1]}
+    </p>
+    <a class="fib-hint-link" data-idx="${idx}">Need a hint?</a>
+    <div class="fib-hint" id="fib-hint-${idx}"></div>
+  `;
+  fibContainer.appendChild(qDiv);
+
+  const blank = qDiv.querySelector('.fib-blank');
+  const hintLink = qDiv.querySelector('.fib-hint-link');
+  const hintBox = qDiv.querySelector(`#fib-hint-${idx}`);
+  let hintLevel = 0;
+
+  blank.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      checkFib(blank, fib);
+    }
+  });
+  blank.addEventListener('blur', () => checkFib(blank, fib));
+
+  hintLink.addEventListener('click', () => {
+    if (hintLevel < fib.hints.length) {
+      hintBox.textContent = fib.hints[hintLevel];
+      hintBox.classList.add('visible');
+      hintLevel++;
+      if (hintLevel >= fib.hints.length) {
+        hintLink.textContent = 'No more hints';
+        hintLink.style.pointerEvents = 'none';
+      }
+    }
+  });
+});
+
+function checkFib(blank, fib) {
+  const userInput = blank.textContent.trim().toLowerCase();
+  if (userInput === fib.answer.toLowerCase()) {
+    blank.classList.add('correct');
+    blank.classList.add('filled');
+  } else if (userUserInput !== '') {
+    // Only mark incorrect if there's input
+  }
+  if (userInput !== '' && userInput !== fib.answer.toLowerCase()) {
+    blank.classList.add('incorrect');
+    blank.classList.add('filled');
+    setTimeout(() => {
+      blank.classList.remove('incorrect');
+      blank.textContent = '';
+    }, 2000);
+  }
+}
+
+// ============================================
+// TEACH-BACK (Module 4)
+// ============================================
+const teachBackKeywords = ['different', 'kinds', 'life', 'species', 'variety', 'nature', 'healthy', 'strong'];
+
+function checkTeachBack() {
+  const input = document.getElementById('teach-back-input').value.toLowerCase();
+  const found = teachBackKeywords.filter(kw => input.includes(kw));
+  const check = document.getElementById('teach-back-check');
+  const percentage = Math.round((found.length / teachBackKeywords.length) * 100);
+  check.innerHTML = `
+    <strong>Keyword coverage: ${percentage}%</strong><br>
+    Found: ${found.length > 0 ? found.join(', ') : 'none yet'}<br>
+    Missing: ${teachBackKeywords.filter(kw => !found.includes(kw)).join(', ')}<br>
+    ${percentage >= 50 ? 'Good start! Try to incorporate more key concepts.' : 'Keep going — think about what "bio" and "diversity" mean separately.'}
+  `;
+  check.classList.add('visible');
+}
+
+function showExpertAnswer() {
+  document.getElementById('expert-answer').classList.toggle('visible');
+}
+
+// ============================================
+// MINI CHALLENGE (Module 6)
+// ============================================
+const challengeData = {
+  scenario: "An island nation faces three problems: (1) a mosquito-borne disease spreading through the population, (2) declining crop yields due to drought, and (3) an endangered native bird species losing habitat. You have limited funding and can prioritize only one biotech solution. What do you choose?",
+  choices: [
+    {
+      text: "A) Invest in CRISPR-edited mosquitoes that can't transmit the disease.",
+      outcome: "good",
+      reasoning: "Excellent choice. This addresses the most immediate threat to human life. CRISPR-edited mosquitoes (using gene drives) can spread disease-resistance through wild populations rapidly. It's a one-time intervention with self-sustaining impact, freeing up future resources for the other problems. However, releasing gene-drive organisms into the wild raises ecological questions — what happens to the food web if mosquito populations crash? This connects to Module 4 (ecosystem interactions) and Module 5 (evolution — the gene drive will evolve)."
+    },
+    {
+      text: "B) Develop drought-tolerant crop varieties using gene editing.",
+      outcome: "bad",
+      reasoning: "Important, but not the most urgent. Crop decline is a serious long-term threat to food security, but the disease is an immediate threat to human life. If the population is sick or dying, agricultural investment won't help. Consider: could you address both by collaborating with international agricultural research centers while focusing local biotech capacity on the disease? This connects to Module 6's discussion of agriculture and climate adaptation."
+    },
+    {
+      text: "C) Use DNA barcoding and population genomics to guide bird conservation.",
+      outcome: "bad",
+      reasoning: "Biodiversity conservation is crucial — the native bird may be ecologically irreplaceable (Module 4). But if human lives are at immediate risk from disease, conservation must wait. The irony is that the same biotech infrastructure (sequencing, genetics) could serve both purposes if developed strategically. This highlights why integrative thinking across biology's domains matters."
+    },
+    {
+      text: "D) Invest in a combined approach: use landscape genetics to design wildlife corridors that also serve as mosquito buffer zones.",
+      outcome: "good",
+      reasoning: "Creative thinking! This recognizes that biological problems are interconnected. Landscape genetics (Module 6) can identify habitat corridors for the endangered bird while also mapping mosquito breeding grounds. The corridors could be designed to include mosquito-unfriendly vegetation. This is integrative biology in action — the kind of systems thinking the lesson has been building toward. It may cost more upfront but addresses multiple problems simultaneously."
+    }
+  ]
+};
+
+const challengeContainer = document.getElementById('challenge-mod6');
+let challengeHTML = `<div class="challenge-scenario">${challengeData.scenario}</div><div class="challenge-choices">`;
+challengeData.choices.forEach((c, i) => {
+  challengeHTML += `<button class="challenge-choice" data-idx="${i}">${c.text}</button>`;
+});
+challengeHTML += `</div><div class="challenge-outcome" id="challenge-outcome"></div>`;
+challengeContainer.innerHTML = challengeHTML;
+
+challengeContainer.querySelectorAll('.challenge-choice').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const idx = parseInt(btn.dataset.idx);
+    const choice = challengeData.choices[idx];
+    const outcome = document.getElementById('challenge-outcome');
+    outcome.className = 'challenge-outcome visible ' + choice.outcome;
+    outcome.innerHTML = `<strong>${choice.outcome === 'good' ? '✓ Good reasoning.' : '⚠ Consider alternatives.'}</strong> ${choice.reasoning}`;
+    // Disable all choices
+    challengeContainer.querySelectorAll('.challenge-choice').forEach(c => {
+      c.classList.add('disabled');
+      c.disabled = true;
+    });
+  });
+});
+
+// ============================================
+// LOADING STATE
+// ============================================
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('loading').classList.add('hidden');
+  }, 300);
+});
+</script>
+
+</body>
+</html>

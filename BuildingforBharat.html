@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Building for Bharat — An Interactive Lesson from Shiprocket's 0→1</title>
+<style>
+  /* ============ LEDGER & INK THEME ============ */
+  :root{
+    --paper:#f6f1e7; --paper-2:#efe8d8; --ink:#24211b; --ink-soft:#5b554a;
+    --rule:#c9c0ac; --accent:#8a3324; --accent-2:#2f4a3f; --card:#fbf8f0;
+    --shadow:rgba(60,50,30,.10); --good:#2f6b45; --bad:#9a3b2c;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  [data-theme="dark"]{
+    --paper:#16151a; --paper-2:#1e1d24; --ink:#e9e3d5; --ink-soft:#a49e8f;
+    --rule:#3a3830; --accent:#e0956b; --accent-2:#8fbfa6; --card:#1c1b21;
+    --shadow:rgba(0,0,0,.4); --good:#7fc39a; --bad:#e0956b;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);
+    line-height:1.7;font-size:18px;-webkit-font-smoothing:antialiased;
+    transition:background .3s,color .3s}
+  .wrap{max-width:840px;margin:0 auto;padding:0 22px}
+  /* progress */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:60;transition:width .1s}
+  #prog{position:fixed;top:10px;right:14px;z-index:60;font-family:var(--mono);font-size:11px;
+    letter-spacing:.08em;color:var(--ink-soft);background:var(--paper);border:1px solid var(--rule);
+    padding:4px 9px;border-radius:2px}
+  /* header */
+  header.masthead{border-bottom:2px solid var(--ink);padding:54px 0 26px;margin-bottom:8px}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:clamp(34px,6vw,54px);line-height:1.05;margin:.18em 0 .1em;font-weight:700;letter-spacing:-.01em}
+  .dek{font-size:20px;color:var(--ink-soft);font-style:italic;max-width:60ch}
+  .meta{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:16px;
+    display:flex;flex-wrap:wrap;gap:14px;border-top:1px solid var(--rule);padding-top:12px}
+  .toolbar{display:flex;justify-content:flex-end;margin-top:-6px}
+  .toggle{font-family:var(--mono);font-size:12px;letter-spacing:.06em;background:none;border:1px solid var(--rule);
+    color:var(--ink);padding:7px 12px;border-radius:2px;cursor:pointer}
+  .toggle:hover{border-color:var(--accent);color:var(--accent)}
+  h2{font-size:30px;margin:0 0 .3em;font-weight:700;letter-spacing:-.01em}
+  h3{font-size:20px;margin:1.4em 0 .4em;font-weight:700}
+  p{margin:0 0 1em}
+  a{color:var(--accent)}
+  .section{padding:46px 0;border-bottom:1px solid var(--rule)}
+  .lead-in{font-size:19px}
+  /* overview list */
+  .learn{counter-reset:l;list-style:none;padding:0;margin:0}
+  .learn li{counter-increment:l;padding:14px 0 14px 52px;position:relative;border-bottom:1px dotted var(--rule)}
+  .learn li::before{content:counter(l,decimal-leading-zero);position:absolute;left:0;top:14px;
+    font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:.05em}
+  .learn b{display:block}
+  .learn span{color:var(--ink-soft);font-size:16px}
+  /* knowledge map */
+  .map-wrap{border:1px solid var(--rule);background:var(--card);border-radius:3px;padding:10px;margin-top:18px}
+  .map-wrap svg{width:100%;height:auto;display:block}
+  .node{cursor:pointer}
+  .node circle{fill:var(--card);stroke:var(--ink);stroke-width:1.4;transition:.2s}
+  .node:hover circle,.node.active circle{fill:var(--accent);stroke:var(--accent)}
+  .node:hover text,.node.active text{fill:#fff}
+  .node text{fill:var(--ink);font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;text-anchor:middle}
+  .spoke{stroke:var(--rule);stroke-width:1.2}
+  .hub circle{fill:var(--ink);stroke:var(--ink)}
+  .hub text{fill:var(--paper);font-family:var(--serif);font-size:11px;font-style:italic;text-anchor:middle}
+  .map-hint{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;margin-top:8px}
+  /* module */
+  .module{padding:56px 0;border-bottom:1px solid var(--rule);scroll-margin-top:30px}
+  .mod-head{display:flex;gap:18px;align-items:baseline;border-top:2px solid var(--ink);padding-top:16px}
+  .mod-num{font-family:var(--mono);font-size:14px;color:var(--accent);letter-spacing:.1em;white-space:nowrap}
+  .mod-head h2{margin:0}
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  .core{font-size:19px}
+  .core::first-letter{font-size:52px;float:left;line-height:.8;padding:6px 8px 0 0;color:var(--accent);font-weight:700}
+  /* steps */
+  .steps{counter-reset:s;list-style:none;padding:0;margin:0 0 1.2em}
+  .steps li{counter-increment:s;position:relative;padding:10px 0 10px 46px;border-bottom:1px dotted var(--rule)}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:9px;width:30px;height:30px;
+    border:1px solid var(--ink);border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:13px}
+  /* examples */
+  .ex-grid{display:grid;gap:14px;grid-template-columns:1fr;margin:8px 0 1.4em}
+  @media(min-width:680px){.ex-grid{grid-template-columns:repeat(3,1fr)}}
+  .ex{border:1px solid var(--rule);background:var(--card);border-radius:3px;padding:16px;position:relative}
+  .ex .lab{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--accent);display:block;margin-bottom:8px}
+  .ex.counter .lab{color:var(--accent-2)}
+  .ex h4{margin:0 0 6px;font-size:16px}
+  .ex p{font-size:15px;color:var(--ink-soft);margin:0}
+  /* callouts */
+  .analogy{border:1px dashed var(--ink);border-radius:3px;padding:18px 20px;margin:1.2em 0;background:var(--paper-2)}
+  .analogy .lab,.wrong .lab,.matters .lab,.link .lab{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;display:block;margin-bottom:6px}
+  .analogy .lab{color:var(--accent)}
+  .analogy p{margin:0;font-size:17px}
+  .wrong{border-left:3px solid var(--bad);padding:12px 18px;margin:1.1em 0;background:var(--card)}
+  .wrong .lab{color:var(--bad)}
+  .wrong p{margin:0;font-size:16.5px}
+  .matters{border-left:3px solid var(--good);padding:12px 18px;margin:1.1em 0;background:var(--card)}
+  .matters .lab{color:var(--good)}
+  .matters p{margin:0;font-size:16.5px}
+  .link{font-size:15px;color:var(--ink-soft);font-style:italic;margin:1em 0 0}
+  .link .lab{color:var(--accent);font-style:normal;display:inline;margin-right:6px}
+  .memory{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);border-top:1px dotted var(--rule);
+    margin-top:18px;padding-top:10px}
+  .memory b{color:var(--accent)}
+  /* diagrams */
+  .diagram{margin:1.4em 0;border:1px solid var(--rule);background:var(--card);border-radius:3px;padding:16px}
+  .diagram svg{width:100%;height:auto;display:block}
+  .diagram .cap{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;margin-top:10px}
+  .d-ink{stroke:var(--ink);fill:none;stroke-width:1.5}
+  .d-fill{fill:var(--ink)}
+  .d-soft{fill:var(--ink-soft)}
+  .d-acc{fill:var(--accent)}
+  .d-accline{stroke:var(--accent);fill:none;stroke-width:1.6}
+  .d-txt{fill:var(--ink);font-family:var(--mono);font-size:11px}
+  .d-txt-s{fill:var(--ink-soft);font-family:var(--mono);font-size:9.5px}
+  .d-serif{fill:var(--ink);font-family:var(--serif);font-size:13px;font-style:italic}
+  /* interactive shared */
+  .interact{border:1px solid var(--rule);border-radius:3px;background:var(--card);padding:20px;margin:1.4em 0}
+  .interact .ihead{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:12px}
+  .btn{font-family:var(--serif);font-size:15px;background:var(--paper);border:1px solid var(--ink);
+    color:var(--ink);padding:9px 15px;border-radius:2px;cursor:pointer;transition:.15s}
+  .btn:hover{background:var(--ink);color:var(--paper)}
+  .btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .row{display:flex;flex-wrap:wrap;gap:10px}
+  .feedback{margin-top:14px;font-size:15.5px;min-height:1.2em;border-top:1px dotted var(--rule);padding-top:12px}
+  .feedback.ok{color:var(--good)} .feedback.no{color:var(--bad)}
+  /* tabs (timeline) */
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .tab{font-family:var(--mono);font-size:12px;letter-spacing:.05em;background:none;border:1px solid var(--rule);
+    color:var(--ink-soft);padding:7px 11px;border-radius:2px;cursor:pointer}
+  .tab.on{border-color:var(--ink);color:var(--ink);background:var(--paper-2)}
+  .panel{display:none;animation:fade .3s} .panel.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+  .panel h4{margin:0 0 6px;font-size:18px}
+  .panel .yr{font-family:var(--mono);font-size:12px;color:var(--accent)}
+  /* sliders / calc */
+  label.sl{display:block;font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin:14px 0 4px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .readout{display:flex;gap:14px;flex-wrap:wrap;margin-top:16px}
+  .stat{flex:1;min-width:130px;border:1px solid var(--rule);border-radius:3px;padding:12px;text-align:center;background:var(--paper)}
+  .stat .n{font-family:var(--mono);font-size:26px;color:var(--accent);display:block}
+  .stat .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  /* rto dots */
+  .dots{display:grid;grid-template-columns:repeat(20,1fr);gap:4px;margin:12px 0}
+  .dot{aspect-ratio:1;border:1px solid var(--rule);border-radius:2px}
+  .dot.ret{background:var(--bad);border-color:var(--bad)}
+  .dot.ok{background:var(--good);border-color:var(--good)}
+  /* flashcards */
+  .cards{display:grid;gap:12px;grid-template-columns:1fr}
+  @media(min-width:600px){.cards{grid-template-columns:1fr 1fr}}
+  .flash{perspective:900px;height:130px;cursor:pointer}
+  .flash .in{position:relative;width:100%;height:100%;transition:transform .5s;transform-style:preserve-3d}
+  .flash.flip .in{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid var(--rule);border-radius:3px;
+    padding:16px;display:flex;align-items:center;justify-content:center;text-align:center;background:var(--card)}
+  .face.back{transform:rotateY(180deg);background:var(--paper-2);font-size:15px;color:var(--ink-soft)}
+  .face .q{font-family:var(--mono);font-size:13px}
+  /* quiz */
+  .q{border:1px solid var(--rule);border-radius:3px;padding:18px;margin-bottom:14px;background:var(--card)}
+  .q .qn{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.1em}
+  .q p.qt{font-size:17px;margin:6px 0 12px}
+  .opt{display:block;width:100%;text-align:left;font-family:var(--serif);font-size:15.5px;background:var(--paper);
+    border:1px solid var(--rule);color:var(--ink);padding:10px 13px;border-radius:2px;margin-bottom:7px;cursor:pointer}
+  .opt:hover{border-color:var(--ink)}
+  .opt.correct{border-color:var(--good);background:color-mix(in srgb,var(--good) 12%,var(--paper))}
+  .opt.wrongpick{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--paper))}
+  .q .exp{font-size:14.5px;color:var(--ink-soft);margin-top:8px;display:none;border-top:1px dotted var(--rule);padding-top:8px}
+  .score{font-family:var(--mono);font-size:14px;text-align:center;padding:16px;border:1px solid var(--ink);border-radius:3px;margin-top:10px}
+  /* faq */
+  details{border-bottom:1px solid var(--rule);padding:6px 0}
+  summary{cursor:pointer;font-size:17.5px;font-weight:700;padding:8px 0;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"+ ";font-family:var(--mono);color:var(--accent)}
+  details[open] summary::before{content:"– "}
+  details p{color:var(--ink-soft);font-size:16px}
+  /* cheat sheet */
+  .cheat{border:1px solid var(--ink);border-radius:3px;padding:22px;background:var(--paper-2)}
+  .cheat h3{margin-top:0}
+  .cheat ul{margin:0;padding-left:20px}
+  .cheat li{margin-bottom:8px;font-size:16px}
+  .cheat .formula{font-family:var(--mono);font-size:14px;background:var(--card);border:1px dashed var(--rule);
+    padding:10px 12px;border-radius:2px;margin:10px 0}
+  footer{padding:44px 0 70px;color:var(--ink-soft);font-size:14px;font-family:var(--mono)}
+  .pill{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    border:1px solid var(--rule);border-radius:20px;padding:3px 10px;color:var(--ink-soft);margin:2px}
+  .note{font-size:13.5px;color:var(--ink-soft);font-style:italic}
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="prog">MODULE 0 / 6</div>
+
+<div class="wrap">
+
+  <!-- ============ MASTHEAD ============ -->
+  <header class="masthead">
+    <div class="toolbar"><button class="toggle" id="theme">◐ DARK MODE</button></div>
+    <div class="kicker">Interactive Lesson · Ledger &amp; Ink Edition</div>
+    <h1>Building for Bharat</h1>
+    <p class="dek">What a 14-year, two-near-death journey to a ₹1,500-crore commerce company teaches about finding ideas, earning trust, and selling to a country of 10,000 micro-markets.</p>
+    <div class="meta">
+      <span>SOURCE · Founders' conversation, Shiprocket × Masters Union</span>
+      <span>FORMAT · 6 modules · 8 interactives · 15-question assessment</span>
+      <span>READING DEPTH · ~40 min, slower is better</span>
+    </div>
+  </header>
+
+  <!-- ============ WHAT YOU'LL LEARN ============ -->
+  <section class="section" id="overview">
+    <h2>What You'll Learn</h2>
+    <p class="lead-in">This isn't a summary of the talk — it's a reconstruction of the <em>decision frameworks</em> behind it. By the end you should be able to pressure-test any business idea the way the founder does, and to see why "copy Shopify" fails in India. Six modules, each built to be <em>used</em>, not just read.</p>
+    <ol class="learn">
+      <li><b>Validate by hunting complaints, not by asking friends.</b><span>The painkiller-vs-vitamin test, and the three-gate framework: problem → willingness to pay → unit economics.</span></li>
+      <li><b>Survive the 0→1 by staying wedded to the problem, not the product.</b><span>CartRocket → Craftly → Shiprocket: two pivots, a fake product sold for eight months, and the moment "the plumbing" became the company.</span></li>
+      <li><b>See commerce as three pillars: Discovery, Trust, Fulfillment.</b><span>Why cash-on-delivery is a trust product (not logistics), and why RTO collapses from ~30% to under 1% once trust is fixed.</span></li>
+      <li><b>Think in "10,000 Indias."</b><span>The $3,000→$5,000 per-capita inflection, premiumization, and why tier-3 small towns hide high-value customers nobody is targeting.</span></li>
+      <li><b>Reverse-engineer any revenue target.</b><span>The Undercover-Billionaire math: "make me ₹20,000, take ₹5,000" — value-based pricing made concrete.</span></li>
+      <li><b>Build trust as a founder in a trust-deficit society.</b><span>Why obsession with the customer (not the product) is the only durable brand strategy, and the Shark Tank effect.</span></li>
+    </ol>
+    <p class="note">A note on honesty: figures below are quoted as stated in the conversation (e.g., penetration %, RTO ranges, the mithai-store revenue). Treat them as the speaker's working estimates, not audited data.</p>
+  </section>
+
+  <!-- ============ KNOWLEDGE MAP ============ -->
+  <section class="section" id="map">
+    <h2>The Knowledge Map</h2>
+    <p>Six ideas, one center of gravity. Click any node to jump to its module — notice how every spoke leads back to a single conviction: <em>bet on India growing, and solve a real complaint while you wait.</em></p>
+    <div class="map-wrap">
+      <svg viewBox="0 0 600 420" role="img" aria-label="Knowledge map linking six modules to a central idea">
+        <line class="spoke" x1="300" y1="210" x2="300" y2="60"/>
+        <line class="spoke" x1="300" y1="210" x2="470" y2="120"/>
+        <line class="spoke" x1="300" y1="210" x2="500" y2="290"/>
+        <line class="spoke" x1="300" y1="210" x2="360" y2="380"/>
+        <line class="spoke" x1="300" y1="210" x2="130" y2="360"/>
+        <line class="spoke" x1="300" y1="210" x2="100" y2="150"/>
+        <g class="node hub"><circle cx="300" cy="210" r="46"/><text x="300" y="206">bet on</text><text x="300" y="222">Bharat</text></g>
+        <g class="node" data-t="m1"><circle cx="300" cy="60" r="34"/><text x="300" y="57">VALIDATE</text><text x="300" y="70">complaints</text></g>
+        <g class="node" data-t="m2"><circle cx="470" cy="120" r="34"/><text x="470" y="117">PIVOT</text><text x="470" y="130">0 → 1</text></g>
+        <g class="node" data-t="m3"><circle cx="500" cy="290" r="34"/><text x="500" y="287">3 PILLARS</text><text x="500" y="300">D · T · F</text></g>
+        <g class="node" data-t="m4"><circle cx="360" cy="380" r="34"/><text x="360" y="377">10,000</text><text x="360" y="390">Indias</text></g>
+        <g class="node" data-t="m5"><circle cx="130" cy="360" r="34"/><text x="130" y="357">REVENUE</text><text x="130" y="370">math</text></g>
+        <g class="node" data-t="m6"><circle cx="100" cy="150" r="34"/><text x="100" y="147">FOUNDER</text><text x="100" y="160">trust</text></g>
+      </svg>
+      <div class="map-hint">↑ click a node to travel to that module</div>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 1 ============ -->
+  <section class="module" id="m1">
+    <div class="mod-head"><span class="mod-num">MODULE 01</span><div><span class="tag">Validation</span><h2>Hunt the Complaint, Not the Idea</h2></div></div>
+
+    <p class="core">Here's the reframe that runs through the entire conversation: stop asking "is this a good idea?" and start asking "where are people already complaining?" The founder is blunt about it — <em>look for the complaints, not what you like.</em> Your taste is a poor proxy for demand. A complaint, by contrast, is evidence that someone already feels a gap strongly enough to vocalize it, and that is the raw material of a business. He frames the sweet spot as an intersection: the domain you're genuinely passionate about <em>crossed with</em> where the complaints cluster. Passion keeps you in the domain long enough to understand it; the complaints tell you what to build. His own example is music — as a guitarist he knows from lived experience that India has almost no good supply of straps, picks, and capos. He didn't invent that problem; he overheard it, repeatedly, from other guitarists. That's the method. And notice the timing insight wrapped inside it: the cost of building has collapsed to almost nothing, so the bottleneck is no longer "can I make it?" — it's "should I?" The barrier falling means more noise at the top of the funnel, which means disciplined validation is now the single biggest competitive advantage an early founder has. Anyone can ship. Almost nobody bothers to confirm anyone is actually in pain.</p>
+
+    <h3>The Step-by-Step: Three Gates</h3>
+    <ol class="steps">
+      <li><b>Find the complaint.</b> Scrape Reddit, Twitter/X, Instagram comments, and the review pages of big FMCG brands. "We love to complain as Indians — there's rich data sitting out there." Use an LLM to structure what the gap actually is, in the customer's own words.</li>
+      <li><b>Confirm willingness to pay.</b> A problem people mention is not yet a problem they'll pay to solve. A friend saying "yeah I'd buy that" is not research. Look for money already moving, or for pain deep enough that price stops mattering.</li>
+      <li><b>Check unit economics.</b> You can have a real problem and willing payers and still fail if delivering the solution costs more than it returns. All three gates must pass, in order.</li>
+    </ol>
+
+    <div class="ex-grid">
+      <div class="ex"><span class="lab">The obvious case</span><h4>Guitar accessories</h4><p>A guitarist notices India stocks maybe ten strap options while abroad there are hundreds. The complaint is loud, the community is identifiable, the founder has domain empathy. Textbook passion × complaint.</p></div>
+      <div class="ex counter"><span class="lab">The counter-intuitive case</span><h4>Shampoo for curly hair</h4><p>"Is that really a deep enough market?" seemed doubtful — until a curly-hair brand crossed ₹100 crore in under a year. A "micro" niche, split by region, gender, and climate, becomes a hundred more niches.</p></div>
+      <div class="ex"><span class="lab">The edge case</span><h4>E-waste recycling, too early</h4><p>Years before the company, they validated on the ground in Delhi — watching people burn CD-ROMs by hand for precious metals. The complaint existed, but regulation that would make it boom came years later. Right problem, wrong clock.</p></div>
+    </div>
+
+    <div class="analogy"><span class="lab">Visual Analogy</span><p><b>The toothache and the chemist.</b> If you have a splitting toothache and I'm the only chemist open, I can charge almost anything — you can't think straight, you'll pay the nearest person immediately. That's a <em>painkiller</em>. A vitamin, by contrast, must be <em>sold</em> to you: "it'll make your hair better, it's good for you…" — a push product. The deeper the pain, the less you have to sell. Even ten customers in real pain teach you more than a thousand polite "maybe"s.</p></div>
+
+    <div class="wrong"><span class="lab">❌ What people get wrong</span><p>"I have this problem, so it must be a business." Having the problem yourself is <em>necessary but not sufficient.</em> You need a community facing the same problem <em>and</em> evidence they'll pay. The other classic error is skipping gate one and falling in love with a product — then spending a year and lakhs marketing something nobody wanted.</p></div>
+
+    <div class="matters"><span class="lab">Why this matters</span><p>When building is free, validation is the moat. The founders who last — in D2C or anywhere — are almost always the ones who started from a personal problem or a complaint they couldn't ignore, not from ad arbitrage. Flipping products works to test a market; it doesn't sustain, because sustainability requires customers who pay high margins for emotional or physical value and then <em>come back.</em></p></div>
+
+    <p class="link"><span class="lab">🔗 Link</span> Once you've found a complaint worth paying for, you still have to price it — which is exactly the reverse-engineering move in <a href="#m5">Module 5</a>. And the complaint-hunting toolkit (scrape, structure, validate) is the same one used to find the micro-niches of <a href="#m4">Module 4</a>.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 640 250" role="img" aria-label="Venn diagram: passion overlapping with complaints">
+        <circle class="d-ink" cx="255" cy="125" r="95"/>
+        <circle class="d-ink" cx="385" cy="125" r="95"/>
+        <text class="d-serif" x="185" y="120">what you</text><text class="d-serif" x="185" y="138">love</text>
+        <text class="d-serif" x="410" y="120">what they</text><text class="d-serif" x="410" y="138">complain about</text>
+        <path class="d-accline" d="M320 55 A95 95 0 0 1 320 195 A95 95 0 0 1 320 55" opacity=".0"/>
+        <text class="d-txt" x="320" y="118" text-anchor="middle" style="fill:var(--accent)">BUILD</text>
+        <text class="d-txt-s" x="320" y="134" text-anchor="middle">here</text>
+        <text class="d-txt-s" x="320" y="235" text-anchor="middle">passion keeps you there · complaints tell you what to make</text>
+      </svg>
+      <div class="cap">Fig 1.1 — The intersection is the only place worth starting.</div>
+    </div>
+
+    <!-- INTERACTIVE 1: painkiller / vitamin classifier -->
+    <div class="interact" id="pv">
+      <div class="ihead">Try it · Painkiller or Vitamin?</div>
+      <p style="margin-top:0">For each scenario, decide: is this a <b>painkiller</b> (urgent, pull-based) or a <b>vitamin</b> (nice-to-have, push-based)?</p>
+      <div id="pvq"></div>
+      <div class="feedback" id="pvf"></div>
+    </div>
+
+    <div class="memory"><b>Memory hook — C·W·U:</b> <b>C</b>omplaints first, <b>W</b>illingness to pay second, <b>U</b>nit economics third. Skip the C and the other two are meaningless.</div>
+  </section>
+
+  <!-- ============ MODULE 2 ============ -->
+  <section class="module" id="m2">
+    <div class="mod-head"><span class="mod-num">MODULE 02</span><div><span class="tag">The 0 → 1</span><h2>Two Pivots, a Fake Product, and the Plumbing</h2></div></div>
+
+    <p class="core">Shiprocket was not Shiprocket. It began as <em>CartRocket</em>, and the company nearly died twice before finding its shape. The honest lesson here isn't "pivot" as a buzzword — it's that the founder stayed committed to a <em>problem space</em> (helping Indian merchants trade online) while repeatedly discarding the <em>product</em> he thought solved it. The very first version was, by his own admission, nothing: they took Magento, an open-source store builder, rebranded it, and sold it to enterprise clients as if they had a team and a product. For six to eight months one founder would sell while the other quietly did all the work himself. That "agency work" wasn't a distraction — it was funded research. It told them which features clients actually asked for, and it paid for their first engineer. Then came the hard insight about Shopify: Shopify won in America because it solved "I can't hire a developer." In India, developers are cheap and hireable, so "simplicity" wasn't the bottleneck — only the founders cared about it. They'd imported an answer to a question India wasn't asking. They built beautiful websites with great conversion and <em>zero traffic</em>, and customers churned not because of the product but because no demand arrived. So they pivoted into a marketplace (Craftly), learned merchants won't pay upfront for demand — only commission — and finally realized the real value wasn't the storefront at all. It was the pipes: payments, addresses, logistics, returns. "The plumbing itself has value." That realization became Shiprocket.</p>
+
+    <h3>The Step-by-Step: How a 0→1 Actually Unfolded</h3>
+    <ol class="steps">
+      <li><b>Sell before you build.</b> Offer the thing, deliver it manually, and let the client's requests reveal the real spec.</li>
+      <li><b>Fund the first hire from service revenue.</b> They didn't know they could raise capital — so agency work bought engineer #1, then #2.</li>
+      <li><b>Watch churn for the true problem.</b> Losing customers "not because of us but because they got no demand" pointed at the real gap.</li>
+      <li><b>Pivot the product, keep the problem.</b> Store builder → marketplace → infrastructure. Same mission, three vehicles.</li>
+      <li><b>Commit fully.</b> "The only thing it really needs is commitment… the rest you just figure out. Everything else is a lie."</li>
+    </ol>
+
+    <div class="ex-grid">
+      <div class="ex"><span class="lab">The obvious case</span><h4>The first three customers</h4><p>His uncle's sports brand (later Firebolt watches), a niche men's-ties label, and a progressive retailer who wanted tablets in-store. One by one, each paid for a slice of research and revealed a use case.</p></div>
+      <div class="ex counter"><span class="lab">The counter-intuitive case</span><h4>Selling software they didn't have</h4><p>For up to eight months they sold Magento under their own name with no product of their own. Far from a failure, this "fake it" phase was the cheapest market research they ever did — and it funded the team.</p></div>
+      <div class="ex"><span class="lab">The edge case</span><h4>The Shopify transplant that failed</h4><p>A proven US model, copied faithfully, stalled in India: cheap developers killed the DIY value, there was nothing to "plug into" (no on-demand logistics, payment gateways charged a ₹1-lakh setup fee), and the subscription model collapsed. A right idea in the wrong market structure.</p></div>
+    </div>
+
+    <div class="analogy"><span class="lab">Visual Analogy</span><p><b>The house and the pipes.</b> They spent years building beautiful houses (storefronts) and wondered why nobody moved in — no roads, no water, no electricity reaching them. The breakthrough was realizing the <em>plumbing</em> was more valuable than the houses. Once you own the pipes, every house needs you.</p></div>
+
+    <div class="wrong"><span class="lab">❌ What people get wrong</span><p>"Find a winning idea abroad and copy it." Inspiration is fine as a kick-off — but a lift-and-shift ignores market structure. The deeper mistake is getting <em>wedded to the product</em> instead of the problem: then you burn your runway marketing something that doesn't work, rather than pivoting into ten things until one lands.</p></div>
+
+    <div class="matters"><span class="lab">Why this matters</span><p>This is the real 0→1 story behind a ₹1,500-crore company: not a straight line but a sequence of near-deaths survived by listening to churn. It reframes "failure" as data — each pivot narrowed in on the layer of the stack that actually created value.</p></div>
+
+    <p class="link"><span class="lab">🔗 Link</span> The "plumbing" they discovered <em>is</em> the three pillars of <a href="#m3">Module 3</a> — trust and fulfillment were the pipes India lacked. And the willingness to wait it out connects to the long-horizon bet in <a href="#m4">Module 4</a>.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 640 200" role="img" aria-label="Timeline of pivots from CartRocket to Shiprocket">
+        <line class="d-ink" x1="40" y1="120" x2="600" y2="120"/>
+        <g><circle class="d-fill" cx="90" cy="120" r="6"/><text class="d-txt" x="90" y="100" text-anchor="middle">CartRocket</text><text class="d-txt-s" x="90" y="150" text-anchor="middle">2011–12 · Magento reseller</text></g>
+        <g><circle class="d-fill" cx="270" cy="120" r="6"/><text class="d-txt" x="270" y="100" text-anchor="middle">Craftly</text><text class="d-txt-s" x="270" y="150" text-anchor="middle">marketplace pivot</text></g>
+        <g><circle class="d-acc" cx="450" cy="120" r="7"/><text class="d-txt" x="450" y="100" text-anchor="middle" style="fill:var(--accent)">Shiprocket</text><text class="d-txt-s" x="450" y="150" text-anchor="middle">2017 · the plumbing</text></g>
+        <g><circle class="d-fill" cx="580" cy="120" r="6"/><text class="d-txt" x="580" y="100" text-anchor="middle">Full stack</text><text class="d-txt-s" x="580" y="150" text-anchor="middle">checkout · ads · ship</text></g>
+        <text class="d-txt-s" x="180" y="185" text-anchor="middle">↑ almost died</text>
+        <text class="d-txt-s" x="360" y="185" text-anchor="middle">↑ almost died</text>
+        <path class="d-accline" d="M175 172 l6 -8 M355 172 l6 -8"/>
+      </svg>
+      <div class="cap">Fig 2.1 — Same mission, three vehicles, two near-deaths.</div>
+    </div>
+
+    <!-- INTERACTIVE 2: timeline tabs -->
+    <div class="interact">
+      <div class="ihead">Explore · Click each era</div>
+      <div class="tabs" id="tl-tabs">
+        <button class="tab on" data-p="p1">CartRocket</button>
+        <button class="tab" data-p="p2">The Shopify lesson</button>
+        <button class="tab" data-p="p3">Craftly</button>
+        <button class="tab" data-p="p4">Shiprocket</button>
+      </div>
+      <div class="panel on" id="p1"><span class="yr">2011–12</span><h4>Rebranded open source, sold as a product</h4><p style="margin:0;color:var(--ink-soft)">No product on day one. They hosted Magento, called it CartRocket, and sold agency-style — one founder selling, the other secretly doing all the work. The revenue funded the first engineer and revealed what clients actually wanted.</p></div>
+      <div class="panel" id="p2"><span class="yr">the insight that misfired</span><h4>"Simplicity" wasn't India's problem</h4><p style="margin:0;color:var(--ink-soft)">Shopify solved "I can't hire a developer." In India developers are cheap, so DIY simplicity added no value — only the founders cared. There was also nothing to plug into: no on-demand logistics, and payment gateways charged a ₹1-lakh one-time setup fee.</p></div>
+      <div class="panel" id="p3"><span class="yr">~2-year pivot</span><h4>The marketplace that taught them demand</h4><p style="margin:0;color:var(--ink-soft)">They took control of demand, built an Etsy-style shop with an ad layer, and discovered merchants won't pay upfront — only commission. Crucially, RTO became <em>their</em> P&amp;L, which forced them to invent pin-code intelligence and address fixes.</p></div>
+      <div class="panel" id="p4"><span class="yr">2017 →</span><h4>"The plumbing itself has value"</h4><p style="margin:0;color:var(--ink-soft)">Customers were asking for the infrastructure, not another storefront. So they productized the pipes — logistics aggregation, checkout, returns intelligence — and reached profitability in about two and a half years.</p></div>
+    </div>
+
+    <div class="memory"><b>Memory hook:</b> <b>Wedded to the problem, divorced from the product.</b> The storefront died three times; the mission never did.</div>
+  </section>
+
+  <!-- ============ MODULE 3 ============ -->
+  <section class="module" id="m3">
+    <div class="mod-head"><span class="mod-num">MODULE 03</span><div><span class="tag">Structure of Commerce</span><h2>Three Pillars: Discovery, Trust, Fulfillment</h2></div></div>
+
+    <p class="core">Strip any commerce business to its bones and you get three pillars. First, <em>discovery</em> — demand generation, traffic, "how does anyone hear about me?" Second, <em>trust and checkout</em> — the moment a stranger decides to believe your product, your brand, and your promise to deliver. Third, <em>post-order fulfillment</em> — the experience between payment and the box arriving, which online stretches across hours to days. The founder's sharpest move is renaming the middle pillar: he calls payments "trust" <em>on purpose</em>, because in India the payment question is really a belief question. This reframes the single most misunderstood feature in Indian e-commerce — cash on delivery. COD was invented by Flipkart to usher in a skeptical population, and it is, in his words, "a product built for instilling trust — it is not a supply-chain product at all." It recreates the old counter experience: money and goods change hands at the same moment, so trust is instant. The cost of that trust is brutal — return-to-origin (RTO) rates of 20–30% on COD, because there's no skin in the game; a buyer can press a button, change their mind, and refuse the parcel. But here's the proof that it's a trust problem and not a logistics one: when they replaced COD with "Pay After Delivery" — a UPI mandate given at checkout that only debits if the order actually arrives — RTO fell to under 1%. Same roads, same couriers, same addresses. Only the trust instrument changed, and the returns virtually vanished. That is the whole module in one number.</p>
+
+    <h3>The Step-by-Step: Diagnosing a Commerce Business</h3>
+    <ol class="steps">
+      <li><b>Map yourself onto the three pillars.</b> Discovery → Trust → Fulfillment. Which one is actually broken?</li>
+      <li><b>Don't mislabel the symptom.</b> High returns look like a logistics problem but are usually a trust problem.</li>
+      <li><b>Fix trust upstream, at checkout.</b> A simple "debit only if it delivers" mandate beats optimizing delivery routes.</li>
+      <li><b>Treat fulfillment as experience, not cost.</b> In B2B, logistics is a cost line; in D2C, the post-order window <em>is</em> the customer experience. Spend the extra ₹10 for the better carrier.</li>
+    </ol>
+
+    <div class="ex-grid">
+      <div class="ex"><span class="lab">The obvious case</span><h4>The marketplace walled garden</h4><p>Amazon and Flipkart own discovery <em>and</em> trust in a closed loop. As a brand selling there, you don't gain customers — you "rent demand," with no data and no relationship. The pillars are solved for you, but owned by them.</p></div>
+      <div class="ex counter"><span class="lab">The counter-intuitive case</span><h4>Returns vanish without better trucks</h4><p>Switching COD to a "pay-after-delivery" UPI mandate dropped RTO from 20–30% to under 1% — with identical logistics. The returns were never about delivery; they were about the absence of commitment at checkout.</p></div>
+      <div class="ex"><span class="lab">The edge case</span><h4>Buying Nike on Myntra</h4><p>You already trust Nike — you're not discovering it on the marketplace. So why buy there? For <em>fulfillment certainty</em>: it arrives on a known date, and returns are guaranteed. The pillar doing the work is the third one, not the brand.</p></div>
+    </div>
+
+    <div class="analogy"><span class="lab">Visual Analogy</span><p><b>The counter vs. the courier.</b> Offline, trust is compressed into one instant at the counter — you hand over money and receive the goods simultaneously. Online shatters that moment into a days-long gap filled with doubt: <em>will it come? can I return it? is this brand real?</em> Every pillar exists to rebuild, in pieces, the trust the counter gave you for free.</p></div>
+
+    <div class="wrong"><span class="lab">❌ What people get wrong</span><p>Treating cash on delivery as a supply-chain feature to be optimized. It's a <em>trust instrument.</em> The second error: underestimating the post-order experience as a "cost item." In e-commerce that window is the entire experience the customer remembers — and it determines whether they ever come back.</p></div>
+
+    <div class="matters"><span class="lab">Why this matters</span><p>Open-loop D2C brands are, today, effectively trying to out-build Amazon's infrastructure alone. The founder's thesis is that India shouldn't be built that way — there should be shared infrastructure (trust, checkout, fulfillment) that any brand can use on its own terms. Until trust is solved for open commerce, it won't take off at full scale.</p></div>
+
+    <p class="link"><span class="lab">🔗 Link</span> The trust pillar is where <a href="#m6">Module 6</a> (founder authenticity) lives — in the absence of a marketplace's walled garden, the founder <em>becomes</em> the trust signal. And the "shared infrastructure" thesis is the destination of the pivot story in <a href="#m2">Module 2</a>.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 640 230" role="img" aria-label="Three pillars funnel: discovery, trust, fulfillment">
+        <rect class="d-ink" x="60" y="40" width="160" height="150" rx="3"/>
+        <rect class="d-ink" x="240" y="40" width="160" height="150" rx="3"/>
+        <rect class="d-ink" x="420" y="40" width="160" height="150" rx="3"/>
+        <text class="d-txt" x="140" y="70" text-anchor="middle">DISCOVERY</text>
+        <text class="d-txt" x="320" y="70" text-anchor="middle" style="fill:var(--accent)">TRUST</text>
+        <text class="d-txt" x="500" y="70" text-anchor="middle">FULFILLMENT</text>
+        <text class="d-txt-s" x="140" y="95" text-anchor="middle">traffic · ads</text>
+        <text class="d-txt-s" x="140" y="110" text-anchor="middle">"hear about me"</text>
+        <text class="d-txt-s" x="320" y="95" text-anchor="middle">checkout · COD</text>
+        <text class="d-txt-s" x="320" y="110" text-anchor="middle">"will it be real?"</text>
+        <text class="d-txt-s" x="500" y="95" text-anchor="middle">delivery · returns</text>
+        <text class="d-txt-s" x="500" y="110" text-anchor="middle">"will it come?"</text>
+        <path class="d-accline" d="M220 115 h20 M400 115 h20" marker-end="none"/>
+        <text class="d-serif" x="320" y="165" text-anchor="middle">the middle pillar is a belief problem,</text>
+        <text class="d-serif" x="320" y="182" text-anchor="middle">not a payments problem</text>
+      </svg>
+      <div class="cap">Fig 3.1 — Break any commerce business here; find which pillar is broken.</div>
+    </div>
+
+    <!-- INTERACTIVE 3: RTO comparison -->
+    <div class="interact" id="rto">
+      <div class="ihead">Compare · Watch returns disappear</div>
+      <p style="margin-top:0">100 orders placed. Toggle the checkout instrument and watch how many come back (RTO).</p>
+      <div class="row">
+        <button class="btn on" data-rto="28" data-name="Cash on Delivery">Cash on Delivery</button>
+        <button class="btn" data-rto="1" data-name="Pay After Delivery (UPI mandate)">Pay After Delivery</button>
+      </div>
+      <div class="dots" id="rto-dots"></div>
+      <div class="feedback" id="rto-f" style="border:none;padding:0"></div>
+    </div>
+
+    <!-- INTERACTIVE 4: pillar diagnostic -->
+    <div class="interact" id="diag">
+      <div class="ihead">Diagnose · Which pillar is broken?</div>
+      <p style="margin-top:0">Pick the symptom your business is feeling:</p>
+      <div class="row" id="diag-opts">
+        <button class="btn" data-a="d">Nobody knows I exist</button>
+        <button class="btn" data-a="t">People browse but won't pay / high RTO</button>
+        <button class="btn" data-a="f">Orders arrive late or damaged</button>
+      </div>
+      <div class="feedback" id="diag-f"></div>
+    </div>
+
+    <div class="memory"><b>Memory hook — D·T·F:</b> <b>D</b>iscovery, <b>T</b>rust, <b>F</b>ulfillment. COD is a <b>T</b> instrument wearing <b>F</b> clothing.</div>
+  </section>
+
+  <!-- ============ MODULE 4 ============ -->
+  <section class="module" id="m4">
+    <div class="mod-head"><span class="mod-num">MODULE 04</span><div><span class="tag">The Market</span><h2>There Is No India. There Are 10,000.</h2></div></div>
+
+    <p class="core">The most dangerous assumption you can carry into Indian commerce is that it's one market. It isn't. There are CAT-A, B, C and D consumers, tier-1/2/3 clusters, dozens of regions and languages — "10,000 Indias," the founder insists, and unlike the US or China, they are stubbornly heterogeneous and resist consolidation into a single chain. Today e-commerce is only about 8–9% of India's roughly $1-trillion retail market — call it $80–90 billion online — versus around 24% in the US and 40–45% in China. The question that should excite you is <em>where the next $900 billion comes from.</em> His answer: not from one consolidated platform, but from micro-niches serving micro-markets that nobody is targeting yet. The trigger is income. India sits near $3,000 per-capita GDP right now; history (and China's curve) suggests that as a country crosses toward $4,000–$5,000, discretionary spending and digital commerce <em>inflect.</em> And the money doesn't just multiply — it <em>premiumizes.</em> His clean illustration: if you suddenly had four times the income, you wouldn't buy four ₹2,000 shirts; you'd buy one ₹4,000 shirt. The data on his own platform already hints at this: average order value sits around ₹1,500, tier-2 cities drive about 65% of volume, and tier-3 is growing faster than tier-2, which is growing faster than tier-1. Small towns nobody has heard of show up as 1% of volume with surprisingly high AOVs — because CAT-A customers live everywhere, not just in metros.</p>
+
+    <h3>The Step-by-Step: Reading the Market Like a Founder</h3>
+    <ol class="steps">
+      <li><b>Start from the gap, not the size.</b> 8–9% penetration vs 24%/45% is not discouraging — it's the headroom.</li>
+      <li><b>Watch the income inflection.</b> $3,000 → $5,000 per-capita is when discretionary and digital commerce bend upward.</li>
+      <li><b>Expect premiumization.</b> Rising income trades up to higher-value goods, not more units of cheap ones.</li>
+      <li><b>Go micro.</b> Pick a region, a climate, a hair type, a snack — the more specific, the less competition and the deeper the loyalty.</li>
+      <li><b>Be patient.</b> "You have to bet on India growing." Give a niche 3–4 years; it looks small at $3,000 and large at $13,000.</li>
+    </ol>
+
+    <div class="ex-grid">
+      <div class="ex"><span class="lab">The obvious case</span><h4>One mithai store, ~₹100 crore</h4><p>His grandfather's single ~20,000-sq-ft sweet shop in Jalandhar (a tier-2.5 city) does on the order of ₹100 crore a year from ~120 SKUs — roughly a third from motichoor laddu alone. Authenticity, in one place, is already a huge business.</p></div>
+      <div class="ex counter"><span class="lab">The counter-intuitive case</span><h4>Small towns, big baskets</h4><p>Assume tier-2/3 means low spending and you'll be wrong. The platform's ~₹1,500 AOV holds — and even rises — in smaller cities, because CAT-A consumers are everywhere. High-AOV regional demand is being ignored by builders.</p></div>
+      <div class="ex"><span class="lab">The edge case</span><h4>Categories that exist only here</h4><p>Regional snacks with real provenance, tech-travel accessories, Ayurvedic goods packaged for global buyers — niches with no US/China analogue. India-first products for India-first channels (WhatsApp, vernacular, voice).</p></div>
+    </div>
+
+    <div class="analogy"><span class="lab">Visual Analogy</span><p><b>The shirt, not the stack.</b> Premiumization isn't "more of the same." With four times the money, you don't buy four ₹2,000 shirts — you buy one ₹4,000 shirt. Whole categories trade <em>up</em>, which is why a niche that looks tiny today can become a category leader without the market getting more crowded — it gets richer.</p></div>
+
+    <div class="wrong"><span class="lab">❌ What people get wrong</span><p>"Tier-2 and tier-3 = cheap, low-value customers." The data contradicts it: high-AOV orders pour in from small cities, and CAT-A buyers live in every pin code. The second error is trying to consolidate 10,000 heterogeneous markets into one chain — that's the US/China playbook, and it doesn't fit India.</p></div>
+
+    <div class="matters"><span class="lab">Why this matters</span><p>The $90B → $1T journey is the opportunity of a generation, and it will be won in micro-blocks, not mega-chains. Small businesses are a third of GDP, the largest employer, and half of exports — giving them the tools the big players have is how the next wave gets built.</p></div>
+
+    <p class="link"><span class="lab">🔗 Link</span> Every micro-niche here is found with the complaint-hunting method of <a href="#m1">Module 1</a>, and each one still has to clear the revenue math of <a href="#m5">Module 5</a>. The patience to wait for the inflection is the same conviction behind the pivots in <a href="#m2">Module 2</a>.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 640 260" role="img" aria-label="Bar chart of e-commerce penetration: India, US, China">
+        <line class="d-ink" x1="70" y1="210" x2="600" y2="210"/>
+        <line class="d-ink" x1="70" y1="40" x2="70" y2="210"/>
+        <!-- bars: scale 0-50% over 160px -->
+        <rect class="d-acc" x="140" y="181" width="80" height="29"/>
+        <rect class="d-fill" x="300" y="133" width="80" height="77"/>
+        <rect class="d-fill" x="460" y="80" width="80" height="130"/>
+        <text class="d-txt" x="180" y="173" text-anchor="middle" style="fill:var(--accent)">~8–9%</text>
+        <text class="d-txt" x="340" y="125" text-anchor="middle">~24%</text>
+        <text class="d-txt" x="500" y="72" text-anchor="middle">~40–45%</text>
+        <text class="d-txt" x="180" y="230" text-anchor="middle">INDIA</text>
+        <text class="d-txt" x="340" y="230" text-anchor="middle">US</text>
+        <text class="d-txt" x="500" y="230" text-anchor="middle">CHINA</text>
+        <text class="d-txt-s" x="60" y="45" text-anchor="end">50%</text>
+        <text class="d-txt-s" x="60" y="213" text-anchor="end">0</text>
+        <text class="d-serif" x="335" y="252" text-anchor="middle">e-commerce as a share of total retail — the gap is the headroom</text>
+      </svg>
+      <div class="cap">Fig 4.1 — Penetration as stated in the conversation. Hover/tap a bar for context.</div>
+    </div>
+
+    <!-- INTERACTIVE 5: penetration chart hover -->
+    <div class="interact" id="pen">
+      <div class="ihead">Read the data · Tap a country</div>
+      <div class="row">
+        <button class="btn on" data-msg="India: ~8–9% of a ~$1T retail market is online (~$80–90B). Per-capita GDP ~$3,000; the inflection toward $4–5k is still ahead. Direct (D2C) commerce is only ~$15–20B — the rest is marketplaces.">India</button>
+        <button class="btn" data-msg="US: ~24% penetration — a mature, homogeneous market. The Shopify model was built for exactly this kind of consolidated, high-trust, developer-expensive economy.">United States</button>
+        <button class="btn" data-msg="China: ~40–45% penetration, helped by a world-class export supply chain built for global consumption. Dense, efficient — but still more homogeneous than India's 10,000 micro-markets.">China</button>
+      </div>
+      <div class="feedback" id="pen-f" style="border:none;padding-top:12px"></div>
+    </div>
+
+    <div class="memory"><b>Memory hook — the shirt, not the stack:</b> income rises → customers trade <b>up</b>, not <b>out</b>. 8–9% is not a ceiling; it's the headroom.</div>
+  </section>
+
+  <!-- ============ MODULE 5 ============ -->
+  <section class="module" id="m5">
+    <div class="mod-head"><span class="mod-num">MODULE 05</span><div><span class="tag">The Money</span><h2>"Make Me ₹20,000, Take ₹5,000"</h2></div></div>
+
+    <p class="core">Put the founder in the "Undercover Billionaire" scenario — dropped into a small town with ₹10,000 and three months — and watch how a builder thinks about money. He doesn't start with an idea; he starts with the <em>number</em> and works backward. A ₹100-crore valuation implies roughly ₹10 crore a year in revenue, which is about ₹1 crore a month. Now decompose it: that's 2,000 customers paying ₹5,000, or 1,000 paying ₹10,000, or 10,000 paying ₹1,000. The choice between those isn't about how many businesses exist — it's about how much <em>value you can actually deliver.</em> And that value has a folk formula every shopkeeper already understands: "make me ₹20,000 and you may take ₹5,000." If you can't credibly create that surplus, you're not selling a painkiller — you're selling vitamins, and you'll have to beg. His concrete plan is instructive: an AI voice receptionist that screens JustDial leads, answers customers 24/7, and knows the catalog — sold to a high-margin niche like dental clinics (who want the fancy stuff), with zero upfront cost and pricing tied to outcomes so the barrier to say yes is near zero. Month one is survival — sell yourself, consult, cover your Maslow base. Then build the thing in hours with a laptop and AI, reach 2,000 customers through scraped listings and hyper-personalized outreach, and let the later thousands convert self-service. The whole answer is a matrix of value × price × volume — and the discipline is to solve for value first.</p>
+
+    <h3>The Step-by-Step: Reverse-Engineer the Target</h3>
+    <ol class="steps">
+      <li><b>Fix the destination.</b> Valuation → annual revenue → monthly revenue. (₹100cr ≈ ₹10cr/yr ≈ ₹1cr/month.)</li>
+      <li><b>Build the price × volume matrix.</b> Many small payments, or few large ones? Both can hit the same number.</li>
+      <li><b>Solve for value, not count.</b> The matrix choice depends on the surplus you can create — "make me ₹20,000."</li>
+      <li><b>Sell outcomes, zero upfront.</b> "You don't pay me anything big — yes, do it." Price on results so saying yes is frictionless.</li>
+      <li><b>Use the customer's words.</b> Outreach in their language, about their pain, converts; feature-lists about yourself don't.</li>
+    </ol>
+
+    <div class="ex-grid">
+      <div class="ex"><span class="lab">The obvious case</span><h4>The AI voice receptionist</h4><p>Every clinic and store needs one: screen leads, answer 24/7, know the catalog, pre-sell. Buildable in hours with AI. A shop owner readily pays ₹5,000/month for that — the value is legible.</p></div>
+      <div class="ex counter"><span class="lab">The counter-intuitive case</span><h4>Chase the high-margin niche</h4><p>Instinct says "go where there are many businesses." Better: go where margins are fat (dentists, not struggling shops), because they'll pay for premium help and your life stays easier from day one.</p></div>
+      <div class="ex"><span class="lab">The edge case</span><h4>The matrix decides, not the market</h4><p>₹1,000×10,000 vs ₹5,000×2,000 vs ₹10,000×1,000 all equal ₹1cr/month. The right cell is chosen by the value you can deliver and charge for — not by how many buyers exist. Wrong cell = vitamin sales.</p></div>
+    </div>
+
+    <div class="analogy"><span class="lab">Visual Analogy</span><p><b>Maslow first, then the matrix.</b> In month one you're at the bottom of the pyramid — food, survival, selling your own time. Only once that's covered can you climb to building. The revenue matrix is the ladder you climb <em>after</em> survival: each rung is a price point, and you pick the rung your value can actually reach.</p></div>
+
+    <div class="wrong"><span class="lab">❌ What people get wrong</span><p>Selling "I have this, I have that." The customer doesn't care what you have; they care what it does <em>for them.</em> The pitch must be framed in their voice, around their pain: "Are you facing this? It'll solve it for you." Feature-selling is the fastest way to turn a painkiller into a vitamin.</p></div>
+
+    <div class="matters"><span class="lab">Why this matters</span><p>This turns a vague ambition ("build a big company") into arithmetic you can do on a napkin. It forces honesty: if you can't articulate the ₹20,000 of value, you don't yet have a business — you have a hope. The framework is domain-agnostic; it works for a B2B SaaS or a mithai brand alike.</p></div>
+
+    <p class="link"><span class="lab">🔗 Link</span> This is gate 2 and 3 of <a href="#m1">Module 1</a> made numerical. The "sell in their words" rule is the same authenticity that powers founder-led trust in <a href="#m6">Module 6</a>, and the target only makes sense against the market headroom of <a href="#m4">Module 4</a>.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 640 210" role="img" aria-label="Reverse-engineering flow from valuation to customers">
+        <rect class="d-ink" x="20" y="80" width="120" height="50" rx="3"/>
+        <rect class="d-ink" x="170" y="80" width="120" height="50" rx="3"/>
+        <rect class="d-ink" x="320" y="80" width="120" height="50" rx="3"/>
+        <rect class="d-accline" x="470" y="80" width="150" height="50" rx="3"/>
+        <text class="d-txt" x="80" y="100" text-anchor="middle">₹100 cr</text><text class="d-txt-s" x="80" y="116" text-anchor="middle">valuation</text>
+        <text class="d-txt" x="230" y="100" text-anchor="middle">₹10 cr/yr</text><text class="d-txt-s" x="230" y="116" text-anchor="middle">revenue</text>
+        <text class="d-txt" x="380" y="100" text-anchor="middle">₹1 cr/mo</text><text class="d-txt-s" x="380" y="116" text-anchor="middle">run-rate</text>
+        <text class="d-txt" x="545" y="100" text-anchor="middle" style="fill:var(--accent)">2,000 × ₹5,000</text><text class="d-txt-s" x="545" y="116" text-anchor="middle">price × customers</text>
+        <path class="d-ink" d="M140 105 h30 M290 105 h30 M440 105 h30" marker-end="none"/>
+        <text class="d-serif" x="320" y="175" text-anchor="middle">work backward from the number; solve for value first</text>
+      </svg>
+      <div class="cap">Fig 5.1 — The napkin math behind any "big" goal.</div>
+    </div>
+
+    <!-- INTERACTIVE 6: revenue calculator -->
+    <div class="interact" id="calc">
+      <div class="ihead">Try it · Reverse-engineer your own target</div>
+      <label class="sl">Monthly revenue target: <span id="t-val" style="color:var(--accent)">₹1,00,00,000</span></label>
+      <input type="range" id="t-in" min="100000" max="5000000" step="100000" value="1000000">
+      <label class="sl">Price per customer / month: <span id="p-val" style="color:var(--accent)">₹5,000</span></label>
+      <input type="range" id="p-in" min="500" max="50000" step="500" value="5000">
+      <div class="readout">
+        <div class="stat"><span class="n" id="c-out">2,000</span><span class="k">customers needed</span></div>
+        <div class="stat"><span class="n" id="a-out">₹12 cr</span><span class="k">annual revenue</span></div>
+        <div class="stat"><span class="n" id="d-out">~67</span><span class="k">sign-ups / day (30d)</span></div>
+      </div>
+      <div class="feedback" id="calc-f" style="border:none;padding-top:12px"></div>
+    </div>
+
+    <div class="memory"><b>Memory hook — "Make 20, Take 5":</b> if you can't name the ₹20,000 of value you create, you have no right to the ₹5,000 fee. Sell the surplus, in their words.</div>
+  </section>
+
+  <!-- ============ MODULE 6 ============ -->
+  <section class="module" id="m6">
+    <div class="mod-head"><span class="mod-num">MODULE 06</span><div><span class="tag">Trust &amp; Brand</span><h2>The Founder Is the Trust Layer</h2></div></div>
+
+    <p class="core">In a trust-deficit society, where does an unknown brand get trust if it can't hide inside a marketplace's walled garden? The founder's answer is almost uncomfortable in its simplicity: from <em>you.</em> Get obsessed with the problem — not the product — and you become the natural spokesperson for it. Your passion reads as authenticity; your authenticity reads as trust; and trust, as Module 3 showed, is the pillar that decides whether open commerce works at all. He's careful about the object of obsession: never the product. "You should not get obsessed with your product ever… get obsessed with the customer, or deeper, get obsessed with the problem." Obsess over the product and you'll defend it past its usefulness; obsess over the problem and you can pivot through ten products and still win. The evidence he offers is vivid. Shark Tank founders outsell comparable non-Shark-Tank brands not because of the traffic spike, but because customers have <em>seen the founder</em> — looked into their eyes, judged their honesty, bought into the story. It's the old mechanism of deriving trust from an actor on TV, except now the founder is the actor and the chief salesperson. His own host's platform proves it from the other side: roughly 75–80% of applications arrive through YouTube and Instagram content — trust built by showing up, passionately, around one idea (experiential learning) for years. And the emotional core: "You cannot hate your customer and build a business." If you genuinely love the segment you serve, empathy and expertise come for free, and the brand's authenticity is almost automatic.</p>
+
+    <h3>The Step-by-Step: Building Trust Without a Marketplace</h3>
+    <ol class="steps">
+      <li><b>Pick a problem you can't stop thinking about.</b> Conviction can't be manufactured from data; it has to be felt.</li>
+      <li><b>Become the spokesperson.</b> Talk about the niche constantly; let micro-influencers and the community talk with you.</li>
+      <li><b>Put the founder in front.</b> Customers judge the person before the product — your face and story are the trust signal.</li>
+      <li><b>Love the customer segment.</b> Empathy → expertise → authenticity, almost automatically.</li>
+      <li><b>Wait it out.</b> Build community, then products, then an ecosystem — around one conviction, over years.</li>
+    </ol>
+
+    <div class="ex-grid">
+      <div class="ex"><span class="lab">The obvious case</span><h4>Content as the trust engine</h4><p>Masters Union draws ~75–80% of applications from its YouTube and Instagram — no "college" in the name, just years of passionate content about experiential learning. Trust compounded before a single form was filled.</p></div>
+      <div class="ex counter"><span class="lab">The counter-intuitive case</span><h4>The Shark Tank effect</h4><p>Founders who appear on TV outsell similar brands that don't — not from the spike, but because buyers saw the founder's eyes and story. The person, not the ad budget, is the conversion lever.</p></div>
+      <div class="ex"><span class="lab">The edge case</span><h4>Premium detail as devotion</h4><p>A premium electronics-accessories brand wins a devotee purely through tiny, cared-for details — "they'll never have to market to me again." Obsession with the customer's experience creates loyalty no ad can buy.</p></div>
+    </div>
+
+    <div class="analogy"><span class="lab">Visual Analogy</span><p><b>The actor on TV.</b> We used to derive trust from faces we saw on screen. Today the founder <em>is</em> that actor — the chief salesperson whose visible passion and honesty stand in for the guarantee a marketplace once provided. In open commerce, your face is the escrow.</p></div>
+
+    <div class="wrong"><span class="lab">❌ What people get wrong</span><p>Obsessing over the product instead of the problem. Product-obsession makes you defend a dying idea and "waste all your money trying to market something that doesn't work." Problem-obsession lets you pivot freely and still compound trust. The second error: thinking brand is a sticker and a checklist — it's the craft and conviction of the founder.</p></div>
+
+    <div class="matters"><span class="lab">Why this matters</span><p>Marketplaces own trust <em>and</em> the customer; you just rent demand. The only way an independent brand competes is by generating its own trust — and the cheapest, most durable source of that trust is a founder genuinely in love with the problem. That's the human infrastructure behind everything else in this lesson.</p></div>
+
+    <p class="link"><span class="lab">🔗 Link</span> This is the human face of the Trust pillar from <a href="#m3">Module 3</a>. "Sell in their words" from <a href="#m5">Module 5</a> only works when you love the segment enough to know those words — and the patience to wait for the inflection in <a href="#m4">Module 4</a> is the same conviction.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 640 240" role="img" aria-label="Cycle: obsession, spokesperson, community, trust">
+        <circle class="d-ink" cx="320" cy="120" r="80" stroke-dasharray="4 5"/>
+        <g><circle class="d-fill" cx="320" cy="40" r="6"/><text class="d-txt" x="320" y="28" text-anchor="middle">obsess over problem</text></g>
+        <g><circle class="d-fill" cx="400" cy="120" r="6"/><text class="d-txt" x="470" y="123" text-anchor="middle">become spokesperson</text></g>
+        <g><circle class="d-fill" cx="320" cy="200" r="6"/><text class="d-txt" x="320" y="222" text-anchor="middle">community gathers</text></g>
+        <g><circle class="d-acc" cx="240" cy="120" r="6"/><text class="d-txt" x="150" y="123" text-anchor="middle" style="fill:var(--accent)">trust compounds</text></g>
+        <path class="d-accline" d="M356 52 A80 80 0 0 1 388 84" />
+        <path class="d-accline" d="M388 156 A80 80 0 0 1 356 188" />
+        <path class="d-accline" d="M284 188 A80 80 0 0 1 252 156" />
+        <path class="d-accline" d="M252 84 A80 80 0 0 1 284 52" />
+      </svg>
+      <div class="cap">Fig 6.1 — The trust flywheel a founder can spin alone.</div>
+    </div>
+
+    <!-- INTERACTIVE 7: flashcards -->
+    <div class="interact">
+      <div class="ihead">Remember · Tap a card to flip</div>
+      <div class="cards" id="cards">
+        <div class="flash"><div class="in"><div class="face"><span class="q">Object of obsession?</span></div><div class="face back">The <b>problem</b>, never the product — so you can pivot freely and still compound trust.</div></div></div>
+        <div class="flash"><div class="in"><div class="face"><span class="q">Why Shark Tank founders outsell</span></div><div class="face back">Customers <b>saw the founder</b> — eyes, honesty, story. The person is the trust signal.</div></div></div>
+        <div class="flash"><div class="in"><div class="face"><span class="q">"You cannot ___ your customer"</span></div><div class="face back"><b>…hate</b> your customer and build a business. Love the segment → empathy → expertise → authenticity.</div></div></div>
+        <div class="flash"><div class="in"><div class="face"><span class="q">Marketplace = renting ___</span></div><div class="face back"><b>…demand.</b> They own trust <i>and</i> the customer; you get no data, no relationship.</div></div></div>
+      </div>
+    </div>
+
+    <div class="memory"><b>Memory hook:</b> <b>Face = escrow.</b> In open commerce, the founder's visible obsession is the guarantee a marketplace used to provide.</div>
+  </section>
+
+  <!-- ============ CHEAT SHEET ============ -->
+  <section class="section" id="cheat">
+    <h2>Summary &amp; Cheat Sheet</h2>
+    <p>The whole talk, compressed into the cards you'd tape to a monitor.</p>
+    <div class="cheat">
+      <h3>The six convictions</h3>
+      <ul>
+        <li><b>Validate by complaints.</b> Passion ∩ complaints. Painkillers beat vitamins. Pass three gates: problem → willingness to pay → unit economics (C·W·U).</li>
+        <li><b>Wedded to the problem, divorced from the product.</b> Sell before you build; let churn reveal the real gap; the plumbing can become the company.</li>
+        <li><b>Three pillars: D·T·F.</b> Discovery, Trust, Fulfillment. COD is a <em>trust</em> instrument — fix it at checkout and RTO falls from ~30% to &lt;1%.</li>
+        <li><b>10,000 Indias.</b> 8–9% penetration is headroom. $3,000→$5,000 inflects. Premiumization = the shirt, not the stack. Go micro; CAT-A lives everywhere.</li>
+        <li><b>Make 20, take 5.</b> Reverse-engineer the number (₹1cr/mo = 2,000 × ₹5,000). Solve for value first; sell outcomes, zero upfront, in their words.</li>
+        <li><b>The founder is the trust layer.</b> Obsess over the problem; become the spokesperson; your face is the escrow. You can't hate your customer and build.</li>
+      </ul>
+      <div class="formula">₹100 cr valuation ≈ ₹10 cr/yr ≈ ₹1 cr/mo = customers × price ···· choose the cell by the VALUE you create</div>
+      <div class="formula">RTO: Cash on Delivery ~20–30% → Pay-After-Delivery (UPI mandate) &lt;1% ···· same roads, only trust changed</div>
+      <div class="formula">Penetration: India ~8–9% · US ~24% · China ~40–45% ···· the gap is the opportunity</div>
+      <p class="note" style="margin-bottom:0">Spoken estimates from the conversation — use as mental models, not audited figures.</p>
+    </div>
+  </section>
+
+  <!-- ============ ASSESSMENT ============ -->
+  <section class="section" id="assess">
+    <h2>Check Your Understanding · 15 Questions</h2>
+    <p>Answer all fifteen; feedback appears per question. Aim for 12+ before you call it learned.</p>
+    <div id="quiz"></div>
+    <div class="score" id="score" style="display:none"></div>
+    <div style="text-align:center;margin-top:14px"><button class="btn" id="grade">Grade my answers</button>
+    <button class="btn" id="reset" style="margin-left:8px">Reset</button></div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section class="section" id="faq">
+    <h2>Questions You Might Still Have</h2>
+    <details><summary>Is "copy a proven US model" always wrong?</summary><p>No — inspiration is a fine kick-off (Shiprocket itself "started as Shopify"). The error is lift-and-shift without adapting to market structure: India had cheap developers, no integrations to plug into, and payment gateways charging huge setup fees. Take the spark; rebuild for local reality.</p></details>
+    <details><summary>Why does the founder distrust paid ads as a primary engine?</summary><p>Google and Meta algorithms are designed to give you a ROAS that "doesn't kill you but doesn't make you rich" — they push price to the edge of your margin. His north star: marketing in bursts, leaning on organic pull, and owning first-party signals (like delivered-order data) the ad platforms don't have.</p></details>
+    <details><summary>What exactly is RTO and why is it so damaging?</summary><p>Return-to-origin: the parcel goes out and comes back unpaid. On COD it runs 20–30%. It's two-way freight, 7–8 days of stock in limbo, and wrecked cash planning — businesses have shut down over it. The fix is upstream trust (mandates, address validation, buyer-fraud profiling), not faster trucks.</p></details>
+    <details><summary>How do quick-commerce and kiranas fit in?</summary><p>Quick commerce is essentially "a kirana with much better logistics and demand." Rather than replace India's ~4 crore kiranas, the thesis is to hand them the toolkit — trust and fulfillment — since they already own demand, credit relationships, and demand-planning skill, especially in tier-2/3.</p></details>
+    <details><summary>Tech startup or manufacturing — which would he pick?</summary><p>He bends toward tech (his skill set, and the next half-billion users coming online via voice and vernacular), but insists both are essential and interdependent: "if everybody sells, there will be nothing left to sell." India is likely to become a larger manufacturing hub and net exporter as consumption grows.</p></details>
+    <details><summary>What's the single thing to do before anything else?</summary><p>Define the problem sharply enough to picture the customer feeling it. "Without defining that problem I wouldn't even move to the next step." Everything downstream — pricing, brand, logistics — is useless if gate one is wrong.</p></details>
+  </section>
+
+  <!-- ============ NEXT STEPS ============ -->
+  <section class="section" id="next">
+    <h2>Next Steps · Use It This Week</h2>
+    <ol class="steps">
+      <li><b>Run one complaint audit.</b> Pick a domain you love; scrape Reddit/X/Instagram and one big brand's review page; have an LLM structure the top five complaints in the customers' own words.</li>
+      <li><b>Pass it through C·W·U.</b> For the best complaint, write one sentence each for the problem, the willingness-to-pay evidence, and the unit economics. If any is blank, stop there.</li>
+      <li><b>Reverse-engineer a number.</b> Use the calculator in Module 5. Pick a price and compute the customers you'd need — then ask honestly whether you can create 4× that value.</li>
+      <li><b>Diagnose an existing brand on D·T·F.</b> Which pillar is actually broken? Resist the urge to mislabel a trust problem as a logistics one.</li>
+      <li><b>Put a founder face on it.</b> Write the story in the customer's voice. If you can't feel the obsession, it's the wrong niche — pick again.</li>
+    </ol>
+    <p><span class="pill">validate</span><span class="pill">pivot</span><span class="pill">discovery</span><span class="pill">trust</span><span class="pill">fulfillment</span><span class="pill">bharat</span><span class="pill">pricing</span><span class="pill">founder-brand</span></p>
+  </section>
+
+  <footer>
+    LEDGER &amp; INK · an interactive lesson reconstructed from a founders' conversation (Shiprocket × Masters Union).<br>
+    Self-contained HTML · no external dependencies · figures are the speaker's stated estimates.<br>
+    Built to be revisited at 0.75× speed.
+  </footer>
+
+</div>
+
+<script>
+/* ---------- theme ---------- */
+const root=document.documentElement, tbtn=document.getElementById('theme');
+tbtn.onclick=()=>{const d=root.getAttribute('data-theme')==='dark';
+  root.setAttribute('data-theme',d?'light':'dark');
+  tbtn.textContent=d?'◐ DARK MODE':'◑ LIGHT MODE';};
+
+/* ---------- progress ---------- */
+const bar=document.getElementById('bar'), prog=document.getElementById('prog');
+const mods=[...document.querySelectorAll('.module')];
+addEventListener('scroll',()=>{
+  const h=document.documentElement, p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+  bar.style.width=(p*100)+'%';
+  let n=0; mods.forEach(m=>{if(m.getBoundingClientRect().top<200)n++;});
+  prog.textContent='MODULE '+n+' / 6';
+});
+
+/* ---------- knowledge map ---------- */
+document.querySelectorAll('.node[data-t]').forEach(nd=>{
+  nd.addEventListener('click',()=>{
+    document.querySelectorAll('.node').forEach(x=>x.classList.remove('active'));
+    nd.classList.add('active');
+    document.getElementById(nd.dataset.t).scrollIntoView({behavior:'smooth'});
+  });
+});
+
+/* ---------- M1 painkiller/vitamin ---------- */
+const pvData=[
+  {q:"A founder sells a ₹299 'wellness' tea that 'may improve focus' over time.",a:"vitamin",
+   e:"No acute pain, no urgency — it must be *sold* to you with promises. Classic push product."},
+  {q:"A clinic owner is missing 40% of inbound calls and losing bookings.",a:"painkiller",
+   e:"Bleeding revenue right now, owner feels it daily. Urgent, pull-based — pricing power is high."},
+  {q:"A premium phone case with slightly nicer packaging than rivals.",a:"vitamin",
+   e:"Nice-to-have differentiation; buyers must be persuaded. No toothache here."},
+  {q:"COD orders keep returning unpaid, eating a brand's cash flow.",a:"painkiller",
+   e:"Direct financial pain with a measurable cost. The deeper the pain, the easier the sale."}
+];
+const pvq=document.getElementById('pvq'), pvf=document.getElementById('pvf');
+let pvScore=0,pvDone=0;
+pvData.forEach((it,i)=>{
+  const d=document.createElement('div');
+  d.style.cssText='margin-bottom:12px;padding-bottom:12px;border-bottom:1px dotted var(--rule)';
+  d.innerHTML='<div style="font-size:15.5px;margin-bottom:8px">'+(i+1)+'. '+it.q+'</div>';
+  ['painkiller','vitamin'].forEach(opt=>{
+    const b=document.createElement('button');b.className='btn';b.textContent=opt;
+    b.onclick=()=>{
+      d.querySelectorAll('.btn').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+      const ok=opt===it.a; if(!d.dataset.done){pvDone++;d.dataset.done=1;if(ok)pvScore++;}
+      pvf.className='feedback '+(ok?'ok':'no');
+      pvf.innerHTML=(ok?'✓ Correct. ':'✗ Not quite — this is a <b>'+it.a+'</b>. ')+it.e+
+        (pvDone===pvData.length?'<br><br><b>Score: '+pvScore+'/'+pvData.length+'</b> — '+(pvScore===pvData.length?'you think like a builder now.':'revisit the toothache analogy.'):'');
+    };
+    d.appendChild(b);
+  });
+  pvq.appendChild(d);
+});
+
+/* ---------- M2 timeline tabs ---------- */
+document.querySelectorAll('#tl-tabs .tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('#tl-tabs .tab').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');document.getElementById(t.dataset.p).classList.add('on');
+  };
+});
+
+/* ---------- M3 RTO dots ---------- */
+const dots=document.getElementById('rto-dots'), rtoF=document.getElementById('rto-f');
+function drawRTO(pct,name){
+  dots.innerHTML='';
+  for(let i=0;i<100;i++){const c=document.createElement('div');
+    c.className='dot '+(i<pct?'ret':'ok');dots.appendChild(c);}
+  rtoF.className='feedback';
+  rtoF.innerHTML='<b>'+name+':</b> ~'+pct+' of 100 orders return unpaid (red). '+(pct>5?
+    'That is two-way freight, a week of stock in limbo, and wrecked cash planning — all because there was no commitment at checkout.':
+    'Same roads, same couriers — only the trust instrument changed. The returns were never about delivery.');
+}
+document.querySelectorAll('#rto .btn').forEach(b=>{
+  b.onclick=()=>{document.querySelectorAll('#rto .btn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');drawRTO(+b.dataset.rto,b.dataset.name);};
+});
+drawRTO(28,'Cash on Delivery');
+
+/* ---------- M3 pillar diagnostic ---------- */
+const diagF=document.getElementById('diag-f');
+const diagMap={d:['Discovery','If nobody knows you exist, no amount of logistics polish helps. This is the demand-generation pillar — reach, targeting, and the missing commerce graph.'],
+  t:['Trust','Browsing-but-not-paying and high RTO are a *belief* problem, not a payments problem. Fix it upstream at checkout (e.g., a debit-only-if-delivered mandate).'],
+  f:['Fulfillment','Late or damaged parcels are the post-order experience — which in D2C *is* the experience. Spend the extra ₹10 for the better carrier; it buys the repeat purchase.']};
+document.querySelectorAll('#diag-opts .btn').forEach(b=>{
+  b.onclick=()=>{document.querySelectorAll('#diag-opts .btn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');const m=diagMap[b.dataset.a];
+    diagF.className='feedback ok';diagF.innerHTML='<b>'+m[0]+' pillar.</b> '+m[1];};
+});
+
+/* ---------- M4 penetration ---------- */
+const penF=document.getElementById('pen-f');
+penF.textContent=document.querySelector('#pen .btn').dataset.msg;
+document.querySelectorAll('#pen .btn').forEach(b=>{
+  b.onclick=()=>{document.querySelectorAll('#pen .btn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');penF.textContent=b.dataset.msg;};
+});
+
+/* ---------- M5 calculator ---------- */
+const tIn=document.getElementById('t-in'),pIn=document.getElementById('p-in');
+const inr=n=>'₹'+n.toLocaleString('en-IN');
+function calc(){
+  const t=+tIn.value,p=+pIn.value,c=Math.ceil(t/p);
+  document.getElementById('t-val').textContent=inr(t);
+  document.getElementById('p-val').textContent=inr(p);
+  document.getElementById('c-out').textContent=c.toLocaleString('en-IN');
+  const yr=t*12; document.getElementById('a-out').textContent='₹'+(yr/10000000).toFixed(1)+' cr';
+  document.getElementById('d-out').textContent='~'+Math.ceil(c/30).toLocaleString('en-IN');
+  const f=document.getElementById('calc-f');f.className='feedback';
+  f.innerHTML= c>5000 ? 'That is a high-volume, low-touch model — you will need self-service sign-up and heavy reach. Can you create 4× the price in value for each?' :
+    c<150 ? 'Very few, high-value customers — this is consultative selling. Each one needs a bespoke, obvious ₹20,000 of value.' :
+    'A balanced cell. Now the only question that matters: can you name the surplus you create for each of those '+c.toLocaleString('en-IN')+' customers?';
+}
+tIn.oninput=calc;pIn.oninput=calc;calc();
+
+/* ---------- M6 flashcards ---------- */
+document.querySelectorAll('.flash').forEach(c=>c.onclick=()=>c.classList.toggle('flip'));
+
+/* ---------- assessment ---------- */
+const quiz=[
+ {q:"When validating an idea, the founder says you should primarily look for…",o:["What you personally find cool","What customers are complaining about","The biggest total market size","What investors are funding"],a:1,e:"'Look for the complaints, not what you like.' Complaints are evidence of felt demand."},
+ {q:"A 'painkiller' product is easier to sell than a 'vitamin' because…",o:["It is cheaper to make","It solves an urgent, felt pain — pricing power is high","It needs no marketing ever","It only works in India"],a:1,e:"Like a toothache: the buyer pays the nearest chemist immediately. Vitamins must be *sold*."},
+ {q:"The three-gate framework, in order, is…",o:["Unit economics → problem → willingness to pay","Problem → willingness to pay → unit economics","Willingness to pay → unit economics → problem","Problem → unit economics → team"],a:1,e:"C·W·U: Complaints/problem first, then Willingness to pay, then Unit economics."},
+ {q:"Shiprocket was originally called…",o:["Craftly","CartRocket","Magento","Jungli"],a:1,e:"It began as CartRocket, a rebranded Magento reseller, before two pivots."},
+ {q:"Why did Shopify's 'DIY simplicity' insight fail to translate to India?",o:["Indians disliked simple interfaces","Developers were cheap and hireable, so simplicity wasn't the bottleneck","Shopify sued them","India had no internet"],a:1,e:"Shopify solved 'I can't hire a developer.' In India you can — so only the founders cared about simplicity."},
+ {q:"What realization led directly to Shiprocket?",o:["Storefronts were the real value","'The plumbing itself has value' — payments, logistics, returns","Marketplaces would disappear","Ads were the only growth lever"],a:1,e:"Customers kept asking for the infrastructure, not another storefront — so they productized the pipes."},
+ {q:"The three pillars of e-commerce are…",o:["Product, Price, Promotion","Discovery, Trust, Fulfillment","Design, Development, Delivery","Traffic, Team, Timing"],a:1,e:"Discovery (demand), Trust (checkout/payments), Fulfillment (post-order experience)."},
+ {q:"Cash on delivery is fundamentally a ___ product.",o:["Supply-chain","Trust","Marketing","Tax"],a:1,e:"'It is a product built for instilling trust — not a supply-chain product at all.'"},
+ {q:"RTO on COD vs. Pay-After-Delivery is roughly…",o:["30% vs 30%","20–30% vs under 1%","5% vs 0%","50% vs 25%"],a:1,e:"A UPI mandate that debits only on delivery dropped RTO to <1% — same logistics, only trust changed."},
+ {q:"India's e-commerce share of retail, vs US and China, is about…",o:["24% / 8% / 45%","8–9% / 24% / 40–45%","40% / 24% / 9%","15% / 15% / 15%"],a:1,e:"~8–9% India, ~24% US, ~40–45% China — the gap is the headroom."},
+ {q:"Discretionary and digital commerce are expected to inflect as per-capita GDP moves from ~$3,000 toward…",o:["$500","$4,000–$5,000","$50,000","It already peaked"],a:1,e:"Crossing toward $4–5k historically bends discretionary spend and premiumization upward."},
+ {q:"The mithai-store example (one store, ~₹100 cr) illustrates that…",o:["Only metros matter","Authentic micro-niches can be enormous even from a single location","Sweets are the only good business","Tier-2 has no money"],a:1,e:"Authenticity in one niche, one place, already yields huge revenue — imagine it digitized."},
+ {q:"₹1 crore/month at ₹5,000 per customer requires how many customers?",o:["200","2,000","20,000","5,000"],a:1,e:"1,00,00,000 ÷ 5,000 = 2,000 customers. That's the whole napkin math."},
+ {q:"'Make me ₹20,000, take ₹5,000' expresses which principle?",o:["Cost-plus pricing","Value-based / outcome pricing — sell the surplus you create","Always charge the most","Avoid pricing altogether"],a:1,e:"Every dial knows it: if you create the surplus, the fee is obvious. No surplus = vitamin sales."},
+ {q:"To build trust in open commerce, the founder should be obsessed with…",o:["The product's features","The problem / the customer","The competitor","The logo"],a:1,e:"'Never get obsessed with your product… get obsessed with the problem.' The founder becomes the trust layer."}
+];
+const qz=document.getElementById('quiz');
+quiz.forEach((it,i)=>{
+  const d=document.createElement('div');d.className='q';
+  d.innerHTML='<span class="qn">QUESTION '+(i+1)+' / 15</span><p class="qt">'+it.q+'</p>';
+  it.o.forEach((op,j)=>{
+    const b=document.createElement('button');b.className='opt';b.textContent=op;
+    b.onclick=()=>{d.querySelectorAll('.opt').forEach(x=>x.classList.remove('correct','wrongpick'));
+      b.classList.add(j===it.a?'correct':'wrongpick');d.dataset.pick=j;
+      const ex=d.querySelector('.exp');ex.style.display='block';
+      ex.innerHTML=(j===it.a?'✓ ':'✗ ')+it.e;};
+    d.appendChild(b);
+  });
+  const ex=document.createElement('div');ex.className='exp';d.appendChild(ex);
+  qz.appendChild(d);
+});
+document.getElementById('grade').onclick=()=>{
+  let s=0,done=0;
+  document.querySelectorAll('.q').forEach((d,i)=>{
+    if(d.dataset.pick!==undefined){done++; if(+d.dataset.pick===quiz[i].a)s++;
+      d.querySelector('.exp').style.display='block';}
+  });
+  const sc=document.getElementById('score');sc.style.display='block';
+  sc.innerHTML= done<15 ? 'You answered '+done+' of 15 — finish them all for a true score.' :
+    'Score: <b>'+s+' / 15</b> — '+(s>=12?'you have internalized the frameworks. Go build.':'revisit the modules where you missed, then reset.');
+};
+document.getElementById('reset').onclick=()=>{
+  document.querySelectorAll('.q').forEach(d=>{delete d.dataset.pick;
+    d.querySelectorAll('.opt').forEach(x=>x.classList.remove('correct','wrongpick'));
+    d.querySelector('.exp').style.display='none';});
+  document.getElementById('score').style.display='none';
+};
+</script>
+</body>
+</html>

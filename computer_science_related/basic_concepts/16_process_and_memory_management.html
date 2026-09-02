@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 16: Process Management, Scheduling & Virtual Memory — Google IT Support</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0b0f19;
+    --bg-secondary: #111827;
+    --bg-card: rgba(17, 24, 39, 0.9);
+    --bg-elevated: #1f2937;
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+    --text-dim: #6b7280;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.18);
+    --google-blue: #4285F4;
+    --google-green: #34A853;
+    --google-yellow: #FBBC05;
+    --google-red: #EA4335;
+    --border: #374151;
+    --border-light: rgba(255, 255, 255, 0.08);
+    --code-bg: #030712;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Fira Code', ui-monospace, monospace;
+  }
+
+  [data-theme="light"] {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.92);
+    --bg-elevated: #f1f5f9;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+    --text-dim: #94a3b8;
+    --accent: #0284c7;
+    --accent-glow: rgba(2, 132, 199, 0.12);
+    --border: #e2e8f0;
+    --border-light: rgba(0, 0, 0, 0.06);
+    --code-bg: #0f172a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    line-height: 1.7;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  #progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--google-blue), var(--accent));
+    width: 0%;
+    z-index: 999;
+    transition: width 0.1s;
+  }
+
+  header {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-light);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    padding: 0.85rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  .btn-back {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-elevated);
+    transition: all 0.2s;
+  }
+  .btn-back:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .badge-tag {
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+  }
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .nav-select {
+    background: var(--bg-elevated);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+    cursor: pointer;
+  }
+  .btn-theme {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .layout-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    width: 100%;
+    padding: 2rem 2rem 4rem;
+    gap: 2.5rem;
+  }
+
+  .sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 5rem;
+    height: calc(100vh - 7rem);
+    overflow-y: auto;
+    padding-right: 1rem;
+  }
+  .sidebar h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+  }
+  .toc-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .toc-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.88rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 6px;
+    display: block;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+  .toc-link:hover, .toc-link.active {
+    color: var(--accent);
+    background: var(--accent-glow);
+    font-weight: 600;
+  }
+
+  .content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lesson-hero {
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 2rem;
+  }
+  .lesson-title {
+    font-size: 2.3rem;
+    font-weight: 800;
+    line-height: 1.25;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.02em;
+  }
+  .lesson-subtitle {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+  }
+
+  .content-section {
+    margin-bottom: 3.5rem;
+  }
+  .section-heading {
+    font-size: 1.65rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-main);
+  }
+  .sub-heading {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1.75rem 0 0.85rem;
+    color: var(--accent);
+  }
+  p {
+    margin-bottom: 1.15rem;
+    color: var(--text-main);
+  }
+  ul, ol {
+    margin-bottom: 1.25rem;
+    padding-left: 1.5rem;
+    color: var(--text-main);
+  }
+  li { margin-bottom: 0.5rem; }
+
+  .callout {
+    padding: 1.25rem 1.5rem;
+    border-radius: 12px;
+    margin: 1.5rem 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-left-width: 4px;
+    border-left-color: var(--accent);
+  }
+  .callout-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .callout.info { border-left-color: var(--google-blue); }
+  .callout.info .callout-title { color: var(--google-blue); }
+  .callout.success { border-left-color: var(--google-green); }
+  .callout.success .callout-title { color: var(--google-green); }
+  .callout.danger { border-left-color: var(--google-red); }
+  .callout.danger .callout-title { color: var(--google-red); }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+  .card h4 {
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .lesson-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-light);
+  }
+  .nav-btn {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    padding: 1rem 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    transition: all 0.2s;
+    max-width: 280px;
+  }
+  .nav-btn:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .nav-btn-sub {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    font-family: var(--font-mono);
+  }
+  .nav-btn-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 0.25rem;
+  }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<header>
+  <div class="nav-left">
+    <a href="index.html" class="btn-back">← Course Hub</a>
+    <span class="badge-tag">LESSON 16</span>
+  </div>
+  <div class="nav-right">
+    <select class="nav-select" onchange="window.location.href=this.value">
+      <option value="01_introduction_to_it_and_roles.html">01: Intro to IT & Roles</option>
+      <option value="02_evolution_of_computing.html">02: Evolution of Computing</option>
+      <option value="03_computer_language_and_character_encoding.html">03: Computer Language & Encoding</option>
+      <option value="04_logic_gates_and_circuits.html">04: Logic Gates & Circuits</option>
+      <option value="05_binary_counting_and_conversion.html">05: Binary Counting & Math</option>
+      <option value="06_glossary_and_definitions.html">06: Module 1 Glossary</option>
+      <option value="07_computer_hardware_architecture.html">07: Hardware Architecture</option>
+      <option value="08_cpu_architecture_and_overclocking.html">08: CPU & Overclocking</option>
+      <option value="09_memory_hierarchy_ram_and_rom.html">09: RAM & ROM Hierarchy</option>
+      <option value="10_storage_devices_hdd_ssd_nvme.html">10: Storage (HDD, SSD, NVMe)</option>
+      <option value="11_motherboards_bios_uefi_and_power.html">11: Motherboard, BIOS & PSU</option>
+      <option value="12_peripherals_cables_displays_and_mobile.html">12: Peripherals, Displays & Mobile</option>
+      <option value="13_hardware_master_glossary.html">13: Hardware Master Glossary</option>
+      <option value="14_os_components_and_kernel_architecture.html">14: OS Components & Kernel</option>
+      <option value="15_file_systems_and_storage_management.html">15: File Systems & Metadata</option>
+      <option value="16_process_and_memory_management.html" selected>16: Process & Memory Mgmt</option>
+      <option value="17_user_space_gui_cli_and_system_logs.html">17: User Space, CLI & Logs</option>
+      <option value="18_the_boot_process_and_boot_methods.html">18: Boot Process & Methods</option>
+      <option value="19_operating_system_selection_and_mobile_os.html">19: OS Selection & Mobile OS</option>
+      <option value="20_virtual_machines_remote_access_and_windows_matrix.html">20: VMs, SSH, RDP & Windows Matrix</option>
+      <option value="21_os_master_glossary.html">21: OS Master Glossary</option>
+    </select>
+    <button class="btn-theme" onclick="toggleTheme()">🌓</button>
+  </div>
+</header>
+
+<div class="layout-wrapper">
+  <aside class="sidebar">
+    <h3>Contents</h3>
+    <ul class="toc-list">
+      <li><a href="#program-vs-process" class="toc-link">1. Program vs. Process</a></li>
+      <li><a href="#process-scheduling" class="toc-link">2. Process Scheduler & Time Slices</a></li>
+      <li><a href="#virtual-memory" class="toc-link">3. Virtual Memory & Paging</a></li>
+      <li><a href="#io-troubleshooting" class="toc-link">4. I/O Management & Latency</a></li>
+    </ul>
+  </aside>
+
+  <main class="content">
+    <div class="lesson-hero">
+      <h1 class="lesson-title">Process Management, Scheduling & Virtual Memory</h1>
+      <p class="lesson-subtitle">Explore the distinction between static programs and executing processes, how the kernel process scheduler enables multitasking via CPU time slices, and how virtual memory paging overcomes physical RAM limitations.</p>
+    </div>
+
+    <!-- Section 1: Program vs Process -->
+    <section id="program-vs-process" class="content-section">
+      <h2 class="section-heading">⚡ 1. Programs vs. Processes</h2>
+
+      <div class="grid-2">
+        <div class="card" style="border-top: 3px solid var(--google-yellow);">
+          <h4>A Program (Passive Code on Disk)</h4>
+          <p>A static set of compiled instructions stored on persistent secondary storage (e.g. <code style="font-family: var(--font-mono); color: var(--accent);">chrome.exe</code> or <code style="font-family: var(--font-mono); color: var(--accent);">/usr/bin/bash</code>). It consumes disk space but does not actively execute or use CPU cycles.</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--google-green);">
+          <h4>A Process (Active Instance in RAM)</h4>
+          <p>An actively executing instance of a program loaded into system RAM. The OS kernel assigns each process a unique <strong>Process ID (PID)</strong>, dedicated memory address space, and scheduled CPU time.</p>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <div class="callout-title">Multiple Instances of a Single Program</div>
+        <p>A single program can have multiple independent processes running simultaneously. For example, opening three separate browser windows or tabs spawns three isolated process instances, each with its own PID and memory allocation.</p>
+      </div>
+    </section>
+
+    <!-- Section 2: Process Scheduling & Time Slices -->
+    <section id="process-scheduling" class="content-section">
+      <h2 class="section-heading">⏱️ 2. Process Scheduling & Time Slices</h2>
+      
+      <p>Even though modern computers seem to run hundreds of programs simultaneously, a single CPU core can only execute one machine instruction at a time. The kernel creates the illusion of seamless parallelism through <strong>preemptive multitasking</strong>:</p>
+
+      <ul>
+        <li><strong>Process Scheduler:</strong> A core kernel algorithm that decides the order, priority, and duration for each process to run on the CPU.</li>
+        <li><strong>Time Slices (Quantums):</strong> Microscopic intervals of CPU time (often 10 to 50 milliseconds) allocated to a process before the scheduler automatically suspends it and switches to the next process (context switching).</li>
+        <li><strong>Manual Process Intervention:</strong> When a buggy or rogue application freezes and monopolizes 100% of CPU time, an IT specialist can intervene using task managers (Task Manager in Windows, Activity Monitor in macOS, <code style="font-family: var(--font-mono); color: var(--accent);">kill -9 &lt;PID&gt;</code> in Linux).</li>
+      </ul>
+    </section>
+
+    <!-- Section 3: Virtual Memory & Paging -->
+    <section id="virtual-memory" class="content-section">
+      <h2 class="section-heading">🧠 3. Memory Management & Virtual Memory</h2>
+
+      <div class="callout success">
+        <div class="callout-title">Why Virtual Memory is Critical</div>
+        <p>Physical RAM is fast but limited in capacity. <strong>Virtual Memory</strong> simulates additional RAM by combining physical RAM with dedicated space on secondary storage (called <strong>Pagefile.sys</strong> in Windows, or a <strong>Swap Partition/File</strong> in Linux).</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Memory Paging & Swapping</h4>
+          <p>The kernel divides memory into uniform blocks called <strong>pages</strong> (commonly 4 KB). When physical RAM fills up, the kernel identifies inactive background pages and writes them to the disk swap space, freeing up high-speed RAM for active foreground applications.</p>
+        </div>
+        <div class="card">
+          <h4>Disk Latency & Thrashing</h4>
+          <p>Because storage drives (even fast NVMe SSDs) are thousands of times slower than physical RAM, excessive swapping causes noticeable latency. If RAM is severely exhausted, the system enters <strong>thrashing</strong>, spending more time moving pages back and forth than executing useful work.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: I/O Management & Latency -->
+    <section id="io-troubleshooting" class="content-section">
+      <h2 class="section-heading">🛠️ 4. I/O Management & Diagnosing Hardware Resource Deficiencies</h2>
+      <p>The kernel's <strong>I/O Management</strong> subsystem coordinates all data transfers to and from peripheral hardware through <strong>device drivers</strong>:</p>
+
+      <div class="callout danger">
+        <div class="callout-title">IT Troubleshooting: "The Computer is Slow!"</div>
+        <p>When users report sluggish system performance, IT support specialists must diagnose which subsystem is bottlenecked:</p>
+        <ul>
+          <li><strong>CPU Deficiencies:</strong> Utilization pinned at 100% due to background loops or excessive active threads.</li>
+          <li><strong>Memory Deficiencies:</strong> RAM fully consumed, forcing continuous virtual memory disk swapping.</li>
+          <li><strong>I/O Bottlenecks:</strong> Storage queue depth saturation or slow network adapters blocking data reads/writes.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Navigation Footer -->
+    <div class="lesson-nav">
+      <a href="15_file_systems_and_storage_management.html" class="nav-btn">
+        <span class="nav-btn-sub">Previous Lesson</span>
+        <span class="nav-btn-title">← 15: File Systems & Metadata</span>
+      </a>
+      <a href="17_user_space_gui_cli_and_system_logs.html" class="nav-btn" style="text-align: right;">
+        <span class="nav-btn-sub">Next Lesson</span>
+        <span class="nav-btn-title">17: User Space, CLI & Logs →</span>
+      </a>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = (window.scrollY / total) * 100;
+    document.getElementById('progress-bar').style.width = progress + '%';
+  });
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const target = current === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', target);
+    localStorage.setItem('it_theme', target);
+  }
+  const saved = localStorage.getItem('it_theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+</script>
+
+</body>
+</html>

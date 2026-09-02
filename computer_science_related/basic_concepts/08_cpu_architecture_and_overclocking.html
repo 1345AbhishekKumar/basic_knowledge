@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 08: CPU Architecture, Memory Busses & Safe Overclocking — Google IT Support</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0b0f19;
+    --bg-secondary: #111827;
+    --bg-card: rgba(17, 24, 39, 0.9);
+    --bg-elevated: #1f2937;
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+    --text-dim: #6b7280;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.18);
+    --google-blue: #4285F4;
+    --google-green: #34A853;
+    --google-yellow: #FBBC05;
+    --google-red: #EA4335;
+    --border: #374151;
+    --border-light: rgba(255, 255, 255, 0.08);
+    --code-bg: #030712;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Fira Code', ui-monospace, monospace;
+  }
+
+  [data-theme="light"] {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.92);
+    --bg-elevated: #f1f5f9;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+    --text-dim: #94a3b8;
+    --accent: #0284c7;
+    --accent-glow: rgba(2, 132, 199, 0.12);
+    --border: #e2e8f0;
+    --border-light: rgba(0, 0, 0, 0.06);
+    --code-bg: #0f172a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    line-height: 1.7;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  #progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--google-blue), var(--accent));
+    width: 0%;
+    z-index: 999;
+    transition: width 0.1s;
+  }
+
+  header {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-light);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    padding: 0.85rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  .btn-back {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-elevated);
+    transition: all 0.2s;
+  }
+  .btn-back:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .badge-tag {
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+  }
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .nav-select {
+    background: var(--bg-elevated);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+    cursor: pointer;
+  }
+  .btn-theme {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .layout-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    width: 100%;
+    padding: 2rem 2rem 4rem;
+    gap: 2.5rem;
+  }
+
+  .sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 5rem;
+    height: calc(100vh - 7rem);
+    overflow-y: auto;
+    padding-right: 1rem;
+  }
+  .sidebar h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+  }
+  .toc-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .toc-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.88rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 6px;
+    display: block;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+  .toc-link:hover, .toc-link.active {
+    color: var(--accent);
+    background: var(--accent-glow);
+    font-weight: 600;
+  }
+
+  .content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lesson-hero {
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 2rem;
+  }
+  .lesson-title {
+    font-size: 2.3rem;
+    font-weight: 800;
+    line-height: 1.25;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.02em;
+  }
+  .lesson-subtitle {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+  }
+
+  .content-section {
+    margin-bottom: 3.5rem;
+  }
+  .section-heading {
+    font-size: 1.65rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-main);
+  }
+  .sub-heading {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1.75rem 0 0.85rem;
+    color: var(--accent);
+  }
+  p {
+    margin-bottom: 1.15rem;
+    color: var(--text-main);
+  }
+  ul, ol {
+    margin-bottom: 1.25rem;
+    padding-left: 1.5rem;
+    color: var(--text-main);
+  }
+  li { margin-bottom: 0.5rem; }
+
+  .callout {
+    padding: 1.25rem 1.5rem;
+    border-radius: 12px;
+    margin: 1.5rem 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-left-width: 4px;
+    border-left-color: var(--accent);
+  }
+  .callout-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .callout.info { border-left-color: var(--google-blue); }
+  .callout.info .callout-title { color: var(--google-blue); }
+  .callout.warning { border-left-color: var(--google-yellow); }
+  .callout.warning .callout-title { color: var(--google-yellow); }
+  .callout.danger { border-left-color: var(--google-red); }
+  .callout.danger .callout-title { color: var(--google-red); }
+
+  .diagram-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.75rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .diagram-caption {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+  .card h4 {
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .step-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin: 1rem 0;
+  }
+
+  .lesson-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-light);
+  }
+  .nav-btn {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    padding: 1rem 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    transition: all 0.2s;
+    max-width: 280px;
+  }
+  .nav-btn:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .nav-btn-sub {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    font-family: var(--font-mono);
+  }
+  .nav-btn-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 0.25rem;
+  }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<header>
+  <div class="nav-left">
+    <a href="index.html" class="btn-back">← Course Hub</a>
+    <span class="badge-tag">LESSON 08</span>
+  </div>
+  <div class="nav-right">
+    <select class="nav-select" onchange="window.location.href=this.value">
+      <option value="01_introduction_to_it_and_roles.html">01: Intro to IT & Roles</option>
+      <option value="02_evolution_of_computing.html">02: Evolution of Computing</option>
+      <option value="03_computer_language_and_character_encoding.html">03: Computer Language & Encoding</option>
+      <option value="04_logic_gates_and_circuits.html">04: Logic Gates & Circuits</option>
+      <option value="05_binary_counting_and_conversion.html">05: Binary Counting & Math</option>
+      <option value="06_glossary_and_definitions.html">06: Module 1 Glossary</option>
+      <option value="07_computer_hardware_architecture.html">07: Hardware Architecture</option>
+      <option value="08_cpu_architecture_and_overclocking.html" selected>08: CPU & Overclocking</option>
+      <option value="09_memory_hierarchy_ram_and_rom.html">09: RAM & ROM Hierarchy</option>
+      <option value="10_storage_devices_hdd_ssd_nvme.html">10: Storage (HDD, SSD, NVMe)</option>
+      <option value="11_motherboards_bios_uefi_and_power.html">11: Motherboard, BIOS & PSU</option>
+      <option value="12_peripherals_cables_displays_and_mobile.html">12: Peripherals, Displays & Mobile</option>
+      <option value="13_hardware_master_glossary.html">13: Hardware Master Glossary</option>
+    </select>
+    <button class="btn-theme" onclick="toggleTheme()">🌓</button>
+  </div>
+</header>
+
+<div class="layout-wrapper">
+  <aside class="sidebar">
+    <h3>Contents</h3>
+    <ul class="toc-list">
+      <li><a href="#cpu-core-units" class="toc-link">1. Core CPU Components</a></li>
+      <li><a href="#busses-mcc" class="toc-link">2. EDB, Address Bus & MCC</a></li>
+      <li><a href="#cpu-cache" class="toc-link">3. CPU Cache Hierarchy (L1, L2, L3)</a></li>
+      <li><a href="#clock-cycles" class="toc-link">4. Clock Cycles & GHz</a></li>
+      <li><a href="#sockets-cooling" class="toc-link">5. LGA vs. PGA Sockets & Cooling</a></li>
+      <li><a href="#overclocking" class="toc-link">6. Safe Overclocking Protocol</a></li>
+    </ul>
+  </aside>
+
+  <main class="content">
+    <div class="lesson-hero">
+      <h1 class="lesson-title">CPU Architecture, Memory Busses & Safe Overclocking</h1>
+      <p class="lesson-subtitle">Deep dive into CPU internals (ALU, CU, Registers), data transportation over the External Data Bus (EDB) and Address Bus with the MCC, multi-tiered CPU cache, socket types (LGA vs. PGA), and safe overclocking procedures.</p>
+    </div>
+
+    <!-- Section 1: Core CPU Units -->
+    <section id="cpu-core-units" class="content-section">
+      <h2 class="section-heading">🧠 1. The Three Core Logical Units of the CPU</h2>
+      <p>The Central Processing Unit (CPU) is often compared to a master chef processing recipes (programs) stored in a cookbook (storage drive). Inside the CPU package, three distinct functional units execute every operation:</p>
+
+      <div class="grid-3">
+        <div class="card" style="border-top: 3px solid var(--google-blue);">
+          <h4>1. Control Unit (CU)</h4>
+          <p>The director of operations. Fetches instructions from memory, decodes them, and directs the ALU, memory registers, and I/O devices on how to respond.</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--google-green);">
+          <h4>2. Arithmetic Logic Unit (ALU)</h4>
+          <p>The mathematical engine. Performs all arithmetic operations (addition, subtraction, multiplication) and logical comparisons (AND, OR, NOT, XOR).</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--google-yellow);">
+          <h4>3. Registers (Memory Unit)</h4>
+          <p>The smallest, fastest data-holding storage locations built directly into the processor die. Hold active operands, intermediate results, and memory addresses.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Busses and MCC -->
+    <section id="busses-mcc" class="content-section">
+      <h2 class="section-heading">🚌 2. How Data Travels: EDB, Address Bus & MCC</h2>
+      <p>How do programs loaded in RAM communicate with the CPU? They travel across physical microscopic copper traces called <strong>buses</strong>:</p>
+
+      <div class="diagram-container">
+        <svg viewBox="0 0 760 260" style="width: 100%; max-width: 720px; height: auto;" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- CPU Box -->
+          <rect x="30" y="40" width="180" height="180" rx="10" fill="#1f2937" stroke="#4285F4" stroke-width="2"/>
+          <text x="120" y="70" text-anchor="middle" fill="#4285F4" font-size="14" font-weight="700">CPU</text>
+          <rect x="50" y="90" width="140" height="35" rx="4" fill="#111827" stroke="#374151"/>
+          <text x="120" y="112" text-anchor="middle" fill="#f3f4f6" font-size="10" font-family="'Fira Code', monospace">Control Unit</text>
+          <rect x="50" y="135" width="140" height="35" rx="4" fill="#111827" stroke="#374151"/>
+          <text x="120" y="157" text-anchor="middle" fill="#f3f4f6" font-size="10" font-family="'Fira Code', monospace">ALU & Registers</text>
+
+          <!-- Address Bus -->
+          <line x1="210" y1="90" x2="360" y2="90" stroke="#FBBC05" stroke-width="4"/>
+          <polygon points="360,85 375,90 360,95" fill="#FBBC05"/>
+          <text x="285" y="80" text-anchor="middle" fill="#FBBC05" font-size="11" font-family="'Fira Code', monospace" font-weight="700">Address Bus (Memory Location)</text>
+
+          <!-- External Data Bus (EDB) -->
+          <line x1="210" y1="170" x2="560" y2="170" stroke="#34A853" stroke-width="4"/>
+          <polygon points="215,165 200,170 215,175" fill="#34A853"/>
+          <polygon points="555,165 570,170 555,175" fill="#34A853"/>
+          <text x="380" y="195" text-anchor="middle" fill="#34A853" font-size="11" font-family="'Fira Code', monospace" font-weight="700">External Data Bus (EDB) (Data Flow: 1s & 0s)</text>
+
+          <!-- MCC Box -->
+          <rect x="375" y="55" width="140" height="70" rx="8" fill="#111827" stroke="#FBBC05" stroke-width="2"/>
+          <text x="445" y="85" text-anchor="middle" fill="#FBBC05" font-size="12" font-weight="700">MCC</text>
+          <text x="445" y="105" text-anchor="middle" fill="#9ca3af" font-size="9">(Memory Controller)</text>
+
+          <!-- MCC to RAM -->
+          <line x1="515" y1="90" x2="560" y2="90" stroke="#FBBC05" stroke-width="3"/>
+
+          <!-- RAM Box -->
+          <rect x="570" y="40" width="160" height="180" rx="10" fill="#1f2937" stroke="#38bdf8" stroke-width="2"/>
+          <text x="650" y="75" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">RAM (Memory)</text>
+          <text x="650" y="105" text-anchor="middle" fill="#9ca3af" font-size="10">Row Address 0x00A1</text>
+          <text x="650" y="125" text-anchor="middle" fill="#9ca3af" font-size="10">Row Address 0x00A2</text>
+          <text x="650" y="145" text-anchor="middle" fill="#9ca3af" font-size="10">Row Address 0x00A3</text>
+        </svg>
+        <span class="diagram-caption">Figure 8.1: Memory Communication Flow via Address Bus, MCC, and External Data Bus (EDB)</span>
+      </div>
+
+      <ul>
+        <li><strong>External Data Bus (EDB):</strong> A physical highway of parallel wires connecting the CPU to memory components. Transports raw binary data (1s and 0s) in 8-bit, 16-bit, 32-bit, or 64-bit widths.</li>
+        <li><strong>Address Bus:</strong> Dedicated bus connecting the CPU directly to the Memory Controller Chip. Sends the exact row/memory address of data requested by the CPU (transmits location, not data content).</li>
+        <li><strong>Memory Controller Chip (MCC):</strong> The hardware bridge connecting CPU to RAM. Receives the address from the Address Bus, retrieves the corresponding byte from RAM rows, and puts it onto the EDB for CPU consumption.</li>
+      </ul>
+    </section>
+
+    <!-- Section 3: CPU Cache -->
+    <section id="cpu-cache" class="content-section">
+      <h2 class="section-heading">⚡ 3. CPU Cache Hierarchy: L1, L2 & L3</h2>
+      <p>While RAM is much faster than secondary storage (HDDs/SSDs), it is still too slow to feed modern gigahertz CPUs without causing pipeline stalls. CPUs use ultra-fast <strong>Static RAM (SRAM) cache</strong> located directly on the processor die:</p>
+
+      <div class="grid-3">
+        <div class="card" style="border-top: 3px solid var(--google-red);">
+          <h4>L1 Cache (Level 1)</h4>
+          <p><strong>Fastest & Smallest:</strong> Integrated directly into each individual CPU core. Stores instructions and data currently in immediate execution (typically 32KB–128KB per core).</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--google-yellow);">
+          <h4>L2 Cache (Level 2)</h4>
+          <p><strong>Intermediate Speed:</strong> Slightly larger and marginally slower than L1. Holds recently accessed data and prefetched instructions (typically 512KB–2MB per core).</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--google-green);">
+          <h4>L3 Cache (Level 3)</h4>
+          <p><strong>Largest & Shared:</strong> Shared across all CPU cores on the chip. Slower than L1/L2, but significantly faster than system RAM (typically 8MB–64MB+).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Clock Cycles & GHz -->
+    <section id="clock-cycles" class="content-section">
+      <h2 class="section-heading">⏱️ 4. Clock, Clock Cycles & 32-Bit vs. 64-Bit Architecture</h2>
+      <p>The CPU is synchronized by an internal quartz clock generator:</p>
+      <ul>
+        <li><strong>Clock Wire:</strong> Sends precise voltage pulses to notify the CPU when to begin each instruction cycle.</li>
+        <li><strong>Clock Cycle:</strong> One individual step/pulse of work performed by the CPU.</li>
+        <li><strong>Clock Speed (Clock Rate):</strong> Measured in <strong>Gigahertz (GHz)</strong>, representing billions of clock cycles per second (e.g., 3.8 GHz = 3.8 billion cycles/sec).</li>
+      </ul>
+
+      <div class="callout info">
+        <div class="callout-title">32-Bit vs. 64-Bit Architecture</div>
+        <p>A <strong>32-bit CPU</strong> processes data and memory addresses in 32-bit chunks, limiting maximum addressable physical RAM to <strong>4 GB ($2^{32}$ bytes)</strong>.</p>
+        <p>A <strong>64-bit CPU</strong> processes 64-bit chunks, expanding memory addressability to over <strong>16 Exabytes ($2^{64}$ bytes)</strong>, allowing modern operating systems to run massive applications and heavy multitasking.</p>
+      </div>
+    </section>
+
+    <!-- Section 5: LGA vs PGA -->
+    <section id="sockets-cooling" class="content-section">
+      <h2 class="section-heading">🔌 5. Sockets (LGA vs. PGA) & Thermal Cooling</h2>
+      <p>CPUs connect to motherboards via dedicated socket form factors:</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Land Grid Array (LGA)</h4>
+          <p>The delicate electrical contact pins stick out of the <strong>motherboard socket</strong>. The underside of the CPU features flat gold contact pads (Lands). Used predominantly by Intel.</p>
+        </div>
+        <div class="card">
+          <h4>Pin Grid Array (PGA)</h4>
+          <p>The delicate electrical pins are attached directly to the underside of the <strong>CPU chip itself</strong>. The motherboard socket contains matching receptacle holes. Used by AMD legacy platforms.</p>
+        </div>
+      </div>
+
+      <div class="callout warning">
+        <div class="callout-title">Thermal Paste & Heat Sinks</div>
+        <p>Microscopic imperfections on CPU metal surfaces trap air (which is a poor thermal conductor). <strong>Thermal paste (thermal interface material)</strong> fills these microscopic voids to ensure seamless heat conduction from the CPU heat spreader to the metal <strong>heat sink</strong> and cooling fan.</p>
+      </div>
+    </section>
+
+    <!-- Section 6: Overclocking Protocol -->
+    <section id="overclocking" class="content-section">
+      <h2 class="section-heading">⚙️ 6. Safe CPU Overclocking Protocol</h2>
+      
+      <div class="callout danger">
+        <div class="callout-title">Overclocking Risks</div>
+        <p><strong>Overclocking</strong> is the process of increasing the processor's clock rate above its factory specifications to boost calculation speeds. It increases power consumption, generates extreme heat, risks hardware degradation, and may void component warranties.</p>
+      </div>
+
+      <p>As an IT professional, follow this strict 5-step safe overclocking procedure when authorized:</p>
+
+      <div class="step-box">
+        <strong>Step 1: Verify Hardware Compatibility</strong><br>
+        Confirm the CPU model is "unlocked" for overclocking (e.g., Intel "K" series or AMD "Black Edition/X" series) and verify that the motherboard chipset supports voltage and multiplier adjustments. Laptops and OEM proprietary machines generally do not support overclocking.
+      </div>
+
+      <div class="step-box">
+        <strong>Step 2: Clean Chassis & Wear Anti-Static Protection</strong><br>
+        Power off and unplug the machine. Wear an ESD anti-static wrist strap. Use compressed air to remove dust build-up from intake fans, exhaust vents, and CPU heatsink fins.
+      </div>
+
+      <div class="step-box">
+        <strong>Step 3: Upgrade Cooling Solution (Critical)</strong><br>
+        Stock CPU coolers are insufficient for overclocked heat loads. Replace the factory cooler with an advanced high-performance air cooler or closed-loop liquid cooling (AIO) system.
+      </div>
+
+      <div class="step-box">
+        <strong>Step 4: Establish Baseline Benchmarks</strong><br>
+        Run stress-testing software to log baseline CPU temperatures, clock frequencies, and benchmark scores under stock settings.
+      </div>
+
+      <div class="step-box">
+        <strong>Step 5: Stepwise Multiplier & Voltage Tuning</strong><br>
+        • Increment CPU core multiplier by <strong>1</strong> in BIOS/UEFI or manufacturer utility.<br>
+        • Stress test for stability and temperature limits.<br>
+        • If unstable or crashing, increase core voltage ($V_{\text{core}}$) in minimal increments of <strong>0.01V to 0.05V</strong> (do not exceed 1.4V without specialized extreme cooling).<br>
+        • If system freezes or exceeds thermal thresholds, immediately roll back to the last stable frequency.
+      </div>
+    </section>
+
+    <!-- Navigation Footer -->
+    <div class="lesson-nav">
+      <a href="07_computer_hardware_architecture.html" class="nav-btn">
+        <span class="nav-btn-sub">Previous Lesson</span>
+        <span class="nav-btn-title">← 07: Hardware Architecture</span>
+      </a>
+      <a href="09_memory_hierarchy_ram_and_rom.html" class="nav-btn" style="text-align: right;">
+        <span class="nav-btn-sub">Next Lesson</span>
+        <span class="nav-btn-title">09: RAM & ROM Hierarchy →</span>
+      </a>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = (window.scrollY / total) * 100;
+    document.getElementById('progress-bar').style.width = progress + '%';
+  });
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const target = current === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', target);
+    localStorage.setItem('it_theme', target);
+  }
+  const saved = localStorage.getItem('it_theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+</script>
+
+</body>
+</html>

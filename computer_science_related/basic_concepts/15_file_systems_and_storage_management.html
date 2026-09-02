@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 15: File Systems, Metadata & Block Storage — Google IT Support</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0b0f19;
+    --bg-secondary: #111827;
+    --bg-card: rgba(17, 24, 39, 0.9);
+    --bg-elevated: #1f2937;
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+    --text-dim: #6b7280;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.18);
+    --google-blue: #4285F4;
+    --google-green: #34A853;
+    --google-yellow: #FBBC05;
+    --google-red: #EA4335;
+    --border: #374151;
+    --border-light: rgba(255, 255, 255, 0.08);
+    --code-bg: #030712;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Fira Code', ui-monospace, monospace;
+  }
+
+  [data-theme="light"] {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.92);
+    --bg-elevated: #f1f5f9;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+    --text-dim: #94a3b8;
+    --accent: #0284c7;
+    --accent-glow: rgba(2, 132, 199, 0.12);
+    --border: #e2e8f0;
+    --border-light: rgba(0, 0, 0, 0.06);
+    --code-bg: #0f172a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    line-height: 1.7;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  #progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--google-blue), var(--accent));
+    width: 0%;
+    z-index: 999;
+    transition: width 0.1s;
+  }
+
+  header {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-light);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    padding: 0.85rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  .btn-back {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-elevated);
+    transition: all 0.2s;
+  }
+  .btn-back:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .badge-tag {
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+  }
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .nav-select {
+    background: var(--bg-elevated);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+    cursor: pointer;
+  }
+  .btn-theme {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .layout-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    width: 100%;
+    padding: 2rem 2rem 4rem;
+    gap: 2.5rem;
+  }
+
+  .sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 5rem;
+    height: calc(100vh - 7rem);
+    overflow-y: auto;
+    padding-right: 1rem;
+  }
+  .sidebar h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+  }
+  .toc-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .toc-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.88rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 6px;
+    display: block;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+  .toc-link:hover, .toc-link.active {
+    color: var(--accent);
+    background: var(--accent-glow);
+    font-weight: 600;
+  }
+
+  .content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lesson-hero {
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 2rem;
+  }
+  .lesson-title {
+    font-size: 2.3rem;
+    font-weight: 800;
+    line-height: 1.25;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.02em;
+  }
+  .lesson-subtitle {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+  }
+
+  .content-section {
+    margin-bottom: 3.5rem;
+  }
+  .section-heading {
+    font-size: 1.65rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-main);
+  }
+  .sub-heading {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1.75rem 0 0.85rem;
+    color: var(--accent);
+  }
+  p {
+    margin-bottom: 1.15rem;
+    color: var(--text-main);
+  }
+  ul, ol {
+    margin-bottom: 1.25rem;
+    padding-left: 1.5rem;
+    color: var(--text-main);
+  }
+  li { margin-bottom: 0.5rem; }
+
+  .callout {
+    padding: 1.25rem 1.5rem;
+    border-radius: 12px;
+    margin: 1.5rem 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-left-width: 4px;
+    border-left-color: var(--accent);
+  }
+  .callout-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .callout.info { border-left-color: var(--google-blue); }
+  .callout.info .callout-title { color: var(--google-blue); }
+  .callout.success { border-left-color: var(--google-green); }
+  .callout.success .callout-title { color: var(--google-green); }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+  .card h4 {
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin: 1.5rem 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  th, td {
+    padding: 0.85rem 1.15rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.92rem;
+  }
+  th {
+    background: var(--bg-elevated);
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .lesson-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-light);
+  }
+  .nav-btn {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    padding: 1rem 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    transition: all 0.2s;
+    max-width: 280px;
+  }
+  .nav-btn:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .nav-btn-sub {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    font-family: var(--font-mono);
+  }
+  .nav-btn-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 0.25rem;
+  }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<header>
+  <div class="nav-left">
+    <a href="index.html" class="btn-back">← Course Hub</a>
+    <span class="badge-tag">LESSON 15</span>
+  </div>
+  <div class="nav-right">
+    <select class="nav-select" onchange="window.location.href=this.value">
+      <option value="01_introduction_to_it_and_roles.html">01: Intro to IT & Roles</option>
+      <option value="02_evolution_of_computing.html">02: Evolution of Computing</option>
+      <option value="03_computer_language_and_character_encoding.html">03: Computer Language & Encoding</option>
+      <option value="04_logic_gates_and_circuits.html">04: Logic Gates & Circuits</option>
+      <option value="05_binary_counting_and_conversion.html">05: Binary Counting & Math</option>
+      <option value="06_glossary_and_definitions.html">06: Module 1 Glossary</option>
+      <option value="07_computer_hardware_architecture.html">07: Hardware Architecture</option>
+      <option value="08_cpu_architecture_and_overclocking.html">08: CPU & Overclocking</option>
+      <option value="09_memory_hierarchy_ram_and_rom.html">09: RAM & ROM Hierarchy</option>
+      <option value="10_storage_devices_hdd_ssd_nvme.html">10: Storage (HDD, SSD, NVMe)</option>
+      <option value="11_motherboards_bios_uefi_and_power.html">11: Motherboard, BIOS & PSU</option>
+      <option value="12_peripherals_cables_displays_and_mobile.html">12: Peripherals, Displays & Mobile</option>
+      <option value="13_hardware_master_glossary.html">13: Hardware Master Glossary</option>
+      <option value="14_os_components_and_kernel_architecture.html">14: OS Components & Kernel</option>
+      <option value="15_file_systems_and_storage_management.html" selected>15: File Systems & Metadata</option>
+      <option value="16_process_and_memory_management.html">16: Process & Memory Mgmt</option>
+      <option value="17_user_space_gui_cli_and_system_logs.html">17: User Space, CLI & Logs</option>
+      <option value="18_the_boot_process_and_boot_methods.html">18: Boot Process & Methods</option>
+      <option value="19_operating_system_selection_and_mobile_os.html">19: OS Selection & Mobile OS</option>
+      <option value="20_virtual_machines_remote_access_and_windows_matrix.html">20: VMs, SSH, RDP & Windows Matrix</option>
+      <option value="21_os_master_glossary.html">21: OS Master Glossary</option>
+    </select>
+    <button class="btn-theme" onclick="toggleTheme()">🌓</button>
+  </div>
+</header>
+
+<div class="layout-wrapper">
+  <aside class="sidebar">
+    <h3>Contents</h3>
+    <ul class="toc-list">
+      <li><a href="#three-components" class="toc-link">1. The 3 File Components</a></li>
+      <li><a href="#block-storage" class="toc-link">2. Block Storage Architecture</a></li>
+      <li><a href="#metadata-details" class="toc-link">3. File Metadata & Extensions</a></li>
+      <li><a href="#os-file-systems" class="toc-link">4. OS File Systems (NTFS, ext4, APFS)</a></li>
+    </ul>
+  </aside>
+
+  <main class="content">
+    <div class="lesson-hero">
+      <h1 class="lesson-title">File Systems, Metadata & Block Storage</h1>
+      <p class="lesson-subtitle">Learn how the operating system kernel organizes, secures, and indexes data through file systems, metadata attributes, block storage allocation, and platform-specific file systems (NTFS, ext4, APFS).</p>
+    </div>
+
+    <!-- Section 1: The Three Components -->
+    <section id="three-components" class="content-section">
+      <h2 class="section-heading">📂 1. The Three Core Components of File Handling</h2>
+      <p>When an operating system manages files on storage media, it coordinates three distinct layers:</p>
+
+      <div class="grid-3">
+        <div class="card" style="border-top: 3px solid var(--google-blue);">
+          <h4>1. File Data</h4>
+          <p>The raw binary content of the file (text, pixels, video frames, machine code bytes) written physically across storage media.</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--google-green);">
+          <h4>2. File Metadata</h4>
+          <p>The structural descriptor containing file properties: creation date, last modified timestamp, owner ID, security permissions (ACLs), file size, and extension.</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--google-yellow);">
+          <h4>3. The File System</h4>
+          <p>The database and data structure (directory hierarchy, index table, journaling engine) that maps human-readable paths to physical storage sectors.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Block Storage -->
+    <section id="block-storage" class="content-section">
+      <h2 class="section-heading">🧱 2. Block Storage Architecture</h2>
+      
+      <div class="callout info">
+        <div class="callout-title">How Data Blocks Function</div>
+        <p>Operating systems do not store entire files in one contiguous, unbroken strip of disk space. Instead, files are partitioned into uniform chunks called <strong>data blocks</strong> (or clusters, commonly 4 KB). These blocks are distributed across available sectors on the storage medium.</p>
+      </div>
+
+      <ul>
+        <li><strong>High-Speed Access:</strong> The file system can read multiple blocks simultaneously through parallel I/O channels.</li>
+        <li><strong>Space Utilization:</strong> When a file is updated or expands, the OS simply assigns new available blocks anywhere on disk, eliminating the need to physically rearrange other files.</li>
+      </ul>
+    </section>
+
+    <!-- Section 3: Metadata & File Extensions -->
+    <section id="metadata-details" class="content-section">
+      <h2 class="section-heading">🏷️ 3. File Metadata & Extensions</h2>
+      <p><strong>Metadata</strong> provides the operating system with the complete contextual profile of any file without needing to parse the full file content:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Metadata Field</th>
+              <th>Technical Purpose & IT Relevance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Creation & Modification Timestamps</strong></td>
+              <td>Tracks when files were written or altered; crucial for incremental backup software and security audit forensics.</td>
+            </tr>
+            <tr>
+              <td><strong>Access Control Lists (ACLs / Permissions)</strong></td>
+              <td>Specifies which user accounts and groups have Read, Write, or Execute privileges.</td>
+            </tr>
+            <tr>
+              <td><strong>File Size & Allocation</strong></td>
+              <td>Records exact byte size and number of allocated storage blocks on disk.</td>
+            </tr>
+            <tr>
+              <td><strong>File Extensions (.ext)</strong></td>
+              <td>Appended suffix (e.g. <code style="font-family: var(--font-mono); color: var(--accent);">.docx</code>, <code style="font-family: var(--font-mono); color: var(--accent);">.jpg</code>, <code style="font-family: var(--font-mono); color: var(--accent);">.exe</code>) telling the OS which default program should open the file.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 4: OS File Systems -->
+    <section id="os-file-systems" class="content-section">
+      <h2 class="section-heading">💾 4. Major Operating System File Systems</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>File System</th>
+              <th>Operating System</th>
+              <th>Key Characteristics & Capabilities</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>NTFS (New Technology File System)</strong></td>
+              <td>Windows (Default)</td>
+              <td>Features <strong>journaling</strong> (prevents data corruption during sudden power loss), granular file permissions (NTFS ACLs), BitLocker encryption support, and volume shadow copies.</td>
+            </tr>
+            <tr>
+              <td><strong>ext4 (Fourth Extended Filesystem)</strong></td>
+              <td>Linux (Default)</td>
+              <td>Rock-solid stability, journaling engine, support for 1 Exabyte volumes, backward compatibility with ext2/ext3.</td>
+            </tr>
+            <tr>
+              <td><strong>APFS (Apple File System)</strong></td>
+              <td>macOS & iOS</td>
+              <td>Modern 64-bit architecture, native strong encryption, space sharing, and instantaneous file cloning. Replaced legacy <strong>HFS+</strong>.</td>
+            </tr>
+            <tr>
+              <td><strong>FAT32 & exFAT</strong></td>
+              <td>Cross-Platform (Universal)</td>
+              <td>Universal compatibility across Windows, Mac, and Linux. FAT32 has a 4 GB single-file limit; exFAT removes this limit for high-capacity SD cards and USB drives.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Navigation Footer -->
+    <div class="lesson-nav">
+      <a href="14_os_components_and_kernel_architecture.html" class="nav-btn">
+        <span class="nav-btn-sub">Previous Lesson</span>
+        <span class="nav-btn-title">← 14: OS Components & Kernel</span>
+      </a>
+      <a href="16_process_and_memory_management.html" class="nav-btn" style="text-align: right;">
+        <span class="nav-btn-sub">Next Lesson</span>
+        <span class="nav-btn-title">16: Process & Memory Mgmt →</span>
+      </a>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = (window.scrollY / total) * 100;
+    document.getElementById('progress-bar').style.width = progress + '%';
+  });
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const target = current === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', target);
+    localStorage.setItem('it_theme', target);
+  }
+  const saved = localStorage.getItem('it_theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+</script>
+
+</body>
+</html>

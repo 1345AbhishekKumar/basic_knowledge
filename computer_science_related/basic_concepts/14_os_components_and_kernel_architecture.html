@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 14: Operating System Components & Kernel Architecture — Google IT Support</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0b0f19;
+    --bg-secondary: #111827;
+    --bg-card: rgba(17, 24, 39, 0.9);
+    --bg-elevated: #1f2937;
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+    --text-dim: #6b7280;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.18);
+    --google-blue: #4285F4;
+    --google-green: #34A853;
+    --google-yellow: #FBBC05;
+    --google-red: #EA4335;
+    --purple: #a855f7;
+    --border: #374151;
+    --border-light: rgba(255, 255, 255, 0.08);
+    --code-bg: #030712;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Fira Code', ui-monospace, monospace;
+  }
+
+  [data-theme="light"] {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.92);
+    --bg-elevated: #f1f5f9;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+    --text-dim: #94a3b8;
+    --accent: #0284c7;
+    --accent-glow: rgba(2, 132, 199, 0.12);
+    --border: #e2e8f0;
+    --border-light: rgba(0, 0, 0, 0.06);
+    --code-bg: #0f172a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    line-height: 1.7;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  #progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--google-blue), var(--accent));
+    width: 0%;
+    z-index: 999;
+    transition: width 0.1s;
+  }
+
+  header {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-light);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    padding: 0.85rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  .btn-back {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-elevated);
+    transition: all 0.2s;
+  }
+  .btn-back:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .badge-tag {
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+  }
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .nav-select {
+    background: var(--bg-elevated);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+    cursor: pointer;
+  }
+  .btn-theme {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .layout-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    width: 100%;
+    padding: 2rem 2rem 4rem;
+    gap: 2.5rem;
+  }
+
+  .sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 5rem;
+    height: calc(100vh - 7rem);
+    overflow-y: auto;
+    padding-right: 1rem;
+  }
+  .sidebar h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+  }
+  .toc-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .toc-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.88rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 6px;
+    display: block;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+  .toc-link:hover, .toc-link.active {
+    color: var(--accent);
+    background: var(--accent-glow);
+    font-weight: 600;
+  }
+
+  .content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lesson-hero {
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 2rem;
+  }
+  .lesson-title {
+    font-size: 2.3rem;
+    font-weight: 800;
+    line-height: 1.25;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.02em;
+  }
+  .lesson-subtitle {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+  }
+
+  .content-section {
+    margin-bottom: 3.5rem;
+  }
+  .section-heading {
+    font-size: 1.65rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-main);
+  }
+  .sub-heading {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1.75rem 0 0.85rem;
+    color: var(--accent);
+  }
+  p {
+    margin-bottom: 1.15rem;
+    color: var(--text-main);
+  }
+  ul, ol {
+    margin-bottom: 1.25rem;
+    padding-left: 1.5rem;
+    color: var(--text-main);
+  }
+  li { margin-bottom: 0.5rem; }
+
+  .callout {
+    padding: 1.25rem 1.5rem;
+    border-radius: 12px;
+    margin: 1.5rem 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-left-width: 4px;
+    border-left-color: var(--accent);
+  }
+  .callout-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .callout.info { border-left-color: var(--google-blue); }
+  .callout.info .callout-title { color: var(--google-blue); }
+  .callout.success { border-left-color: var(--google-green); }
+  .callout.success .callout-title { color: var(--google-green); }
+
+  .diagram-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.75rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .diagram-caption {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+  .card h4 {
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .lesson-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-light);
+  }
+  .nav-btn {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    padding: 1rem 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    transition: all 0.2s;
+    max-width: 280px;
+  }
+  .nav-btn:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .nav-btn-sub {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    font-family: var(--font-mono);
+  }
+  .nav-btn-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 0.25rem;
+  }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<header>
+  <div class="nav-left">
+    <a href="index.html" class="btn-back">← Course Hub</a>
+    <span class="badge-tag">LESSON 14</span>
+  </div>
+  <div class="nav-right">
+    <select class="nav-select" onchange="window.location.href=this.value">
+      <option value="01_introduction_to_it_and_roles.html">01: Intro to IT & Roles</option>
+      <option value="02_evolution_of_computing.html">02: Evolution of Computing</option>
+      <option value="03_computer_language_and_character_encoding.html">03: Computer Language & Encoding</option>
+      <option value="04_logic_gates_and_circuits.html">04: Logic Gates & Circuits</option>
+      <option value="05_binary_counting_and_conversion.html">05: Binary Counting & Math</option>
+      <option value="06_glossary_and_definitions.html">06: Module 1 Glossary</option>
+      <option value="07_computer_hardware_architecture.html">07: Hardware Architecture</option>
+      <option value="08_cpu_architecture_and_overclocking.html">08: CPU & Overclocking</option>
+      <option value="09_memory_hierarchy_ram_and_rom.html">09: RAM & ROM Hierarchy</option>
+      <option value="10_storage_devices_hdd_ssd_nvme.html">10: Storage (HDD, SSD, NVMe)</option>
+      <option value="11_motherboards_bios_uefi_and_power.html">11: Motherboard, BIOS & PSU</option>
+      <option value="12_peripherals_cables_displays_and_mobile.html">12: Peripherals, Displays & Mobile</option>
+      <option value="13_hardware_master_glossary.html">13: Hardware Master Glossary</option>
+      <option value="14_os_components_and_kernel_architecture.html" selected>14: OS Components & Kernel</option>
+      <option value="15_file_systems_and_storage_management.html">15: File Systems & Metadata</option>
+      <option value="16_process_and_memory_management.html">16: Process & Memory Mgmt</option>
+      <option value="17_user_space_gui_cli_and_system_logs.html">17: User Space, CLI & Logs</option>
+      <option value="18_the_boot_process_and_boot_methods.html">18: Boot Process & Methods</option>
+      <option value="19_operating_system_selection_and_mobile_os.html">19: OS Selection & Mobile OS</option>
+      <option value="20_virtual_machines_remote_access_and_windows_matrix.html">20: VMs, SSH, RDP & Windows Matrix</option>
+      <option value="21_os_master_glossary.html">21: OS Master Glossary</option>
+    </select>
+    <button class="btn-theme" onclick="toggleTheme()">🌓</button>
+  </div>
+</header>
+
+<div class="layout-wrapper">
+  <aside class="sidebar">
+    <h3>Contents</h3>
+    <ul class="toc-list">
+      <li><a href="#what-is-os" class="toc-link">1. What is an Operating System?</a></li>
+      <li><a href="#kernel-vs-userspace" class="toc-link">2. Kernel vs. User Space</a></li>
+      <li><a href="#four-kernel-functions" class="toc-link">3. The 4 Core Kernel Functions</a></li>
+      <li><a href="#major-os-ecosystems" class="toc-link">4. Major Operating Systems</a></li>
+    </ul>
+  </aside>
+
+  <main class="content">
+    <div class="lesson-hero">
+      <h1 class="lesson-title">Operating System Components & Kernel Architecture</h1>
+      <p class="lesson-subtitle">Understand what constitutes an operating system, the critical separation between Kernel space and User space, the four foundational functions of the OS kernel, and the major desktop and mobile operating system ecosystems.</p>
+    </div>
+
+    <!-- Section 1: What is an OS -->
+    <section id="what-is-os" class="content-section">
+      <h2 class="section-heading">💻 1. What is an Operating System?</h2>
+      
+      <div class="callout info">
+        <div class="callout-title">Core Definition: Operating System (OS)</div>
+        <p>An <strong>Operating System (OS)</strong> is system software that manages computer hardware, allocates software resources, and provides common services for computer programs. It serves as the master intermediary between users, applications, and physical silicon hardware.</p>
+      </div>
+
+      <p>An OS is far more than just the Graphical User Interface (GUI) you see on a monitor; it is an integrated suite of scheduling engines, memory managers, security arbiters, and device drivers working synchronously in milliseconds.</p>
+    </section>
+
+    <!-- Section 2: Kernel vs User Space -->
+    <section id="kernel-vs-userspace" class="content-section">
+      <h2 class="section-heading">🛡️ 2. The Architectural Split: Kernel vs. User Space</h2>
+      <p>Modern operating systems enforce a strict privilege boundary between privileged hardware execution and user-facing applications:</p>
+
+      <div class="diagram-container">
+        <svg viewBox="0 0 760 280" style="width: 100%; max-width: 720px; height: auto;" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- User Space Box (Ring 3) -->
+          <rect x="30" y="20" width="700" height="90" rx="10" fill="#1f2937" stroke="#38bdf8" stroke-width="2"/>
+          <text x="50" y="45" fill="#38bdf8" font-size="13" font-weight="700">USER SPACE (Unprivileged Mode / Ring 3)</text>
+          <text x="50" y="70" fill="#f3f4f6" font-size="12">Web Browsers • Text Editors • Graphical User Interface (GUI) • Shell (Bash / PowerShell) • Media Players</text>
+          <text x="50" y="90" fill="#9ca3af" font-size="11">Humans interact directly here; applications cannot directly modify physical hardware registers.</text>
+
+          <!-- System Call Interface -->
+          <line x1="30" y1="130" x2="730" y2="130" stroke="#FBBC05" stroke-width="3" stroke-dasharray="6 6"/>
+          <text x="380" y="125" text-anchor="middle" fill="#FBBC05" font-size="11" font-family="'Fira Code', monospace" font-weight="700">SYSTEM CALL INTERFACE (API Transition)</text>
+
+          <!-- Kernel Space Box (Ring 0) -->
+          <rect x="30" y="145" width="700" height="110" rx="10" fill="#111827" stroke="#EA4335" stroke-width="2"/>
+          <text x="50" y="170" fill="#EA4335" font-size="13" font-weight="700">THE KERNEL (Privileged Supervisor Mode / Ring 0)</text>
+          
+          <g transform="translate(50, 185)">
+            <rect x="0" y="0" width="150" height="50" rx="6" fill="#1f2937" stroke="#4285F4"/>
+            <text x="75" y="22" text-anchor="middle" fill="#4285F4" font-size="10" font-weight="700">File Storage</text>
+            <text x="75" y="38" text-anchor="middle" fill="#9ca3af" font-size="9">File Systems</text>
+
+            <rect x="165" y="0" width="150" height="50" rx="6" fill="#1f2937" stroke="#34A853"/>
+            <text x="240" y="22" text-anchor="middle" fill="#34A853" font-size="10" font-weight="700">Process Mgmt</text>
+            <text x="240" y="38" text-anchor="middle" fill="#9ca3af" font-size="9">CPU Scheduler</text>
+
+            <rect x="330" y="0" width="150" height="50" rx="6" fill="#1f2937" stroke="#FBBC05"/>
+            <text x="405" y="22" text-anchor="middle" fill="#FBBC05" font-size="10" font-weight="700">Memory Mgmt</text>
+            <text x="405" y="38" text-anchor="middle" fill="#9ca3af" font-size="9">RAM & Virtual Memory</text>
+
+            <rect x="495" y="0" width="155" height="50" rx="6" fill="#1f2937" stroke="#a855f7"/>
+            <text x="572" y="22" text-anchor="middle" fill="#a855f7" font-size="10" font-weight="700">I/O Management</text>
+            <text x="572" y="38" text-anchor="middle" fill="#9ca3af" font-size="9">Device Drivers</text>
+          </g>
+        </svg>
+        <span class="diagram-caption">Figure 14.1: Operating System Architecture (User Space vs. Kernel Space)</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card" style="border-top: 3px solid var(--google-red);">
+          <h4>The Kernel (Core Supervisor)</h4>
+          <p>The core of the operating system that directly communicates with CPU registers, memory controllers, and device buses. Users never interact with the kernel directly; all requests pass through system calls.</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--accent);">
+          <h4>The User Space</h4>
+          <p>The outer environment where users and applications operate. Encompasses the graphical desktop, shells, system utilities, web browsers, and productivity software.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: 4 Core Kernel Functions -->
+    <section id="four-kernel-functions" class="content-section">
+      <h2 class="section-heading">⚙️ 3. The Four Core Functions of the Kernel</h2>
+
+      <div class="grid-4">
+        <div class="card" style="border-top: 3px solid var(--google-blue);">
+          <h4>1. File Storage & Management</h4>
+          <p>Structures, writes, and organizes data blocks on physical drives using file systems (NTFS, ext4, APFS) and maintains file metadata.</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--google-green);">
+          <h4>2. Process Management</h4>
+          <p>Schedules CPU execution time across competing programs, allocates resources, switches execution contexts via time slices, and terminates finished tasks.</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--google-yellow);">
+          <h4>3. Memory Management</h4>
+          <p>Dynamically allocates physical RAM space to running applications, isolates program memory spaces, and manages virtual memory swap pages.</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--purple);">
+          <h4>4. I/O Management</h4>
+          <p>Loads device drivers and mediates high-speed, error-free communication between software and hardware devices (keyboards, monitors, network cards, disks).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Major OS Ecosystems -->
+    <section id="major-os-ecosystems" class="content-section">
+      <h2 class="section-heading">🌐 4. Major Desktop & Mobile Operating Systems</h2>
+      
+      <div class="grid-2">
+        <div class="card">
+          <h4>🪟 Microsoft Windows (Windows 10 / 11)</h4>
+          <p>The dominant enterprise desktop and consumer OS. Known for extensive backward hardware compatibility, commercial software availability, Active Directory domain management, and gaming support.</p>
+        </div>
+        <div class="card">
+          <h4>🍎 Apple macOS & iOS</h4>
+          <p>Built on a Unix foundation (Darwin). Pre-loaded exclusively on Apple hardware, known for tight ecosystem integration, hardware acceleration for creative workflows, and sandboxed security.</p>
+        </div>
+        <div class="card">
+          <h4>🐧 Linux (Ubuntu, Debian, Red Hat)</h4>
+          <p>Open-source, highly customizable OS built on the Linux kernel. Dominates enterprise cloud servers, supercomputers, network routers, and embedded developer workstations.</p>
+        </div>
+        <div class="card">
+          <h4>🌐 Google Chrome OS & Android</h4>
+          <p>• <strong>Chrome OS:</strong> Lightweight cloud-first OS built on the Linux kernel for Chromebooks.<br>• <strong>Android:</strong> The most widely deployed mobile OS worldwide, running on the Linux kernel across smartphones and tablets.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Footer -->
+    <div class="lesson-nav">
+      <a href="13_hardware_master_glossary.html" class="nav-btn">
+        <span class="nav-btn-sub">Previous Module</span>
+        <span class="nav-btn-title">← 13: Hardware Glossary</span>
+      </a>
+      <a href="15_file_systems_and_storage_management.html" class="nav-btn" style="text-align: right;">
+        <span class="nav-btn-sub">Next Lesson</span>
+        <span class="nav-btn-title">15: File Systems & Metadata →</span>
+      </a>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = (window.scrollY / total) * 100;
+    document.getElementById('progress-bar').style.width = progress + '%';
+  });
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const target = current === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', target);
+    localStorage.setItem('it_theme', target);
+  }
+  const saved = localStorage.getItem('it_theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+</script>
+
+</body>
+</html>

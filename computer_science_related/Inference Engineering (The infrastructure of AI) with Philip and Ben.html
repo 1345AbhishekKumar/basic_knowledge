@@ -1,0 +1,2815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inference Engineering (The Infrastructure of AI) — A Deep Technical Lesson</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  /* ==========================================================================
+     THEME DESIGN TOKENS (Lab Manual Archetype — Editorial Systems Aesthetic)
+     ========================================================================== */
+  :root {
+    --bg: #f8f7f4;
+    --paper: #ffffff;
+    --card: #f2efe9;
+    --ink: #14171a;
+    --ink-secondary: #3b424a;
+    --mut: #68737f;
+    --line: #dcd7cc;
+    --line-subtle: #eae6dd;
+    --accent: #b45309;
+    --accent-light: #fef3c7;
+    --accent-soft: rgba(180, 83, 9, 0.09);
+    --accent-border: #d97706;
+    --code-bg: #ece8df;
+    --ok: #15803d;
+    --ok-soft: #dcfce7;
+    --bad: #b91c1c;
+    --bad-soft: #fee2e2;
+    --rail-w: 300px;
+    --mono: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --serif: Georgia, Cambria, "Times New Roman", Times, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  html[data-theme="dark"] {
+    --bg: #0f1216;
+    --paper: #161b22;
+    --card: #1c222b;
+    --ink: #f0f3f6;
+    --ink-secondary: #c9d1d9;
+    --mut: #8b949e;
+    --line: #30363d;
+    --line-subtle: #21262d;
+    --accent: #d97706;
+    --accent-light: #3e2608;
+    --accent-soft: rgba(217, 119, 6, 0.16);
+    --accent-border: #f59e0b;
+    --code-bg: #111418;
+    --ok: #22c55e;
+    --ok-soft: #143521;
+    --bad: #ef4444;
+    --bad-soft: #3c1618;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 16px/1.68 var(--sans);
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  /* Progress Bar */
+  #top-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2.5px;
+    width: 0%;
+    background: var(--accent);
+    z-index: 1000;
+    transition: width 0.1s ease-out;
+  }
+
+  /* Dark/Light Mode Toggle */
+  #theme-toggle {
+    position: fixed;
+    top: 18px;
+    right: 20px;
+    z-index: 999;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  #theme-toggle:hover {
+    transform: scale(1.06);
+    border-color: var(--accent);
+  }
+
+  /* Layout Architecture: Lab Manual Grid */
+  .lab-layout {
+    display: grid;
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
+    min-height: 100vh;
+    max-width: 1540px;
+    margin: 0 auto;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+  }
+
+  /* Sidebar Navigation / Diagnostic Console Rail */
+  .lab-rail {
+    background: var(--paper);
+    border-right: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 32px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .rail-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--accent-border);
+    margin-bottom: 8px;
+  }
+
+  .rail-title {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--ink);
+  }
+
+  .rail-sub {
+    font-size: 13px;
+    color: var(--mut);
+    line-height: 1.45;
+    margin-top: 4px;
+  }
+
+  .rail-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .rail-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 5px;
+    color: var(--ink-secondary);
+    text-decoration: none;
+    font-size: 13.5px;
+    transition: background 0.15s ease, color 0.15s ease;
+    border-left: 2px solid transparent;
+  }
+  .rail-nav-link:hover, .rail-nav-link.active {
+    background: var(--card);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+  .rail-nav-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mut);
+    min-width: 20px;
+  }
+
+  .rail-telemetry {
+    margin-top: auto;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+    font-size: 12px;
+    color: var(--mut);
+    font-family: var(--mono);
+  }
+  .telemetry-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+  }
+  .telemetry-val {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* Content Pane */
+  .lab-content {
+    padding: 48px 56px 96px 56px;
+    max-width: 1060px;
+  }
+
+  /* Header & Overview */
+  header.lab-header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 36px;
+    margin-bottom: 48px;
+  }
+
+  .doc-meta {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--mut);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  h1.lab-h1 {
+    font-family: var(--serif);
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1.18;
+    letter-spacing: -0.3px;
+    margin-bottom: 16px;
+    color: var(--ink);
+  }
+
+  .lab-deck {
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--ink-secondary);
+    max-width: 72ch;
+    margin-bottom: 24px;
+  }
+
+  /* What You'll Learn */
+  .outcomes-panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 24px 28px;
+    margin: 32px 0;
+  }
+  .outcomes-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    color: var(--ink);
+  }
+  .outcomes-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 12px 24px;
+  }
+  .outcomes-list li {
+    font-size: 14.5px;
+    color: var(--ink-secondary);
+    position: relative;
+    padding-left: 20px;
+    line-height: 1.5;
+  }
+  .outcomes-list li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* CORE PRIMER: WHAT IS INFERENCE ENGINEERING */
+  .primer-section {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 32px;
+    margin: 36px 0 48px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  }
+  .primer-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 12px;
+  }
+  .primer-h2 {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--ink);
+  }
+  .primer-lead {
+    font-size: 17px;
+    line-height: 1.68;
+    color: var(--ink);
+    margin-bottom: 24px;
+    max-width: 72ch;
+  }
+  .primer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin: 24px 0;
+  }
+  .primer-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 20px;
+  }
+  .primer-card-title {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .primer-card-body {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-secondary);
+  }
+  .comparison-table-wrapper {
+    overflow-x: auto;
+    margin: 24px 0;
+  }
+  .primer-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .primer-table th, .primer-table td {
+    border: 1px solid var(--line);
+    padding: 12px 14px;
+    text-align: left;
+  }
+  .primer-table th {
+    background: var(--card);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--ink);
+  }
+
+  /* Explainer Callout Card for each module */
+  .explainer-box {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    border-left: 4px solid var(--accent);
+    border-radius: 6px;
+    padding: 18px 22px;
+    margin: 20px 0 26px 0;
+  }
+  .explainer-head {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .explainer-text {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+
+  /* Knowledge Map SVG */
+  .knowledge-map-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 24px;
+    margin-bottom: 48px;
+  }
+  .map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+  }
+  .map-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .map-hint {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--mut);
+  }
+
+  /* Modules Section */
+  .module-section {
+    border-top: 1px solid var(--line);
+    padding: 48px 0 32px 0;
+    scroll-margin-top: 30px;
+  }
+
+  .module-header {
+    margin-bottom: 24px;
+  }
+  .module-number {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  h2.module-title {
+    font-family: var(--serif);
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--ink);
+  }
+
+  /* Core Prose */
+  .prose-block {
+    max-width: 70ch;
+    font-size: 16.5px;
+    color: var(--ink);
+    margin-bottom: 28px;
+  }
+  .prose-block p {
+    margin-bottom: 18px;
+    line-height: 1.72;
+  }
+  .prose-block p strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* Side-by-side Lab Procedure Layout */
+  .procedure-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin: 32px 0;
+    align-items: start;
+  }
+
+  .procedure-left {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .procedure-step-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 18px 20px;
+  }
+  .step-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .step-idx {
+    background: var(--card);
+    color: var(--accent);
+    border: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+  }
+  .step-name {
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .step-desc {
+    font-size: 14px;
+    color: var(--ink-secondary);
+    line-height: 1.55;
+  }
+
+  /* Visual Container */
+  .visual-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+  }
+  .visual-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--mut);
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .visual-caption {
+    font-size: 13px;
+    color: var(--mut);
+    margin-top: 12px;
+    line-height: 1.45;
+    border-top: 1px solid var(--line-subtle);
+    padding-top: 10px;
+  }
+
+  /* Photo Placeholder (SKILL.md Spec) */
+  .photo-placeholder {
+    margin: 20px 0;
+  }
+  .placeholder-box {
+    min-height: 280px;
+    border: 1.5px dashed #bbb;
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(0,0,0,0.02),
+      rgba(0,0,0,0.02) 10px,
+      rgba(0,0,0,0.04) 10px,
+      rgba(0,0,0,0.04) 20px
+    );
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    color: var(--mut);
+    font-size: 13.5px;
+  }
+  .placeholder-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    opacity: 0.7;
+  }
+  figcaption {
+    font-size: 13px;
+    color: var(--mut);
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* 3D Hardware Simulation Viewport */
+  .three-container {
+    position: relative;
+    width: 100%;
+    height: 420px;
+    background: #090c10;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    cursor: grab;
+  }
+  .three-container:active {
+    cursor: grabbing;
+  }
+  .three-container canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .three-hud {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: rgba(16, 22, 30, 0.85);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 5px;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #e2e8f0;
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+    max-width: 280px;
+  }
+  .hud-title {
+    color: #f59e0b;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .three-controls-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(16, 20, 26, 0.88);
+    backdrop-filter: blur(5px);
+    padding: 8px 12px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.12);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #a0aec0;
+    z-index: 10;
+    gap: 8px;
+  }
+  .three-btn-group {
+    display: flex;
+    gap: 6px;
+  }
+  .three-btn {
+    background: #242c38;
+    color: #edf2f7;
+    border: 1px solid #4a5568;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: var(--mono);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .three-btn:hover { background: #3a475a; }
+
+  /* Interactive Elements: Flashcard, Quizzes, Calculators */
+  .examples-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .example-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 16px 18px;
+  }
+  .example-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .tag-obvious { color: #0284c7; }
+  .tag-counter { color: #d97706; }
+  .tag-edge { color: #7c3aed; }
+  .example-title {
+    font-weight: 600;
+    font-size: 14.5px;
+    margin-bottom: 6px;
+    color: var(--ink);
+  }
+  .example-body {
+    font-size: 13.5px;
+    color: var(--ink-secondary);
+    line-height: 1.5;
+  }
+
+  /* Analogy & Misconception Duo */
+  .critique-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 24px 0;
+  }
+  .analogy-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 18px 20px;
+  }
+  .analogy-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .analogy-text {
+    font-size: 14px;
+    color: var(--ink-secondary);
+    line-height: 1.55;
+  }
+
+  .wrong-card {
+    background: var(--bad-soft);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--bad);
+    border-radius: 6px;
+    padding: 18px 20px;
+  }
+  .wrong-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--bad);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .wrong-text {
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.55;
+  }
+
+  .why-matters-bar {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 18px 0;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 14px;
+  }
+  .why-matters-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .inter-link-box {
+    margin: 20px 0;
+    font-size: 13.5px;
+    color: var(--mut);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .inter-link-box a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .inter-link-box a:hover { text-decoration: underline; }
+
+  /* Interactive Tool 1: VRAM Sizer Calculator */
+  .calc-box {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 22px;
+    margin: 28px 0;
+  }
+  .calc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+  }
+  .calc-title {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 700;
+  }
+  .calc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 18px;
+    margin-bottom: 20px;
+  }
+  .calc-control label {
+    display: block;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--mut);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .calc-control select, .calc-control input[type="range"] {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--ink);
+    border-radius: 4px;
+    font-size: 13.5px;
+  }
+  .calc-results {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    font-family: var(--mono);
+  }
+  .calc-stat-label {
+    font-size: 11px;
+    color: var(--mut);
+    margin-bottom: 4px;
+  }
+  .calc-stat-val {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  /* Interactive Tool 2: Speculative Decoding Stepper */
+  .spec-box {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 22px;
+    margin: 24px 0;
+  }
+  .spec-tokens-row {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+  }
+  .spec-token {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: var(--card);
+  }
+  .token-accepted {
+    background: var(--ok-soft);
+    border-color: var(--ok);
+    color: var(--ok);
+    font-weight: 600;
+  }
+  .token-rejected {
+    background: var(--bad-soft);
+    border-color: var(--bad);
+    color: var(--bad);
+    text-decoration: line-through;
+  }
+  .token-corrected {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .spec-desc {
+    font-size: 13.5px;
+    color: var(--ink-secondary);
+    margin-top: 10px;
+    line-height: 1.5;
+  }
+
+  /* Interactive Tool 3: Flashcard System */
+  .flashcards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .flashcard {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    min-height: 150px;
+    padding: 20px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    user-select: none;
+    position: relative;
+  }
+  .flashcard:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+  }
+  .fc-hint {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--mut);
+  }
+  .fc-content {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 12px 0;
+    line-height: 1.4;
+  }
+  .fc-back {
+    display: none;
+    font-size: 13.5px;
+    font-weight: 400;
+    color: var(--ink-secondary);
+    line-height: 1.5;
+  }
+  .flashcard.flipped .fc-front { display: none; }
+  .flashcard.flipped .fc-back { display: block; }
+  .flashcard.flipped { background: var(--card); border-color: var(--accent); }
+
+  /* Diagnostic Console / Symptom Matrix */
+  .diagnostic-matrix {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 22px;
+    margin: 32px 0;
+  }
+  .diag-tabs {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+  }
+  .diag-tab-btn {
+    background: transparent;
+    border: 1px solid var(--line);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--mut);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+  .diag-tab-btn.active, .diag-tab-btn:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .diag-content {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-secondary);
+  }
+
+  /* SVG Animation Stage Controls */
+  .anim-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-subtle);
+  }
+  .anim-btn {
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .anim-btn:hover { background: var(--line-subtle); }
+  .anim-status {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    margin-left: auto;
+  }
+
+  /* Summary Table & FAQ */
+  .cheat-sheet-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 14px;
+  }
+  .cheat-sheet-table th, .cheat-sheet-table td {
+    border: 1px solid var(--line);
+    padding: 12px 14px;
+    text-align: left;
+  }
+  .cheat-sheet-table th {
+    background: var(--card);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--ink);
+  }
+  .cheat-sheet-table tr:hover td {
+    background: var(--card);
+  }
+
+  .faq-accordion {
+    margin: 24px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  details.faq-item {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 18px;
+    transition: background 0.15s ease;
+  }
+  details.faq-item[open] {
+    background: var(--card);
+  }
+  summary.faq-q {
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    color: var(--ink);
+    list-style: none;
+    position: relative;
+    padding-right: 24px;
+  }
+  summary.faq-q::-webkit-details-marker { display: none; }
+  summary.faq-q::after {
+    content: "+";
+    position: absolute;
+    right: 0;
+    top: 0;
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--accent);
+  }
+  details.faq-item[open] summary.faq-q::after {
+    content: "−";
+  }
+  .faq-a {
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--ink-secondary);
+    line-height: 1.6;
+    border-top: 1px solid var(--line-subtle);
+    padding-top: 10px;
+  }
+
+  /* Next Steps Checklist */
+  .checklist-box {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 22px;
+    margin: 24px 0;
+  }
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-size: 14.5px;
+    color: var(--ink-secondary);
+  }
+  .check-item input[type="checkbox"] {
+    margin-top: 4px;
+    accent-color: var(--accent);
+  }
+
+  /* Responsive Breakpoints */
+  @media (max-width: 960px) {
+    .lab-layout { grid-template-columns: 1fr; border: none; }
+    .lab-rail { display: none; }
+    .lab-content { padding: 32px 20px 64px 20px; }
+    .procedure-grid, .critique-grid { grid-template-columns: 1fr; }
+    h1.lab-h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="top-progress" role="progressbar" aria-label="Reading Progress"></div>
+<button id="theme-toggle" aria-label="Toggle Color Theme" title="Toggle Dark/Light Mode">◑</button>
+
+<div class="lab-layout">
+  <!-- SIDEBAR DIAGNOSTIC & NAVIGATION RAIL -->
+  <aside class="lab-rail" aria-label="Lesson Navigation & Telemetry">
+    <div>
+      <span class="rail-badge">Lab Manual 04</span>
+      <div class="rail-title">Inference Engineering</div>
+      <div class="rail-sub">The Systems Infrastructure of Machine Learning</div>
+    </div>
+
+    <nav class="rail-nav" aria-label="Module Navigation">
+      <a href="#overview" class="rail-nav-link active"><span class="rail-nav-num">00</span>Overview & Knowledge Map</a>
+      <a href="#primer" class="rail-nav-link"><span class="rail-nav-num">★</span>What is Inference Engineering?</a>
+      <a href="#mod-1" class="rail-nav-link"><span class="rail-nav-num">01</span>The Full Inference Stack</a>
+      <a href="#mod-2" class="rail-nav-link"><span class="rail-nav-num">02</span>Hardware Fragility & HA</a>
+      <a href="#mod-3" class="rail-nav-link"><span class="rail-nav-num">03</span>VRAM Math & Memory Wall</a>
+      <a href="#mod-4" class="rail-nav-link"><span class="rail-nav-num">04</span>Distributed Parallelism</a>
+      <a href="#mod-5" class="rail-nav-link"><span class="rail-nav-num">05</span>Applied Performance Alchemy</a>
+      <a href="#mod-6" class="rail-nav-link"><span class="rail-nav-num">06</span>Economics & Evaluation</a>
+      <a href="#summary" class="rail-nav-link"><span class="rail-nav-num">07</span>Cheat Sheet & Actions</a>
+    </nav>
+
+    <div class="rail-telemetry">
+      <div class="telemetry-row"><span>GPU Hardware MTBF</span><span class="telemetry-val">50,000 hrs</span></div>
+      <div class="telemetry-row"><span>Target Uptime (4 9s)</span><span class="telemetry-val">99.99%</span></div>
+      <div class="telemetry-row"><span>NVLink Bandwidth</span><span class="telemetry-val">900 GB/s</span></div>
+      <div class="telemetry-row"><span>Weight Load (500GB)</span><span class="telemetry-val">500 sec @ 1GB/s</span></div>
+      <div class="telemetry-row"><span>Max Tokens/Sec</span><span class="telemetry-val">300+ tps</span></div>
+    </div>
+  </aside>
+
+  <!-- MAIN LAB CONTENT PANE -->
+  <main class="lab-content">
+    <header class="lab-header" id="overview">
+      <div class="doc-meta">
+        <span>Curriculum: Systems & Infrastructure</span>
+        <span>Source: BaseTen & PlanetScale Technical Dialogue</span>
+        <span>Target: Staff Systems / Backend Engineers</span>
+      </div>
+      <h1 class="lab-h1">Inference Engineering (The Infrastructure of AI)</h1>
+      <p class="lab-deck">
+        Moving machine learning models from theoretical research checkpoints into low-latency, fault-tolerant, high-throughput production systems. A definitive study on silicon constraints, memory walls, distributed parallelism, and the operational systems powering trillion-token applications.
+      </p>
+
+      <!-- WHAT YOU'LL LEARN -->
+      <section class="outcomes-panel" aria-labelledby="outcomes-heading">
+        <div class="outcomes-title" id="outcomes-heading">Core Engineering Competencies You Will Acquire</div>
+        <ul class="outcomes-list">
+          <li>Deconstruct the full inference lifecycle: capacity provisioning, weight streaming, kernel execution, and continuous batching.</li>
+          <li>Navigate extreme hardware fragility: why GPUs fail every 50,000 hours and how to design active-active multi-cloud failover.</li>
+          <li>Calculate exact VRAM budgets across weights, KV cache, and activations to determine cluster sizing for billion- and trillion-parameter models.</li>
+          <li>Differentiate Tensor Parallelism (latency-optimized) from Expert Parallelism (throughput-optimized) and eliminate pipeline bubbles.</li>
+          <li>Implement production acceleration techniques: continuous batching, FP8/FP4 quantization, speculative decoding, and prefix caching.</li>
+          <li>Architect task-decomposed enterprise pipelines that beat monolithic frontier models at 10x lower cost and 5x lower latency.</li>
+        </ul>
+      </section>
+
+      <!-- KNOWLEDGE MAP -->
+      <div class="knowledge-map-card">
+        <div class="map-header">
+          <div class="map-title">Interactive Inference Knowledge Topology</div>
+          <div class="map-hint">Click any node to navigate to the engineering module</div>
+        </div>
+        <svg viewBox="0 0 860 170" width="100%" height="170" xmlns="http://www.w3.org/2000/svg" aria-label="Knowledge Map of Inference Engineering Subsystems" role="img">
+          <title>Inference Engineering Subsystem Map</title>
+          <!-- Connection lines -->
+          <line x1="110" y1="85" x2="230" y2="85" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="4 4" />
+          <line x1="230" y1="85" x2="360" y2="85" stroke="var(--line)" stroke-width="1.5" />
+          <line x1="360" y1="85" x2="490" y2="85" stroke="var(--line)" stroke-width="1.5" />
+          <line x1="490" y1="85" x2="620" y2="85" stroke="var(--line)" stroke-width="1.5" />
+          <line x1="620" y1="85" x2="750" y2="85" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="4 4" />
+
+          <!-- Node 1 -->
+          <a href="#mod-1">
+            <rect x="30" y="45" width="140" height="80" rx="6" fill="var(--card)" stroke="var(--accent)" stroke-width="1.5" />
+            <text x="100" y="78" font-family="Georgia, serif" font-size="13" font-weight="bold" fill="var(--ink)" text-anchor="middle">01. The Stack</text>
+            <text x="100" y="98" font-family="-apple-system, sans-serif" font-size="11" fill="var(--mut)" text-anchor="middle">Silicon to gRPC</text>
+          </a>
+          <!-- Node 2 -->
+          <a href="#mod-2">
+            <rect x="170" y="45" width="130" height="80" rx="6" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="235" y="78" font-family="Georgia, serif" font-size="13" font-weight="bold" fill="var(--ink)" text-anchor="middle">02. Silicon & HA</text>
+            <text x="235" y="98" font-family="-apple-system, sans-serif" font-size="11" fill="var(--mut)" text-anchor="middle">50k-Hr Failures</text>
+          </a>
+          <!-- Node 3 -->
+          <a href="#mod-3">
+            <rect x="300" y="45" width="130" height="80" rx="6" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="365" y="78" font-family="Georgia, serif" font-size="13" font-weight="bold" fill="var(--ink)" text-anchor="middle">03. VRAM Math</text>
+            <text x="365" y="98" font-family="-apple-system, sans-serif" font-size="11" fill="var(--mut)" text-anchor="middle">Memory Wall</text>
+          </a>
+          <!-- Node 4 -->
+          <a href="#mod-4">
+            <rect x="430" y="45" width="130" height="80" rx="6" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="495" y="78" font-family="Georgia, serif" font-size="13" font-weight="bold" fill="var(--ink)" text-anchor="middle">04. Parallelism</text>
+            <text x="495" y="98" font-family="-apple-system, sans-serif" font-size="11" fill="var(--mut)" text-anchor="middle">Tensor vs MoE</text>
+          </a>
+          <!-- Node 5 -->
+          <a href="#mod-5">
+            <rect x="560" y="45" width="130" height="80" rx="6" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="625" y="78" font-family="Georgia, serif" font-size="13" font-weight="bold" fill="var(--ink)" text-anchor="middle">05. Alchemy</text>
+            <text x="625" y="98" font-family="-apple-system, sans-serif" font-size="11" fill="var(--mut)" text-anchor="middle">Speculative & Batch</text>
+          </a>
+          <!-- Node 6 -->
+          <a href="#mod-6">
+            <rect x="690" y="45" width="140" height="80" rx="6" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="760" y="78" font-family="Georgia, serif" font-size="13" font-weight="bold" fill="var(--ink)" text-anchor="middle">06. Economics</text>
+            <text x="760" y="98" font-family="-apple-system, sans-serif" font-size="11" fill="var(--mut)" text-anchor="middle">Decomp & Evals</text>
+          </a>
+        </svg>
+      </div>
+
+      <!-- FOUNDATIONAL PRIMER: WHAT IS INFERENCE ENGINEERING? -->
+      <section class="primer-section" id="primer" aria-labelledby="primer-heading">
+        <span class="primer-badge">Foundational Primer</span>
+        <h2 class="primer-h2" id="primer-heading">What is Inference Engineering? The Plain-English & Systems Guide</h2>
+        <p class="primer-lead">
+          Before diving into kernel compilation and NVLink crossbars, let us establish what inference engineering actually is, why it is distinct from both traditional backend systems and general AI application development, and why it forms the indispensable physical foundation of artificial intelligence.
+        </p>
+
+        <div class="primer-grid">
+          <div class="primer-card">
+            <div class="primer-card-title">
+              <span>01. What is "Inference"?</span>
+            </div>
+            <div class="primer-card-body">
+              In machine learning, there are two distinct phases: <strong>Training</strong> and <strong>Inference</strong>. Training is the process of learning patterns from huge datasets by calculating gradients and updating parameters over weeks or months. <strong>Inference is using that trained model to answer live user requests</strong>—taking an input prompt, passing it through mathematical weights, and generating text, tokens, or images in real time.
+            </div>
+          </div>
+
+          <div class="primer-card">
+            <div class="primer-card-title">
+              <span>02. What is "Inference Engineering"?</span>
+            </div>
+            <div class="primer-card-body">
+              <strong>Inference engineering</strong> is the specialized discipline of designing, running, optimizing, and maintaining the software and hardware infrastructure that serves these trained models at scale. It transforms stationary mathematical checkpoint files into lightning-fast, high-availability, cost-effective production services.
+            </div>
+          </div>
+
+          <div class="primer-card">
+            <div class="primer-card-title">
+              <span>03. Why is it Called "The Infrastructure of AI"?</span>
+            </div>
+            <div class="primer-card-body">
+              Just as roads, power lines, and water pipes form the infrastructure of a modern city, inference systems form the physical substrate of AI. Every autonomous coding agent, ChatGPT interaction, and voice assistant completely depends on underlying GPU clusters streaming tokens under strict latency and uptime constraints.
+            </div>
+          </div>
+        </div>
+
+        <div class="comparison-table-wrapper">
+          <table class="primer-table" aria-label="Role Comparison Table">
+            <thead>
+              <tr>
+                <th>Engineering Domain</th>
+                <th>Primary Focus</th>
+                <th>Underlying Hardware</th>
+                <th>Core Challenge</th>
+                <th>Key Technologies</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>AI Application Developer</strong></td>
+                <td>Prompting, UI/UX, product features, workflows</td>
+                <td>Abstract API endpoint (cloud API)</td>
+                <td>Product market fit, agentic accuracy</td>
+                <td>TypeScript, Python, LangChain, SDKs</td>
+              </tr>
+              <tr>
+                <td><strong>Traditional Backend Engineer</strong></td>
+                <td>REST/GraphQL APIs, business logic, databases</td>
+                <td>General-purpose CPU servers</td>
+                <td>Data integrity, ACID consistency, 99.999% uptime</td>
+                <td>Postgres, Go, Java, Docker, Kubernetes</td>
+              </tr>
+              <tr>
+                <td><strong>Inference Engineer</strong></td>
+                <td>Serving models fast, cheaply, and reliably</td>
+                <td>Bare-metal GPU clusters (H100, B200, NVLink)</td>
+                <td>Memory bandwidth wall, GPU crashes, weight staging</td>
+                <td>CUDA, Triton, vLLM, SGLang, Knative, C++</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="explainer-box" style="margin-top:20px;">
+          <div class="explainer-head">💡 The Three Golden Metrics of Inference</div>
+          <div class="explainer-text">
+            <strong>1. Time-to-First-Token (TTFT):</strong> How many milliseconds elapsed before the model emitted its first token (governed by prompt length and prefill compute speed).<br>
+            <strong>2. Time-Per-Output-Token (TPOT):</strong> The generation speed for subsequent tokens (typically 20–100ms per token, governed strictly by memory bandwidth).<br>
+            <strong>3. Cost Per Million Tokens ($/M):</strong> The total cloud compute, electricity, and hardware amortization expenditure divided by token throughput.
+          </div>
+        </div>
+      </section>
+    </header>
+
+    <!-- MODULE 1 -->
+    <section class="module-section" id="mod-1">
+      <div class="module-header">
+        <div class="module-number">Procedure 01</div>
+        <h2 class="module-title">The Full Inference Stack: Systems, Kernels, and the Talent Chasm</h2>
+      </div>
+
+      <div class="explainer-box">
+        <div class="explainer-head">🔍 What is It in Simple Terms?</div>
+        <div class="explainer-text">
+          <strong>The Inference Stack</strong> is the multi-layered software and hardware pyramid required to make an AI model work. It starts from raw silicon microchips (GPUs), passes through compiled low-level math instructions (CUDA/Triton kernels), connects to memory management engines (vLLM/SGLang), and exposes high-speed web streams (gRPC/HTTP-2) to client applications.
+        </div>
+      </div>
+
+      <div class="prose-block">
+        <p>
+          In traditional web infrastructure and relational database systems, software engineering rests upon decades of battle-tested abstractions. When an application queries a database, the underlying storage engines, WAL logs, and consensus protocols operate within well-defined, standardized boundaries. In stark contrast, <strong>inference engineering</strong> represents an unstable, hyper-accelerated frontier where hardware constraints, compiler bugs, and distributed communication clash continuously.
+        </p>
+        <p>
+          At its most fundamental level, inference engineering reduces to three deceptive imperatives: <strong>first</strong>, procure and secure specialized GPU capacity; <strong>second</strong>, stream massive parameter matrices onto physical accelerator memory; and <strong>third</strong>, execute iterative token generation fast enough to satisfy human interactive latencies while maintaining high uptime under massive, spiky viral demand.
+        </p>
+        <p>
+          Today, the digital economy generates hundreds of trillions of tokens daily, marching rapidly toward quadrillions. Yet, a severe talent bottleneck persists. Just four years ago, fewer than one hundred systems engineers worldwide understood the full mechanics of low-latency model serving. Even today, only a few thousand engineers command this domain. The fundamental challenge is that inference requires <em>full-stack vertical integration</em>. An inference engineer cannot remain insulated within a single layer; you must reason about GPU kernel fusion, memory tiling, and register pressure in CUDA or Triton during one hour, and debug Knative cold starts, container network interfaces, and cross-region gRPC streaming proxies the next.
+        </p>
+      </div>
+
+      <!-- Procedure Grid -->
+      <div class="procedure-grid">
+        <div class="procedure-left">
+          <div class="procedure-step-card">
+            <div class="step-head">
+              <span class="step-idx">STEP 01</span>
+              <span class="step-name">Capacity Procurement & Partitioning</span>
+            </div>
+            <div class="step-desc">
+              Securing bare-metal GPU instances across heterogeneous cloud providers, mapping PCIe topology, and configuring virtualized GPU slices or multi-instance configurations.
+            </div>
+          </div>
+          <div class="procedure-step-card">
+            <div class="step-head">
+              <span class="step-idx">STEP 02</span>
+              <span class="step-name">Weight Serialization & VRAM Staging</span>
+            </div>
+            <div class="step-desc">
+              Streaming hundreds of gigabytes of model weights from object storage into high-bandwidth memory (HBM), allocating tensor buffers, and compiling static execution graphs.
+            </div>
+          </div>
+          <div class="procedure-step-card">
+            <div class="step-head">
+              <span class="step-idx">STEP 03</span>
+              <span class="step-name">Iterative Forward Pass & Token Streaming</span>
+            </div>
+            <div class="step-desc">
+              Running autoregressive matrix multiplications token-by-token, managing dynamic KV caches, and streaming generated tokens over persistent HTTP/2 or SSE channels.
+            </div>
+          </div>
+        </div>
+
+        <div class="visual-card">
+          <div class="visual-label">
+            <span>Architecture Diagram</span>
+            <span>Figure 1.1</span>
+          </div>
+          <svg viewBox="0 0 440 280" width="100%" height="240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Multi-Tier Inference Engineering Stack">
+            <title>The Multi-Tier Inference Engineering Stack</title>
+            <rect x="20" y="20" width="400" height="42" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="220" y="46" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="var(--ink)" text-anchor="middle">Application Layer (Client gRPC, SSE, Agents)</text>
+
+            <rect x="20" y="74" width="400" height="42" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="220" y="100" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="var(--ink)" text-anchor="middle">Serving Engine (vLLM, SGLang, Continuous Batcher)</text>
+
+            <rect x="20" y="128" width="400" height="42" rx="4" fill="var(--card)" stroke="var(--accent)" stroke-width="1.5" />
+            <text x="220" y="154" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="var(--accent)" text-anchor="middle">Kernel Layer (CUDA, Triton, FlashAttention, Fused GEMM)</text>
+
+            <rect x="20" y="182" width="400" height="42" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="220" y="208" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="var(--ink)" text-anchor="middle">Interconnect Fabric (NVLink, NVSwitch, InfiniBand RoCE)</text>
+
+            <rect x="20" y="236" width="400" height="42" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="220" y="262" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="var(--ink)" text-anchor="middle">Silicon Accelerator (NVIDIA H100, B200, Rubin)</text>
+          </svg>
+          <div class="visual-caption">
+            Vertical integration in inference: performance is governed by memory movement between silicon HBM and fused CUDA kernels, orchestrated by continuous batching runtimes.
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-grid">
+        <div class="example-card">
+          <div class="example-tag tag-obvious">01 // The Canonical Case</div>
+          <div class="example-title">Interactive Conversational Agent</div>
+          <div class="example-body">
+            Serving interactive programming assistants where human users demand sub-500ms Time-to-First-Token (TTFT) and sustained 40+ tokens/sec output streaming to match reading speed.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-counter">02 // The Counter-Intuitive Case</div>
+          <div class="example-title">High-Throughput Offline Batch Embeddings</div>
+          <div class="example-body">
+            Generating embeddings for 500 million documents where per-token latency is irrelevant, but saturating compute cores and maximizing memory throughput slashes AWS bills by 80%.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-edge">03 // The Stress Edge-Case</div>
+          <div class="example-title">Viral Weight Release Traffic Spike</div>
+          <div class="example-body">
+            A breakthrough open-source weights drop triggers a 10x sudden query surge within 20 minutes, requiring automated cross-cloud provisioning across multi-region clusters.
+          </div>
+        </div>
+      </div>
+
+      <!-- Analogy & Misconception -->
+      <div class="critique-grid">
+        <div class="analogy-card">
+          <div class="analogy-label">Conceptual Analogy</div>
+          <div class="analogy-text">
+            <strong>Formula 1 Pit Stop vs. Automobile Assembly Line:</strong> Model training is the factory floor building the vehicle over months with massive, batch-oriented power. Inference is the high-speed pit stop during an active race—every millisecond counts, fuel must be transferred instantly, and a single mistake knocks the entire car out of the race.
+          </div>
+        </div>
+        <div class="wrong-card">
+          <div class="wrong-label">Operational Anti-Pattern</div>
+          <div class="wrong-text">
+            <strong>"AI models write all the code, so systems infrastructure engineers are obsolete."</strong> In reality, as models generate more code and handle more workflows, the sheer computational demand for token generation explodes exponentially, making inference systems engineering the scarcest skill in modern tech.
+          </div>
+        </div>
+      </div>
+
+      <div class="why-matters-bar">
+        <span class="why-matters-tag">Why This Matters</span>
+        <span>Without understanding the full vertical stack, engineering teams deploy inefficient runtimes that cost 10x more per token and fail under real-world production concurrency.</span>
+      </div>
+
+      <div class="inter-link-box">
+        <span>Proceeding to hardware constraints:</span>
+        <a href="#mod-2">Module 02 examines physical GPU fragility, catastrophic failures, and cold starts →</a>
+      </div>
+    </section>
+
+    <!-- MODULE 2 -->
+    <section class="module-section" id="mod-2">
+      <div class="module-header">
+        <div class="module-number">Procedure 02</div>
+        <h2 class="module-title">The Physical Reality: GPU Fragility, High Availability & Cold Starts</h2>
+      </div>
+
+      <div class="explainer-box">
+        <div class="explainer-head">🔍 What is It in Simple Terms?</div>
+        <div class="explainer-text">
+          <strong>GPU Fragility</strong> refers to the physical fact that graphics accelerator chips run so hot and consume so much electricity (700W–1000W+) that they break down 20 times more often than normal CPU computers. <strong>Cold Starts</strong> refer to the agonizing delay (often 5 to 8 minutes) required to turn on an idle GPU and download 500 gigabytes of model weight numbers before the first user request can even begin.
+        </div>
+      </div>
+
+      <div class="prose-block">
+        <p>
+          Engineers arriving from traditional backend or database disciplines typically rely on server hardware that behaves predictably. In a standard enterprise CPU environment running Postgres, an individual compute node boasts a Mean Time Between Failures (MTBF) measured in hundreds of thousands or even millions of hours. A single CPU server rarely dies out of nowhere—perhaps once per year across a large fleet.
+        </p>
+        <p>
+          In AI infrastructure, the physical silicon is vastly more fragile. Modern accelerator GPUs (such as H100s and B200s) draw 700 to 1,000+ watts each, operating under extreme thermal and electrical stress with billions of microscopic interconnects and massive High Bandwidth Memory (HBM) stacks. Real-world empirical data adapted from Meta's Llama 3 training cluster reveals that hardware failures occur approximately <strong>once every 50,000 GPU hours</strong>.
+        </p>
+        <p>
+          Consider the statistical implication: if you deploy a single high-performance 8x H100 node running continuously for 365 days, your cluster accumulates 70,080 GPU hours. Statistically, there is an over <strong>50% probability that at least one GPU will experience a fatal hardware crash</strong> during that year. Worse still, because models are distributed across the node via NVLink, when a single GPU fails with an unrecoverable PCIe bus or ECC memory parity error, the <em>entire 8-GPU node</em> must be evicted, rebooted, or physically replaced.
+        </p>
+        <p>
+          This fragility fundamentally transforms the meaning of High Availability (HA). While database companies consider 99.99% ("four nines") uptime the bare table stakes, achieving four nines in production inference is best-in-class. Five nines is extraordinarily difficult. Furthermore, recovering from a failure is severely constrained by the <strong>cold start nightmare</strong>. Unlike a lightweight 500MB PostgreSQL container, an AI inference container image is 10 to 50 GB. Once pulled, you must stream 100 to 500 GB of model weights into VRAM. Even with an exceptional 1 GB/s network throughput, streaming 500 GB takes <strong>500 seconds—over eight minutes</strong>—before your service can process a single token.
+        </p>
+      </div>
+
+      <!-- THREE.JS 3D MULTI-GPU TOPOLOGY SCENE -->
+      <div class="visual-card">
+        <div class="visual-label">
+          <span>Interactive 3D Hardware Simulation</span>
+          <span>8x GPU Server Node with NVLink Mesh Backplane</span>
+        </div>
+        
+        <div class="three-container" id="three-gpu-viewport" role="region" aria-label="Interactive 3D Model of 8-GPU Server Node">
+          <!-- Live Canvas element created via JS -->
+          <div class="three-hud" id="three-hud">
+            <div class="hud-title">NODE TELEMETRY: 8x ACCELERATOR TRAY</div>
+            <div id="hud-status">Status: Healthy | NVLink: 900 GB/s</div>
+            <div id="hud-vram">Total VRAM: 640 GB HBM3 | Power: 5.6 kW</div>
+            <div id="hud-active" style="color:#38bdf8; margin-top:3px;">Hover or click GPU modules to inspect</div>
+          </div>
+
+          <div class="three-controls-bar">
+            <span>🖱️ Click & Drag to Orbit | Scroll to Zoom</span>
+            <div class="three-btn-group">
+              <button class="three-btn" id="btn-spin">Auto-Rotate</button>
+              <button class="three-btn" id="btn-toggle-packets">Toggle Packets</button>
+              <button class="three-btn" id="btn-reset-cam">Reset View</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="visual-caption">
+          Figure 2.1: Architectural visualization of an 8x accelerator server tray. When one GPU module experiences an XID parity fault, the high-speed NVLink ring is severed, requiring entire node evacuation.
+        </div>
+      </div>
+
+      <!-- Real-World Datacenter Photo Placeholder -->
+      <figure class="photo-placeholder">
+        <div class="placeholder-box" role="img" aria-label="Detailed technical photograph of an open-frame liquid-cooled NVIDIA DGX server tray showing 8 GPU accelerator modules, copper cold-plates, and NVLink switch boards">
+          <div class="placeholder-icon">📷</div>
+          <p><strong>Physical Hardware Specimen: High-Density Liquid-Cooled 8-GPU Server Tray</strong></p>
+          <p style="font-size:12px; margin-top:4px; max-width:55ch;">
+            Real-world enterprise deployments utilize 4U rackmount enclosures with dual x86/ARM host processors, 2TB system DDR5, and direct-to-chip liquid cooling loops dissipating 10.2 kW of thermal energy.
+          </p>
+        </div>
+        <figcaption>Reference hardware: Enterprise AI server chassis displaying high-power copper heatsinks and high-density power delivery stages.</figcaption>
+      </figure>
+
+      <!-- Real-World Examples -->
+      <div class="examples-grid">
+        <div class="example-card">
+          <div class="example-tag tag-obvious">01 // The Canonical Case</div>
+          <div class="example-title">Fatal XID Driver Crash</div>
+          <div class="example-body">
+            An H100 experiences an unrecoverable XID 79 error (GPU fell off the PCIe bus) during live traffic, requiring automated health checks to instantly isolate the node from the load balancer.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-counter">02 // The Counter-Intuitive Case</div>
+          <div class="example-title">The Multi-Cloud Availability Paradox</div>
+          <div class="example-body">
+            Deploying across AWS, GCP, and specialized GPU clouds eliminates single-provider lock-in, but increases network variability, cross-region egress costs, and cold start sync complexity.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-edge">03 // The Stress Edge-Case</div>
+          <div class="example-title">Weight Pre-warming Under Cache Eviction</div>
+          <div class="example-body">
+            A sudden failover triggers an autoscaling event where local NVMe weight caches are empty, causing an 8-minute cold start while thousands of customer HTTP requests queue up.
+          </div>
+        </div>
+      </div>
+
+      <div class="critique-grid">
+        <div class="analogy-card">
+          <div class="analogy-label">Systems Analogy</div>
+          <div class="analogy-text">
+            <strong>Aircraft Carrier Flight Deck:</strong> High-performance fighter jets (GPUs) require intense maintenance, high fuel burn, and experience frequent technical groundings. The carrier cannot pause operations; it must manage continuous rotations, immediate reserve launches, and aggressive active failover.
+          </div>
+        </div>
+        <div class="wrong-card">
+          <div class="wrong-label">Operational Anti-Pattern</div>
+          <div class="wrong-text">
+            <strong>"Cloud provider SLAs guarantee four nines, so our AI endpoints will remain stable."</strong> Hyperscaler SLAs specifically exclude GPU hardware dropouts, thermal throttling, and silent data corruption. High availability must be engineered at the application routing layer.
+          </div>
+        </div>
+      </div>
+
+      <div class="why-matters-bar">
+        <span class="why-matters-tag">Why This Matters</span>
+        <span>Inference providers who fail to build active-active failover and fast weight streaming suffer recurring, prolonged outages that destroy user trust.</span>
+      </div>
+
+      <div class="inter-link-box">
+        <span>Connecting silicon limits to memory architecture:</span>
+        <a href="#mod-3">Module 03 breaks down the exact VRAM math and memory bandwidth wall →</a>
+      </div>
+    </section>
+
+    <!-- MODULE 3 -->
+    <section class="module-section" id="mod-3">
+      <div class="module-header">
+        <div class="module-number">Procedure 03</div>
+        <h2 class="module-title">Model Architecture, VRAM Arithmetic & The Memory Bandwidth Wall</h2>
+      </div>
+
+      <div class="explainer-box">
+        <div class="explainer-head">🔍 What is It in Simple Terms?</div>
+        <div class="explainer-text">
+          <strong>The Memory Bandwidth Wall</strong> is the fundamental hardware bottleneck in AI: the computing cores inside a GPU can multiply numbers thousands of times faster than memory can feed those numbers to the chip. In generative AI, generating text requires reading every single parameter weight from memory for every single character or token produced. If memory transfer is slow, the GPU sits starved of data.
+        </div>
+      </div>
+
+      <div class="prose-block">
+        <p>
+          Why does a larger frontier model take significantly longer to generate an answer than a smaller model? Why does Claude Opus or a 1-trillion parameter model take seconds or tens of seconds, while Claude Sonnet or an 8B model streams responses nearly instantaneously?
+        </p>
+        <p>
+          The answer lies not merely in raw parameter count, but in the physical mechanics of <strong>General Matrix Multiplications (GEMM)</strong> and the severe constraint known as the <strong>Memory Bandwidth Wall</strong>. During the generation phase of autoregressive language models, execution is almost entirely <em>memory-bandwidth bound</em>, not compute bound. To generate a single output token, the GPU must fetch every single weight parameter from High Bandwidth Memory (HBM) into on-chip SRAM/registers.
+        </p>
+        <p>
+          Consider the exact memory arithmetic for a frontier model like Kimi k2.5 or a 1-trillion parameter architecture. If quantized to 4-bit precision (FP4 or INT4), each parameter occupies half a byte (0.5 bytes). Thus:
+        </p>
+        <p style="font-family:var(--mono); background:var(--card); padding:12px 16px; border-radius:4px; border:1px solid var(--line); font-size:14px;">
+          Static Weights = 1,000,000,000,000 params × 0.5 bytes = 500 Gigabytes
+        </p>
+        <p>
+          A state-of-the-art NVIDIA B200 accelerator features 192 GB of HBM3e VRAM. You cannot fit 500 GB of weights into one B200 (192 GB) or two B200s (384 GB). You need a minimum of four B200s (768 GB) purely to hold the unmoving weights. However, static weights represent only a portion of real-world runtime memory. You must allocate substantial VRAM headroom for:
+        </p>
+        <ul style="margin: 0 0 18px 24px; color:var(--ink-secondary); font-size:15px; line-height:1.6;">
+          <li><strong>The Key-Value (KV) Cache:</strong> Storing past attention key and value projections for every concurrent user across long context windows.</li>
+          <li><strong>Activation Tensors & Workspaces:</strong> Intermediate scratchpad memory allocated by CUDA kernels during multi-head attention and feedforward layers.</li>
+          <li><strong>CUDA Runtime Overhead & Paged Buffer Fragmentation:</strong> Memory reserved by the operating system and drivers.</li>
+        </ul>
+        <p>
+          Consequently, a 500 GB model requires an <strong>8-GPU node</strong> (1,536 GB total VRAM on B200s) to operate with reasonable concurrency. Furthermore, the hardware roadmap reflects this relentless fight against memory bandwidth: from Hopper (H100, 3.35 TB/s HBM3) to Blackwell (B200, 8.0 TB/s HBM3e with asynchronous tensor cores and CCUDA paradigms), and onward to Rubin—the first GPU designed from initial tape-out specifically for the disaggregated, memory-bound reality of modern LLM inference.
+        </p>
+      </div>
+
+      <!-- INTERACTIVE VRAM SIZING CALCULATOR -->
+      <div class="calc-box" aria-labelledby="calc-heading">
+        <div class="calc-header">
+          <div class="calc-title" id="calc-heading">Interactive VRAM & Cluster Hardware Sizer</div>
+          <span style="font-family:var(--mono); font-size:11px; color:var(--mut);">Real-Time Memory Allocation Model</span>
+        </div>
+
+        <div class="calc-grid">
+          <div class="calc-control">
+            <label for="model-preset">Model Architecture</label>
+            <select id="model-preset">
+              <option value="8">8B Dense Model (e.g. Llama 3 8B)</option>
+              <option value="70">70B Dense Model (e.g. Llama 3 70B)</option>
+              <option value="405">405B Frontier Dense (e.g. Llama 3 405B)</option>
+              <option value="1000" selected>1,000B (1T) MoE Model (e.g. Kimi 2.5 / DeepSeek)</option>
+            </select>
+          </div>
+
+          <div class="calc-control">
+            <label for="quant-preset">Precision / Quantization</label>
+            <select id="quant-preset">
+              <option value="2.0">FP16 (2.0 Bytes / Param)</option>
+              <option value="1.0">FP8 (1.0 Byte / Param)</option>
+              <option value="0.5" selected>FP4 / INT4 (0.5 Bytes / Param)</option>
+            </select>
+          </div>
+
+          <div class="calc-control">
+            <label for="concurrency-range">Concurrency: <span id="val-concurrency" style="color:var(--accent); font-weight:700;">64</span> Users</label>
+            <input type="range" id="concurrency-range" min="1" max="256" value="64">
+          </div>
+
+          <div class="calc-control">
+            <label for="context-range">Context Length: <span id="val-context" style="color:var(--accent); font-weight:700;">16k</span> Tokens</label>
+            <input type="range" id="context-range" min="2" max="64" step="2" value="16">
+          </div>
+        </div>
+
+        <div class="calc-results">
+          <div>
+            <div class="calc-stat-label">STATIC WEIGHT VRAM</div>
+            <div class="calc-stat-val" id="res-weights">500.0 GB</div>
+          </div>
+          <div>
+            <div class="calc-stat-label">DYNAMIC KV CACHE</div>
+            <div class="calc-stat-val" id="res-kv">131.1 GB</div>
+          </div>
+          <div>
+            <div class="calc-stat-label">TOTAL VRAM NEEDED</div>
+            <div class="calc-stat-val" id="res-total">694.2 GB</div>
+          </div>
+          <div>
+            <div class="calc-stat-label">MINIMUM HARDWARE NODE</div>
+            <div class="calc-stat-val" id="res-hw" style="color:var(--ok);">8x B200 (1,536 GB)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-grid">
+        <div class="example-card">
+          <div class="example-tag tag-obvious">01 // The Canonical Case</div>
+          <div class="example-title">70B Model on Dual H100s</div>
+          <div class="example-body">
+            A 70B parameter model in FP8 requires 70 GB of weights. Two 80GB H100s provide 160 GB total VRAM, leaving 90 GB of headroom for KV cache serving ~32 concurrent streams.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-counter">02 // The Counter-Intuitive Case</div>
+          <div class="example-title">Small Dense vs. Giant Sparse MoE</div>
+          <div class="example-body">
+            A dense 70B model can run slower per token than a 500B Mixture-of-Experts model because the MoE only activates 39B parameters per token, drastically cutting memory bandwidth fetch time.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-edge">03 // The Stress Edge-Case</div>
+          <div class="example-title">Sudden Mid-Generation OOM</div>
+          <div class="example-body">
+            A user requests a long code generation task; at token 7,800 the dynamic KV cache exhausts remaining VRAM headroom, causing the CUDA process to crash without PagedAttention.
+          </div>
+        </div>
+      </div>
+
+      <div class="critique-grid">
+        <div class="analogy-card">
+          <div class="analogy-label">Architectural Analogy</div>
+          <div class="analogy-text">
+            <strong>The Executive Desk vs. The Remote Archive:</strong> On-chip SRAM and registers are your immediate desk surface. High Bandwidth Memory (HBM) is the office bookshelf. Disk storage or network streaming is the archive three towns away. If the documents cannot fit on the bookshelf, processing grinds to an absolute halt.
+          </div>
+        </div>
+        <div class="wrong-card">
+          <div class="wrong-label">Operational Anti-Pattern</div>
+          <div class="wrong-text">
+            <strong>"To double inference speed, simply buy twice as many GPUs."</strong> Adding GPUs distributes compute, but introduces inter-GPU communication latency over NVLink or PCIe. Unless the parallelism scheme is carefully chosen, extra GPUs create communication bottlenecks that make responses slower.
+          </div>
+        </div>
+      </div>
+
+      <div class="why-matters-bar">
+        <span class="why-matters-tag">Why This Matters</span>
+        <span>Understanding VRAM limits prevents catastrophic Out-Of-Memory crashes in production and directly dictates the unit economics of serving frontier AI models.</span>
+      </div>
+
+      <div class="inter-link-box">
+        <span>Distributing models across multiple GPUs:</span>
+        <a href="#mod-4">Module 04 deconstructs distributed parallelism: Tensor vs. Expert Routing →</a>
+      </div>
+    </section>
+
+    <!-- MODULE 4 -->
+    <section class="module-section" id="mod-4">
+      <div class="module-header">
+        <div class="module-number">Procedure 04</div>
+        <h2 class="module-title">Distributed Parallelism: Tensor vs. Expert Routing & KV Cache Coordination</h2>
+      </div>
+
+      <div class="explainer-box">
+        <div class="explainer-head">🔍 What is It in Simple Terms?</div>
+        <div class="explainer-text">
+          <strong>Parallelism</strong> means splitting a giant neural network across multiple GPU chips so it can fit and run fast. <strong>Tensor Parallelism</strong> chops each mathematical layer into horizontal slices across GPUs so they work on the exact same token together (maximizing speed/lowest latency). <strong>Expert Parallelism</strong> puts different specialized "brain departments" (experts) on different GPUs, routing incoming requests to only the GPUs that know the answer.
+        </div>
+      </div>
+
+      <div class="prose-block">
+        <p>
+          When a model's weights and KV cache exceed the capacity of a single physical accelerator, or when latency targets mandate faster execution, the model must be distributed across multiple GPUs. This raises an immediate fundamental question: <em>when an HTTP request arrives and is processed across an 8-GPU cluster, why does the client receive one coherent response instead of eight contradictory answers?</em>
+        </p>
+        <p>
+          The solution lies in <strong>distributed weight sharding with synchronized context sharing</strong>. The model's weights are sliced across GPUs, but intermediate activations and hidden states are shared back and forth across high-speed intra-node interconnects called <strong>NVLink</strong> (operating at up to 900 GB/s to 1.8 TB/s per GPU).
+        </p>
+        <p>
+          Two primary parallelism strategies govern modern inference:
+        </p>
+        <ul style="margin: 0 0 18px 24px; color:var(--ink-secondary); font-size:15px; line-height:1.6;">
+          <li>
+            <strong>Tensor Parallelism (TP):</strong> Splits individual weight matrices (such as attention projections and feedforward layers) across GPUs. Every GPU computes a slice of the matrix multiplication for every token, followed by an immediate collective <code>all-reduce</code> communication operation over NVLink. <em>Tensor Parallelism is optimized for low latency</em> because it harnesses the combined memory bandwidth of all GPUs simultaneously for single requests.
+          </li>
+          <li>
+            <strong>Expert Parallelism (EP):</strong> Utilized in Mixture-of-Experts (MoE) models. Instead of splitting every matrix, entire expert feedforward networks reside on designated GPUs. For instance, in a model with 16 experts deployed across 8 GPUs, exactly 2 experts reside on each GPU. During each forward pass, a gating router directs tokens to the specific GPUs hosting the chosen experts.
+          </li>
+        </ul>
+        <p>
+          Consider Philip's memorable analogy: <em>Expert Parallelism behaves like a college student walking between professors' offices across campus</em>. To solve a complex problem, the student carries their notes (the hidden state context), consults Professor A on GPU 2, walks over to consult Professor B on GPU 5, and finally leaves the department with the complete answer.
+        </p>
+        <p>
+          Conversely, naive <strong>Pipeline Parallelism (PP)</strong>—where layers 1–10 live on GPU 1, layers 11–20 on GPU 2, etc.—is notoriously inefficient for interactive inference because it introduces massive "pipeline bubbles" where downstream GPUs sit completely idle waiting for upstream layers to complete.
+        </p>
+      </div>
+
+      <!-- INTERACTIVE SVG PROCESS ANIMATION: MoE TOKEN ROUTING SIMULATOR -->
+      <div class="visual-card">
+        <div class="visual-label">
+          <span>Interactive Process Simulator</span>
+          <span>Figure 4.1: MoE Dynamic Expert Routing & NVLink Token Forward Pass</span>
+        </div>
+
+        <svg id="moe-sim-svg" viewBox="0 0 780 240" width="100%" height="240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MoE Dynamic Expert Routing Animation">
+          <title>MoE Dynamic Expert Routing Animation</title>
+          <!-- Router & Dispatch Area -->
+          <rect x="20" y="70" width="110" height="100" rx="6" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+          <text x="75" y="112" font-family="Georgia, serif" font-size="13" font-weight="700" fill="var(--ink)" text-anchor="middle">Router Gating</text>
+          <text x="75" y="132" font-family="-apple-system, sans-serif" font-size="11" fill="var(--mut)" text-anchor="middle">Token Dispatch</text>
+
+          <!-- Interconnect Bus (NVLink) -->
+          <line x1="130" y1="120" x2="660" y2="120" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4" id="nvlink-bus-line" />
+          <text x="390" y="110" font-family="monospace" font-size="11" fill="var(--accent)" text-anchor="middle">NVLink Crossbar Bus (900 GB/s)</text>
+
+          <!-- 4 GPUs representing cluster -->
+          <!-- GPU 0 -->
+          <rect id="gpu-box-0" x="180" y="30" width="105" height="60" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" />
+          <text x="232" y="55" font-family="Georgia, serif" font-size="12" font-weight="bold" fill="var(--ink)" text-anchor="middle">GPU 0</text>
+          <text x="232" y="72" font-family="monospace" font-size="10" fill="var(--mut)" text-anchor="middle">Experts [1, 2]</text>
+
+          <!-- GPU 1 -->
+          <rect id="gpu-box-1" x="310" y="30" width="105" height="60" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" />
+          <text x="362" y="55" font-family="Georgia, serif" font-size="12" font-weight="bold" fill="var(--ink)" text-anchor="middle">GPU 1</text>
+          <text x="362" y="72" font-family="monospace" font-size="10" fill="var(--mut)" text-anchor="middle">Experts [3, 4]</text>
+
+          <!-- GPU 2 -->
+          <rect id="gpu-box-2" x="440" y="150" width="105" height="60" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" />
+          <text x="492" y="175" font-family="Georgia, serif" font-size="12" font-weight="bold" fill="var(--ink)" text-anchor="middle">GPU 2</text>
+          <text x="492" y="192" font-family="monospace" font-size="10" fill="var(--mut)" text-anchor="middle">Experts [5, 6]</text>
+
+          <!-- GPU 3 -->
+          <rect id="gpu-box-3" x="570" y="150" width="105" height="60" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" />
+          <text x="622" y="175" font-family="Georgia, serif" font-size="12" font-weight="bold" fill="var(--ink)" text-anchor="middle">GPU 3</text>
+          <text x="622" y="192" font-family="monospace" font-size="10" fill="var(--mut)" text-anchor="middle">Experts [7, 8]</text>
+
+          <!-- Output Token Collector -->
+          <rect x="680" y="70" width="80" height="100" rx="6" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+          <text x="720" y="115" font-family="Georgia, serif" font-size="12" font-weight="bold" fill="var(--ink)" text-anchor="middle">Output</text>
+          <text x="720" y="135" font-family="monospace" font-size="11" fill="var(--ok)" text-anchor="middle" id="output-token-val">token</text>
+
+          <!-- Animated Token Node -->
+          <circle id="animated-token" cx="130" cy="120" r="8" fill="var(--accent)" stroke="#ffffff" stroke-width="2" />
+        </svg>
+
+        <div class="anim-controls">
+          <button class="anim-btn" id="btn-play-sim">▶ Play Simulation</button>
+          <button class="anim-btn" id="btn-step-sim">⏭ Step Next</button>
+          <button class="anim-btn" id="btn-reset-sim">↺ Reset</button>
+          <span class="anim-status" id="anim-stage-label">Stage: Initializing Router</span>
+        </div>
+
+        <div class="visual-caption">
+          Figure 4.1: Watch tokens dynamically hop between GPU nodes via NVLink to activate chosen MoE experts before reaching output sampling.
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-grid">
+        <div class="example-card">
+          <div class="example-tag tag-obvious">01 // The Canonical Case</div>
+          <div class="example-title">Tensor Parallelism (TP=8) on Single Node</div>
+          <div class="example-body">
+            Slicing a dense model across 8x H100 GPUs within a single NVLink tray to minimize latency per token for interactive code generation.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-counter">02 // The Counter-Intuitive Case</div>
+          <div class="example-title">Cross-Node TP Latency Trap</div>
+          <div class="example-body">
+            Attempting Tensor Parallelism across separate physical servers over standard 100Gb Ethernet causes severe latency degradation because network hops are 100x slower than NVLink.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-edge">03 // The Stress Edge-Case</div>
+          <div class="example-title">KV Cache Prefix Reuse at Scale</div>
+          <div class="example-body">
+            Thousands of coding agents send identical 60k-token system prompts; caching the prefix in VRAM skips 95% of prefill compute, slashing TTFT from 8s to 150ms.
+          </div>
+        </div>
+      </div>
+
+      <div class="critique-grid">
+        <div class="analogy-card">
+          <div class="analogy-label">Campus Analogy</div>
+          <div class="analogy-text">
+            <strong>The Student and the Specialized Professors:</strong> Rather than forcing every professor to read the entire library and grade every single paper, each professor specializes. The student visits only the relevant professors, gathers individual evaluations, and walks away with the finished degree.
+          </div>
+        </div>
+        <div class="wrong-card">
+          <div class="wrong-label">Operational Anti-Pattern</div>
+          <div class="wrong-text">
+            <strong>"Pipeline parallelism is easy to set up, so we should use it for live chat endpoints."</strong> Pipeline parallelism leaves most GPUs waiting idle in bubbles during single-request inference. It is suitable for batched training, but disastrous for interactive user latency.
+          </div>
+        </div>
+      </div>
+
+      <div class="why-matters-bar">
+        <span class="why-matters-tag">Why This Matters</span>
+        <span>Selecting the wrong parallelism paradigm leads directly to underutilized silicon, ballooning cloud costs, and sluggish user response times.</span>
+      </div>
+
+      <div class="inter-link-box">
+        <span>Optimizing single-node and cluster throughput:</span>
+        <a href="#mod-5">Module 05 covers applied performance alchemy: Continuous Batching & Speculative Decoding →</a>
+      </div>
+    </section>
+
+    <!-- MODULE 5 -->
+    <section class="module-section" id="mod-5">
+      <div class="module-header">
+        <div class="module-number">Procedure 05</div>
+        <h2 class="module-title">Applied Performance Alchemy: Continuous Batching, Quantization & Speculative Decoding</h2>
+      </div>
+
+      <div class="explainer-box">
+        <div class="explainer-head">🔍 What is It in Simple Terms?</div>
+        <div class="explainer-text">
+          <strong>Continuous Batching</strong> is like an elevator that lets passengers step in and out at every single floor instead of making everyone wait until the entire trip is finished. <strong>Speculative Decoding</strong> uses a tiny, hyper-fast "intern model" to quickly guess 5 words ahead, while the giant "genius model" checks all 5 guesses in a single glance—speeding up generation by nearly 3x!
+        </div>
+      </div>
+
+      <div class="prose-block">
+        <p>
+          In production inference, applied engineering creates extraordinary competitive advantages. Consider this empirical benchmark reality: if you evaluate an open-source model like Kimi or Llama 3 across various cloud providers, top-tier platforms (such as BaseTen, vLLM, and SGLang) deliver sustained throughput exceeding <strong>300 tokens per second</strong>, while unoptimized long-tail providers struggle at <strong>50 tokens per second</strong>—frequently at identical or higher pricing.
+        </p>
+        <p>
+          Why does this 6x performance differential exist? It is the direct result of <strong>Applied Performance Alchemy</strong>: the rapid translation of cutting-edge systems research papers into live production kernels within weeks, rather than waiting decades as in traditional enterprise software.
+        </p>
+        <p>
+          Four core techniques form this performance arsenal:
+        </p>
+        <ol style="margin: 0 0 18px 24px; color:var(--ink-secondary); font-size:15px; line-height:1.65;">
+          <li>
+            <strong>Continuous (Iteration-Level) Batching:</strong> Traditional web servers process requests in static batches. If Request A generates 10 tokens and Request B generates 500 tokens, static batching forces GPU cores to sit idle waiting for Request B to finish. Continuous batching evicts completed requests at every single iteration step and immediately injects newly arrived requests into the active forward pass, multiplying GPU saturation.
+          </li>
+          <li>
+            <strong>Advanced Quantization (FP8 & FP4):</strong> Compressing weight matrices from 16-bit floats to 8-bit or 4-bit representations. Because inference is memory-bandwidth bound, cutting weight size in half doubles the effective memory transfer speed, yielding immediate 2x throughput gains with less than 0.5% degradation on standard reasoning benchmarks.
+          </li>
+          <li>
+            <strong>Speculative Decoding:</strong> Running a small, ultra-fast "draft model" (e.g. 1B) to generate 4–6 candidate tokens in parallel, and then using the large frontier target model (e.g. 70B) to verify all candidate tokens in a <em>single parallel forward pass</em>. Because verifying multiple tokens in parallel takes nearly the same time as generating one token, speculative decoding achieves 2x to 3x wall-clock latency reductions.
+          </li>
+          <li>
+            <strong>PagedAttention & KV Cache Prefix Reuse:</strong> Managing VRAM allocations like virtual memory pages in an operating system, eliminating memory fragmentation and allowing multi-turn agents to share cached system prompt prefixes instantly.
+          </li>
+        </ol>
+      </div>
+
+      <!-- INTERACTIVE SPECULATIVE DECODING STEPPER -->
+      <div class="spec-box" aria-labelledby="spec-heading">
+        <div class="calc-header">
+          <div class="calc-title" id="spec-heading">Interactive Speculative Decoding Simulator</div>
+          <span style="font-family:var(--mono); font-size:11px; color:var(--mut);">Draft Model Verification Cycle</span>
+        </div>
+
+        <p style="font-size:14px; color:var(--ink-secondary); margin-bottom:12px;">
+          Simulate a small 1B draft model proposing 5 tokens for the prompt: <em>"The database cluster failed because the..."</em>
+        </p>
+
+        <div class="spec-tokens-row" id="spec-tokens-display">
+          <div class="spec-token token-accepted">primary [Draft: ✓ Target: ✓]</div>
+          <div class="spec-token token-accepted">node [Draft: ✓ Target: ✓]</div>
+          <div class="spec-token token-accepted">ran [Draft: ✓ Target: ✓]</div>
+          <div class="spec-token token-rejected">rapidly [Draft: ✗]</div>
+          <div class="spec-token token-corrected">out (Target Correction)</div>
+        </div>
+
+        <div class="spec-desc">
+          <strong>Result of Single Forward Pass:</strong> The target model verified 3 draft tokens, rejected the 4th, and emitted a corrected token—yielding <strong>4 accepted tokens in a single execution step</strong>. Latency acceleration: <strong>2.8x faster</strong> than standard autoregressive decoding.
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-grid">
+        <div class="example-card">
+          <div class="example-tag tag-obvious">01 // The Canonical Case</div>
+          <div class="example-title">Continuous Batching for Chat APIs</div>
+          <div class="example-body">
+            Deploying iteration-level scheduling across variable-length customer conversations, quadrupling server concurrency without increasing hardware count.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-counter">02 // The Counter-Intuitive Case</div>
+          <div class="example-title">Two Models Run Faster Than One</div>
+          <div class="example-body">
+            Executing both a 1B draft model and a 70B target model simultaneously finishes a user response in 40% less wall-clock time than running the 70B model by itself.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-edge">03 // The Stress Edge-Case</div>
+          <div class="example-title">Speculative Rejection Cascade</div>
+          <div class="example-body">
+            On highly stochastic creative poetry tasks, the draft model divergence rate increases, causing speculative decoding to fall back to single-token generation without crashing.
+          </div>
+        </div>
+      </div>
+
+      <div class="critique-grid">
+        <div class="analogy-card">
+          <div class="analogy-label">Executive Analogy</div>
+          <div class="analogy-text">
+            <strong>The Executive and the Executive Assistant:</strong> The junior assistant drafts a full memorandum draft in 30 seconds. The senior executive reviews the draft, approves the first four paragraphs with a quick nod, edits a sentence in the fifth paragraph, and signs off. Total time spent: 1 minute instead of 20 minutes.
+          </div>
+        </div>
+        <div class="wrong-card">
+          <div class="wrong-label">Operational Anti-Pattern</div>
+          <div class="wrong-text">
+            <strong>"Quantization irreparably harms model reasoning and coding ability."</strong> Modern FP8 and modern block-scaled FP4 formats preserve over 99.5% of reasoning benchmarks while cutting memory pressure in half.
+          </div>
+        </div>
+      </div>
+
+      <div class="why-matters-bar">
+        <span class="why-matters-tag">Why This Matters</span>
+        <span>Inference alchemy turns an unsustainable $5.00/M-token infrastructure cost into an efficient $0.50/M-token business capable of scaling profitably.</span>
+      </div>
+
+      <div class="inter-link-box">
+        <span>Applying performance to business architecture:</span>
+        <a href="#mod-6">Module 06 explores task decomposition, fine-tuning economics, and the evaluation crisis →</a>
+      </div>
+    </section>
+
+    <!-- MODULE 6 -->
+    <section class="module-section" id="mod-6">
+      <div class="module-header">
+        <div class="module-number">Procedure 06</div>
+        <h2 class="module-title">Production Economics: Task Decomposition, Fine-Tuning & Evaluation Realities</h2>
+      </div>
+
+      <div class="explainer-box">
+        <div class="explainer-head">🔍 What is It in Simple Terms?</div>
+        <div class="explainer-text">
+          <strong>Task Decomposition</strong> means breaking a big app into tiny specialized jobs (search query, outlining, coding, checking) rather than asking one expensive giant model (like Opus or GPT-4o) to do everything. <strong>Evaluation Realities</strong> means understanding that public benchmark scores are often misleading; you must build custom test suites with real-world edge cases to know if your model actually works.
+        </div>
+      </div>
+
+      <div class="prose-block">
+        <p>
+          A widespread fallacy among teams adopting generative AI is the <strong>1-to-1 Model Swap Assumption</strong>: <em>"We currently pay millions calling Claude Opus or GPT-4o for everything. We will simply replace that single API endpoint with an open-source model like DeepSeek, and magically achieve a 10x cost reduction and 5x speedup."</em>
+        </p>
+        <p>
+          In enterprise production, this approach almost always fails. Frontier systems succeed through <strong>Task Decomposition</strong>. Rather than forcing a single monolithic model to handle every workflow, high-volume AI applications decompose complex systems into modular, atomic sub-tasks:
+        </p>
+        <ul style="margin: 0 0 18px 24px; color:var(--ink-secondary); font-size:15px; line-height:1.6;">
+          <li>Search query synthesis and metadata extraction</li>
+          <li>Structural document outline generation</li>
+          <li>Core drafting and content generation</li>
+          <li>Schema validation, SQL generation, and code formatting</li>
+          <li>Proofreading and stylistic compliance</li>
+        </ul>
+        <p>
+          An intelligent classification router dispatches each task to an appropriately sized, fine-tuned model. By applying post-training—combining Supervised Fine-Tuning (SFT) and Reinforcement Learning (RL) on clean domain-specific datasets—a compact 8B or 14B model will routinely <strong>outperform a generalist 400B model</strong> on that specific task, while running at 20x lower cost and 10x lower latency.
+        </p>
+        <p>
+          However, specialization introduces the greatest unsolved bottleneck in modern AI: <strong>The Evaluation Crisis</strong>. Public benchmarks (MMLU, GSM8k) are frequently saturated, contaminated, or detached from real user utility. Philip recounted a striking war story: attempting to use frontier language models to proofread his 47,000-word book manuscript. Despite building automated evaluation harnesses with few-shot examples and per-page chunking, the models caught only a few dozen errors. A human proofreader subsequently caught over a hundred critical errors the LLMs missed entirely. Without custom, ground-truth evaluation harnesses, teams cannot verify whether model updates improve or degrade production quality.
+        </p>
+        <p>
+          Finally, aspiring inference engineers face a "chicken-and-egg" dilemma: you need compute to gain experience, but need experience to access enterprise clusters. The transcript outlines accessible pathways: run local models via Ollama, experiment with ComfyUI and consumer GPUs, execute browser-based WebGPU tokenizers and embeddings, or rent low-cost cloud GPUs (A10s, L4s) for well under $1.00/hour to master frameworks like SGLang and vLLM. Furthermore, while Python and C++ dominate GPU kernels today, performance-critical client libraries are increasingly written in <strong>Rust</strong> to overcome Python's CPU-bound GIL bottlenecks when saturating high-throughput embedding endpoints.
+        </p>
+      </div>
+
+      <!-- INTERACTIVE FLASHCARD TERMINOLOGY DECK -->
+      <div class="calc-header" style="margin-top:28px;">
+        <div class="calc-title">Interactive Core Concepts Review</div>
+        <span style="font-family:var(--mono); font-size:11px; color:var(--mut);">Click Any Card to Flip</span>
+      </div>
+
+      <div class="flashcards-container">
+        <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" tabindex="0" aria-label="Flashcard: Tensor Parallelism">
+          <span class="fc-hint">Parallelism</span>
+          <div class="fc-front">
+            <div class="fc-content">Tensor Parallelism (TP)</div>
+            <span style="font-size:11px; color:var(--accent);">Click to Reveal Mechanism →</span>
+          </div>
+          <div class="fc-back">
+            Shards individual layer weight matrices across GPUs via NVLink. Lowers latency per token for single requests by maximizing aggregated memory bandwidth.
+          </div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" tabindex="0" aria-label="Flashcard: Expert Parallelism">
+          <span class="fc-hint">Mixture of Experts</span>
+          <div class="fc-front">
+            <div class="fc-content">Expert Parallelism (EP)</div>
+            <span style="font-size:11px; color:var(--accent);">Click to Reveal Mechanism →</span>
+          </div>
+          <div class="fc-back">
+            Allocates distinct expert networks to separate GPUs. Tokens dynamically route across the cluster like students visiting professor offices. Maximizes cluster throughput.
+          </div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" tabindex="0" aria-label="Flashcard: Hardware Failure Rate">
+          <span class="fc-hint">Reliability</span>
+          <div class="fc-front">
+            <div class="fc-content">GPU MTBF Reality</div>
+            <span style="font-size:11px; color:var(--accent);">Click to Reveal Statistic →</span>
+          </div>
+          <div class="fc-back">
+            One hardware failure every ~50,000 GPU hours. An 8-GPU node running for a year has a >50% failure likelihood, requiring automated active-active failover.
+          </div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" tabindex="0" aria-label="Flashcard: Speculative Decoding">
+          <span class="fc-hint">Acceleration</span>
+          <div class="fc-front">
+            <div class="fc-content">Speculative Decoding</div>
+            <span style="font-size:11px; color:var(--accent);">Click to Reveal Speedup →</span>
+          </div>
+          <div class="fc-back">
+            Small draft model proposes tokens in parallel; large target model verifies them in a single forward pass, unlocking 2x–3x latency reductions.
+          </div>
+        </div>
+      </div>
+
+      <!-- DIAGNOSTIC CONSOLE / TROUBLESHOOTING MATRIX -->
+      <div class="diagnostic-matrix" aria-labelledby="diag-heading">
+        <div class="calc-header">
+          <div class="calc-title" id="diag-heading">Production Diagnostic Console: Troubleshooting Matrix</div>
+          <span style="font-family:var(--mono); font-size:11px; color:var(--mut);">Systems Remediation Guide</span>
+        </div>
+
+        <div class="diag-tabs">
+          <button class="diag-tab-btn active" onclick="switchDiag('ttft', this)">Symptom: High TTFT</button>
+          <button class="diag-tab-btn" onclick="switchDiag('tpot', this)">Symptom: Low TPOT</button>
+          <button class="diag-tab-btn" onclick="switchDiag('oom', this)">Symptom: Mid-Run OOM</button>
+          <button class="diag-tab-btn" onclick="switchDiag('xid', this)">Symptom: Node Eviction</button>
+        </div>
+
+        <div class="diag-content" id="diag-output">
+          <strong>Root Cause:</strong> High Time-to-First-Token is typically caused by unoptimized prefill computation across long prompt contexts, or missed KV cache reuse.<br>
+          <strong>Remediation:</strong> Implement KV cache prefix caching (e.g. SGLang/vLLM PagedAttention) to cache static system prompts; disaggregate prefill and decode phases onto separate specialized GPU pools.
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-grid">
+        <div class="example-card">
+          <div class="example-tag tag-obvious">01 // The Canonical Case</div>
+          <div class="example-title">Task-Decomposed Medical Intake</div>
+          <div class="example-body">
+            Using a fine-tuned 3B model for medical entity extraction ($0.05/M tokens) and routing only complex differential diagnoses to a frontier model, cutting operational costs by 88%.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-counter">02 // The Counter-Intuitive Case</div>
+          <div class="example-title">The Proofreading Paradox</div>
+          <div class="example-body">
+            Generalist frontier models fail at catching nuanced copyediting errors in 50k-word manuscripts; small models fine-tuned with negative constraint examples catch 3x more errors.
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-tag tag-edge">03 // The Stress Edge-Case</div>
+          <div class="example-title">Python Client Saturation Bottleneck</div>
+          <div class="example-body">
+            High-throughput embedding ingestion servers become CPU-bound on Python client concurrency limits; rewriting the client in Rust saturates the GPU cluster fully.
+          </div>
+        </div>
+      </div>
+
+      <div class="critique-grid">
+        <div class="analogy-card">
+          <div class="analogy-label">Hospital Analogy</div>
+          <div class="analogy-text">
+            <strong>The Triage and Specialization Clinic:</strong> In a modern hospital, the Chief Neurosurgeon does not take blood pressure, schedule appointments, or dress minor scrapes. Specialized nurses, technicians, and pharmacists handle discrete functions, preserving the surgeon only for critical operations.
+          </div>
+        </div>
+        <div class="wrong-card">
+          <div class="wrong-label">Operational Anti-Pattern</div>
+          <div class="wrong-text">
+            <strong>"A model with 92% on MMLU will automatically provide superior customer experience in our app."</strong> Public benchmarks test synthetic general knowledge. Only custom evaluation harnesses testing your exact production edge cases guarantee real-world success.
+          </div>
+        </div>
+      </div>
+
+      <div class="why-matters-bar">
+        <span class="why-matters-tag">Why This Matters</span>
+        <span>Task decomposition and rigorous private evals prevent multi-million-dollar API waste and ensure systems deliver reliable, verified outputs in production.</span>
+      </div>
+
+      <div class="inter-link-box">
+        <span>Consolidating architectural knowledge:</span>
+        <a href="#summary">Proceed to Section 07 for the Summary Cheat Sheet, FAQ, and Next Actions →</a>
+      </div>
+    </section>
+
+    <!-- SECTION 7: SUMMARY CHEAT SHEET, FAQ & NEXT STEPS -->
+    <section class="module-section" id="summary">
+      <div class="module-header">
+        <div class="module-number">Summary & Reference</div>
+        <h2 class="module-title">Engineering Cheat Sheet & Production Reference</h2>
+      </div>
+
+      <table class="cheat-sheet-table" aria-label="Inference Engineering Reference Cheat Sheet">
+        <thead>
+          <tr>
+            <th>Architecture Dimension</th>
+            <th>Primary Mechanism</th>
+            <th>Bottleneck / Constraint</th>
+            <th>Production Best Practice</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Hardware Reliability</strong></td>
+            <td>Bare-metal GPU clusters (H100, B200)</td>
+            <td>1 hardware failure per 50,000 GPU hrs</td>
+            <td>Active-active multi-cloud failover; automated node isolation</td>
+          </tr>
+          <tr>
+            <td><strong>Memory Scaling</strong></td>
+            <td>High Bandwidth Memory (HBM3e)</td>
+            <td>Memory Bandwidth Wall during decode</td>
+            <td>Quantize to FP8/FP4; pre-allocate KV cache headroom</td>
+          </tr>
+          <tr>
+            <td><strong>Tensor Parallelism (TP)</strong></td>
+            <td>Shard weight matrices across GPUs</td>
+            <td>NVLink all-reduce communication overhead</td>
+            <td>Limit TP to single physical node (TP=8); optimize latency</td>
+          </tr>
+          <tr>
+            <td><strong>Expert Parallelism (EP)</strong></td>
+            <td>Shard MoE expert networks across nodes</td>
+            <td>Dynamic routing network congestion</td>
+            <td>Use for MoE architectures; optimize throughput</td>
+          </tr>
+          <tr>
+            <td><strong>Continuous Batching</strong></td>
+            <td>Iteration-level request scheduling</td>
+            <td>Dynamic memory allocation fragmentation</td>
+            <td>Deploy vLLM / SGLang with PagedAttention</td>
+          </tr>
+          <tr>
+            <td><strong>Speculative Decoding</strong></td>
+            <td>Draft model proposes, target verifies</td>
+            <td>Draft model divergence on random creative text</td>
+            <td>Pair 1B–3B draft models with 70B targets for 2x speedup</td>
+          </tr>
+          <tr>
+            <td><strong>Client & Serving Fabric</strong></td>
+            <td>gRPC, SSE streaming, Rust clients</td>
+            <td>Python GIL CPU-bound bottleneck</td>
+            <td>Compile high-throughput client libraries in Rust or Go</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- FREQUENTLY ASKED QUESTIONS -->
+      <h3 style="font-family:var(--serif); font-size:22px; margin:32px 0 16px 0;">Frequently Encountered Systems Questions</h3>
+      <div class="faq-accordion">
+        <details class="faq-item">
+          <summary class="faq-q">What is the difference between an AI Engineer and an Inference Engineer?</summary>
+          <div class="faq-a">
+            An AI Engineer typically operates above the API layer: writing prompts, orchestrating agents, chaining tool calls, and embedding vectors. An Inference Engineer operates below the API: optimizing GPU memory bandwidth, fusing CUDA/Triton kernels, managing cold starts, streaming model weights, and ensuring 99.99% uptime on hardware that breaks every 50,000 hours.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">Why is 4 nines of uptime so difficult for AI inference compared to relational databases?</summary>
+          <div class="faq-a">
+            CPUs fail once every million hours, whereas GPUs draw 700–1,000W and fail every 50,000 hours. Furthermore, while a database container is &lt;1 GB and starts instantly, an inference service requires streaming 100–500 GB of weights over the network, making cold start failover take 5–10 minutes unless aggressive pre-warming is implemented.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">How does an 8-GPU node process one user prompt without returning 8 separate answers?</summary>
+          <div class="faq-a">
+            Weights are sharded across the GPUs, but the intermediate hidden state activations are exchanged continuously across the 900 GB/s NVLink interconnect via collective all-reduce operations. Only one GPU hosts the final output token sampling head, producing a single unified token stream.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">When should an engineering team choose Tensor Parallelism over Expert Parallelism?</summary>
+          <div class="faq-a">
+            Tensor Parallelism should be used within a single 8-GPU node when minimizing per-token latency (TPOT) is paramount. Expert Parallelism should be used for Mixture-of-Experts architectures to scale throughput and accommodate massive models across clusters.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">How can an aspiring engineer gain hands-on inference experience without an 8x B200 cluster?</summary>
+          <div class="faq-a">
+            You do not need an $300,000 cluster to learn inference. Run Ollama on your local laptop, experiment with ComfyUI workflows on consumer GPUs, build browser WebGPU embedding engines, or rent cloud A10/L4 GPUs for well under $1.00/hour to deploy and optimize SGLang and vLLM runtimes.
+          </div>
+        </details>
+      </div>
+
+      <!-- NEXT STEPS CHECKLIST -->
+      <div class="checklist-box">
+        <div class="calc-title" style="margin-bottom:12px;">Immediate Practical Implementation Next Steps</div>
+        <div class="check-item">
+          <input type="checkbox" id="chk-1">
+          <label for="chk-1"><strong>Audit Production Latencies:</strong> Measure your current Time-to-First-Token (TTFT) versus Time-Per-Output-Token (TPOT) to determine whether your bottleneck is prefill compute or memory bandwidth.</label>
+        </div>
+        <div class="check-item">
+          <input type="checkbox" id="chk-2">
+          <label for="chk-2"><strong>Implement Prefix Caching:</strong> Configure PagedAttention prefix reuse for recurring system prompts and agent contexts to slash TTFT by up to 90%.</label>
+        </div>
+        <div class="check-item">
+          <input type="checkbox" id="chk-3">
+          <label for="chk-3"><strong>Deconstruct a Monolithic Pipeline:</strong> Identify one high-volume classification or extraction sub-task in your application, fine-tune a compact 8B model, and route requests away from expensive frontier APIs.</label>
+        </div>
+        <div class="check-item">
+          <input type="checkbox" id="chk-4">
+          <label for="chk-4"><strong>Build a Domain Evaluation Harness:</strong> Curate 100 verified domain edge cases with deterministic test scripts rather than relying on synthetic public benchmarks.</label>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- JAVASCRIPT: THEME, 3D SCENE, CALCULATORS, PROCESS ANIMATIONS -->
+<script>
+  /* ==========================================================================
+     1. THEME TOGGLE & PROGRESS TRACKER
+     ========================================================================== */
+  const themeToggle = document.getElementById('theme-toggle');
+  const htmlRoot = document.documentElement;
+
+  const savedTheme = localStorage.getItem('lab_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  htmlRoot.setAttribute('data-theme', savedTheme);
+  updateThemeIcon(savedTheme);
+
+  themeToggle.addEventListener('click', () => {
+    const cur = htmlRoot.getAttribute('data-theme');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    htmlRoot.setAttribute('data-theme', next);
+    localStorage.setItem('lab_theme', next);
+    updateThemeIcon(next);
+  });
+
+  function updateThemeIcon(theme) {
+    themeToggle.textContent = theme === 'dark' ? '☼' : '◑';
+  }
+
+  // Scroll Progress
+  const progressBar = document.getElementById('top-progress');
+  const navLinks = document.querySelectorAll('.rail-nav-link');
+  const sections = document.querySelectorAll('.module-section, .lab-header, .primer-section');
+
+  window.addEventListener('scroll', () => {
+    const totalH = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = (window.scrollY / (totalH || 1)) * 100;
+    progressBar.style.width = progress + '%';
+
+    let currentId = '';
+    sections.forEach(sec => {
+      const top = sec.offsetTop - 120;
+      if (window.scrollY >= top) {
+        currentId = sec.getAttribute('id');
+      }
+    });
+    navLinks.forEach(link => {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + currentId);
+    });
+  }, { passive: true });
+
+  /* ==========================================================================
+     2. ROBUST INTERACTIVE 3D HARDWARE SIMULATOR (Three.js with Canvas Fallback)
+     ========================================================================== */
+  (function initHardwareSimulator() {
+    const container = document.getElementById('three-gpu-viewport');
+    if (!container) return;
+
+    let autoSpin = false;
+    let showPackets = true;
+    const btnSpin = document.getElementById('btn-spin');
+    const btnTogglePackets = document.getElementById('btn-toggle-packets');
+    const btnResetCam = document.getElementById('btn-reset-cam');
+    const hudStatus = document.getElementById('hud-status');
+    const hudActive = document.getElementById('hud-active');
+
+    if (btnSpin) {
+      btnSpin.addEventListener('click', () => {
+        autoSpin = !autoSpin;
+        btnSpin.textContent = autoSpin ? 'Stop Spin' : 'Auto-Rotate';
+      });
+    }
+
+    if (btnTogglePackets) {
+      btnTogglePackets.addEventListener('click', () => {
+        showPackets = !showPackets;
+        btnTogglePackets.textContent = showPackets ? 'Hide Packets' : 'Show Packets';
+      });
+    }
+
+    // Attempt Three.js rendering if THREE is available
+    if (typeof THREE !== 'undefined') {
+      try {
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0d13);
+
+        const width = container.clientWidth || 700;
+        const height = container.clientHeight || 420;
+
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        camera.position.set(18, 14, 22);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffb266, 1.4);
+        dirLight.position.set(12, 24, 16);
+        scene.add(dirLight);
+
+        const cyanLight = new THREE.PointLight(0x38bdf8, 2.0, 60);
+        cyanLight.position.set(-12, -4, -12);
+        scene.add(cyanLight);
+
+        // Server Chassis Tray
+        const chassisGeo = new THREE.BoxGeometry(24, 1.0, 16);
+        const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1a212b, roughness: 0.6, metalness: 0.8 });
+        const chassis = new THREE.Mesh(chassisGeo, chassisMat);
+        chassis.position.y = -0.5;
+        scene.add(chassis);
+
+        // Gold PCB Traces & NVLink Backbone
+        const busGeo = new THREE.BoxGeometry(20, 0.35, 1.4);
+        const busMat = new THREE.MeshStandardMaterial({ color: 0xd97706, emissive: 0x92400e, roughness: 0.3 });
+        const nvlinkBus = new THREE.Mesh(busGeo, busMat);
+        nvlinkBus.position.set(0, 0.2, 0);
+        scene.add(nvlinkBus);
+
+        // 8 GPU Accelerator Blocks
+        const gpuGeo = new THREE.BoxGeometry(4.0, 1.8, 4.4);
+        const plateGeo = new THREE.BoxGeometry(3.6, 0.35, 4.0);
+        const gpus = [];
+
+        const xCols = [-8.0, -2.7, 2.7, 8.0];
+        const zRows = [-4.6, 4.6];
+
+        let gpuCounter = 0;
+        for (let r = 0; r < 2; r++) {
+          for (let c = 0; c < 4; c++) {
+            const gpuGroup = new THREE.Group();
+            gpuGroup.position.set(xCols[c], 0.9, zRows[r]);
+
+            const gpuMat = new THREE.MeshStandardMaterial({ color: 0x252d3a, roughness: 0.4, metalness: 0.8 });
+            const gpuMesh = new THREE.Mesh(gpuGeo, gpuMat);
+            gpuMesh.userData = { id: gpuCounter, name: `GPU ${gpuCounter}`, temp: 58 + gpuCounter * 2, vram: 80 };
+            gpuGroup.add(gpuMesh);
+
+            // Copper Vapor Chamber / Cold Plate
+            const plateMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.2, metalness: 0.9 });
+            const plate = new THREE.Mesh(plateGeo, plateMat);
+            plate.position.y = 1.05;
+            gpuGroup.add(plate);
+
+            // Labeled status LED
+            const ledGeo = new THREE.BoxGeometry(0.4, 0.2, 0.4);
+            const ledMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+            const led = new THREE.Mesh(ledGeo, ledMat);
+            led.position.set(1.5, 1.05, 1.6);
+            gpuGroup.add(led);
+
+            scene.add(gpuGroup);
+            gpus.push(gpuMesh);
+            gpuCounter++;
+          }
+        }
+
+        // Live NVLink Data Packets
+        const packetGeo = new THREE.SphereGeometry(0.28, 8, 8);
+        const packetMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+        const packets = [];
+
+        for (let i = 0; i < 20; i++) {
+          const p = new THREE.Mesh(packetGeo, packetMat);
+          p.position.set((Math.random() - 0.5) * 20, 0.35, (Math.random() - 0.5) * 12);
+          scene.add(p);
+          packets.push({
+            mesh: p,
+            speed: 0.12 + Math.random() * 0.1,
+            dir: Math.random() > 0.5 ? 1 : -1,
+            axis: Math.random() > 0.5 ? 'x' : 'z'
+          });
+        }
+
+        // Mouse Orbit Controls
+        let isDragging = false;
+        let prevMouse = { x: 0, y: 0 };
+        let azimuth = 0.8;
+        let elevation = 0.6;
+        let distance = 30;
+
+        function updateCam() {
+          camera.position.x = distance * Math.sin(elevation) * Math.sin(azimuth);
+          camera.position.y = distance * Math.cos(elevation);
+          camera.position.z = distance * Math.sin(elevation) * Math.cos(azimuth);
+          camera.lookAt(0, 0, 0);
+        }
+        updateCam();
+
+        if (btnResetCam) {
+          btnResetCam.addEventListener('click', () => {
+            azimuth = 0.8;
+            elevation = 0.6;
+            distance = 30;
+            updateCam();
+            if (hudStatus) hudStatus.textContent = "Status: Healthy | NVLink: 900 GB/s";
+            if (hudActive) hudActive.textContent = "Hover or click GPU modules to inspect";
+          });
+        }
+
+        container.addEventListener('mousedown', e => {
+          isDragging = true;
+          prevMouse = { x: e.clientX, y: e.clientY };
+        });
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        container.addEventListener('mousemove', e => {
+          if (isDragging) {
+            const dx = (e.clientX - prevMouse.x) * 0.008;
+            const dy = (e.clientY - prevMouse.y) * 0.008;
+            azimuth += dx;
+            elevation = Math.max(0.15, Math.min(Math.PI / 2 - 0.05, elevation - dy));
+            updateCam();
+            prevMouse = { x: e.clientX, y: e.clientY };
+          }
+        });
+
+        container.addEventListener('wheel', e => {
+          e.preventDefault();
+          distance = Math.max(12, Math.min(55, distance + e.deltaY * 0.04));
+          updateCam();
+        }, { passive: false });
+
+        // Raycasting for module inspection
+        const raycaster = new THREE.Raycaster();
+        const mouseVec = new THREE.Vector2();
+
+        container.addEventListener('click', e => {
+          const rect = container.getBoundingClientRect();
+          mouseVec.x = ((e.clientX - rect.left) / container.clientWidth) * 2 - 1;
+          mouseVec.y = -((e.clientY - rect.top) / container.clientHeight) * 2 + 1;
+          raycaster.setFromCamera(mouseVec, camera);
+          const intersects = raycaster.intersectObjects(gpus);
+          if (intersects.length > 0) {
+            const data = intersects[0].object.userData;
+            if (hudStatus) hudStatus.innerHTML = `<strong>Selected: ${data.name}</strong> (XID Status: Clean)`;
+            if (hudActive) hudActive.innerHTML = `VRAM: 80GB HBM3e | Temp: ${data.temp}°C | Active Experts: [${data.id * 2 + 1}, ${data.id * 2 + 2}]`;
+          }
+        });
+
+        // Resize Listener
+        window.addEventListener('resize', () => {
+          const w = container.clientWidth;
+          const h = container.clientHeight;
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h);
+        });
+
+        // Main 3D Render Loop
+        function renderLoop() {
+          requestAnimationFrame(renderLoop);
+
+          if (autoSpin) {
+            azimuth += 0.006;
+            updateCam();
+          }
+
+          if (showPackets) {
+            packets.forEach(p => {
+              p.mesh.visible = true;
+              if (p.axis === 'x') {
+                p.mesh.position.x += p.speed * p.dir;
+                if (p.mesh.position.x > 10) p.dir = -1;
+                if (p.mesh.position.x < -10) p.dir = 1;
+              } else {
+                p.mesh.position.z += p.speed * p.dir;
+                if (p.mesh.position.z > 6) p.dir = -1;
+                if (p.mesh.position.z < -6) p.dir = 1;
+              }
+            });
+          } else {
+            packets.forEach(p => p.mesh.visible = false);
+          }
+
+          renderer.render(scene, camera);
+        }
+        renderLoop();
+        return; // Three.js loaded and running smoothly!
+      } catch (err) {
+        console.warn("Three.js initialization failed, deploying 2D Canvas 3D Engine fallback", err);
+      }
+    }
+
+    // HIGH-PERFORMANCE FALLBACK: Canvas Isometric 3D Hardware Simulator
+    // Executes if Three.js is blocked by offline/file sandbox/WebGL restrictions
+    const canvas = document.createElement('canvas');
+    canvas.width = container.clientWidth || 700;
+    canvas.height = container.clientHeight || 420;
+    container.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+
+    let angle = 0.6;
+    let zoom = 1.0;
+    let isDown = false;
+    let lastX = 0;
+
+    container.addEventListener('mousedown', e => { isDown = true; lastX = e.clientX; });
+    window.addEventListener('mouseup', () => isDown = false);
+    container.addEventListener('mousemove', e => {
+      if (isDown) {
+        angle += (e.clientX - lastX) * 0.01;
+        lastX = e.clientX;
+      }
+    });
+
+    if (btnResetCam) {
+      btnResetCam.addEventListener('click', () => { angle = 0.6; zoom = 1.0; });
+    }
+
+    const gpuNodes = [
+      { id: 0, x: -140, y: -70 }, { id: 1, x: -45, y: -70 }, { id: 2, x: 45, y: -70 }, { id: 3, x: 140, y: -70 },
+      { id: 4, x: -140, y: 70 },  { id: 5, x: -45, y: 70 },  { id: 6, x: 45, y: 70 },  { id: 7, x: 140, y: 70 }
+    ];
+
+    function drawIsometricCanvas() {
+      ctx.fillStyle = "#0a0d13";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+
+      if (autoSpin) angle += 0.008;
+
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+
+      // Chassis Board
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(zoom, zoom * 0.58);
+
+      ctx.fillStyle = "#1e2631";
+      ctx.strokeStyle = "#3b475a";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(-220, -130, 440, 260);
+      ctx.fill();
+      ctx.stroke();
+
+      // Gold NVLink Bus
+      ctx.fillStyle = "#d97706";
+      ctx.fillRect(-200, -12, 400, 24);
+
+      // GPU Accelerator Blocks
+      gpuNodes.forEach(node => {
+        // Rotate in 2D space
+        const rx = node.x * cos - node.y * sin;
+        const ry = node.x * sin + node.y * cos;
+
+        // Draw Die Base
+        ctx.fillStyle = "#2d3748";
+        ctx.strokeStyle = "#4a5568";
+        ctx.lineWidth = 1.5;
+        ctx.fillRect(rx - 32, ry - 32, 64, 64);
+        ctx.strokeRect(rx - 32, ry - 32, 64, 64);
+
+        // Copper Vapor Heatplate
+        ctx.fillStyle = "#b45309";
+        ctx.fillRect(rx - 24, ry - 24, 48, 48);
+
+        // Status LED & Label
+        ctx.fillStyle = "#22c55e";
+        ctx.beginPath();
+        ctx.arc(rx + 20, ry - 20, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#f8f7f4";
+        ctx.font = "10px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(`GPU ${node.id}`, rx, ry + 4);
+      });
+
+      // Animated Packets
+      if (showPackets) {
+        ctx.fillStyle = "#38bdf8";
+        const t = Date.now() * 0.003;
+        for (let i = 0; i < 8; i++) {
+          const px = ((t * 40 + i * 50) % 380) - 190;
+          ctx.beginPath();
+          ctx.arc(px, 0, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      ctx.restore();
+      requestAnimationFrame(drawIsometricCanvas);
+    }
+    drawIsometricCanvas();
+  })();
+
+  /* ==========================================================================
+     3. VRAM SIZING CALCULATOR LOGIC
+     ========================================================================== */
+  const modelPreset = document.getElementById('model-preset');
+  const quantPreset = document.getElementById('quant-preset');
+  const concurrencyRange = document.getElementById('concurrency-range');
+  const contextRange = document.getElementById('context-range');
+  const valConcurrency = document.getElementById('val-concurrency');
+  const valContext = document.getElementById('val-context');
+
+  const resWeights = document.getElementById('res-weights');
+  const resKV = document.getElementById('res-kv');
+  const resTotal = document.getElementById('res-total');
+  const resHw = document.getElementById('res-hw');
+
+  function calculateVRAM() {
+    const paramsB = parseFloat(modelPreset.value);
+    const bytesPerParam = parseFloat(quantPreset.value);
+    const users = parseInt(concurrencyRange.value, 10);
+    const contextK = parseInt(contextRange.value, 10);
+
+    valConcurrency.textContent = users;
+    valContext.textContent = contextK + 'k';
+
+    const weightsGB = paramsB * bytesPerParam;
+    const kvPerTokenGB = (paramsB / 70) * 0.00013;
+    const totalTokens = users * (contextK * 1024);
+    const kvCacheGB = totalTokens * kvPerTokenGB * (bytesPerParam / 2.0);
+
+    const totalVRAM = weightsGB + kvCacheGB + (weightsGB * 0.12);
+
+    resWeights.textContent = weightsGB.toFixed(1) + ' GB';
+    resKV.textContent = kvCacheGB.toFixed(1) + ' GB';
+    resTotal.textContent = totalVRAM.toFixed(1) + ' GB';
+
+    if (totalVRAM <= 22) {
+      resHw.textContent = '1x A10 (24 GB)';
+      resHw.style.color = 'var(--ok)';
+    } else if (totalVRAM <= 74) {
+      resHw.textContent = '1x H100 (80 GB)';
+      resHw.style.color = 'var(--ok)';
+    } else if (totalVRAM <= 150) {
+      resHw.textContent = '2x H100 (160 GB)';
+      resHw.style.color = 'var(--ok)';
+    } else if (totalVRAM <= 310) {
+      resHw.textContent = '4x H100 (320 GB)';
+      resHw.style.color = 'var(--ok)';
+    } else if (totalVRAM <= 620) {
+      resHw.textContent = '8x H100 (640 GB)';
+      resHw.style.color = 'var(--ok)';
+    } else if (totalVRAM <= 1500) {
+      resHw.textContent = '8x B200 (1,536 GB)';
+      resHw.style.color = 'var(--ok)';
+    } else {
+      resHw.textContent = 'Multi-Node Cluster (16+ GPUs)';
+      resHw.style.color = 'var(--bad)';
+    }
+  }
+
+  [modelPreset, quantPreset, concurrencyRange, contextRange].forEach(elem => {
+    elem.addEventListener('input', calculateVRAM);
+  });
+  calculateVRAM();
+
+  /* ==========================================================================
+     4. MoE PROCESS ANIMATION SIMULATOR
+     ========================================================================== */
+  const btnPlaySim = document.getElementById('btn-play-sim');
+  const btnStepSim = document.getElementById('btn-step-sim');
+  const btnResetSim = document.getElementById('btn-reset-sim');
+  const animStageLabel = document.getElementById('anim-stage-label');
+  const animToken = document.getElementById('animated-token');
+  const outputTokenVal = document.getElementById('output-token-val');
+
+  const gpuBoxes = [
+    document.getElementById('gpu-box-0'),
+    document.getElementById('gpu-box-1'),
+    document.getElementById('gpu-box-2'),
+    document.getElementById('gpu-box-3')
+  ];
+
+  const stages = [
+    { name: 'Stage 0: Token Input at Router', x: 130, y: 120, gpu: -1, token: 'input' },
+    { name: 'Stage 1: Dispatched to GPU 0 (Expert 1)', x: 232, y: 60, gpu: 0, token: 'h_state_1' },
+    { name: 'Stage 2: Routed across NVLink to GPU 2 (Expert 5)', x: 492, y: 180, gpu: 2, token: 'h_state_2' },
+    { name: 'Stage 3: All-Reduce & Output Sampling', x: 720, y: 120, gpu: -1, token: '"architecture"' }
+  ];
+
+  let currentStageIdx = 0;
+  let isPlayingSim = false;
+  let simInterval = null;
+
+  function renderSimStage(idx) {
+    const s = stages[idx];
+    animToken.setAttribute('cx', s.x);
+    animToken.setAttribute('cy', s.y);
+    animStageLabel.textContent = s.name;
+    outputTokenVal.textContent = s.token;
+
+    gpuBoxes.forEach((box, i) => {
+      if (i === s.gpu) {
+        box.setAttribute('stroke', 'var(--accent)');
+        box.setAttribute('stroke-width', '3');
+      } else {
+        box.setAttribute('stroke', 'var(--line)');
+        box.setAttribute('stroke-width', '1.5');
+      }
+    });
+  }
+
+  btnStepSim.addEventListener('click', () => {
+    currentStageIdx = (currentStageIdx + 1) % stages.length;
+    renderSimStage(currentStageIdx);
+  });
+
+  btnResetSim.addEventListener('click', () => {
+    clearInterval(simInterval);
+    isPlayingSim = false;
+    btnPlaySim.textContent = '▶ Play Simulation';
+    currentStageIdx = 0;
+    renderSimStage(0);
+  });
+
+  btnPlaySim.addEventListener('click', () => {
+    if (isPlayingSim) {
+      clearInterval(simInterval);
+      isPlayingSim = false;
+      btnPlaySim.textContent = '▶ Play Simulation';
+    } else {
+      isPlayingSim = true;
+      btnPlaySim.textContent = '⏸ Pause';
+      simInterval = setInterval(() => {
+        currentStageIdx = (currentStageIdx + 1) % stages.length;
+        renderSimStage(currentStageIdx);
+      }, 1400);
+    }
+  });
+
+  /* ==========================================================================
+     5. DIAGNOSTIC MATRIX SWITCHER
+     ========================================================================== */
+  const diagData = {
+    ttft: {
+      text: "<strong>Root Cause:</strong> High Time-to-First-Token is governed by prefill execution across long prompt contexts or cold start latency.<br><strong>Remediation:</strong> Deploy KV cache prefix caching to reuse shared system instructions; enforce disaggregated prefill/decode architecture onto separate GPU pools."
+    },
+    tpot: {
+      text: "<strong>Root Cause:</strong> Low Time-Per-Output-Token (slow generation) is caused by memory bandwidth bottlenecks during autoregressive decoding or network latency during all-reduce.<br><strong>Remediation:</strong> Implement FP8/FP4 quantization to reduce weight footprint; verify Tensor Parallelism is constrained to intra-node NVLink (do not span across network switches)."
+    },
+    oom: {
+      text: "<strong>Root Cause:</strong> Dynamic KV cache growth exhausts remaining VRAM headroom as request context lengths expand, triggering fatal CUDA allocation failures.<br><strong>Remediation:</strong> Integrate PagedAttention (vLLM/SGLang) to eliminate physical memory fragmentation; cap maximum concurrent sequence length with continuous batch eviction."
+    },
+    xid: {
+      text: "<strong>Root Cause:</strong> Physical GPU hardware fault (XID 79 PCIe bus drop, thermal trip, or uncorrectable ECC memory error) severing the NVLink ring.<br><strong>Remediation:</strong> Configure automated health checks to instantly cordon and drain the node; redirect incoming traffic to standby active-active replica nodes across independent cloud availability zones."
+    }
+  };
+
+  window.switchDiag = function(key, btn) {
+    document.querySelectorAll('.diag-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('diag-output').innerHTML = diagData[key].text;
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quadratic Attention vs. Kimi Delta Attention</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:       #f5f5f5;   /* white-smoke */
+      --color-paper-2:     #ececec;   /* container fill */
+      --color-ink:         #2d3142;   /* jet-black */
+      --color-muted:       #4f5d75;   /* blue-slate */
+      --color-soft:        #7a8399;   /* sublabels */
+      --color-accent:      #eb6c36;   /* atomic-tangerine */
+      --color-accent-tint: rgba(235,108,54,0.08);
+      --color-rule:        rgba(45,49,66,0.12);
+      --color-rule-solid:  #bfc0c0;
+      --font-sans:         'Geist', system-ui, -apple-system, sans-serif;
+      --font-serif:        'Instrument Serif', Georgia, serif;
+      --font-mono:         'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      line-height: 1.65;
+      padding: 3rem 1.5rem;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .nav-back {
+      margin-bottom: 2rem;
+    }
+
+    .nav-back a {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--color-muted);
+      text-decoration: none;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .nav-back a:hover {
+      color: var(--color-accent);
+    }
+
+    .header {
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--color-rule);
+      padding-bottom: 1.75rem;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(2.2rem, 3.5vw + 1rem, 3.2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 0.75rem;
+    }
+
+    .lead {
+      font-size: 1.15rem;
+      color: var(--color-muted);
+      max-width: 820px;
+      line-height: 1.5;
+    }
+
+    .diagram-card {
+      background: #ffffff;
+      border: 1px solid var(--color-rule);
+      border-radius: 8px;
+      padding: 1.75rem;
+      margin: 2.5rem 0 3rem;
+    }
+
+    .diagram-caption {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-muted);
+      margin-top: 1rem;
+      text-align: center;
+      letter-spacing: 0.06em;
+    }
+
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .explanation-section {
+      margin-top: 3rem;
+    }
+
+    .section-heading {
+      font-family: var(--font-serif);
+      font-size: 2rem;
+      font-weight: 400;
+      color: var(--color-ink);
+      margin-bottom: 1rem;
+      letter-spacing: -0.015em;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin: 1.5rem 0 2.5rem;
+    }
+
+    .info-card {
+      background: #ffffff;
+      border: 1px solid var(--color-rule);
+      border-radius: 6px;
+      padding: 1.5rem;
+    }
+
+    .info-card.focal {
+      border-color: var(--color-accent);
+      background: var(--color-accent-tint);
+    }
+
+    .info-tag {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 0.4rem;
+    }
+
+    .info-title {
+      font-family: var(--font-serif);
+      font-size: 1.35rem;
+      color: var(--color-ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .info-text {
+      font-size: 0.92rem;
+      color: var(--color-muted);
+      line-height: 1.55;
+    }
+
+    .footer {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-soft);
+      text-align: center;
+      margin-top: 4.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--color-rule);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav-back">
+      <a href="index.html">← Back to Master Curriculum Index</a>
+    </div>
+
+    <header class="header">
+      <p class="eyebrow">Attention Mechanics · Diagram Design</p>
+      <h1>Quadratic Attention vs. Kimi Delta Attention</h1>
+      <p class="lead">Why standard Transformers scale quadratically as $O(N^2)$ and how Kimi Delta Attention (KDA) replaces all-to-all pairwise calculation with an $O(N)$ linear running mean.</p>
+    </header>
+
+    <main>
+      <div class="diagram-card">
+        <!-- STANDALONE EDITORIAL SVG DIAGRAM -->
+        <svg viewBox="0 0 980 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="attn-comp-title attn-comp-desc">
+          <title id="attn-comp-title">Quadratic Attention vs Kimi Delta Attention</title>
+          <desc id="attn-comp-desc">Side by side visual comparison of standard N squared all-to-all attention matrix versus linear recursive delta attention.</desc>
+
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+            </marker>
+            <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+            </marker>
+          </defs>
+
+          <rect width="100%" height="100%" fill="#ffffff" rx="8"/>
+
+          <!-- LEFT: STANDARD QUADRATIC ATTENTION (O(N^2)) -->
+          <rect x="36" y="36" width="436" height="428" rx="6" fill="#f5f5f5" stroke="#bfc0c0" stroke-width="1"/>
+          <rect x="36" y="36" width="436" height="38" rx="6" fill="#ececec"/>
+          <text x="50" y="60" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#4f5d75" letter-spacing="0.12em">1. STANDARD TRANSFORMER ATTENTION: O(N²)</text>
+
+          <!-- Matrix Grid representation -->
+          <rect x="52" y="88" width="404" height="150" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="64" y="108" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" fill="#2d3142">Pairwise All-to-All Attention Matrix</text>
+          <text x="64" y="122" font-family="'Geist Mono', monospace" font-size="8" fill="#7a8399">EVERY WORD QUERIES EVERY OTHER WORD</text>
+
+          <!-- Dot grid showing quadratic pairing -->
+          <circle cx="80" cy="145" r="4" fill="#2d3142"/>
+          <circle cx="104" cy="145" r="4" fill="#2d3142"/>
+          <circle cx="128" cy="145" r="4" fill="#2d3142"/>
+          <circle cx="152" cy="145" r="4" fill="#2d3142"/>
+          <circle cx="176" cy="145" r="4" fill="#2d3142"/>
+
+          <circle cx="80" cy="165" r="4" fill="#2d3142"/>
+          <circle cx="104" cy="165" r="4" fill="#2d3142"/>
+          <circle cx="128" cy="165" r="4" fill="#2d3142"/>
+          <circle cx="152" cy="165" r="4" fill="#2d3142"/>
+          <circle cx="176" cy="165" r="4" fill="#2d3142"/>
+
+          <circle cx="80" cy="185" r="4" fill="#2d3142"/>
+          <circle cx="104" cy="185" r="4" fill="#2d3142"/>
+          <circle cx="128" cy="185" r="4" fill="#2d3142"/>
+          <circle cx="152" cy="185" r="4" fill="#2d3142"/>
+          <circle cx="176" cy="185" r="4" fill="#2d3142"/>
+
+          <circle cx="80" cy="205" r="4" fill="#2d3142"/>
+          <circle cx="104" cy="205" r="4" fill="#2d3142"/>
+          <circle cx="128" cy="205" r="4" fill="#2d3142"/>
+          <circle cx="152" cy="205" r="4" fill="#2d3142"/>
+          <circle cx="176" cy="205" r="4" fill="#2d3142"/>
+
+          <text x="210" y="155" font-family="'Geist Mono', monospace" font-size="9" fill="#4f5d75">10 words = 100 pairs</text>
+          <text x="210" y="175" font-family="'Geist Mono', monospace" font-size="9" fill="#4f5d75">100 words = 10,000 pairs</text>
+          <text x="210" y="195" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#2d3142">1M words = 1,000,000,000,000 pairs!</text>
+
+          <!-- Quadratic Traits -->
+          <rect x="52" y="250" width="404" height="136" rx="4" fill="#ffffff" stroke="#bfc0c0" stroke-width="0.8"/>
+          <text x="64" y="272" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#2d3142">The Quadratic Cost Wall</text>
+          <text x="64" y="292" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• 2× token length leads to 4× computational FLOPs</text>
+          <text x="64" y="308" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Full pairwise recomputation required on every step</text>
+          <text x="64" y="324" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Severely throttles throughput during long-horizon agent loops</text>
+          <text x="64" y="340" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Prohibitive GPU memory caching requirements (KV Cache blowup)</text>
+
+          <text x="52" y="420" font-family="'Instrument Serif', serif" font-style="italic" font-size="14" fill="#4f5d75">"Resuming all historical data at every token step."</text>
+
+
+          <!-- RIGHT: KIMI DELTA ATTENTION (O(N) LINEAR) -->
+          <rect x="508" y="36" width="436" height="428" rx="6" fill="rgba(235,108,54,0.06)" stroke="#eb6c36" stroke-width="1.2"/>
+          <rect x="508" y="36" width="436" height="38" rx="6" fill="#eb6c36"/>
+          <text x="522" y="60" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#ffffff" letter-spacing="0.12em">2. KIMI DELTA ATTENTION: O(N) LINEAR</text>
+
+          <!-- Recursive stream representation -->
+          <rect x="524" y="88" width="404" height="150" rx="4" fill="#ffffff" stroke="#eb6c36" stroke-width="1"/>
+          <text x="536" y="108" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" fill="#eb6c36">Recursive Running State Update</text>
+          <text x="536" y="122" font-family="'Geist Mono', monospace" font-size="8" fill="#eb6c36">EXPONENTIALLY WEIGHTED MOVING AVERAGE</text>
+
+          <!-- Linear flow chain -->
+          <rect x="536" y="148" width="56" height="30" rx="3" fill="#f5f5f5" stroke="#2d3142" stroke-width="0.8"/>
+          <text x="546" y="167" font-family="'Geist Mono', monospace" font-size="8" fill="#2d3142">State t-1</text>
+
+          <path d="M 592 163 L 616 163" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+          <rect x="616" y="148" width="76" height="30" rx="3" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+          <text x="624" y="167" font-family="'Geist Mono', monospace" font-size="8" font-weight="600" fill="#eb6c36">+ Delta Token</text>
+
+          <path d="M 692 163 L 716 163" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+          <rect x="716" y="148" width="56" height="30" rx="3" fill="#2d3142"/>
+          <text x="726" y="167" font-family="'Geist Mono', monospace" font-size="8" fill="#ffffff">State t</text>
+
+          <text x="536" y="206" font-family="'Geist Mono', monospace" font-size="8.5" fill="#2d3142">Linear Scaling: 1M tokens = 1M linear updates</text>
+          <text x="536" y="222" font-family="'Geist Mono', monospace" font-size="8.5" fill="#eb6c36">Zero N² matrix computation!</text>
+
+          <!-- Delta Attention Traits -->
+          <rect x="524" y="250" width="404" height="136" rx="4" fill="#ffffff" stroke="#eb6c36" stroke-width="0.8"/>
+          <text x="536" y="272" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#eb6c36">The Linear Breakthrough</text>
+          <text x="536" y="292" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• 2× token length equals exactly 2× work (O(N))</text>
+          <text x="536" y="308" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• Updates state recursively like a mathematical moving average</text>
+          <text x="536" y="324" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• Caches loop tokens across turns -> 10× cheaper agent loops</text>
+          <text x="536" y="340" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• Unlocks genuine long-horizon codebase understanding</text>
+
+          <text x="524" y="420" font-family="'Instrument Serif', serif" font-style="italic" font-size="14" fill="#eb6c36">"Running mean computed recursively without re-summing everything."</text>
+        </svg>
+        <p class="diagram-caption">FIGURE 2.0 — QUADRATIC ATTENTION (O(N²)) VS. KIMI DELTA ATTENTION (O(N))</p>
+      </div>
+
+      <!-- IN-PAGE EXPLANATIONS -->
+      <section class="explanation-section">
+        <h2 class="section-heading">Detailed Architectural Explanations</h2>
+
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Mathematical Mechanism</p>
+            <h3 class="info-title">The Running Mean Analogy</h3>
+            <p class="info-text">
+              Imagine calculating the average height of 10,000 people. You do not need to re-sum all 10,000 numbers every time a new person walks in. You simply maintain a running sum and count, updating it with the delta in $O(1)$ time. Kimi Delta Attention applies this exact recursive principle to transformer key-value representations.
+            </p>
+          </div>
+
+          <div class="info-card focal">
+            <p class="info-tag">Agentic Engineering</p>
+            <h3 class="info-title">Why This Transforms Agentic Coding</h3>
+            <p class="info-text">
+              In an agentic harness, an agent repeatedly invokes tools across 10+ turns. Each turn resends 95% of the preceding conversation. In quadratic models, this creates massive redundant recomputation. KDA’s attention residual cache reuses prior loop activations directly, decreasing per-turn inference costs by up to 10×.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      Diagram Design Editorial System · 4px Grid Layout · Jet-Black &amp; Atomic-Tangerine
+    </footer>
+  </div>
+</body>
+</html>

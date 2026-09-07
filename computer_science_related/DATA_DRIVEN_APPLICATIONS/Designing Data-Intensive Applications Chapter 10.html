@@ -1,0 +1,1795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DDIA Chapter 10: Batch Processing, MapReduce & Modern BF-Tree Indexing</title>
+  <style>
+    :root {
+      --bg: #0c0e12;
+      --surface: #141820;
+      --surface-subtle: #1a202c;
+      --surface-elevated: #212936;
+      --border: #232936;
+      --border-focus: #3b82f6;
+      --text-primary: #f1f3f7;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-blue: #3b82f6;
+      --accent-blue-subtle: rgba(59, 130, 246, 0.12);
+      --accent-emerald: #10b981;
+      --accent-emerald-subtle: rgba(16, 185, 129, 0.12);
+      --accent-amber: #f59e0b;
+      --accent-amber-subtle: rgba(245, 158, 11, 0.12);
+      --accent-purple: #8b5cf6;
+      --accent-purple-subtle: rgba(139, 92, 246, 0.12);
+      --accent-coral: #eb6c36;
+      --accent-coral-subtle: rgba(235, 108, 54, 0.12);
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "Geist Mono", "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-subtle: #f1f5f9;
+      --surface-elevated: #e2e8f0;
+      --border: #cbd5e1;
+      --border-focus: #2563eb;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --accent-blue: #2563eb;
+      --accent-blue-subtle: rgba(37, 99, 235, 0.1);
+      --accent-emerald: #059669;
+      --accent-emerald-subtle: rgba(5, 150, 105, 0.1);
+      --accent-amber: #d97706;
+      --accent-amber-subtle: rgba(217, 119, 6, 0.1);
+      --accent-purple: #7c3aed;
+      --accent-purple-subtle: rgba(124, 58, 237, 0.1);
+      --accent-coral: #ea580c;
+      --accent-coral-subtle: rgba(234, 88, 12, 0.1);
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* Top Progress Bar */
+    #progress-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: transparent;
+      z-index: 1000;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-coral));
+      transition: width 0.1s ease-out;
+    }
+
+    /* Navigation */
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(12, 14, 18, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 900;
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    [data-theme="light"] nav {
+      background: rgba(248, 250, 252, 0.85);
+    }
+
+    .nav-brand {
+      font-weight: 700;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    .nav-brand .badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      background: var(--accent-blue-subtle);
+      color: var(--accent-blue);
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--accent-blue);
+    }
+
+    .nav-controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+    .theme-toggle-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 0.4rem 0.8rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s;
+    }
+    .theme-toggle-btn:hover {
+      border-color: var(--border-focus);
+      background: var(--surface-elevated);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 6rem;
+    }
+
+    /* Header */
+    header {
+      margin-bottom: 3.5rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .header-meta {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .meta-tag {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      padding: 0.25rem 0.6rem;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+    }
+    .meta-tag.accent {
+      color: var(--accent-coral);
+      border-color: var(--accent-coral);
+      background: var(--accent-coral-subtle);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      line-height: 1.2;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+    .lead {
+      font-size: 1.2rem;
+      color: var(--text-secondary);
+      max-width: 800px;
+      line-height: 1.6;
+    }
+
+    /* Sections */
+    section {
+      margin-bottom: 4.5rem;
+      scroll-margin-top: 5rem;
+    }
+    h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-primary);
+    }
+    h2 .section-num {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--accent-blue);
+      background: var(--accent-blue-subtle);
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--accent-blue);
+    }
+    h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 1.75rem 0 0.75rem;
+      color: var(--text-primary);
+    }
+    p {
+      margin-bottom: 1.25rem;
+      color: var(--text-secondary);
+    }
+    strong {
+      color: var(--text-primary);
+    }
+
+    /* Content Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.75rem;
+      margin-bottom: 1.75rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Core Explanation Highlight */
+    .core-explanation {
+      border-left: 4px solid var(--accent-blue);
+      background: var(--surface);
+      padding: 1.5rem 1.75rem;
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      margin: 1.5rem 0;
+    }
+    .core-explanation p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Step by step lists */
+    .step-list {
+      list-style: none;
+      counter-reset: step-counter;
+      margin: 1.5rem 0;
+    }
+    .step-list li {
+      counter-increment: step-counter;
+      position: relative;
+      padding-left: 3rem;
+      margin-bottom: 1.25rem;
+      color: var(--text-secondary);
+    }
+    .step-list li::before {
+      content: counter(step-counter);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 2rem;
+      height: 2rem;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border-focus);
+      color: var(--accent-blue);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    /* Visual Analogy Card */
+    .analogy-card {
+      background: linear-gradient(135deg, var(--surface) 0%, var(--surface-subtle) 100%);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent-purple);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+    }
+    .analogy-header {
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      color: var(--accent-purple);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Example Grid (3 distinct examples: Obvious, Counter-intuitive, Edge-case) */
+    .example-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin: 1.5rem 0;
+    }
+    .example-card {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+    }
+    .example-tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
+      display: inline-block;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+    }
+    .tag-obvious { background: var(--accent-emerald-subtle); color: var(--accent-emerald); border: 1px solid var(--accent-emerald); }
+    .tag-counter { background: var(--accent-amber-subtle); color: var(--accent-amber); border: 1px solid var(--accent-amber); }
+    .tag-edge { background: var(--accent-coral-subtle); color: var(--accent-coral); border: 1px solid var(--accent-coral); }
+
+    /* Misconception & Production Callout */
+    .callout-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin: 1.5rem 0;
+    }
+    @media (max-width: 768px) {
+      .callout-grid { grid-template-columns: 1fr; }
+    }
+    .callout-box {
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      font-size: 0.95rem;
+    }
+    .callout-misconception {
+      background: rgba(235, 108, 54, 0.08);
+      border: 1px solid var(--accent-coral);
+    }
+    .callout-misconception h4 {
+      color: var(--accent-coral);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+    }
+    .callout-production {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid var(--accent-emerald);
+    }
+    .callout-production h4 {
+      color: var(--accent-emerald);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    /* Inter-Module Link */
+    .module-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--accent-blue);
+      text-decoration: none;
+      background: var(--accent-blue-subtle);
+      padding: 0.3rem 0.7rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--accent-blue);
+      margin-top: 1rem;
+      transition: all 0.2s;
+    }
+    .module-link:hover {
+      background: var(--accent-blue);
+      color: #ffffff;
+    }
+
+    /* SVG Schematic Styling adhering to diagram-design skill */
+    .diagram-wrapper {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      margin: 2rem 0;
+      overflow-x: auto;
+      box-shadow: var(--shadow-md);
+    }
+    .diagram-caption {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 0.75rem;
+      font-family: var(--font-mono);
+    }
+
+    svg.schematic {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+      font-family: var(--font-mono);
+    }
+
+    /* Interactive Widgets & Simulators */
+    .widget-box {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-focus);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      margin: 2.5rem 0;
+    }
+    .widget-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .widget-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .widget-badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      background: var(--accent-blue);
+      color: white;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
+    }
+
+    .widget-controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .control-label {
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+    }
+    .control-input, .control-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+    }
+    .control-input:focus, .control-select:focus {
+      outline: none;
+      border-color: var(--border-focus);
+    }
+
+    .btn-action {
+      background: var(--accent-blue);
+      color: #ffffff;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn-action:hover {
+      opacity: 0.9;
+    }
+    .btn-secondary {
+      background: var(--surface-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .widget-display {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      min-height: 180px;
+    }
+
+    /* Flashcard Section */
+    .flashcard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem;
+      margin: 2rem 0;
+    }
+    .flashcard {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      cursor: pointer;
+      perspective: 1000px;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .flashcard:hover {
+      border-color: var(--border-focus);
+      transform: translateY(-2px);
+    }
+    .flashcard-q {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+    }
+    .flashcard-a {
+      display: none;
+      color: var(--accent-emerald);
+      font-size: 0.95rem;
+      line-height: 1.5;
+      padding-top: 0.75rem;
+      border-top: 1px dashed var(--border);
+    }
+    .flashcard.revealed .flashcard-a {
+      display: block;
+    }
+    .flashcard-hint {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      align-self: flex-end;
+    }
+
+    /* Summary & Cheat Sheet Table */
+    .cheat-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+    }
+    .cheat-table th, .cheat-table td {
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      text-align: left;
+    }
+    .cheat-table th {
+      background: var(--surface-subtle);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .cheat-table tr:nth-child(even) {
+      background: var(--surface);
+    }
+    .cheat-table tr:nth-child(odd) {
+      background: var(--surface-subtle);
+    }
+
+    /* Code blocks */
+    pre code {
+      display: block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--accent-emerald);
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+
+    /* FAQ accordion */
+    details {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    summary {
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-primary);
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    summary::-webkit-details-marker {
+      display: none;
+    }
+    summary::after {
+      content: '+';
+      font-family: var(--font-mono);
+      font-size: 1.2rem;
+      color: var(--accent-blue);
+    }
+    details[open] summary::after {
+      content: '−';
+    }
+    details p {
+      margin-top: 1rem;
+      margin-bottom: 0;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Scroll Progress Indicator -->
+  <div id="progress-container">
+    <div id="progress-bar"></div>
+  </div>
+
+  <!-- Sticky Navbar -->
+  <nav>
+    <a href="#" class="nav-brand">
+      <span>DDIA Series</span>
+      <span class="badge">Chapter 10 &amp; Research</span>
+    </a>
+    <div class="nav-controls">
+      <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle dark/light theme">
+        <span id="theme-icon">☀️</span>
+        <span id="theme-text">Light Mode</span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <!-- Header Section -->
+    <header>
+      <div class="header-meta">
+        <span class="meta-tag">Martin Kleppmann DDIA Chapter 10</span>
+        <span class="meta-tag">Microsoft Research BF-Tree Paper</span>
+        <span class="meta-tag accent">Distributed Batch &amp; Hardware-Aware Indexing</span>
+        <span class="meta-tag">Deep Engineering Lesson</span>
+      </div>
+      <h1>Batch Processing, MapReduce &amp; Modern B<sup>F</sup>-Tree Indexing</h1>
+      <p class="lead">
+        A deep, end-to-end architectural exploration of offline bounded data computation: from Unix streaming philosophy and Hadoop MapReduce shuffles to distributed joins, DAG execution engines, and cutting-edge hardware-aware database index architectures (B<sup>F</sup>-Trees).
+      </p>
+    </header>
+
+    <!-- Master Knowledge Map -->
+    <section id="knowledge-map">
+      <h2><span class="section-num">MAP</span> Master Architectural Blueprint</h2>
+      <p>
+        Data systems span three complementary domains: <strong>Online Transaction Processing (OLTP)</strong> with low latency point queries, <strong>Stream Processing</strong> with continuous event windows, and <strong>Batch Processing</strong> with deterministic, high-throughput transformations over bounded datasets.
+      </p>
+      
+      <div class="diagram-wrapper">
+        <svg class="schematic" viewBox="0 0 920 340" width="920" height="340" role="img" aria-label="Master Architectural Blueprint of Batch Processing and Modern Indexing">
+          <title>Batch Processing &amp; Storage Engine Spectrum</title>
+          <desc>Diagram showing the relation between Unix pipelines, distributed MapReduce, DAG engines, and modern storage architectures.</desc>
+          
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b"/>
+            </marker>
+            <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#3b82f6"/>
+            </marker>
+            <marker id="arrow-coral" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#eb6c36"/>
+            </marker>
+          </defs>
+
+          <!-- CONNECTORS (Drawn first for proper Z-ordering) -->
+          <!-- Path 1: Unix to MapReduce -->
+          <path d="M 210 70 H 350" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+          
+          <!-- Path 2: MapReduce to DAGs -->
+          <path d="M 570 70 H 710" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <!-- Path 3: MapReduce to Joins -->
+          <path d="M 460 110 V 160 H 180 V 190" fill="none" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+
+          <!-- Path 4: Batch Outputs to Storage Engines -->
+          <path d="M 460 110 V 190" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <!-- Path 5: Hardware Evolution to BF-Tree -->
+          <path d="M 460 110 V 160 H 740 V 190" fill="none" stroke="#eb6c36" stroke-width="2" marker-end="url(#arrow-coral)"/>
+
+          <!-- NODES -->
+          <!-- Node 1: Unix Tools -->
+          <rect x="30" y="30" width="180" height="80" rx="8" fill="#141820" stroke="#232936" stroke-width="2"/>
+          <text x="120" y="62" fill="#f1f3f7" font-size="14" font-weight="bold" text-anchor="middle">Unix Philosophy</text>
+          <text x="120" y="82" fill="#94a3b8" font-size="11" text-anchor="middle">stdin/stdout, Pipes, sort | uniq</text>
+
+          <!-- Node 2: MapReduce -->
+          <rect x="350" y="30" width="220" height="80" rx="8" fill="#141820" stroke="#3b82f6" stroke-width="2"/>
+          <text x="460" y="62" fill="#3b82f6" font-size="14" font-weight="bold" text-anchor="middle">MapReduce Engine</text>
+          <text x="460" y="82" fill="#94a3b8" font-size="11" text-anchor="middle">HDFS, Map/Shuffle/Reduce, Faults</text>
+
+          <!-- Node 3: DAG Engines -->
+          <rect x="710" y="30" width="180" height="80" rx="8" fill="#141820" stroke="#232936" stroke-width="2"/>
+          <text x="800" y="62" fill="#f1f3f7" font-size="14" font-weight="bold" text-anchor="middle">DAG &amp; Spark Engines</text>
+          <text x="800" y="82" fill="#94a3b8" font-size="11" text-anchor="middle">In-Memory RDDs, Pipelined Tasks</text>
+
+          <!-- Node 4: Batch Joins -->
+          <rect x="70" y="190" width="220" height="90" rx="8" fill="#141820" stroke="#232936" stroke-width="2"/>
+          <text x="180" y="225" fill="#f1f3f7" font-size="14" font-weight="bold" text-anchor="middle">Distributed Joins</text>
+          <text x="180" y="245" fill="#94a3b8" font-size="11" text-anchor="middle">Sort-Merge, Broadcast, Skew</text>
+          <text x="180" y="262" fill="#64748b" font-size="10" text-anchor="middle">Key Salting &amp; Partitioning</text>
+
+          <!-- Node 5: Output Storage / Indexes -->
+          <rect x="350" y="190" width="220" height="90" rx="8" fill="#141820" stroke="#232936" stroke-width="2"/>
+          <text x="460" y="225" fill="#f1f3f7" font-size="14" font-weight="bold" text-anchor="middle">Derived Storage &amp; Search</text>
+          <text x="460" y="245" fill="#94a3b8" font-size="11" text-anchor="middle">Inverted Indexes, Lucene, PageRank</text>
+          <text x="460" y="262" fill="#64748b" font-size="10" text-anchor="middle">Immutable Batch Outputs</text>
+
+          <!-- Node 6: BF-Tree & Modern Storage -->
+          <rect x="630" y="190" width="220" height="90" rx="8" fill="#141820" stroke="#eb6c36" stroke-width="2"/>
+          <text x="740" y="225" fill="#eb6c36" font-size="14" font-weight="bold" text-anchor="middle">B<tspan dy="-4" font-size="10">F</tspan><tspan dy="4">-Tree Storage</tspan></text>
+          <text x="740" y="245" fill="#94a3b8" font-size="11" text-anchor="middle">Decoupled Mini-Pages in RAM</text>
+          <text x="740" y="262" fill="#64748b" font-size="10" text-anchor="middle">NVMe SSDs, Slotted Layout, io_uring</text>
+
+          <!-- LABEL MASKS & LABELS -->
+          <rect x="250" y="60" width="60" height="20" fill="#0c0e12" rx="4"/>
+          <text x="280" y="74" fill="#94a3b8" font-size="10" text-anchor="middle">Scale-Out</text>
+
+          <rect x="615" y="60" width="55" height="20" fill="#0c0e12" rx="4"/>
+          <text x="642" y="74" fill="#94a3b8" font-size="10" text-anchor="middle">Pipelining</text>
+        </svg>
+        <div class="diagram-caption">Figure 1.0: End-to-end lineage from single-node Unix pipelines to distributed batch clusters and hardware-aware index engines.</div>
+      </div>
+    </section>
+
+    <!-- MODULE 1 -->
+    <section id="module-1">
+      <h2><span class="section-num">01</span> Batch Processing Foundations: The Unix Lineage</h2>
+      
+      <div class="core-explanation">
+        <p>
+          At its core, <strong>batch processing</strong> operates on bounded data: the input is of known, fixed size, and the job runs to completion without taking live queries during execution. Unlike Online Transaction Processing (OLTP) systems that perform fast random point reads/writes via indexes, or Stream Processing systems that react continuously to unbounded event streams, batch processing is designed for <strong>maximum sequential throughput</strong> and deterministic reproducibility.
+        </p>
+        <p>
+          The philosophy of batch processing originates directly from Doug McIlroy’s <strong>Unix Philosophy (1978)</strong>: write programs that do one thing well, expect the output of every program to become the input to another, and design software to be easily composed via a universal interface (byte streams). When processing massive log datasets on a single machine, chained Unix primitives (<code>cat</code>, <code>awk</code>, <code>sort</code>, <code>uniq</code>) can outperform high-end relational database queries by multiple orders of magnitude simply because they avoid query parsing overhead, transaction locks, and random I/O disk seeks.
+        </p>
+      </div>
+
+      <h3>Step-by-Step Anatomy of a Unix Batch Pipeline</h3>
+      <ol class="step-list">
+        <li><strong>Deterministic Streaming Ingestion:</strong> The input file is opened as a sequential byte stream without loading the entire multi-gigabyte file into memory.</li>
+        <li><strong>Tuple Extraction &amp; Projection:</strong> Tools like <code>awk</code> or <code>cut</code> parse each line, extracting only the relevant fields (e.g., URL path and HTTP status code) and discarding the rest.</li>
+        <li><strong>External Merge Sorting:</strong> When the dataset exceeds physical RAM, <code>sort</code> splits the stream into memory-sized chunks, sorts each in RAM, writes sorted spill runs to disk, and performs an $N$-way merge sort.</li>
+        <li><strong>Sequential Reduction:</strong> Downstream tools like <code>uniq -c</code> require sorted inputs so they only need to keep a single active counter in memory for the current key. When the key changes, the total is emitted immediately.</li>
+      </ol>
+
+      <div class="analogy-card">
+        <div class="analogy-header">💡 Conceptual Analogy</div>
+        <p>
+          <strong>The Industrial Assembly Line vs. A La Carte Restaurant:</strong> An OLTP database is like an à la carte chef who receives custom orders one at a time, darts between pantry shelves to retrieve single ingredients, and cooks meals individually with low latency. A batch processing pipeline is an automated industrial food canning factory: millions of tomatoes arrive in bulk containers, pass through specialized sequential sorting and slicing stations, and emerge as packaged goods with zero random movement.
+        </p>
+      </div>
+
+      <h3>Real-World Concrete Examples</h3>
+      <div class="example-grid">
+        <div class="example-card">
+          <span class="example-tag tag-obvious">Obvious Scenario</span>
+          <h4>Web Server Error Log Analysis</h4>
+          <p>Analyzing 500GB of daily NGINX access logs to find the top 10 most frequent 500 Internal Server Errors using a one-line Unix pipe: <code>awk '{print $7, $9}' access.log | grep ' 500$' | sort | uniq -c | sort -nr | head -n 10</code>.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag tag-counter">Counter-Intuitive Scenario</span>
+          <h4>Search Engine Inverted Index Generation</h4>
+          <p>Rather than performing concurrent <code>INSERT</code> statements into an indexed database for billions of crawled web pages, search engines run batch MapReduce jobs that sort word tokens globally to construct static, compressed, read-only inverted index files.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag tag-edge">Edge-Case Scenario</span>
+          <h4>Hot-Key Skew on Single-Column Sort</h4>
+          <p>A log file where 95% of traffic hits the root endpoint (<code>/</code>). In a streaming <code>sort | uniq -c</code>, memory remains $O(1)$ because the input is sorted, whereas an unsorted in-memory hash map risks running out of RAM if cardinality spikes unexpectedly.</p>
+        </div>
+      </div>
+
+      <div class="callout-grid">
+        <div class="callout-box callout-misconception">
+          <h4>❌ Common Misconception</h4>
+          <p><em>"Batch processing is obsolete legacy tech because modern event streams (Kafka/Flink) process data in real time."</em> Batch processing remains essential for complete historical re-indexing, ML model training, and deterministic data lake transformations where whole-dataset consistency and reprocessing guarantees are mandatory.</p>
+        </div>
+        <div class="callout-box callout-production">
+          <h4>🏭 Production Reality</h4>
+          <p>Never run massive analytical aggregations directly against live OLTP database replicas. Export database dumps or Change Data Capture (CDC) logs to cloud object storage (S3/GCS) and execute batch workflows on dedicated batch clusters to protect transactional availability.</p>
+        </div>
+      </div>
+
+      <a href="#module-2" class="module-link">Next Module: The MapReduce Execution Engine ➔</a>
+    </section>
+
+    <!-- MODULE 2 -->
+    <section id="module-2">
+      <h2><span class="section-num">02</span> The MapReduce Execution Engine: Shuffling &amp; Fault Tolerance</h2>
+      
+      <div class="core-explanation">
+        <p>
+          Introduced by Jeffrey Dean and Sanjay Ghemawat at Google in 2004 (and open-sourced via the Apache Hadoop ecosystem), <strong>MapReduce</strong> scales the Unix pipeline philosophy across thousands of commodity machines connected over a local network. Just as Unix pipes connect processes via standard streams, MapReduce coordinates parallel tasks reading from and writing to a distributed file system (such as Google File System or Hadoop HDFS).
+        </p>
+        <p>
+          A MapReduce job executes in four strictly ordered, deterministic phases:
+          <strong>(1) Input Splitting:</strong> The input dataset on HDFS (divided into 64MB or 128MB blocks) is split into independent input slices.
+          <strong>(2) Map Phase:</strong> A mapper function is invoked for each record in an input split, extracting and emitting zero or more key-value pairs <code>(k1, v1) &rarr; list(k2, v2)</code>.
+          <strong>(3) Partitioning, Shuffle &amp; Sort:</strong> The framework hashes each mapper's keys (<code>hash(key) mod R</code>) to assign them to $R$ reducers, sorts intermediate pairs by key on local disk, and transfers matching partitions over the network to their destination reducers.
+          <strong>(4) Reduce Phase:</strong> For each unique key, the reducer processes the sorted iterator of all associated values <code>(k2, list(v2)) &rarr; list(k3, v3)</code> and writes output files back to HDFS with 3x replication.
+        </p>
+      </div>
+
+      <!-- DIAGRAM 2: MapReduce Architecture -->
+      <div class="diagram-wrapper">
+        <svg class="schematic" viewBox="0 0 940 380" width="940" height="380" role="img" aria-label="MapReduce Execution Pipeline Schematic">
+          <title>MapReduce Execution and Shuffle Pipeline</title>
+          <desc>Visual diagram illustrating input splits, mapper tasks, intermediate local disk spill, network shuffle, reducer tasks, and final HDFS output.</desc>
+          
+          <!-- CONNECTORS (Pre-drawn) -->
+          <!-- Input to Mappers -->
+          <path d="M 140 90 H 220" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M 140 270 H 220" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <!-- Mappers to Shuffle/Sort -->
+          <path d="M 370 90 H 450" fill="none" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+          <path d="M 370 270 H 450" fill="none" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+
+          <!-- Shuffle to Reducers (Fanned Cross-Connectors) -->
+          <path d="M 590 130 C 640 130, 640 90, 690 90" fill="none" stroke="#eb6c36" stroke-width="2" marker-end="url(#arrow-coral)"/>
+          <path d="M 590 230 C 640 230, 640 270, 690 270" fill="none" stroke="#eb6c36" stroke-width="2" marker-end="url(#arrow-coral)"/>
+          <path d="M 590 150 C 640 150, 640 250, 690 250" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
+          <path d="M 590 210 C 640 210, 640 110, 690 110" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
+
+          <!-- Reducers to HDFS Output -->
+          <path d="M 830 90 H 870" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M 830 270 H 870" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <!-- NODES -->
+          <!-- HDFS Input Blocks -->
+          <rect x="20" y="50" width="120" height="80" rx="6" fill="#141820" stroke="#232936" stroke-width="2"/>
+          <text x="80" y="85" fill="#f1f3f7" font-size="12" font-weight="bold" text-anchor="middle">HDFS Block 1</text>
+          <text x="80" y="105" fill="#94a3b8" font-size="10" text-anchor="middle">128MB Chunk</text>
+
+          <rect x="20" y="230" width="120" height="80" rx="6" fill="#141820" stroke="#232936" stroke-width="2"/>
+          <text x="80" y="265" fill="#f1f3f7" font-size="12" font-weight="bold" text-anchor="middle">HDFS Block 2</text>
+          <text x="80" y="285" fill="#94a3b8" font-size="10" text-anchor="middle">128MB Chunk</text>
+
+          <!-- Mapper Nodes -->
+          <rect x="220" y="50" width="150" height="80" rx="6" fill="#141820" stroke="#3b82f6" stroke-width="2"/>
+          <text x="295" y="82" fill="#3b82f6" font-size="13" font-weight="bold" text-anchor="middle">Map Task 1</text>
+          <text x="295" y="100" fill="#94a3b8" font-size="10" text-anchor="middle">Local Disk Spill</text>
+          <text x="295" y="115" fill="#64748b" font-size="9" text-anchor="middle">Key-Value Emission</text>
+
+          <rect x="220" y="230" width="150" height="80" rx="6" fill="#141820" stroke="#3b82f6" stroke-width="2"/>
+          <text x="295" y="262" fill="#3b82f6" font-size="13" font-weight="bold" text-anchor="middle">Map Task 2</text>
+          <text x="295" y="280" fill="#94a3b8" font-size="10" text-anchor="middle">Local Disk Spill</text>
+          <text x="295" y="295" fill="#64748b" font-size="9" text-anchor="middle">Key-Value Emission</text>
+
+          <!-- Shuffle & Partition Phase -->
+          <rect x="450" y="100" width="140" height="160" rx="8" fill="#141820" stroke="#eb6c36" stroke-width="2"/>
+          <text x="520" y="145" fill="#eb6c36" font-size="13" font-weight="bold" text-anchor="middle">Shuffle &amp; Sort</text>
+          <text x="520" y="170" fill="#94a3b8" font-size="10" text-anchor="middle">hash(k) mod R</text>
+          <text x="520" y="190" fill="#94a3b8" font-size="10" text-anchor="middle">HTTP Pull Transmit</text>
+          <text x="520" y="210" fill="#64748b" font-size="9" text-anchor="middle">Merge Sort per Key</text>
+
+          <!-- Reducer Nodes -->
+          <rect x="690" y="50" width="140" height="80" rx="6" fill="#141820" stroke="#10b981" stroke-width="2"/>
+          <text x="760" y="82" fill="#10b981" font-size="13" font-weight="bold" text-anchor="middle">Reduce Task 1</text>
+          <text x="760" y="100" fill="#94a3b8" font-size="10" text-anchor="middle">Keys: [A - M]</text>
+          <text x="760" y="115" fill="#64748b" font-size="9" text-anchor="middle">Aggregates Values</text>
+
+          <rect x="690" y="230" width="140" height="80" rx="6" fill="#141820" stroke="#10b981" stroke-width="2"/>
+          <text x="760" y="262" fill="#10b981" font-size="13" font-weight="bold" text-anchor="middle">Reduce Task 2</text>
+          <text x="760" y="280" fill="#94a3b8" font-size="10" text-anchor="middle">Keys: [N - Z]</text>
+          <text x="760" y="295" fill="#64748b" font-size="9" text-anchor="middle">Aggregates Values</text>
+
+          <!-- HDFS Output -->
+          <rect x="870" y="50" width="50" height="260" rx="6" fill="#141820" stroke="#232936" stroke-width="2"/>
+          <text x="895" y="175" fill="#f1f3f7" font-size="11" font-weight="bold" text-anchor="middle" transform="rotate(-90 895 175)">HDFS PARTITIONS (3x Rep)</text>
+        </svg>
+        <div class="diagram-caption">Figure 2.0: The complete MapReduce lifecycle showing deterministic partitioning, HTTP pull shuffle, and reducer merge-sorting.</div>
+      </div>
+
+      <h3>Fault Tolerance and Side-Effect-Free Semantics</h3>
+      <p>
+        The brilliance of MapReduce lies in its treatment of hardware failure as the norm rather than an exception:
+      </p>
+      <ul style="margin-left: 1.5rem; margin-bottom: 1.5rem; color: var(--text-secondary);">
+        <li><strong>Mapper Failure:</strong> If a machine running Map Task 2 crashes, the coordinator detects the lost heartbeat and restarts Map Task 2 on another node containing a replica of HDFS Block 2. Because mappers write output to local disk, all downstream reducers are informed to fetch from the new location.</li>
+        <li><strong>Reducer Failure:</strong> If a reducer crashes mid-execution, its partially written output file is discarded. A new reducer task is spawned, fetches the same intermediate mapper files over the network, re-sorts them, and finishes writing.</li>
+        <li><strong>Atomic Output Commit:</strong> Reducers write to temporary files in HDFS. When all tasks succeed, the coordinator issues an atomic directory rename (metadata swap) in the distributed file system, guaranteeing that external readers never see partial or corrupted batch outputs.</li>
+      </ul>
+
+      <!-- INTERACTIVE SANDBOX 1: MapReduce Simulator -->
+      <div class="widget-box" id="mr-sandbox">
+        <div class="widget-header">
+          <div class="widget-title">
+            <span>⚙️ Interactive MapReduce Word Count Sandbox</span>
+          </div>
+          <span class="widget-badge">Interactive Simulator</span>
+        </div>
+        <div class="widget-controls">
+          <div class="control-group" style="grid-column: 1 / -1;">
+            <label class="control-label">Sample Input Document Stream</label>
+            <input type="text" id="mr-input-text" class="control-input" value="postgres kafka postgres btree hdfs kafka btree btree postgres mapreduce">
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+          <button class="btn-action" id="mr-step-btn">Step Next Phase &rarr;</button>
+          <button class="btn-action btn-secondary" id="mr-reset-btn">Reset Job</button>
+        </div>
+        <div class="widget-display" id="mr-display">
+          <div style="font-family: var(--font-mono); font-size: 0.9rem; color: var(--text-muted);">
+            Status: Ready. Click "Step Next Phase" to run Input Splitting.
+          </div>
+        </div>
+      </div>
+
+      <a href="#module-3" class="module-link">Next Module: Distributed Joins in Batch Processing ➔</a>
+    </section>
+
+    <!-- MODULE 3 -->
+    <section id="module-3">
+      <h2><span class="section-num">03</span> Distributed Joins in Batch Processing</h2>
+      
+      <div class="core-explanation">
+        <p>
+          In a relational database, joining two tables relies on secondary indexes and nested loop lookups. In batch processing, neither dataset may have an index, and neither may fit entirely into a single machine's RAM. To perform joins across hundreds of terabytes, batch frameworks employ three specialized distributed join patterns: <strong>Reduce-Side Sort-Merge Joins</strong>, <strong>Broadcast Hash Joins</strong>, and <strong>Partitioned Hash Joins</strong>.
+        </p>
+        <p>
+          In a <strong>Reduce-Side Join (Sort-Merge)</strong>, mappers process both tables (e.g., <code>Users</code> and <code>PageViews</code>). For every row, the mapper emits the join key (e.g., <code>user_id</code>) paired with the row data and a <em>tag</em> identifying the source table. The MapReduce shuffle routes all records for a given <code>user_id</code> to the same reducer. By employing <em>secondary sorting</em>, the framework guarantees that the <code>User</code> record arrives at the reducer immediately before all corresponding <code>PageViews</code>, allowing the reducer to stream through the views in memory and emit joined records with $O(1)$ memory usage.
+        </p>
+      </div>
+
+      <h3>The Three Core Distributed Join Strategies</h3>
+      <table class="cheat-table">
+        <thead>
+          <tr>
+            <th>Join Strategy</th>
+            <th>Prerequisites</th>
+            <th>Network Shuffle Cost</th>
+            <th>Best Suited For</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Broadcast Hash Join (Map-Side)</strong></td>
+            <td>One dataset is small enough to fit completely in mapper RAM (&le; 1–2 GB).</td>
+            <td>Zero intermediate shuffle. Small table is broadcast to all mappers upfront.</td>
+            <td>Joining massive log streams (100 TB) with small reference dimensions (e.g., country codes or user tiers).</td>
+          </tr>
+          <tr>
+            <td><strong>Partitioned Hash Join (Bucket Map Join)</strong></td>
+            <td>Both datasets are already pre-partitioned on the join key with the same bucket count.</td>
+            <td>Zero cross-rack shuffle. Mappers independently join matching partition files locally.</td>
+            <td>Recurring ETL pipelines where tables are consistently partitioned by <code>user_id</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Sort-Merge Join (Reduce-Side)</strong></td>
+            <td>No prerequisites. Works on unindexed, unsorted arbitrary datasets of any size.</td>
+            <td>Full network shuffle of both datasets across all reducers.</td>
+            <td>Joining two massive multi-terabyte datasets where neither fits in memory.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- DIAGRAM 3: Join Strategy Comparison -->
+      <div class="diagram-wrapper">
+        <svg class="schematic" viewBox="0 0 920 300" width="920" height="300" role="img" aria-label="Comparison of Broadcast Map-Side Join and Reduce-Side Sort-Merge Join">
+          <title>Distributed Join Architectures</title>
+          <desc>Visual comparison between Broadcast Hash Join on the mapper side and Sort-Merge Join on the reducer side.</desc>
+
+          <!-- Left Side: Broadcast Hash Join -->
+          <rect x="20" y="20" width="420" height="260" rx="8" fill="#141820" stroke="#10b981" stroke-width="2"/>
+          <text x="230" y="50" fill="#10b981" font-size="14" font-weight="bold" text-anchor="middle">Broadcast Hash Join (Map-Side)</text>
+
+          <rect x="40" y="80" width="100" height="60" rx="6" fill="#1a202c" stroke="#232936"/>
+          <text x="90" y="105" fill="#f1f3f7" font-size="11" font-weight="bold" text-anchor="middle">Large Stream</text>
+          <text x="90" y="125" fill="#94a3b8" font-size="9" text-anchor="middle">100TB PageViews</text>
+
+          <rect x="40" y="160" width="100" height="60" rx="6" fill="#1a202c" stroke="#10b981"/>
+          <text x="90" y="185" fill="#10b981" font-size="11" font-weight="bold" text-anchor="middle">Small Dimension</text>
+          <text x="90" y="205" fill="#94a3b8" font-size="9" text-anchor="middle">500MB Users (RAM)</text>
+
+          <path d="M 140 110 H 200" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M 140 190 H 200" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <rect x="200" y="80" width="120" height="140" rx="6" fill="#1a202c" stroke="#3b82f6"/>
+          <text x="260" y="130" fill="#3b82f6" font-size="12" font-weight="bold" text-anchor="middle">Mapper Node</text>
+          <text x="260" y="150" fill="#94a3b8" font-size="10" text-anchor="middle">In-Memory Hash Table</text>
+          <text x="260" y="170" fill="#64748b" font-size="9" text-anchor="middle">Zero Shuffle Needed</text>
+
+          <path d="M 320 150 H 380" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+          <rect x="380" y="110" width="50" height="80" rx="4" fill="#1a202c" stroke="#232936"/>
+          <text x="405" y="155" fill="#f1f3f7" font-size="10" text-anchor="middle" transform="rotate(-90 405 155)">Direct Output</text>
+
+          <!-- Right Side: Reduce-Side Sort-Merge Join -->
+          <rect x="480" y="20" width="420" height="260" rx="8" fill="#141820" stroke="#3b82f6" stroke-width="2"/>
+          <text x="690" y="50" fill="#3b82f6" font-size="14" font-weight="bold" text-anchor="middle">Sort-Merge Join (Reduce-Side)</text>
+
+          <rect x="500" y="80" width="90" height="50" rx="6" fill="#1a202c" stroke="#232936"/>
+          <text x="545" y="105" fill="#f1f3f7" font-size="10" text-anchor="middle">Table A (50TB)</text>
+
+          <rect x="500" y="150" width="90" height="50" rx="6" fill="#1a202c" stroke="#232936"/>
+          <text x="545" y="175" fill="#f1f3f7" font-size="10" text-anchor="middle">Table B (40TB)</text>
+
+          <path d="M 590 105 H 630" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <path d="M 590 175 H 630" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+          <rect x="630" y="80" width="90" height="120" rx="6" fill="#1a202c" stroke="#eb6c36"/>
+          <text x="675" y="130" fill="#eb6c36" font-size="11" font-weight="bold" text-anchor="middle">Network</text>
+          <text x="675" y="150" fill="#eb6c36" font-size="11" font-weight="bold" text-anchor="middle">Shuffle</text>
+
+          <path d="M 720 140 H 760" fill="none" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+
+          <rect x="760" y="80" width="120" height="120" rx="6" fill="#1a202c" stroke="#3b82f6"/>
+          <text x="820" y="125" fill="#3b82f6" font-size="12" font-weight="bold" text-anchor="middle">Reducer</text>
+          <text x="820" y="145" fill="#94a3b8" font-size="10" text-anchor="middle">Secondary Sort</text>
+          <text x="820" y="165" fill="#64748b" font-size="9" text-anchor="middle">Merged Stream</text>
+        </svg>
+        <div class="diagram-caption">Figure 3.0: High-speed in-memory Broadcast Hash Join vs. resilient distributed Sort-Merge Join.</div>
+      </div>
+
+      <h3>Mitigating Skew: The "Celebrity Problem"</h3>
+      <p>
+        If a single key appears millions of times (e.g., a celebrity account with 150 million followers), all records for that key are routed to a single reducer, causing an extreme <strong>straggler bottleneck</strong> or out-of-memory (OOM) crash.
+      </p>
+      <p>
+        The standard mitigation is <strong>Key Salting</strong>: mappers append a random number $0 \le i < K$ to the hot key (e.g., <code>celebrity_id_3</code>), distributing the load evenly across $K$ reducers. A second MapReduce job then performs the final rollup across the $K$ salted buckets.
+      </p>
+
+      <!-- INTERACTIVE SANDBOX 2: Join Strategy Estimator -->
+      <div class="widget-box" id="join-calc">
+        <div class="widget-header">
+          <div class="widget-title">
+            <span>📊 Distributed Join Strategy &amp; Cost Estimator</span>
+          </div>
+          <span class="widget-badge">Architecture Sandbox</span>
+        </div>
+        <div class="widget-controls">
+          <div class="control-group">
+            <label class="control-label">Table A Size (Primary Logs)</label>
+            <select id="join-table-a" class="control-select">
+              <option value="100000">100 GB (Medium)</option>
+              <option value="10000000" selected>10 TB (Large)</option>
+              <option value="100000000">100 TB (Massive)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label class="control-label">Table B Size (Dimension / User)</label>
+            <select id="join-table-b" class="control-select">
+              <option value="500">500 MB (Fits in Mapper RAM)</option>
+              <option value="20000">20 GB (Exceeds Mapper RAM)</option>
+              <option value="5000000">5 TB (Massive)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label class="control-label">Cluster Worker Nodes</label>
+            <select id="join-nodes" class="control-select">
+              <option value="20">20 Nodes</option>
+              <option value="100" selected>100 Nodes</option>
+              <option value="500">500 Nodes</option>
+            </select>
+          </div>
+        </div>
+        <div class="widget-display" id="join-result-display">
+          <!-- Dynamically populated via JS -->
+        </div>
+      </div>
+
+      <a href="#module-4" class="module-link">Next Module: The Evolution Beyond MapReduce (Spark &amp; DAGs) ➔</a>
+    </section>
+
+    <!-- MODULE 4 -->
+    <section id="module-4">
+      <h2><span class="section-num">04</span> Beyond MapReduce: DAG Engines &amp; In-Memory Dataflows</h2>
+      
+      <div class="core-explanation">
+        <p>
+          While MapReduce proved that distributed computing on commodity hardware was viable at petabyte scale, its execution model suffered from severe architectural inefficiencies known as the <strong>HDFS Materialization Tax</strong>. In multi-step data pipelines (e.g., joining 5 tables or running iterative machine learning algorithms like PageRank), MapReduce forces every intermediate step to write full copies of data to local disk, replicate output files 3x across HDFS over the network, and re-read them from scratch in the subsequent job.
+        </p>
+        <p>
+          To eliminate these bottlenecks, modern engines such as <strong>Apache Spark</strong>, <strong>Apache Flink</strong>, and <strong>Apache Tez</strong> model batch computation as general <strong>Directed Acyclic Graphs (DAGs)</strong> of operators. Rather than forcing computation into rigid Map &rarr; Reduce pairs, DAG engines pipeline operations in memory: records flow continuously through filters, projections, and local joins without touching disk until a wide shuffle dependency (such as a global group-by) is strictly required.
+        </p>
+      </div>
+
+      <h3>Architectural Comparison: MapReduce Chaining vs. Spark DAG Execution</h3>
+      <div class="example-grid">
+        <div class="example-card">
+          <span class="example-tag tag-obvious">Disk Materialization (Hadoop)</span>
+          <h4>Multi-Job HDFS Bottleneck</h4>
+          <p>A 4-stage analytical workflow creates 4 distinct MapReduce jobs. Stages 1, 2, and 3 write temporary files to HDFS with full network replication and disk serialization, consuming 80%+ of total execution time in I/O wait.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag tag-counter">Pipelined Execution (Spark / Tez)</span>
+          <h4>In-Memory RDD Lineage</h4>
+          <p>The DAG optimizer collapses <code>filter</code>, <code>map</code>, and <code>project</code> into a single JVM loop (operator fusion). Intermediate partitions stay in worker RAM, reducing end-to-end execution time by 10x to 50x.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag tag-edge">Fault Recovery Mechanism</span>
+          <h4>Lineage Graph Recomputation</h4>
+          <p>If a Spark worker node loses power mid-job, the engine does not restart the entire pipeline. It inspects the mathematical <em>lineage graph</em> of the lost Resilient Distributed Dataset (RDD) partition and recomputes only that specific slice from the original input.</p>
+        </div>
+      </div>
+
+      <div class="analogy-card">
+        <div class="analogy-header">💡 Conceptual Analogy</div>
+        <p>
+          <strong>The Bucket Brigade vs. Pressurized Plumbing:</strong> Classic MapReduce is a bucket brigade: every person fills a heavy wooden bucket, carries it to the next station, places it on the ground, waits for confirmation, and walks back. A DAG dataflow engine like Spark installs continuous pressurized PVC plumbing: water flows directly through filters and valves from source to reservoir without ever pausing in intermediate buckets.
+        </p>
+      </div>
+
+      <a href="#module-5" class="module-link">Next Module: The Modern Storage Dilemma &amp; B-Tree Page Inefficiency ➔</a>
+    </section>
+
+    <!-- MODULE 5 -->
+    <section id="module-5">
+      <h2><span class="section-num">05</span> The Storage Engine Dilemma: Hardware Shifts &amp; The Page Cache Tax</h2>
+      
+      <div class="core-explanation">
+        <p>
+          When Rudolf Bayer and Edward McCreight invented the <strong>B-Tree in 1970</strong> (at Boeing Scientific Research Labs), disk hardware was defined by spinning magnetic platters. Moving a physical read/write head took ~10 milliseconds (the seek time). To maximize throughput, storage engines read and wrote data in fixed-size blocks (typically 4KB, 8KB, or 16KB pages) to amortize the seek latency over multiple kilobytes of contiguous data.
+        </p>
+        <p>
+          Over the past five decades, computer architecture underwent a fundamental transformation:
+          <strong>(1) Random Disk I/O:</strong> NVMe Solid State Drives (SSDs) can deliver over 1,000,000 random IOPS with sub-100 microsecond latencies, eliminating mechanical head movement.
+          <strong>(2) Memory vs. CPU Disparity:</strong> CPU core counts and memory bandwidth became the primary bottlenecks, while random memory accesses induce costly L1/L2/L3 CPU cache line misses.
+          <strong>(3) The Buffer Pool Memory Tax:</strong> In traditional relational databases (PostgreSQL, MySQL InnoDB), when an application requests a single 64-byte row, the database must load the entire 8KB or 16KB disk page into the RAM buffer pool. If workload accesses follow a realistic Zipfian distribution (where 5% of keys account for 90% of requests), <strong>over 90% of server RAM is wasted caching cold, unaccessed rows</strong> packed inside hot disk pages.
+        </p>
+      </div>
+
+      <!-- DIAGRAM 4: Buffer Pool Tax vs BF-Tree Memory Density -->
+      <div class="diagram-wrapper">
+        <svg class="schematic" viewBox="0 0 920 320" width="920" height="320" role="img" aria-label="Traditional 8KB Page Cache vs Decoupled Variable Mini-Pages">
+          <title>The Buffer Pool Memory Tax</title>
+          <desc>Visual comparison showing how standard database buffer pools waste memory on cold rows versus decoupled variable-sized mini-pages.</desc>
+
+          <!-- Left: Traditional Buffer Pool -->
+          <rect x="20" y="20" width="420" height="280" rx="8" fill="#141820" stroke="#eb6c36" stroke-width="2"/>
+          <text x="230" y="50" fill="#eb6c36" font-size="14" font-weight="bold" text-anchor="middle">Traditional B-Tree (Fixed 8KB Page Cache)</text>
+          
+          <rect x="40" y="75" width="380" height="90" rx="6" fill="#1a202c" stroke="#232936"/>
+          <text x="50" y="95" fill="#94a3b8" font-size="11">Page #1042 (8KB Loaded in RAM Buffer Pool):</text>
+          
+          <!-- Hot row (Coral) -->
+          <rect x="50" y="110" width="40" height="40" rx="4" fill="#eb6c36"/>
+          <text x="70" y="135" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">HOT</text>
+          
+          <!-- Cold rows (Muted gray) -->
+          <rect x="95" y="110" width="35" height="40" rx="4" fill="#232936"/>
+          <rect x="135" y="110" width="35" height="40" rx="4" fill="#232936"/>
+          <rect x="175" y="110" width="35" height="40" rx="4" fill="#232936"/>
+          <rect x="215" y="110" width="35" height="40" rx="4" fill="#232936"/>
+          <rect x="255" y="110" width="35" height="40" rx="4" fill="#232936"/>
+          <rect x="295" y="110" width="35" height="40" rx="4" fill="#232936"/>
+          <rect x="335" y="110" width="35" height="40" rx="4" fill="#232936"/>
+          <rect x="375" y="110" width="35" height="40" rx="4" fill="#232936"/>
+          <text x="240" y="135" fill="#64748b" font-size="10" text-anchor="middle">39 Cold / Dead Rows (95% Wasted Space)</text>
+
+          <rect x="40" y="180" width="380" height="100" rx="6" fill="#1a202c" stroke="#232936"/>
+          <text x="50" y="205" fill="#f1f3f7" font-size="11" font-weight="bold">System Bottlenecks:</text>
+          <text x="50" y="225" fill="#94a3b8" font-size="10">• Severe Buffer Pool Thrashing on skewed OLTP point reads</text>
+          <text x="50" y="245" fill="#94a3b8" font-size="10">• High Write Amplification: 8-byte update rewrites 8KB page to WAL</text>
+          <text x="50" y="265" fill="#94a3b8" font-size="10">• CPU L2/L3 cache thrashing traversing page slot arrays</text>
+
+          <!-- Right: BF-Tree Mini-Pages -->
+          <rect x="480" y="20" width="420" height="280" rx="8" fill="#141820" stroke="#10b981" stroke-width="2"/>
+          <text x="690" y="50" fill="#10b981" font-size="14" font-weight="bold" text-anchor="middle">B<tspan dy="-3" font-size="10">F</tspan><tspan dy="3">-Tree (Decoupled Variable Mini-Pages)</tspan></text>
+
+          <rect x="500" y="75" width="380" height="90" rx="6" fill="#1a202c" stroke="#232936"/>
+          <text x="510" y="95" fill="#10b981" font-size="11" font-weight="bold">Dense Memory Ring Buffer in RAM:</text>
+
+          <!-- Packed Hot Mini-Pages -->
+          <rect x="510" y="110" width="60" height="40" rx="4" fill="#10b981"/>
+          <text x="540" y="135" fill="#0c0e12" font-size="10" font-weight="bold" text-anchor="middle">Hot #1</text>
+
+          <rect x="575" y="110" width="60" height="40" rx="4" fill="#10b981"/>
+          <text x="605" y="135" fill="#0c0e12" font-size="10" font-weight="bold" text-anchor="middle">Hot #2</text>
+
+          <rect x="640" y="110" width="60" height="40" rx="4" fill="#10b981"/>
+          <text x="670" y="135" fill="#0c0e12" font-size="10" font-weight="bold" text-anchor="middle">Hot #3</text>
+
+          <rect x="705" y="110" width="60" height="40" rx="4" fill="#10b981"/>
+          <text x="735" y="135" fill="#0c0e12" font-size="10" font-weight="bold" text-anchor="middle">Hot #4</text>
+
+          <rect x="770" y="110" width="100" height="40" rx="4" fill="#1a202c" stroke="#10b981" stroke-dasharray="3,3"/>
+          <text x="820" y="135" fill="#10b981" font-size="10" text-anchor="middle">100% Packed</text>
+
+          <rect x="500" y="180" width="380" height="100" rx="6" fill="#1a202c" stroke="#232936"/>
+          <text x="510" y="205" fill="#f1f3f7" font-size="11" font-weight="bold">Architectural Gains:</text>
+          <text x="510" y="225" fill="#94a3b8" font-size="10">• 3x to 5x higher effective hot-row cache capacity</text>
+          <text x="510" y="245" fill="#94a3b8" font-size="10">• Fixed 4KB/8KB NVMe disk blocks decoupled from in-memory size</text>
+          <text x="510" y="265" fill="#94a3b8" font-size="10">• 2-byte key prefix metadata eliminates CPU pointer chasing</text>
+        </svg>
+        <div class="diagram-caption">Figure 4.0: Buffer pool memory waste under skewed point queries vs. packed B<sup>F</sup>-Tree mini-pages.</div>
+      </div>
+
+      <a href="#module-6" class="module-link">Next Module: The BF-Tree Architecture &amp; Slotted Layouts ➔</a>
+    </section>
+
+    <!-- MODULE 6 -->
+    <section id="module-6">
+      <h2><span class="section-num">06</span> The B<sup>F</sup>-Tree Architecture: Decoupled Mini-Pages &amp; Slotted Layouts</h2>
+      
+      <div class="core-explanation">
+        <p>
+          Published by Microsoft Research (authored by Xiangpeng Hao, Jianqiu Ding, et al.), the <strong>B<sup>F</sup>-Tree</strong> resolves the tension between disk block efficiency and RAM caching efficiency. Rather than forcing the in-memory cache to mirror the fixed page boundaries of NVMe disk storage, the B<sup>F</sup>-Tree decouples the storage hierarchy into a <strong>Dual-Granularity Index</strong>:
+        </p>
+        <p>
+          <strong>1. Fixed Routing Upper Tree:</strong> The non-leaf inner nodes of the tree remain pinned in RAM. Because the upper levels of a shallow high-fanout tree require only megabytes of memory, routing traversals never touch disk.
+          <strong>2. Variable-Sized Mini-Pages in RAM:</strong> Leaf nodes in memory are stored as flexible mini-pages that hold only the subset of rows actively accessed by queries. When a disk page is read from NVMe, the database extracts only the hot target record into a mini-page and discards the cold disk page from RAM.
+          <strong>3. Slotted Bidirectional Memory Layout:</strong> Within each mini-page, metadata records (containing 2-byte key prefixes, payload offsets, and lengths) grow forward from the start of the buffer, while row payloads grow backward from the end. When the two arrays meet, the mini-page expands or splits.
+          <strong>4. 2-Byte Key Prefix Filtering:</strong> By storing the first two bytes of search keys directly inside contiguous metadata arrays, the CPU evaluates key inequality using SIMD operations in L1/L2 cache without dereferencing variable-length payload memory.
+        </p>
+      </div>
+
+      <!-- DIAGRAM 5: Slotted Mini-Page Layout -->
+      <div class="diagram-wrapper">
+        <svg class="schematic" viewBox="0 0 920 260" width="920" height="260" role="img" aria-label="Slotted Bidirectional Mini-Page Memory Layout">
+          <title>Slotted Bidirectional Mini-Page Structure</title>
+          <desc>Schematic showing header metadata growing right and data payloads growing left within a mini-page.</desc>
+
+          <!-- Outer Mini-Page Buffer -->
+          <rect x="40" y="40" width="840" height="160" rx="8" fill="#141820" stroke="#3b82f6" stroke-width="2"/>
+          <text x="460" y="25" fill="#3b82f6" font-size="13" font-weight="bold" text-anchor="middle">Mini-Page Physical Memory Buffer (Dynamic Size: 256B to 8KB)</text>
+
+          <!-- Header & Metadata (Growing Right) -->
+          <rect x="50" y="60" width="100" height="120" rx="4" fill="#1a202c" stroke="#232936"/>
+          <text x="100" y="115" fill="#f1f3f7" font-size="11" font-weight="bold" text-anchor="middle">Page Header</text>
+          <text x="100" y="135" fill="#94a3b8" font-size="9" text-anchor="middle">Count, FreePtr</text>
+
+          <rect x="160" y="60" width="90" height="120" rx="4" fill="#212936" stroke="#3b82f6"/>
+          <text x="205" y="100" fill="#3b82f6" font-size="10" font-weight="bold" text-anchor="middle">Slot Meta 0</text>
+          <text x="205" y="120" fill="#f1f3f7" font-size="9" text-anchor="middle">2B Key Prefix</text>
+          <text x="205" y="140" fill="#94a3b8" font-size="9" text-anchor="middle">Offset: 820B</text>
+
+          <rect x="260" y="60" width="90" height="120" rx="4" fill="#212936" stroke="#3b82f6"/>
+          <text x="305" y="100" fill="#3b82f6" font-size="10" font-weight="bold" text-anchor="middle">Slot Meta 1</text>
+          <text x="305" y="120" fill="#f1f3f7" font-size="9" text-anchor="middle">2B Key Prefix</text>
+          <text x="305" y="140" fill="#94a3b8" font-size="9" text-anchor="middle">Offset: 740B</text>
+
+          <!-- Free Space in the Middle -->
+          <rect x="360" y="60" width="230" height="120" rx="4" fill="#0c0e12" stroke="#64748b" stroke-dasharray="4,4"/>
+          <text x="475" y="115" fill="#64748b" font-size="12" font-weight="bold" text-anchor="middle">Contiguous Free Space</text>
+          <text x="475" y="135" fill="#94a3b8" font-size="9" text-anchor="middle">&rarr; Metadata Grows Right | Payloads Grow Left &larr;</text>
+
+          <!-- Data Payloads (Growing Left) -->
+          <rect x="600" y="60" width="130" height="120" rx="4" fill="#212936" stroke="#10b981"/>
+          <text x="665" y="100" fill="#10b981" font-size="10" font-weight="bold" text-anchor="middle">Payload Slot 1</text>
+          <text x="665" y="120" fill="#f1f3f7" font-size="9" text-anchor="middle">Full Key: "postgres"</text>
+          <text x="665" y="140" fill="#94a3b8" font-size="9" text-anchor="middle">Row Data: 80 Bytes</text>
+
+          <rect x="740" y="60" width="130" height="120" rx="4" fill="#212936" stroke="#10b981"/>
+          <text x="805" y="100" fill="#10b981" font-size="10" font-weight="bold" text-anchor="middle">Payload Slot 0</text>
+          <text x="805" y="120" fill="#f1f3f7" font-size="9" text-anchor="middle">Full Key: "kafka"</text>
+          <text x="805" y="140" fill="#94a3b8" font-size="9" text-anchor="middle">Row Data: 120 Bytes</text>
+        </svg>
+        <div class="diagram-caption">Figure 5.0: The bidirectional slotted mini-page layout enabling zero-fragmentation row allocation.</div>
+      </div>
+
+      <!-- INTERACTIVE SANDBOX 3: Slotted Page Memory Inspector -->
+      <div class="widget-box" id="bf-sandbox">
+        <div class="widget-header">
+          <div class="widget-title">
+            <span>🔬 B<sup>F</sup>-Tree Mini-Page Slotted Memory Sandbox</span>
+          </div>
+          <span class="widget-badge">Memory Allocator</span>
+        </div>
+        <div class="widget-controls">
+          <div class="control-group">
+            <label class="control-label">Insert Key</label>
+            <input type="text" id="slot-key-input" class="control-input" value="analytics_event">
+          </div>
+          <div class="control-group">
+            <label class="control-label">Payload Size (Bytes)</label>
+            <select id="slot-size-input" class="control-select">
+              <option value="64">64 Bytes (Small Row)</option>
+              <option value="128" selected>128 Bytes (Standard Row)</option>
+              <option value="256">256 Bytes (Large Row)</option>
+            </select>
+          </div>
+          <div class="control-group" style="justify-content: flex-end;">
+            <button class="btn-action" id="slot-insert-btn">+ Insert Row to Mini-Page</button>
+          </div>
+        </div>
+        <div class="widget-display" id="slot-display">
+          <!-- Dynamically generated via JS -->
+        </div>
+      </div>
+
+      <div class="callout-grid">
+        <div class="callout-box callout-misconception">
+          <h4>❌ Common Misconception</h4>
+          <p><em>"B<sup>F</sup>-Tree replaces the physical storage format on NVMe disk with custom variable-sized files."</em> B<sup>F</sup>-Tree leaves disk files in standard 4KB/8KB block layouts; the optimization is entirely in-memory: decoupling the RAM buffer representation into variable mini-pages to prevent cold-row pollution.</p>
+        </div>
+        <div class="callout-box callout-production">
+          <h4>🏭 Production Reality</h4>
+          <p>B<sup>F</sup>-Trees achieve up to 3x higher throughput in mixed OLTP workloads by combining <code>io_uring</code> asynchronous kernel-bypass I/O with SIMD prefix filtering, outperforming both traditional B-Trees and RocksDB LSM-Trees under high concurrency.</p>
+        </div>
+      </div>
+
+      <a href="#active-recall" class="module-link">Next: Active Recall Flashcards ➔</a>
+    </section>
+
+    <!-- ACTIVE RECALL FLASHCARDS -->
+    <section id="active-recall">
+      <h2><span class="section-num">07</span> Active Recall &amp; Self-Assessment</h2>
+      <p>Click any flashcard to reveal the rigorous technical explanation.</p>
+
+      <div class="flashcard-grid">
+        <!-- Card 1 -->
+        <div class="flashcard" onclick="this.classList.toggle('revealed')">
+          <div>
+            <div class="flashcard-q">Q1: Why does MapReduce write intermediate mapper outputs to local disk rather than streaming them directly across TCP to reducers?</div>
+            <div class="flashcard-a">
+              To guarantee deterministic fault isolation. If a reducer crashes, it can re-fetch intermediate files from surviving mappers without re-running the map phase. If mappers streamed directly over TCP, any network glitch or reducer failure would require restarting the entire multi-thousand-node cluster job.
+            </div>
+          </div>
+          <div class="flashcard-hint">Click to flip</div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="flashcard" onclick="this.classList.toggle('revealed')">
+          <div>
+            <div class="flashcard-q">Q2: How does a Broadcast Hash Join eliminate network shuffles in distributed batch jobs?</div>
+            <div class="flashcard-a">
+              If one dataset is small enough to fit in RAM (&le; 1-2 GB), the coordinator broadcasts a copy of it to every mapper node upfront. Each mapper loads it into an in-memory hash table and streams through its local slice of the multi-terabyte table, performing $O(1)$ lookups with zero network shuffle.
+            </div>
+          </div>
+          <div class="flashcard-hint">Click to flip</div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="flashcard" onclick="this.classList.toggle('revealed')">
+          <div>
+            <div class="flashcard-q">Q3: What is the "Celebrity Problem" (skew) in Reduce-Side joins, and how is it resolved?</div>
+            <div class="flashcard-a">
+              When a single join key (e.g. a viral user ID) appears millions of times, all matching records are hashed to a single reducer node, causing an extreme straggler or OOM crash. It is mitigated by <strong>Key Salting</strong> (appending random suffixes <code>_0</code> to <code>_N</code>) to spread load across $N$ reducers, followed by a secondary aggregation.
+            </div>
+          </div>
+          <div class="flashcard-hint">Click to flip</div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="flashcard" onclick="this.classList.toggle('revealed')">
+          <div>
+            <div class="flashcard-q">Q4: Why is Apache Spark's DAG execution fundamentally faster than Hadoop MapReduce for multi-stage pipelines?</div>
+            <div class="flashcard-a">
+              Spark pipelines operators in memory without materializing intermediate state to disk or replicating across HDFS between consecutive steps. It uses operator fusion and lazy evaluation, falling back to RDD lineage graphs for fault recovery instead of constant disk I/O barriers.
+            </div>
+          </div>
+          <div class="flashcard-hint">Click to flip</div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="flashcard" onclick="this.classList.toggle('revealed')">
+          <div>
+            <div class="flashcard-q">Q5: What is the "Buffer Pool Memory Tax" in traditional relational B-Trees (Postgres/MySQL)?</div>
+            <div class="flashcard-a">
+              Traditional buffer pools cache data in fixed 8KB/16KB disk page frames. Under skewed point queries (Zipfian distribution), loading an entire 8KB page into RAM to read one 64-byte row causes ~95% of buffer pool RAM to be occupied by cold, unaccessed rows, starving the cache and forcing frequent disk evictions.
+            </div>
+          </div>
+          <div class="flashcard-hint">Click to flip</div>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="flashcard" onclick="this.classList.toggle('revealed')">
+          <div>
+            <div class="flashcard-q">Q6: How does the B<sup>F</sup>-Tree 2-byte key prefix optimization speed up search traversals?</div>
+            <div class="flashcard-a">
+              The first 2 bytes of every search key are packed contiguously inside the metadata slot array. The CPU can evaluate key inequality in L1/L2 cache using SIMD instructions without chasing pointers to variable-length payload memory, eliminating ~99% of pointer-induced cache line misses.
+            </div>
+          </div>
+          <div class="flashcard-hint">Click to flip</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SUMMARY CHEAT SHEET -->
+    <section id="summary-cheatsheet">
+      <h2><span class="section-num">08</span> Architectural Summary &amp; Comparison</h2>
+      
+      <table class="cheat-table">
+        <thead>
+          <tr>
+            <th>Architecture Paradigm</th>
+            <th>Primary Access Pattern</th>
+            <th>Fault Recovery Model</th>
+            <th>Key Storage Bottleneck</th>
+            <th>Modern Industry Standard</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>MapReduce (Hadoop / HDFS)</strong></td>
+            <td>Sequential bulk scans, bounded batch offline analytics.</td>
+            <td>Task restart; intermediate files materialized to mapper local disk.</td>
+            <td>Disk I/O serialization &amp; network shuffle replication between stages.</td>
+            <td>Foundational legacy for batch data lakes &amp; search index generation.</td>
+          </tr>
+          <tr>
+            <td><strong>DAG Dataflow (Spark / Flink)</strong></td>
+            <td>Multi-stage pipelined transformations, ML graphs, stream-batch hybrid.</td>
+            <td>Lineage graph recomputation; in-memory partition regeneration.</td>
+            <td>JVM garbage collection overhead &amp; cluster memory pressure during shuffles.</td>
+            <td>Databricks, Apache Spark, Snowflake internal query execution.</td>
+          </tr>
+          <tr>
+            <td><strong>Traditional B-Tree (PostgreSQL / InnoDB)</strong></td>
+            <td>OLTP random point reads and range scans via fixed disk pages.</td>
+            <td>Write-Ahead Logging (WAL) &amp; ACID crash recovery.</td>
+            <td>Buffer pool cold row amplification &amp; write amplification on page updates.</td>
+            <td>Standard transactional relational databases globally.</td>
+          </tr>
+          <tr>
+            <td><strong>B<sup>F</sup>-Tree (Dual-Granularity Index)</strong></td>
+            <td>High-concurrency skewed OLTP point lookups &amp; mixed read/write workloads.</td>
+            <td>WAL + In-Memory mini-page dynamic allocation &amp; <code>io_uring</code> SSD reads.</td>
+            <td>CPU slotted metadata management overhead (offset by cache hit gains).</td>
+            <td>Cutting-edge database research for NVMe SSD server architectures.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- FAQ SECTION -->
+    <section id="faq">
+      <h2><span class="section-num">09</span> Frequently Asked Questions</h2>
+      
+      <details>
+        <summary>Why did Google replace MapReduce with FlumeJava and MillWheel in the late 2000s?</summary>
+        <p>
+          Google outgrew raw MapReduce because web search indexing required low-latency continuous updates rather than 12-hour batch sweeps. Chaining hundreds of MapReduce jobs created prohibitive disk I/O latencies, prompting Google to invent declarative dataflow frameworks (FlumeJava &rarr; Apache Beam) and continuous streaming engines (MillWheel &rarr; Cloud Dataflow).
+        </p>
+      </details>
+
+      <details>
+        <summary>How does the B<sup>F</sup>-Tree compare against Log-Structured Merge (LSM) Trees like RocksDB?</summary>
+        <p>
+          LSM-Trees optimize for sequential writes by buffering writes in memory (MemTable) and flushing immutable SSTables to disk, but they suffer from high read amplification (checking multiple SSTable levels via Bloom filters) and background compaction I/O stalls. B<sup>F</sup>-Trees achieve comparable write throughput while offering significantly lower point read latency and zero background compaction churn.
+        </p>
+      </details>
+
+      <details>
+        <summary>Can Map-Side Broadcast Joins be used when both tables are large?</summary>
+        <p>
+          No. If neither table fits inside the physical memory allocated to a worker mapper task (e.g., 2GB–4GB JVM heap), a Broadcast Hash Join will trigger an Out-Of-Memory (OOM) fatal exception. In that scenario, you must use a Partitioned Hash Join (if pre-bucketed on the join key) or fall back to a full Reduce-Side Sort-Merge Join.
+        </p>
+      </details>
+
+      <details>
+        <summary>Why are B-Trees preferred over Hash Indexes in relational databases?</summary>
+        <p>
+          Hash indexes only support exact match equality queries (<code>WHERE id = 'abc'</code>) in $O(1)$ time. They cannot perform range queries (<code>WHERE age BETWEEN 20 AND 30</code>), prefix matching, or ordered scans (<code>ORDER BY timestamp DESC</code>). B-Trees maintain total key order, executing both point lookups and range scans in $O(\log N)$ time.
+        </p>
+      </details>
+    </section>
+
+    <!-- ACTIONABLE NEXT STEPS -->
+    <section id="next-steps">
+      <h2><span class="section-num">10</span> Recommended Engineering Next Steps</h2>
+      <div class="card">
+        <ul style="list-style: none; color: var(--text-secondary);">
+          <li style="margin-bottom: 1rem;">📚 <strong>Read Chapter 11 (Stream Processing):</strong> Transition from bounded offline batch processing to unbounded event streams, Kafka partition commit logs, and event-time windowing.</li>
+          <li style="margin-bottom: 1rem;">📄 <strong>Study the Original Papers:</strong>
+            <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+              <li>Jeffrey Dean &amp; Sanjay Ghemawat (2004): <em>MapReduce: Simplified Data Processing on Large Clusters</em>.</li>
+              <li>Xiangpeng Hao, Jianqiu Ding, et al. (Microsoft Research): <em>B<sup>F</sup>-Tree: A Dual-Granularity Index for Modern Hardware</em>.</li>
+            </ul>
+          </li>
+          <li style="margin-bottom: 0.5rem;">🛠️ <strong>Hands-On Architecture Exercise:</strong> Implement a single-machine external merge sort in Rust or Go that sorts a 20GB binary file with an 8MB memory budget using temporary chunk spill files.</li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Vanilla JavaScript for Interactivity, Theme Toggling, and Simulators -->
+  <script>
+    // Theme Toggling Logic
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    let isDark = true;
+
+    themeToggleBtn.addEventListener('click', () => {
+      isDark = !isDark;
+      if (isDark) {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent = '☀️';
+        themeText.textContent = 'Light Mode';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeIcon.textContent = '🌙';
+        themeText.textContent = 'Dark Mode';
+      }
+    });
+
+    // Scroll Progress Indicator
+    window.addEventListener('scroll', () => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const progress = (scrollTop / scrollHeight) * 100;
+      document.getElementById('progress-bar').style.width = progress + '%';
+    });
+
+    // WIDGET 1: Interactive MapReduce Simulator
+    const mrInput = document.getElementById('mr-input-text');
+    const mrStepBtn = document.getElementById('mr-step-btn');
+    const mrResetBtn = document.getElementById('mr-reset-btn');
+    const mrDisplay = document.getElementById('mr-display');
+
+    let mrStage = 0;
+    const mrStages = ['Ready', 'Input Splitting', 'Map Phase', 'Shuffle & Sort', 'Reduce Phase', 'Completed'];
+
+    function renderMRStage() {
+      const text = mrInput.value.trim();
+      const words = text.split(/\s+/).filter(w => w.length > 0);
+
+      if (mrStage === 0) {
+        mrDisplay.innerHTML = `
+          <div style="font-family: var(--font-mono); color: var(--text-muted);">
+            <strong>Status: Ready</strong><br>
+            Total Words to Process: ${words.length}<br>
+            Click "Step Next Phase" to begin Input Splitting across HDFS blocks.
+          </div>`;
+      } else if (mrStage === 1) {
+        // Split into 2 chunks
+        const mid = Math.ceil(words.length / 2);
+        const chunk1 = words.slice(0, mid);
+        const chunk2 = words.slice(mid);
+        mrDisplay.innerHTML = `
+          <div style="font-family: var(--font-mono); font-size: 0.85rem;">
+            <strong style="color: var(--accent-blue);">[Phase 1: Input Splitting (HDFS Blocks)]</strong><br><br>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div style="background: var(--surface-subtle); padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border);">
+                <strong>Block 1 (Split 1):</strong><br>
+                <code>${chunk1.join(' ')}</code>
+              </div>
+              <div style="background: var(--surface-subtle); padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border);">
+                <strong>Block 2 (Split 2):</strong><br>
+                <code>${chunk2.join(' ')}</code>
+              </div>
+            </div>
+          </div>`;
+      } else if (mrStage === 2) {
+        // Map Phase
+        const mid = Math.ceil(words.length / 2);
+        const map1 = words.slice(0, mid).map(w => `(${w}, 1)`);
+        const map2 = words.slice(mid).map(w => `(${w}, 1)`);
+        mrDisplay.innerHTML = `
+          <div style="font-family: var(--font-mono); font-size: 0.85rem;">
+            <strong style="color: var(--accent-blue);">[Phase 2: Map Task Token Emission]</strong><br><br>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div style="background: var(--surface-subtle); padding: 0.75rem; border-radius: 6px; border: 1px solid var(--accent-blue);">
+                <strong style="color: var(--accent-blue);">Mapper 1 Output (Local Disk):</strong><br>
+                <div style="margin-top: 0.4rem; color: var(--text-secondary); line-height: 1.4;">${map1.join(', ')}</div>
+              </div>
+              <div style="background: var(--surface-subtle); padding: 0.75rem; border-radius: 6px; border: 1px solid var(--accent-blue);">
+                <strong style="color: var(--accent-blue);">Mapper 2 Output (Local Disk):</strong><br>
+                <div style="margin-top: 0.4rem; color: var(--text-secondary); line-height: 1.4;">${map2.join(', ')}</div>
+              </div>
+            </div>
+          </div>`;
+      } else if (mrStage === 3) {
+        // Shuffle & Sort Phase
+        // Partition alphabetically: [a-m] to Reducer 1, [n-z] to Reducer 2
+        const sorted = [...words].sort();
+        const red1Keys = {};
+        const red2Keys = {};
+
+        sorted.forEach(w => {
+          if (w.toLowerCase()[0] <= 'm') {
+            red1Keys[w] = (red1Keys[w] || []).concat(1);
+          } else {
+            red2Keys[w] = (red2Keys[w] || []).concat(1);
+          }
+        });
+
+        const r1Str = Object.entries(red1Keys).map(([k, v]) => `<strong>${k}</strong> &rarr; [${v.join(', ')}]`).join('<br>');
+        const r2Str = Object.entries(red2Keys).map(([k, v]) => `<strong>${k}</strong> &rarr; [${v.join(', ')}]`).join('<br>');
+
+        mrDisplay.innerHTML = `
+          <div style="font-family: var(--font-mono); font-size: 0.85rem;">
+            <strong style="color: var(--accent-coral);">[Phase 3: Network Shuffle &amp; Secondary Sort]</strong><br><br>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div style="background: var(--surface-subtle); padding: 0.75rem; border-radius: 6px; border: 1px solid var(--accent-coral);">
+                <strong style="color: var(--accent-coral);">Reducer 1 Ingest (Keys A-M):</strong><br>
+                <div style="margin-top: 0.4rem;">${r1Str || '<em>(No keys in range)</em>'}</div>
+              </div>
+              <div style="background: var(--surface-subtle); padding: 0.75rem; border-radius: 6px; border: 1px solid var(--accent-coral);">
+                <strong style="color: var(--accent-coral);">Reducer 2 Ingest (Keys N-Z):</strong><br>
+                <div style="margin-top: 0.4rem;">${r2Str || '<em>(No keys in range)</em>'}</div>
+              </div>
+            </div>
+          </div>`;
+      } else if (mrStage === 4 || mrStage === 5) {
+        // Reduce Phase Output
+        const counts = {};
+        words.forEach(w => counts[w] = (counts[w] || 0) + 1);
+
+        const outStr = Object.entries(counts)
+          .sort((a,b) => b[1] - a[1])
+          .map(([k, v]) => `<span style="display: inline-block; background: var(--surface-elevated); padding: 0.2rem 0.6rem; border-radius: 4px; margin: 0.2rem; border: 1px solid var(--accent-emerald);"><strong>${k}</strong>: ${v}</span>`)
+          .join(' ');
+
+        mrDisplay.innerHTML = `
+          <div style="font-family: var(--font-mono); font-size: 0.85rem;">
+            <strong style="color: var(--accent-emerald);">[Phase 4: Final Reduced Output (Materialized to HDFS)]</strong><br><br>
+            <div style="background: var(--surface-subtle); padding: 1rem; border-radius: 6px; border: 1px solid var(--accent-emerald);">
+              ${outStr}
+            </div>
+            <div style="margin-top: 0.75rem; color: var(--text-muted); font-size: 0.8rem;">
+              ✓ Output committed atomically via HDFS directory rename. Deterministic, zero side-effects.
+            </div>
+          </div>`;
+      }
+    }
+
+    mrStepBtn.addEventListener('click', () => {
+      if (mrStage < 4) {
+        mrStage++;
+      } else {
+        mrStage = 4;
+      }
+      renderMRStage();
+    });
+
+    mrResetBtn.addEventListener('click', () => {
+      mrStage = 0;
+      renderMRStage();
+    });
+
+    renderMRStage();
+
+    // WIDGET 2: Distributed Join Strategy Estimator
+    const joinTableA = document.getElementById('join-table-a');
+    const joinTableB = document.getElementById('join-table-b');
+    const joinNodes = document.getElementById('join-nodes');
+    const joinDisplay = document.getElementById('join-result-display');
+
+    function updateJoinCalc() {
+      const sizeA = parseInt(joinTableA.value); // in MB
+      const sizeB = parseInt(joinTableB.value); // in MB
+      const nodes = parseInt(joinNodes.value);
+
+      const mapperRamMB = 4096; // 4GB RAM per mapper
+      let strategy = '';
+      let networkShuffleMB = 0;
+      let explanation = '';
+      let badgeClass = '';
+
+      if (sizeB <= 2048) {
+        strategy = 'Broadcast Hash Join (Map-Side)';
+        networkShuffleMB = sizeB * nodes; // broadcast small table to all nodes
+        badgeClass = 'tag-obvious';
+        explanation = `Because Table B (${sizeB >= 1000 ? (sizeB/1000)+'GB' : sizeB+'MB'}) fits easily into mapper RAM (&le; 2GB), it is broadcast upfront to all ${nodes} worker nodes. Mappers stream Table A directly from disk with <strong>ZERO network shuffle</strong> of the large dataset.`;
+      } else {
+        strategy = 'Sort-Merge Join (Reduce-Side)';
+        networkShuffleMB = sizeA + sizeB; // both tables must be partitioned and shuffled across network
+        badgeClass = 'tag-counter';
+        explanation = `Because Table B (${sizeB >= 1000 ? (sizeB/1000)+'GB' : sizeB+'MB'}) exceeds mapper RAM, a map-side join would trigger an OOM crash. The engine executes a full <strong>Reduce-Side Sort-Merge Join</strong>, hashing and shuffling both datasets across the network before merging.`;
+      }
+
+      const totalShuffleFormatted = networkShuffleMB >= 1000000 
+        ? (networkShuffleMB / 1000000).toFixed(1) + ' TB' 
+        : (networkShuffleMB >= 1000 ? (networkShuffleMB / 1000).toFixed(1) + ' GB' : networkShuffleMB + ' MB');
+
+      joinDisplay.innerHTML = `
+        <div style="font-family: var(--font-mono); font-size: 0.9rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div>Optimal Strategy: <span class="example-tag ${badgeClass}" style="margin: 0; font-size: 0.85rem;">${strategy}</span></div>
+            <div style="color: var(--accent-coral);">Network Shuffle Volume: <strong>${totalShuffleFormatted}</strong></div>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 0;">
+            ${explanation}
+          </p>
+        </div>`;
+    }
+
+    joinTableA.addEventListener('change', updateJoinCalc);
+    joinTableB.addEventListener('change', updateJoinCalc);
+    joinNodes.addEventListener('change', updateJoinCalc);
+    updateJoinCalc();
+
+    // WIDGET 3: BF-Tree Mini-Page Slotted Memory Sandbox
+    const slotKeyInput = document.getElementById('slot-key-input');
+    const slotSizeInput = document.getElementById('slot-size-input');
+    const slotInsertBtn = document.getElementById('slot-insert-btn');
+    const slotDisplay = document.getElementById('slot-display');
+
+    const MINI_PAGE_CAPACITY = 1024; // 1KB mini-page simulation
+    let slots = [];
+    let usedMetadataBytes = 32; // Page header is 32 bytes
+    let usedPayloadBytes = 0;
+
+    function renderMiniPage() {
+      const freeBytes = MINI_PAGE_CAPACITY - usedMetadataBytes - usedPayloadBytes;
+      const isFull = freeBytes < 40;
+
+      let slotsHtml = slots.map((s, idx) => `
+        <div style="background: var(--surface-elevated); border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.75rem;">
+          <span style="color: var(--accent-blue);">Slot #${idx}</span> | 
+          Prefix: <code style="color: var(--accent-coral);">${s.prefix}</code> | 
+          Key: "${s.key}" (${s.size}B)
+        </div>
+      `).join('');
+
+      slotDisplay.innerHTML = `
+        <div style="font-family: var(--font-mono); font-size: 0.85rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+            <div>Mini-Page Buffer: <strong>${MINI_PAGE_CAPACITY} Bytes</strong></div>
+            <div>Free Contiguous Space: <strong style="color: ${isFull ? 'var(--accent-coral)' : 'var(--accent-emerald)'};">${Math.max(0, freeBytes)} Bytes</strong></div>
+          </div>
+
+          <!-- Memory Bar -->
+          <div style="height: 28px; width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; display: flex; margin-bottom: 1rem;">
+            <div style="width: ${(usedMetadataBytes / MINI_PAGE_CAPACITY) * 100}%; background: var(--accent-blue); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: white;" title="Metadata Header (${usedMetadataBytes}B)">
+              Meta (${usedMetadataBytes}B)
+            </div>
+            <div style="flex-grow: 1; background: transparent; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--text-muted);">
+              ${freeBytes > 0 ? freeBytes + 'B Free' : 'COLLISION (SPLIT)'}
+            </div>
+            <div style="width: ${(usedPayloadBytes / MINI_PAGE_CAPACITY) * 100}%; background: var(--accent-emerald); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #0c0e12; font-weight: bold;" title="Row Payloads (${usedPayloadBytes}B)">
+              Payloads (${usedPayloadBytes}B)
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+            <div style="color: var(--text-secondary); font-size: 0.8rem;">Allocated Slots in Memory (${slots.length} rows):</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem;">
+              ${slotsHtml || '<div style="color: var(--text-muted); font-size: 0.8rem;">Mini-page empty. Insert a row to view bidirectional allocation.</div>'}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    slotInsertBtn.addEventListener('click', () => {
+      const key = slotKeyInput.value.trim() || 'key_' + Math.floor(Math.random() * 1000);
+      const size = parseInt(slotSizeInput.value);
+      const prefix = key.length >= 2 ? key.substring(0, 2) : (key + '_').substring(0, 2);
+
+      const slotMetaCost = 12; // 12 bytes metadata per slot entry
+      const totalNewCost = slotMetaCost + size;
+
+      if (usedMetadataBytes + usedPayloadBytes + totalNewCost > MINI_PAGE_CAPACITY) {
+        alert(`Mini-Page Memory Limit Reached! Forward metadata pointer collided with backward payload pointer. Triggering B^F-Tree Mini-Page Split & Ring Buffer Compaction.`);
+        slots = [];
+        usedMetadataBytes = 32;
+        usedPayloadBytes = 0;
+      } else {
+        slots.push({ key, prefix, size });
+        usedMetadataBytes += slotMetaCost;
+        usedPayloadBytes += size;
+      }
+      renderMiniPage();
+    });
+
+    renderMiniPage();
+  </script>
+</body>
+</html>

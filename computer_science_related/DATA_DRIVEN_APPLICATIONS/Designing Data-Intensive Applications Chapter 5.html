@@ -1,0 +1,2931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designing Data-Intensive Applications — Chapter 5: Replication</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg-surface: #12161f;
+      --bg-surface-elevated: #1a202c;
+      --bg-surface-glass: rgba(18, 22, 31, 0.85);
+      --border: #242c3d;
+      --border-accent: #38455e;
+      --text: #f0f4fc;
+      --text-muted: #8d9bb0;
+      --text-subtle: #57657d;
+      --accent: #eb6c36;
+      --accent-glow: rgba(235, 108, 54, 0.2);
+      --accent-subtle: rgba(235, 108, 54, 0.09);
+      --teal: #10b981;
+      --teal-subtle: rgba(16, 185, 129, 0.1);
+      --blue: #3b82f6;
+      --blue-subtle: rgba(59, 130, 246, 0.1);
+      --purple: #8b5cf6;
+      --purple-subtle: rgba(139, 92, 246, 0.1);
+      --amber: #f59e0b;
+      --amber-subtle: rgba(245, 158, 11, 0.1);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.1);
+      --font-serif: "Instrument Serif", Georgia, serif;
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-surface-glass: rgba(255, 255, 255, 0.9);
+      --border: #e2e8f0;
+      --border-accent: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+      --accent: #d9531e;
+      --accent-glow: rgba(217, 83, 30, 0.15);
+      --accent-subtle: rgba(217, 83, 30, 0.08);
+      --teal: #059669;
+      --teal-subtle: rgba(5, 150, 105, 0.08);
+      --blue: #2563eb;
+      --blue-subtle: rgba(37, 99, 235, 0.08);
+      --purple: #7c3aed;
+      --purple-subtle: rgba(124, 58, 237, 0.08);
+      --amber: #d97706;
+      --amber-subtle: rgba(217, 119, 6, 0.08);
+      --rose: #e11d48;
+      --rose-subtle: rgba(225, 29, 72, 0.08);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    #reading-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #f97316);
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    .app-layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      min-height: 100vh;
+      max-width: 1640px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 1024px) {
+      .app-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .sidebar-rail {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar-rail {
+        display: none;
+      }
+    }
+
+    .sidebar-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-tag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: inline-block;
+    }
+
+    .sidebar-title {
+      font-family: var(--font-serif);
+      font-size: 1.35rem;
+      font-weight: normal;
+      line-height: 1.25;
+      color: var(--text);
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .nav-item a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.83rem;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+
+    .nav-item a:hover {
+      color: var(--text);
+      background: var(--bg-surface-elevated);
+    }
+
+    .nav-item a.active {
+      color: var(--accent);
+      background: var(--accent-subtle);
+      font-weight: 600;
+    }
+
+    .nav-item .nav-idx {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      opacity: 0.7;
+      min-width: 22px;
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 0.82rem;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      margin-top: 16px;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-subtle);
+    }
+
+    .main-content {
+      padding: 48px 64px;
+      max-width: 1200px;
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        padding: 24px 16px;
+      }
+    }
+
+    /* Hero Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-surface-elevated) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 48px 40px;
+      margin-bottom: 48px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+    }
+
+    .hero-banner::before {
+      content: "";
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-pill {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      background: var(--accent-subtle);
+      border: 1px solid var(--accent);
+      padding: 4px 12px;
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+
+    .hero-title {
+      font-family: var(--font-serif);
+      font-size: 3rem;
+      font-weight: normal;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2.2rem;
+      }
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 820px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .hero-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+    }
+
+    .hero-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .hero-meta-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hero-meta-val {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* Module Card */
+    .module-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px;
+      margin-bottom: 48px;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+      transition: border-color 0.25s ease;
+    }
+
+    .module-card:hover {
+      border-color: var(--border-accent);
+    }
+
+    .module-header {
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+    }
+
+    .module-num {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .module-heading {
+      font-family: var(--font-serif);
+      font-size: 2.2rem;
+      font-weight: normal;
+      line-height: 1.2;
+      color: var(--text);
+    }
+
+    @media (max-width: 768px) {
+      .module-heading {
+        font-size: 1.7rem;
+      }
+      .module-card {
+        padding: 24px 18px;
+      }
+    }
+
+    /* Core Prose */
+    .prose-block {
+      font-size: 1.02rem;
+      line-height: 1.75;
+      color: var(--text);
+      margin-bottom: 28px;
+    }
+
+    .prose-block p {
+      margin-bottom: 16px;
+    }
+
+    .prose-block strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .prose-block code {
+      font-family: var(--font-mono);
+      font-size: 0.88em;
+      background: var(--bg-surface-elevated);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    /* Definitions Box */
+    .definitions-panel {
+      background: linear-gradient(180deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%);
+      border: 1px solid var(--border-accent);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .definitions-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+    }
+
+    .def-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .def-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+    }
+
+    .def-term {
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .def-term::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .def-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Diagram Containers */
+    .diagram-container {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin: 32px 0;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    .diagram-caption {
+      margin-top: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    .diagram-svg {
+      max-width: 100%;
+      height: auto;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    /* Examples Trio */
+    .examples-trio {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 900px) {
+      .examples-trio {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .example-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .example-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 10px;
+      align-self: flex-start;
+    }
+
+    .example-tag.obvious {
+      background: var(--teal-subtle);
+      color: var(--teal);
+      border: 1px solid var(--teal);
+    }
+
+    .example-tag.counter {
+      background: var(--amber-subtle);
+      color: var(--amber);
+      border: 1px solid var(--amber);
+    }
+
+    .example-tag.edge {
+      background: var(--rose-subtle);
+      color: var(--rose);
+      border: 1px solid var(--rose);
+    }
+
+    .example-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .example-body {
+      font-size: 0.87rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+      flex: 1;
+    }
+
+    /* Pedagogy Pillars Grid */
+    .pedagogy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .pedagogy-box {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      background: var(--bg-surface-elevated);
+    }
+
+    .pedagogy-box.analogy {
+      border-left: 3px solid var(--purple);
+    }
+    .pedagogy-box.misconception {
+      border-left: 3px solid var(--rose);
+    }
+    .pedagogy-box.reality {
+      border-left: 3px solid var(--blue);
+    }
+    .pedagogy-box.connection {
+      border-left: 3px solid var(--teal);
+    }
+
+    .pedagogy-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pedagogy-box.analogy .pedagogy-label { color: var(--purple); }
+    .pedagogy-box.misconception .pedagogy-label { color: var(--rose); }
+    .pedagogy-box.reality .pedagogy-label { color: var(--blue); }
+    .pedagogy-box.connection .pedagogy-label { color: var(--teal); }
+
+    .pedagogy-text {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Memory Pill */
+    .memory-pill {
+      background: linear-gradient(90deg, var(--accent-subtle) 0%, transparent 100%);
+      border-left: 3px solid var(--accent);
+      padding: 12px 18px;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-family: var(--font-mono);
+      font-size: 0.84rem;
+      color: var(--accent);
+      margin-top: 24px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Interactive Simulator Containers */
+    .interactive-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      margin: 32px 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .interactive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .interactive-badge {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    .interactive-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .control-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .control-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .sim-btn {
+      padding: 8px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .sim-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-subtle);
+      color: var(--accent);
+    }
+
+    .sim-btn.primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+
+    .sim-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    .sim-range {
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .sim-display-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: var(--text);
+      min-height: 120px;
+      overflow-x: auto;
+    }
+
+    /* Master Matrix Table */
+    .table-container {
+      overflow-x: auto;
+      margin: 28px 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .styled-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      text-align: left;
+    }
+
+    .styled-table th {
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      padding: 14px 16px;
+      border-bottom: 2px solid var(--border);
+      text-transform: uppercase;
+      font-size: 0.74rem;
+      letter-spacing: 0.05em;
+    }
+
+    .styled-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+
+    .styled-table tr:hover td {
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+    }
+
+    .styled-table strong {
+      color: var(--text);
+    }
+
+    .tag-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-right: 4px;
+    }
+
+    .tag-green { background: var(--teal-subtle); color: var(--teal); border: 1px solid var(--teal); }
+    .tag-red { background: var(--rose-subtle); color: var(--rose); border: 1px solid var(--rose); }
+    .tag-yellow { background: var(--amber-subtle); color: var(--amber); border: 1px solid var(--amber); }
+    .tag-blue { background: var(--blue-subtle); color: var(--blue); border: 1px solid var(--blue); }
+
+    /* Footer */
+    .footer-section {
+      text-align: center;
+      padding: 48px 0;
+      border-top: 1px solid var(--border);
+      color: var(--text-subtle);
+      font-size: 0.85rem;
+    }
+
+    .footer-section a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="reading-progress"></div>
+
+  <div class="app-layout">
+    <!-- Navigation Rail -->
+    <aside class="sidebar-rail">
+      <div class="sidebar-header">
+        <span class="sidebar-tag">DDIA Visual Course</span>
+        <h2 class="sidebar-title">Chapter 5: Replication</h2>
+      </div>
+
+      <ul class="nav-list">
+        <li class="nav-item"><a href="#module-01" class="active"><span class="nav-idx">01</span> Why Replicate?</a></li>
+        <li class="nav-item"><a href="#module-02"><span class="nav-idx">02</span> Single-Leader & Sync Modes</a></li>
+        <li class="nav-item"><a href="#module-03"><span class="nav-idx">03</span> Replication Lag Anomalies</a></li>
+        <li class="nav-item"><a href="#module-04"><span class="nav-idx">04</span> Multi-Leader (Active-Active)</a></li>
+        <li class="nav-item"><a href="#module-05"><span class="nav-idx">05</span> Multi-Leader Conflicts</a></li>
+        <li class="nav-item"><a href="#module-06"><span class="nav-idx">06</span> Leaderless Quorums (Dynamo)</a></li>
+        <li class="nav-item"><a href="#module-07"><span class="nav-idx">07</span> Architectural Synthesis</a></li>
+        <li class="nav-item"><a href="#module-08"><span class="nav-idx">08</span> Master Glossary</a></li>
+      </ul>
+
+      <button id="themeToggle" class="theme-toggle-btn" onclick="toggleTheme()">
+        <span id="themeIcon">☀️</span> Toggle Theme
+      </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Hero Banner -->
+      <section class="hero-banner">
+        <span class="hero-pill">System Architecture • Part II: Distributed Data</span>
+        <h1 class="hero-title">Replication: Keeping Copies of Data Across Machines</h1>
+        <p class="hero-subtitle">
+          Explore the physics, trade-offs, and failure modes of keeping redundant copies of data across networked machines. From single-leader failovers and replication lag anomalies to multi-master conflict CRDTs and Dynamo-style leaderless quorums (W + R &gt; N).
+        </p>
+
+        <div class="hero-meta-grid">
+          <div class="hero-meta-item">
+            <span class="hero-meta-label">Primary Challenge</span>
+            <span class="hero-meta-val">Handling Concurrency & Network Partitions</span>
+          </div>
+          <div class="hero-meta-item">
+            <span class="hero-meta-label">Replication Models</span>
+            <span class="hero-meta-val">Single-Leader • Multi-Leader • Leaderless</span>
+          </div>
+          <div class="hero-meta-item">
+            <span class="hero-meta-label">Guarantees</span>
+            <span class="hero-meta-val">Read-Your-Writes • Monotonic • Prefix</span>
+          </div>
+          <div class="hero-meta-item">
+            <span class="hero-meta-label">Interactive Simulators</span>
+            <span class="hero-meta-val">7 Real-Time Sandboxes</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           MODULE 01: WHY REPLICATE?
+           ========================================================================= -->
+      <section id="module-01" class="module-card">
+        <div class="module-header">
+          <span class="module-num">Module 01</span>
+          <h2 class="module-heading">Why Replicate? High Availability, Read Scaling & Geographic Latency</h2>
+        </div>
+
+        <!-- Embedded Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span>📖</span> Key Definitions for Module 01
+          </div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term">Replication</div>
+              <div class="def-desc">Keeping a copy of the exact same data on multiple physical or virtual machines (nodes) connected via a network to ensure redundancy, fault tolerance, and low latency.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Replica (Node)</div>
+              <div class="def-desc">An individual database server instance that stores a full or partial copy of the dataset and participates in the replication protocol.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">High Availability (HA)</div>
+              <div class="def-desc">The system's ability to remain continuously operational and responsive to client queries even when individual hardware nodes, disks, or networks crash.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Geographic Latency (RTT)</div>
+              <div class="def-desc">Round-Trip Time delay governed by the physical speed of light in optical fiber (~200 km/ms) plus router switching hops across transcontinental undersea cables.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prose-block">
+          <p>
+            Replication means maintaining copies of the exact same dataset on multiple distinct physical or virtual machines connected via a network. If all data fit on a single indestructible machine that never crashed, never suffered hardware failure, and was located zero milliseconds away from every human on Earth, replication would be entirely unnecessary. However, modern production systems operate on commodity, ephemeral hardware within cloud environments like Amazon Web Services (AWS EC2), Microsoft Azure, or Google Cloud Platform (GCP).
+          </p>
+          <p>
+            Three fundamental motivations drive the necessity for database replication:
+          </p>
+          <ol style="margin-left: 24px; margin-bottom: 16px;">
+            <li><strong>High Availability and Fault Tolerance:</strong> Individual nodes crash constantly due to kernel panics, bad memory chips, disk corruption, or cloud provider availability zone (AZ) maintenance. With replication, when node A crashes, node B immediately serves traffic without catastrophic application downtime.</li>
+            <li><strong>Read Scaling (Throughput Elasticity):</strong> The vast majority of web applications exhibit an asymmetric 10:1 or 100:1 read-to-write ratio. A single database server maxes out its I/O bandwidth and CPU cores quickly. By creating read-only replicas, read queries can be load-balanced horizontally across dozens of machines.</li>
+            <li><strong>Geographic Proximity (Latency Reduction):</strong> Light traveling through silica fiber optic glass moves at roughly 200,000 km/s (~5 microseconds per km). A round-trip packet between Tokyo and Frankfurt traverses over 18,000 km of cabling plus dozens of border gateway routers, imposing an inescapable baseline latency of 180ms - 260ms. Placing read replicas geographically close to international users cuts query latencies down to sub-10ms.</li>
+          </ol>
+          <p>
+            The profound difficulty of replication arises because data does not remain static; it changes continuously. Every insert, update, and delete executed on one node must be propagated reliably to all other replicas over unreliable networks that can drop, delay, duplicate, or reorder packets arbitrarily.
+          </p>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">News Portal Read Offloading</h4>
+            <p class="example-body">
+              During a breaking news event, 500,000 concurrent users refresh the homepage. All read queries are distributed round-robin across 8 read replicas, while journalists write articles to a single primary database.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <h4 class="example-title">Adding Replicas Slows Writes</h4>
+            <p class="example-body">
+              A team adds 10 read replicas to cure a database bottleneck. While read capacity jumps tenfold, write latency and network saturation worsen because the primary must now stream change-data-capture logs to 10 endpoints simultaneously.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Subsea Fiber Severance</h4>
+            <p class="example-body">
+              An undersea seismic event cuts the transpacific fiber cable. Traffic from Australian users to US-West is rerouted across satellite hops, spiking RTT from 120ms to 850ms. Local read replicas in Sydney preserve app responsiveness.
+            </p>
+          </div>
+        </div>
+
+        <!-- Pedagogy Pillars -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label">💡 Real-World Analogy</div>
+            <p class="pedagogy-text">
+              Replication is like syndicating a daily newspaper: a central editor writes the master issue (Leader), which is duplicated and delivered to local newsstands worldwide so readers don't have to fly to headquarters to read the morning headlines.
+            </p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label">⚠️ Common Misconception</div>
+            <p class="pedagogy-text">
+              "Replication eliminates the need for backups." False! If an engineer runs <code>DROP DATABASE production;</code>, that destructive command replicates to every single replica in milliseconds. Replicas provide availability, not immutable historical recovery.
+            </p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label">🏭 Production Reality</div>
+            <p class="pedagogy-text">
+              Cloud providers offer 99.99% single-VM SLA, which still allows up to 52 minutes of unplanned downtime per year. Mission-critical apps deploy multi-Availability-Zone replicas to achieve 99.999% ("five nines") uptime.
+            </p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label">🔗 Inter-Module Link</div>
+            <p class="pedagogy-text">
+              Replication handles data copies, but once data is too massive to fit on a single machine's disk, it must be combined with <em>Partitioning</em> (Chapter 6), where each partition is independently replicated.
+            </p>
+          </div>
+        </div>
+
+        <!-- Interactive Simulator 1: Geographic Latency Router -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <div>
+              <span class="interactive-badge">Interactive Simulation 01</span>
+              <h3 class="interactive-title">Global Latency & Edge Replica Router</h3>
+            </div>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+            Simulate how geographical distance and speed-of-light constraints affect client response times with a centralized primary database vs. distributed edge read replicas.
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label" for="userGeo">User Location</label>
+              <select id="userGeo" class="sim-btn" style="width: 100%; text-align: left;" onchange="calculateGeoLatency()">
+                <option value="tokyo">Tokyo, Japan (NRT)</option>
+                <option value="london">London, UK (LHR)</option>
+                <option value="sao_paulo">São Paulo, Brazil (GRU)</option>
+                <option value="sydney">Sydney, Australia (SYD)</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="primaryGeo">Primary Database Location</label>
+              <select id="primaryGeo" class="sim-btn" style="width: 100%; text-align: left;" onchange="calculateGeoLatency()">
+                <option value="us_east">US-East (N. Virginia, USA)</option>
+                <option value="eu_central">EU-Central (Frankfurt, Germany)</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label class="control-label">Replication Strategy</label>
+              <div style="display: flex; gap: 8px;">
+                <button class="sim-btn active" id="btnCentralized" onclick="setGeoStrategy('centralized')">Centralized Single DB</button>
+                <button class="sim-btn" id="btnEdge" onclick="setGeoStrategy('edge')">Local Read Replica</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="geoDisplay" class="sim-display-box">
+            <!-- Computed output inserted dynamically via JS -->
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          ⚡ Memory Pill: Replication solves Availability, Scale, and Distance — but forces you to choose how to handle network delays and concurrency.
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           MODULE 02: SINGLE-LEADER REPLICATION & SYNC MODES
+           ========================================================================= -->
+      <section id="module-02" class="module-card">
+        <div class="module-header">
+          <span class="module-num">Module 02</span>
+          <h2 class="module-heading">Single-Leader (Primary-Follower) Replication & Synchronization Modes</h2>
+        </div>
+
+        <!-- Embedded Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span>📖</span> Key Definitions for Module 02
+          </div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term">Single-Leader (Primary-Follower)</div>
+              <div class="def-desc">An architecture where one designated node (Leader/Primary) accepts all write operations, processes them, and streams change logs to other nodes (Followers/Replicas).</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Synchronous Replication</div>
+              <div class="def-desc">The leader waits until a follower has confirmed receiving and writing the log record before reporting success to the client. Guarantees zero data loss at the expense of write latency.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Asynchronous Replication</div>
+              <div class="def-desc">The leader sends the write confirmation immediately after committing locally, streaming the replication log in the background. Highly performant, but un-replicated writes are lost if the leader crashes.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Semi-Synchronous Replication</div>
+              <div class="def-desc">A hybrid configuration where exactly one follower is configured as synchronous while all other followers remain asynchronous, ensuring at least two up-to-date copies exist without blocking on every node.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Failover & Split-Brain</div>
+              <div class="def-desc">Failover promotes a follower to become the new primary when the leader dies. Split-Brain is the catastrophic failure where two nodes both believe they are the primary and accept conflicting writes.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">ProxySQL / VTGate</div>
+              <div class="def-desc">Intelligent database proxy middleware (such as Vitess VTGate or ProxySQL) that sits between app servers and the DB cluster to route traffic, pool connections, and buffer queries during failovers.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prose-block">
+          <p>
+            Single-Leader replication (also known as Primary-Follower, Master-Slave, or Active-Passive) is the most ubiquitous pattern in database engineering, adopted by PostgreSQL, MySQL, Oracle, MongoDB, and Redis. The operational rules are strict:
+          </p>
+          <ul style="margin-left: 24px; margin-bottom: 16px;">
+            <li><strong>Writes:</strong> Clients must send all write requests (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>) exclusively to the Leader. The leader writes data to its local Write-Ahead Log (WAL) or binary log.</li>
+            <li><strong>Replication Stream:</strong> The leader broadcasts the change log sequence to all followers. Each follower processes the stream and updates its local copy in the exact same sequence.</li>
+            <li><strong>Reads:</strong> Clients can query the leader or any follower. Read-only queries are typically distributed across followers to offload the leader.</li>
+          </ul>
+
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">Synchronization Modes: Synchronous vs. Asynchronous vs. Semi-Synchronous</h3>
+          <p>
+            When a client issues a write, how long does the leader wait before sending an HTTP 200 / SQL OK confirmation back?
+          </p>
+          <p>
+            In <strong>fully synchronous replication</strong>, the leader blocks until every replica has acknowledged writing the record to disk. The advantage is certainty: if the leader bursts into flames, every replica is guaranteed to have identical data. The fatal flaw is availability: if any single replica suffers a network stutter, GC pause, or disk stall, all client writes worldwide freeze immediately.
+          </p>
+          <p>
+            In <strong>asynchronous replication</strong>, the leader commits locally and responds to the client in sub-millisecond time. The replication stream flows over the network asynchronously. If the leader experiences a fatal hardware crash before buffered changes reach followers, those uncommitted writes vanish permanently.
+          </p>
+          <p>
+            In practice, production systems employ <strong>semi-synchronous replication</strong>: exactly one follower is configured to be synchronous, while remaining followers are asynchronous. If the synchronous follower becomes unresponsive or drops off the network, the database orchestrator (such as Vitess VTORC or Orchestrator) automatically demotes it and promotes a healthy asynchronous replica to become the new synchronous replica. This guarantees that at least two nodes hold every acknowledged write without exposing write throughput to N-node cluster fragility.
+          </p>
+        </div>
+
+        <!-- DIAGRAM 1: Single-Leader Architecture -->
+        <div class="diagram-container">
+          <svg class="diagram-svg" viewBox="0 0 960 480" width="960" height="480" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="#8d9bb0"/>
+              </marker>
+              <marker id="arrow-accent" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="#eb6c36"/>
+              </marker>
+              <marker id="arrow-teal" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="#10b981"/>
+              </marker>
+            </defs>
+            <rect width="960" height="480" fill="transparent"/>
+
+            <!-- App Client Node -->
+            <g transform="translate(60, 160)">
+              <rect width="140" height="120" rx="8" fill="#12161f" stroke="#38455e" stroke-width="1.5"/>
+              <text x="70" y="32" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="14" font-weight="700" text-anchor="middle">Application</text>
+              <text x="70" y="52" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="12" text-anchor="middle">Clients / Proxies</text>
+              <rect x="20" y="70" width="100" height="28" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="70" y="88" fill="#eb6c36" font-family="Geist Mono, monospace" font-size="11" font-weight="600" text-anchor="middle">VTGate / App</text>
+            </g>
+
+            <!-- Leader Primary Node -->
+            <g transform="translate(340, 80)">
+              <rect width="220" height="150" rx="8" fill="#12161f" stroke="#eb6c36" stroke-width="2"/>
+              <rect x="0" y="0" width="220" height="32" rx="8" fill="#eb6c36" fill-opacity="0.15"/>
+              <text x="110" y="22" fill="#eb6c36" font-family="Geist, sans-serif" font-size="13" font-weight="700" text-anchor="middle">★ PRIMARY / LEADER</text>
+              <text x="24" y="58" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="12" font-weight="600">Handles All Writes</text>
+              <rect x="24" y="72" width="172" height="54" rx="6" fill="#1a202c" stroke="#38455e"/>
+              <text x="34" y="92" fill="#10b981" font-family="Geist Mono, monospace" font-size="11">WAL / Binary Log</text>
+              <text x="34" y="112" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="10">Offset: 0x8F44A9B2</text>
+            </g>
+
+            <!-- Sync Follower Node -->
+            <g transform="translate(680, 50)">
+              <rect width="220" height="130" rx="8" fill="#12161f" stroke="#10b981" stroke-width="1.5"/>
+              <text x="110" y="26" fill="#10b981" font-family="Geist, sans-serif" font-size="13" font-weight="700" text-anchor="middle">SYNC FOLLOWER (1)</text>
+              <text x="20" y="54" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Acks write before commit</text>
+              <rect x="20" y="66" width="180" height="44" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="86" fill="#f0f4fc" font-family="Geist Mono, monospace" font-size="11">State: Up-to-Date</text>
+              <text x="30" y="100" fill="#10b981" font-family="Geist Mono, monospace" font-size="10">Lag: 0.00ms</text>
+            </g>
+
+            <!-- Async Follower Node 2 -->
+            <g transform="translate(680, 210)">
+              <rect width="220" height="110" rx="8" fill="#12161f" stroke="#38455e" stroke-width="1.5"/>
+              <text x="110" y="24" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="12" font-weight="600" text-anchor="middle">ASYNC FOLLOWER (2)</text>
+              <text x="20" y="48" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Background log streaming</text>
+              <rect x="20" y="58" width="180" height="38" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="74" fill="#f0f4fc" font-family="Geist Mono, monospace" font-size="10">Lag: ~24ms</text>
+              <text x="30" y="88" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="10">Read offload replica</text>
+            </g>
+
+            <!-- Async Follower Node 3 -->
+            <g transform="translate(680, 340)">
+              <rect width="220" height="100" rx="8" fill="#12161f" stroke="#38455e" stroke-width="1.5"/>
+              <text x="110" y="24" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="12" font-weight="600" text-anchor="middle">ASYNC FOLLOWER (3)</text>
+              <rect x="20" y="44" width="180" height="42" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="62" fill="#f0f4fc" font-family="Geist Mono, monospace" font-size="10">Lag: ~110ms (Cross-DC)</text>
+              <text x="30" y="76" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="10">Analytics / Reporting</text>
+            </g>
+
+            <!-- Connectors -->
+            <path d="M 200 190 L 270 190 Q 278 190 278 182 L 278 155 Q 278 147 286 147 L 340 147" fill="none" stroke="#eb6c36" stroke-width="2" marker-end="url(#arrow-accent)"/>
+            <g transform="translate(215, 136)">
+              <rect x="0" y="0" width="84" height="18" rx="3" fill="#12161f"/>
+              <text x="42" y="13" fill="#eb6c36" font-family="Geist Mono, monospace" font-size="10" font-weight="600" text-anchor="middle">1. Write(k, v)</text>
+            </g>
+
+            <path d="M 560 115 L 680 115" fill="none" stroke="#10b981" stroke-width="1.8" marker-end="url(#arrow-teal)"/>
+            <g transform="translate(575, 96)">
+              <rect x="0" y="0" width="90" height="16" rx="3" fill="#12161f"/>
+              <text x="45" y="12" fill="#10b981" font-family="Geist Mono, monospace" font-size="9.5" font-weight="600" text-anchor="middle">Sync Log Stream</text>
+            </g>
+
+            <path d="M 680 135 L 560 135" fill="none" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow-teal)"/>
+            <g transform="translate(585, 137)">
+              <rect x="0" y="0" width="70" height="14" rx="3" fill="#12161f"/>
+              <text x="35" y="11" fill="#10b981" font-family="Geist Mono, monospace" font-size="9" text-anchor="middle">2. Sync ACK</text>
+            </g>
+
+            <path d="M 340 175 L 290 175 Q 282 175 282 183 L 282 210 Q 282 218 274 218 L 200 218" fill="none" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow-teal)"/>
+            <g transform="translate(225, 222)">
+              <rect x="0" y="0" width="65" height="16" rx="3" fill="#12161f"/>
+              <text x="32" y="12" fill="#10b981" font-family="Geist Mono, monospace" font-size="9.5" font-weight="600" text-anchor="middle">3. Commit OK</text>
+            </g>
+
+            <path d="M 560 170 L 610 170 Q 618 170 618 178 L 618 260 Q 618 268 626 268 L 680 268" fill="none" stroke="#8d9bb0" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <path d="M 618 260 L 618 385 Q 618 393 626 393 L 680 393" fill="none" stroke="#8d9bb0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <path d="M 130 280 L 130 310 Q 130 318 138 318 L 680 318" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+            <g transform="translate(360, 308)">
+              <rect x="0" y="0" width="120" height="18" rx="3" fill="#12161f"/>
+              <text x="60" y="13" fill="#3b82f6" font-family="Geist Mono, monospace" font-size="10" font-weight="600" text-anchor="middle">Read Query (Follower)</text>
+            </g>
+
+            <!-- Bottom Legend Strip -->
+            <g transform="translate(60, 448)">
+              <line x1="0" y1="0" x2="840" y2="0" stroke="#242c3d" stroke-width="1"/>
+              <circle cx="20" cy="14" r="5" fill="#eb6c36"/>
+              <text x="32" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Synchronous Write Path</text>
+              <circle cx="210" cy="14" r="5" fill="#10b981"/>
+              <text x="222" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Sync Acknowledgement</text>
+              <circle cx="400" cy="14" r="5" fill="#8d9bb0"/>
+              <text x="412" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Asynchronous Log Stream</text>
+              <circle cx="600" cy="14" r="5" fill="#3b82f6"/>
+              <text x="612" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Read-Scaling Traffic</text>
+            </g>
+          </svg>
+          <div class="diagram-caption">
+            Figure 5.1: Semi-Synchronous Single-Leader Replication with 1 Synchronous ACK and Horizontal Read Scalers.
+          </div>
+        </div>
+
+        <div class="prose-block">
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">Zero-Downtime Vertical Scaling & Failover Mechanics</h3>
+          <p>
+            What happens when your database outgrows an 8-vCPU instance and requires vertical scaling to a 64-vCPU monster machine? In single-leader replication, this is accomplished without taking the application offline:
+          </p>
+          <ol style="margin-left: 24px; margin-bottom: 16px;">
+            <li><strong>Provision Target:</strong> Spin up the 64-vCPU instance as an asynchronous replica of the existing primary.</li>
+            <li><strong>Catch-Up Phase:</strong> Stream the replication log until the new machine's replication lag reaches near zero.</li>
+            <li><strong>Proxy Buffering / Graceful Switchover:</strong> Middleware proxies (like Vitess VTGate or ProxySQL) temporarily buffer incoming write queries in memory for 1–2 seconds.</li>
+            <li><strong>Promotion:</strong> Demote the old primary to read-only, execute a clean failover promoting the 64-vCPU instance to primary, and point the proxy to the new leader. Buffered queries execute immediately with zero rejected writes.</li>
+          </ol>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">Planned Maintenance Failover</h4>
+            <p class="example-body">
+              A DBA performs an OS kernel upgrade on the leader by promoting a replica to leader, repointing the application connection pool, and restarting the old leader as a follower.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <h4 class="example-title">GitHub Split-Brain Outage</h4>
+            <p class="example-body">
+              During a network hiccup, a replica was promoted while the old master was still alive. Both assigned identical auto-increment IDs to different records, causing data corruption when the old master rejoined.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Cascading Failover Storm</h4>
+            <p class="example-body">
+              A master node crashes under peak CPU load. A follower is promoted, but because it inherits the exact same overwhelming traffic plus catch-up overhead, it crashes immediately, taking down the entire cluster in sequence.
+            </p>
+          </div>
+        </div>
+
+        <!-- Pedagogy Pillars -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label">💡 Real-World Analogy</div>
+            <p class="pedagogy-text">
+              Single-leader replication is like an orchestra: only the Conductor (Leader) dictates the tempo and sheet music. Musicians (Followers) listen and play in unison. If the conductor collapses, the first violinist steps up.
+            </p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label">⚠️ Common Misconception</div>
+            <p class="pedagogy-text">
+              "Setting synchronous replication across all 5 nodes guarantees 100% availability." In fact, it reduces write availability dramatically: the cluster's availability becomes the product of all 5 node availabilities (0.99^5 ≈ 0.951).
+            </p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label">🏭 Production Reality</div>
+            <p class="pedagogy-text">
+              Databases like PlanetScale (Vitess) use <code>VTORC</code> and <code>VTGate</code> to hold queries in flight during automated leader switchovers, preventing user-facing HTTP 500 errors.
+            </p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label">🔗 Inter-Module Link</div>
+            <p class="pedagogy-text">
+              While single-leader makes conflict resolution trivial (the leader decides the total order), it creates the primary bottleneck for write-heavy systems, motivating <em>Multi-Leader</em> (Module 04).
+            </p>
+          </div>
+        </div>
+
+        <!-- Interactive Simulator 2: Sync vs Async vs Semi-Sync Simulator -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <div>
+              <span class="interactive-badge">Interactive Simulation 02</span>
+              <h3 class="interactive-title">Replication Mode & Node Outage Simulator</h3>
+            </div>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+            Trigger writes and inject network latency or crashes onto followers to observe the impact on client write latency, throughput, and data durability across synchronization modes.
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label" for="syncModeSelect">Replication Mode</label>
+              <select id="syncModeSelect" class="sim-btn" style="width: 100%; text-align: left;" onchange="updateSyncModeSim()">
+                <option value="semi_sync">Semi-Synchronous (1 Sync + 2 Async)</option>
+                <option value="async">Fully Asynchronous (0 Sync + 3 Async)</option>
+                <option value="full_sync">Fully Synchronous (3 Sync Replicas)</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="replicaLagSlider">Follower 1 Network Lag: <span id="lagVal">20ms</span></label>
+              <input type="range" id="replicaLagSlider" class="sim-range" min="5" max="500" value="20" oninput="updateSyncModeSim()">
+            </div>
+            <div class="control-group" style="flex: 0;">
+              <label class="control-label">Inject Fault</label>
+              <div style="display: flex; gap: 8px;">
+                <button class="sim-btn" id="btnKillLeader" onclick="simulateLeaderCrash()">Crash Leader</button>
+                <button class="sim-btn" id="btnKillFollower" onclick="simulateFollowerCrash()">Toggle Follower 1</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="syncSimOutput" class="sim-display-box">
+            <!-- Simulated logs -->
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          ⚡ Memory Pill: Single-Leader is simple and serializes writes, but Semi-Synchronous replication is the sweet spot between data safety and system availability.
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           MODULE 03: REPLICATION LAG ANOMALIES
+           ========================================================================= -->
+      <section id="module-03" class="module-card">
+        <div class="module-header">
+          <span class="module-num">Module 03</span>
+          <h2 class="module-heading">Replication Lag & Consistency Guarantees</h2>
+        </div>
+
+        <!-- Embedded Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span>📖</span> Key Definitions for Module 03
+          </div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term">Replication Lag</div>
+              <div class="def-desc">The delay between a write operation committing on the leader and that exact write being applied and visible on an asynchronous follower node.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Eventual Consistency</div>
+              <div class="def-desc">A weak consistency model guaranteeing that if no new updates are made, all replicas will eventually converge and return identical values when queried.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Read-After-Write (Read-Your-Writes)</div>
+              <div class="def-desc">A guarantee that if a user submits an update, they will always see their own newly updated value upon subsequent page reloads or read requests.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Monotonic Reads</div>
+              <div class="def-desc">A guarantee that if a user reads a particular value at time T1, they will never subsequently observe an older, stale value at time T2 (no moving backward in time).</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Consistent Prefix Reads</div>
+              <div class="def-desc">A guarantee that if a sequence of writes occurs in a specific causal order, any observer will see those writes in that exact same order (preventing answer-before-question bugs).</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Sticky Session / User Routing</div>
+              <div class="def-desc">Routing all read requests from a specific user (via hash(user_id)) to the exact same replica to enforce monotonic reads.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prose-block">
+          <p>
+            When web applications use asynchronous read replicas to handle massive read traffic, normal operating conditions present negligible lag (often &lt;10 milliseconds). However, during network congestion, large background batch jobs, or high traffic spikes, replication lag can expand to seconds or minutes.
+          </p>
+          <p>
+            Saying a system has <em>"eventual consistency"</em> is dangerously vague because it offers no bound on when convergence occurs. This creates three critical, user-facing anomalies that every systems engineer must understand and mitigate:
+          </p>
+
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">1. Reading Your Own Writes (Read-After-Write Consistency)</h3>
+          <p>
+            A user submits a profile bio update or posts a comment on social media. The write succeeds on the primary. The browser immediately refreshes the page, but the read request is routed to an asynchronous follower with 5 seconds of lag. The user sees their old profile bio or an empty comment feed! They assume their edit failed and click "Submit" three more times, creating duplicate records.
+          </p>
+          <p>
+            <strong>Architectural Solutions:</strong>
+          </p>
+          <ul style="margin-left: 24px; margin-bottom: 16px;">
+            <li><strong>User-Editable Content Routing:</strong> Always read fields that the current user can modify (such as their own profile) directly from the Leader. Route other users' profiles to read followers.</li>
+            <li><strong>Time-Window Heuristic:</strong> Track the client's last write timestamp. For 60 seconds after a write, route all user reads to the leader; revert to followers once lag has expired.</li>
+            <li><strong>Client Version Tokens:</strong> The client stores the logical timestamp or log sequence number (LSN) of its latest write; the follower blocks until its local LSN catches up to the token before answering.</li>
+          </ul>
+
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">2. Monotonic Reads (Preventing "Time Travel")</h3>
+          <p>
+            A user refreshes an article page repeatedly. Request 1 lands on Replica A (which is up to date) and shows a newly posted comment. Request 2 lands on Replica B (which is lagging by 15 seconds), and the comment suddenly vanishes! Request 3 lands back on Replica A, and the comment reappears. From the user's perspective, the application is jumping backward and forward in time.
+          </p>
+          <p>
+            <strong>Architectural Solution:</strong> Enforce <em>sticky replica routing</em>. Hash the user's session ID or IP address (<code>replica_index = hash(user_id) % num_replicas</code>) so each individual user always queries the exact same replica.
+          </p>
+
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">3. Consistent Prefix Reads (Preventing Causal Inversion)</h3>
+          <p>
+            In distributed or partitioned databases where different partitions replicate independently without a centralized global clock, causality can break:
+          </p>
+          <div style="background: var(--bg-surface-elevated); padding: 14px 20px; border-radius: 6px; font-family: var(--font-mono); font-size: 0.88rem; margin: 12px 0;">
+            Mr. Poons: "How far into the future can you see, Jane?"<br>
+            Mrs. Cake: "About 10 seconds, usually."
+          </div>
+          <p>
+            If Mrs. Cake's answer replicates faster than Mr. Poons' question, a third-party observer reading from a lagging partition will see: <em>"About 10 seconds, usually"</em> followed 5 seconds later by <em>"How far into the future can you see, Jane?"</em>.
+          </p>
+          <p>
+            <strong>Architectural Solution:</strong> Ensure that all causally dependent writes are routed to the exact same partition or tracked with explicit causal dependency vectors / Lamport timestamps.
+          </p>
+        </div>
+
+        <!-- DIAGRAM 2: Replication Lag Anomalies -->
+        <div class="diagram-container">
+          <svg class="diagram-svg" viewBox="0 0 960 460" width="960" height="460" xmlns="http://www.w3.org/2000/svg">
+            <rect width="960" height="460" fill="transparent"/>
+
+            <!-- Column 1: Read-After-Write -->
+            <g transform="translate(40, 40)">
+              <rect width="260" height="360" rx="8" fill="#12161f" stroke="#38455e" stroke-width="1.5"/>
+              <rect x="0" y="0" width="260" height="34" rx="8" fill="#eb6c36" fill-opacity="0.12"/>
+              <text x="130" y="22" fill="#eb6c36" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">1. READ-YOUR-WRITES ANOMALY</text>
+
+              <rect x="20" y="50" width="220" height="44" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="68" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="11" font-weight="600">User submits new Bio</text>
+              <text x="30" y="84" fill="#eb6c36" font-family="Geist Mono, monospace" font-size="10">Write → Leader (ACK OK)</text>
+
+              <path d="M 130 94 L 130 114" fill="none" stroke="#8d9bb0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+              <rect x="20" y="120" width="220" height="44" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="138" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="11" font-weight="600">User reloads profile page</text>
+              <text x="30" y="154" fill="#3b82f6" font-family="Geist Mono, monospace" font-size="10">Read → Lagging Follower (5s)</text>
+
+              <path d="M 130 164 L 130 184" fill="none" stroke="#8d9bb0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+              <rect x="20" y="190" width="220" height="70" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.5"/>
+              <text x="30" y="210" fill="#f43f5e" font-family="Geist, sans-serif" font-size="11" font-weight="700">❌ Anomaly Observed</text>
+              <text x="30" y="228" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">Follower returns OLD bio.</text>
+              <text x="30" y="246" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">User thinks update was lost!</text>
+
+              <rect x="20" y="280" width="220" height="60" rx="6" fill="#1a202c" stroke="#10b981"/>
+              <text x="30" y="300" fill="#10b981" font-family="Geist, sans-serif" font-size="11" font-weight="700">✓ Architectural Fix</text>
+              <text x="30" y="318" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">Route user's own profile to</text>
+              <text x="30" y="332" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">Leader for 60s post-write.</text>
+            </g>
+
+            <!-- Column 2: Monotonic Reads -->
+            <g transform="translate(350, 40)">
+              <rect width="260" height="360" rx="8" fill="#12161f" stroke="#38455e" stroke-width="1.5"/>
+              <rect x="0" y="0" width="260" height="34" rx="8" fill="#8b5cf6" fill-opacity="0.12"/>
+              <text x="130" y="22" fill="#8b5cf6" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">2. MONOTONIC READS (TIME TRAVEL)</text>
+
+              <rect x="20" y="50" width="220" height="44" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="68" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="11" font-weight="600">Read 1 → Replica A (Fast)</text>
+              <text x="30" y="84" fill="#10b981" font-family="Geist Mono, monospace" font-size="10">Returns Comment #42 (OK)</text>
+
+              <path d="M 130 94 L 130 114" fill="none" stroke="#8d9bb0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+              <rect x="20" y="120" width="220" height="44" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="138" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="11" font-weight="600">Read 2 → Replica B (Slow)</text>
+              <text x="30" y="154" fill="#f59e0b" font-family="Geist Mono, monospace" font-size="10">Lagging behind Replica A</text>
+
+              <path d="M 130 164 L 130 184" fill="none" stroke="#8d9bb0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+              <rect x="20" y="190" width="220" height="70" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.5"/>
+              <text x="30" y="210" fill="#f43f5e" font-family="Geist, sans-serif" font-size="11" font-weight="700">❌ Anomaly Observed</text>
+              <text x="30" y="228" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">Comment #42 disappears!</text>
+              <text x="30" y="246" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">User travels backward in time.</text>
+
+              <rect x="20" y="280" width="220" height="60" rx="6" fill="#1a202c" stroke="#10b981"/>
+              <text x="30" y="300" fill="#10b981" font-family="Geist, sans-serif" font-size="11" font-weight="700">✓ Architectural Fix</text>
+              <text x="30" y="318" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">Hash user ID to pin all user</text>
+              <text x="30" y="332" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">reads to the exact same replica.</text>
+            </g>
+
+            <!-- Column 3: Consistent Prefix Reads -->
+            <g transform="translate(660, 40)">
+              <rect width="260" height="360" rx="8" fill="#12161f" stroke="#38455e" stroke-width="1.5"/>
+              <rect x="0" y="0" width="260" height="34" rx="8" fill="#3b82f6" fill-opacity="0.12"/>
+              <text x="130" y="22" fill="#3b82f6" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">3. CONSISTENT PREFIX READS</text>
+
+              <rect x="20" y="50" width="220" height="44" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="68" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="11" font-weight="600">Write 1: "What time is it?"</text>
+              <text x="30" y="84" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="10">Sent to Partition A</text>
+
+              <path d="M 130 94 L 130 114" fill="none" stroke="#8d9bb0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+              <rect x="20" y="120" width="220" height="44" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="138" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="11" font-weight="600">Write 2: "It is 4:00 PM"</text>
+              <text x="30" y="154" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="10">Sent to Partition B</text>
+
+              <path d="M 130 164 L 130 184" fill="none" stroke="#8d9bb0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+              <rect x="20" y="190" width="220" height="70" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.5"/>
+              <text x="30" y="210" fill="#f43f5e" font-family="Geist, sans-serif" font-size="11" font-weight="700">❌ Anomaly Observed</text>
+              <text x="30" y="228" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">Observer sees Answer BEFORE</text>
+              <text x="30" y="246" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">Question due to partition skew.</text>
+
+              <rect x="20" y="280" width="220" height="60" rx="6" fill="#1a202c" stroke="#10b981"/>
+              <text x="30" y="300" fill="#10b981" font-family="Geist, sans-serif" font-size="11" font-weight="700">✓ Architectural Fix</text>
+              <text x="30" y="318" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">Route causally linked writes to</text>
+              <text x="30" y="332" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="10">the same partition / vector clock.</text>
+            </g>
+
+            <!-- Bottom Legend -->
+            <g transform="translate(40, 424)">
+              <line x1="0" y1="0" x2="880" y2="0" stroke="#242c3d" stroke-width="1"/>
+              <circle cx="20" cy="14" r="5" fill="#f43f5e"/>
+              <text x="32" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Replication Lag Anomaly (Bug)</text>
+              <circle cx="260" cy="14" r="5" fill="#10b981"/>
+              <text x="272" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Architectural Mitigation</text>
+            </g>
+          </svg>
+          <div class="diagram-caption">
+            Figure 5.2: The Three Classical Replication Lag Anomalies and Their Distributed Mitigations.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">Social Profile Bio Update</h4>
+            <p class="example-body">
+              A user updates their job title on LinkedIn, hits save, and refreshes. If read from a 2-second lagging replica, their old title appears, confusing the user.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <h4 class="example-title">Multi-Device Inconsistency</h4>
+            <p class="example-body">
+              A user changes their password on their desktop computer, then immediately logs in on their mobile phone. The mobile request hits a lagging replica in another datacenter and fails authentication.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Causal Chat Inversion</h4>
+            <p class="example-body">
+              In a group chat, Alice asks "Is the server down?" and Bob replies "Yes!". Because messages land on different sharded partitions, Charlie sees "Yes!" 10 seconds before Alice's question appears.
+            </p>
+          </div>
+        </div>
+
+        <!-- Pedagogy Pillars -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label">💡 Real-World Analogy</div>
+            <p class="pedagogy-text">
+              Replication lag is like listening to a live stadium concert through two different radio stations with differing digital broadcast delays. Toggling between frequencies makes songs skip or repeat words.
+            </p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label">⚠️ Common Misconception</div>
+            <p class="pedagogy-text">
+              "Eventual consistency means the data is consistent in almost all queries." No! If read volume is high and lag is 200ms, thousands of user requests per second will actively experience corrupted or stale reads.
+            </p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label">🏭 Production Reality</div>
+            <p class="pedagogy-text">
+              Instagram and Twitter use read-after-write heuristics: newly created posts and profile changes are pinned to the user's session cache and merged client-side before asynchronous followers catch up.
+            </p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label">🔗 Inter-Module Link</div>
+            <p class="pedagogy-text">
+              Replication lag anomalies worsen dramatically when writes occur on multiple leaders simultaneously, introducing true <em>Concurrent Conflicts</em> (Module 05).
+            </p>
+          </div>
+        </div>
+
+        <!-- Interactive Simulator 3: Replication Lag Playground -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <div>
+              <span class="interactive-badge">Interactive Simulation 03</span>
+              <h3 class="interactive-title">Replication Lag Anomaly Simulator</h3>
+            </div>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+            Simulate user updates and subsequent read requests across a 3-replica cluster. Toggle Consistency Guarantees to see how routing strategies eliminate anomalies.
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label">User Action</label>
+              <div style="display: flex; gap: 8px;">
+                <button class="sim-btn primary" onclick="simLagWrite()">1. Submit Write ("Status = Online")</button>
+                <button class="sim-btn" onclick="simLagRead()">2. Issue Read Request</button>
+              </div>
+            </div>
+            <div class="control-group">
+              <label class="control-label">Consistency Guarantee</label>
+              <select id="guaranteeSelect" class="sim-btn" style="width: 100%; text-align: left;">
+                <option value="none">No Guarantee (Random Follower Load Balancing)</option>
+                <option value="read_your_writes">Read-Your-Writes (Route User to Leader for 30s)</option>
+                <option value="monotonic">Monotonic Reads (Session Hashing)</option>
+              </select>
+            </div>
+            <div class="control-group" style="flex: 0;">
+              <label class="control-label">Reset State</label>
+              <button class="sim-btn" onclick="resetLagSim()">Reset</button>
+            </div>
+          </div>
+
+          <div id="lagSimLog" class="sim-display-box">
+            <!-- Dynamic output -->
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          ⚡ Memory Pill: "Eventual Consistency" is not a feature — it is a symptom of asynchronous lag that requires explicit application-level or routing mitigations.
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           MODULE 04: MULTI-LEADER REPLICATION
+           ========================================================================= -->
+      <section id="module-04" class="module-card">
+        <div class="module-header">
+          <span class="module-num">Module 04</span>
+          <h2 class="module-heading">Multi-Leader (Active-Active) Replication</h2>
+        </div>
+
+        <!-- Embedded Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span>📖</span> Key Definitions for Module 04
+          </div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term">Multi-Leader (Active-Active)</div>
+              <div class="def-desc">An architecture containing multiple database nodes that can simultaneously accept write operations, each acting as a leader for its local clients and replicating to other leaders.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Inter-Datacenter Replication</div>
+              <div class="def-desc">Asynchronously streaming write logs across transcontinental datacenters (e.g. US-East to EU-West) so each datacenter operates with local write latencies.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Offline-First Operation</div>
+              <div class="def-desc">Applications (like calendar apps, notes, or mobile CRMs) where each local client device acts as an independent leader that accepts writes offline and syncs later.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Replication Topology</div>
+              <div class="def-desc">The network communication graph describing how writes propagate between leaders (All-to-All, Circular Ring, or Star/Hub-and-Spoke).</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prose-block">
+          <p>
+            Single-leader replication has a major downside: all writes must route through a single node. If that node is located in North Virginia (<code>us-east-1</code>), a user in Sydney, Australia attempting to write must endure a 250ms cross-ocean round trip. Furthermore, if a network partition isolates that datacenter, the entire application's write availability drops to zero globally.
+          </p>
+          <p>
+            <strong>Multi-Leader (Active-Active or Multi-Master) replication</strong> addresses this by deploying a designated leader node in <em>every</em> datacenter. Clients in North America write to the US Leader; clients in Europe write to the Frankfurt Leader. Each leader writes locally in sub-milliseconds and asynchronously streams its change stream across the ocean to peer leaders.
+          </p>
+
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">Key Use Cases for Multi-Leader Systems</h3>
+          <ul style="margin-left: 24px; margin-bottom: 16px;">
+            <li><strong>Multi-Datacenter Enterprise Systems:</strong> Local write latency in every continent; surviving the complete annihilation or network severance of an entire cloud datacenter without downtime.</li>
+            <li><strong>Clients with Offline Operation:</strong> Mobile calendar apps, Evernote, Notion, or Apple Notes. When you board an airplane, your phone becomes a local leader accepting changes. When you land and reconnect to Wi-Fi, your phone synchronizes its local writes with the server leader.</li>
+            <li><strong>Real-Time Collaborative Editing:</strong> Google Docs, Figma, Miro, or Etherpad, where multiple users edit documents concurrently and changes must reflect immediately on screen before merging.</li>
+          </ul>
+
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">Replication Topologies: All-to-All vs. Circular vs. Star</h3>
+          <p>
+            How do multiple leaders pass writes to one another?
+          </p>
+          <ul style="margin-left: 24px; margin-bottom: 16px;">
+            <li><strong>Circular Topology (Ring):</strong> Each node receives writes from its predecessor and forwards them to its successor. Danger: if a single node fails, the ring breaks and message forwarding halts.</li>
+            <li><strong>Star Topology:</strong> A designated central root node receives all writes and broadcasts them to leaf nodes. Danger: the root is a single point of failure.</li>
+            <li><strong>All-to-All Topology (Mesh):</strong> Every leader sends every write directly to all other leaders. This is the most fault-tolerant topology, but network packets can arrive out of order (Write B overtaking Write A due to varying internet route speeds).</li>
+          </ul>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">Global E-Commerce Inventory</h4>
+            <p class="example-body">
+              An e-commerce platform has datacenters in Oregon, Dublin, and Singapore. Users browse and add items with local 5ms latency, while inventory syncs in the background.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <h4 class="example-title">Network Race Condition in All-to-All</h4>
+            <p class="example-body">
+              Leader 1 inserts record X. Leader 2 updates record X. In an All-to-All topology, Leader 3 receives the <em>update</em> before the <em>insert</em> arrives, throwing a foreign key violation!
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Disconnected Airplane Mode Sync</h4>
+            <p class="example-body">
+              Two colleagues on different transatlantic flights edit the exact same slide in a presentation deck offline. Upon landing, both laptops reconnect and trigger concurrent write conflicts.
+            </p>
+          </div>
+        </div>
+
+        <!-- Pedagogy Pillars -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label">💡 Real-World Analogy</div>
+            <p class="pedagogy-text">
+              Multi-leader is like Git: developers branch off, commit code locally to their own laptops (leaders), and eventually issue a pull request / merge commit. When two developers edit line 50, a merge conflict occurs.
+            </p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label">⚠️ Common Misconception</div>
+            <p class="pedagogy-text">
+              "Multi-leader is always superior to single-leader because you can write anywhere." In reality, multi-leader brings immense operational complexity and unavoidable write conflict handling.
+            </p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label">🏭 Production Reality</div>
+            <p class="pedagogy-text">
+              Most relational database plugins for multi-master (e.g. MySQL Tungsten, Postgres BDR) require complex conflict resolution triggers and can introduce severe edge-case bugs.
+            </p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label">🔗 Inter-Module Link</div>
+            <p class="pedagogy-text">
+              Because multi-leader allows simultaneous writes at different sites, resolving <em>Concurrent Conflicts</em> (Module 05) is the central engineering challenge.
+            </p>
+          </div>
+        </div>
+
+        <!-- Interactive Simulator 4: Topology Visualizer -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <div>
+              <span class="interactive-badge">Interactive Simulation 04</span>
+              <h3 class="interactive-title">Multi-Leader Topology & Network Partition Visualizer</h3>
+            </div>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+            Select a replication topology, inject a failed node, and observe how write messages propagate or get trapped across global datacenters.
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label" for="topologySelect">Network Topology</label>
+              <select id="topologySelect" class="sim-btn" style="width: 100%; text-align: left;" onchange="updateTopologySim()">
+                <option value="all_to_all">All-to-All (Mesh Topology - Highly Resilient)</option>
+                <option value="circular">Circular Ring Topology (Vulnerable to 1 Node Drop)</option>
+                <option value="star">Star / Hub-and-Spoke Topology (Central Root Node)</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label class="control-label">Node Health Status</label>
+              <div style="display: flex; gap: 8px;">
+                <button class="sim-btn" id="btnToggleNodeB" onclick="toggleNodeB()">Toggle DC-Europe (Node B)</button>
+                <button class="sim-btn primary" onclick="sendMultiLeaderWrite()">Broadcast Write from DC-US</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="topologyOutput" class="sim-display-box">
+            <!-- Simulated message hops -->
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          ⚡ Memory Pill: Multi-Leader allows local writes across the globe, but All-to-All topologies require causality tracking to prevent write reordering bugs.
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           MODULE 05: MULTI-LEADER CONFLICT RESOLUTION
+           ========================================================================= -->
+      <section id="module-05" class="module-card">
+        <div class="module-header">
+          <span class="module-num">Module 05</span>
+          <h2 class="module-heading">Multi-Leader Conflict Resolution Strategies</h2>
+        </div>
+
+        <!-- Embedded Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span>📖</span> Key Definitions for Module 05
+          </div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term">Concurrent Conflict</div>
+              <div class="def-desc">A scenario where two distinct leaders accept modifications to the same piece of data (same primary key/row) simultaneously before either has received the other's write.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Conflict Avoidance</div>
+              <div class="def-desc">Designing the application so that all writes for a specific record or user are deterministically routed to the exact same leader (e.g. the user's home datacenter).</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Last Write Wins (LWW)</div>
+              <div class="def-desc">Resolving conflicts by attaching a wall-clock timestamp to every write and discarding any write with an older timestamp. Vulnerable to clock skew and silent data loss.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">CRDT (Conflict-free Replicated Data Type)</div>
+              <div class="def-desc">Mathematical data structures (e.g., PN-Counters, Observed-Removed Sets) designed to automatically merge concurrent updates across multiple nodes deterministically.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Operational Transformation (OT)</div>
+              <div class="def-desc">An algorithm designed specifically for concurrent character-by-character text editing across collaborative tools like Google Docs and Etherpad.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Sibling Values (Multi-Version Read Merge)</div>
+              <div class="def-desc">Retaining all conflicting values under the key and returning them as a list of siblings to the client application on next read to prompt explicit resolution.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prose-block">
+          <p>
+            The defining architectural challenge of multi-leader replication is that <strong>write conflicts are inevitable</strong>. Consider two users simultaneously editing the title of a wiki page:
+          </p>
+          <ul style="margin-left: 24px; margin-bottom: 16px;">
+            <li>User 1 changes the title to <code>"Title A"</code> at the US Datacenter leader.</li>
+            <li>User 2 changes the title to <code>"Title B"</code> at the EU Datacenter leader.</li>
+          </ul>
+          <p>
+            Both writes succeed locally without locking. When the change streams cross the ocean, both datacenters detect a direct conflict. The database must resolve this to reach a converged, identical state.
+          </p>
+
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">Strategies for Conflict Resolution</h3>
+          <ol style="margin-left: 24px; margin-bottom: 16px;">
+            <li><strong>Conflict Avoidance (Recommended):</strong> The simplest approach. Partition data such that all writes for user X are routed exclusively to Datacenter 1. If user X never writes to Datacenter 2, concurrent conflicts cannot occur. However, if the user travels internationally or a datacenter fails, avoidance breaks down.</li>
+            <li><strong>Last Write Wins (LWW):</strong> Attach a physical NTP timestamp to each write. The write with the highest timestamp wins; the other is permanently discarded. <em>Danger:</em> Physical computer clocks (NTP) suffer from clock skew and drift. LWW regularly causes silent, irrecoverable data loss of valid transactions.</li>
+            <li><strong>Custom Merge Handlers:</strong>
+              <ul style="margin-left: 20px; margin-top: 6px;">
+                <li><em>On Write:</em> As soon as a conflict is detected in the replication stream, execute a database trigger/stored procedure to merge fields.</li>
+                <li><em>On Read:</em> Retain all conflicting versions as <strong>sibling values</strong> (like CouchDB/Riak). When the client reads the record, the database returns all versions, prompting the user or application code to resolve the conflict (e.g. merging shopping cart items).</li>
+              </ul>
+            </li>
+            <li><strong>CRDTs (Conflict-free Replicated Data Types):</strong> Specialized mathematical structures (such as State-based or Operation-based CRDTs, Two-Phase Sets, LWW-Element-Sets) that guarantee deterministic mathematical convergence across all nodes without central coordination.</li>
+          </ol>
+        </div>
+
+        <!-- DIAGRAM 3: Multi-Leader Conflict Resolution -->
+        <div class="diagram-container">
+          <svg class="diagram-svg" viewBox="0 0 960 480" width="960" height="480" xmlns="http://www.w3.org/2000/svg">
+            <rect width="960" height="480" fill="transparent"/>
+
+            <!-- US Datacenter Box -->
+            <g transform="translate(40, 40)">
+              <rect width="380" height="340" rx="8" fill="#12161f" stroke="#38455e" stroke-width="1.5"/>
+              <rect x="0" y="0" width="380" height="32" rx="8" fill="#38455e" fill-opacity="0.2"/>
+              <text x="190" y="22" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">DATACENTER 1: US-EAST (VIRGINIA)</text>
+
+              <rect x="20" y="50" width="140" height="50" rx="6" fill="#1a202c" stroke="#242c3d"/>
+              <text x="90" y="72" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="11" font-weight="600" text-anchor="middle">User Alice</text>
+              <text x="90" y="88" fill="#eb6c36" font-family="Geist Mono, monospace" font-size="9" text-anchor="middle">Title = "Engineering"</text>
+
+              <rect x="200" y="50" width="160" height="110" rx="6" fill="#1a202c" stroke="#eb6c36" stroke-width="1.5"/>
+              <text x="280" y="72" fill="#eb6c36" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">★ Leader US</text>
+              <text x="214" y="94" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="10">Local Write: OK</text>
+              <text x="214" y="112" fill="#10b981" font-family="Geist Mono, monospace" font-size="10">Val: "Engineering"</text>
+              <text x="214" y="130" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="9">ts: 10:00:00.100</text>
+
+              <path d="M 160 75 L 200 75" fill="none" stroke="#eb6c36" stroke-width="1.5" marker-end="url(#arrow-accent)"/>
+            </g>
+
+            <!-- EU Datacenter Box -->
+            <g transform="translate(540, 40)">
+              <rect width="380" height="340" rx="8" fill="#12161f" stroke="#38455e" stroke-width="1.5"/>
+              <rect x="0" y="0" width="380" height="32" rx="8" fill="#38455e" fill-opacity="0.2"/>
+              <text x="190" y="22" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">DATACENTER 2: EU-WEST (FRANKFURT)</text>
+
+              <rect x="220" y="50" width="140" height="50" rx="6" fill="#1a202c" stroke="#242c3d"/>
+              <text x="290" y="72" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="11" font-weight="600" text-anchor="middle">User Bob</text>
+              <text x="290" y="88" fill="#3b82f6" font-family="Geist Mono, monospace" font-size="9" text-anchor="middle">Title = "Architecture"</text>
+
+              <rect x="20" y="50" width="160" height="110" rx="6" fill="#1a202c" stroke="#3b82f6" stroke-width="1.5"/>
+              <text x="100" y="72" fill="#3b82f6" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">★ Leader EU</text>
+              <text x="34" y="94" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="10">Local Write: OK</text>
+              <text x="34" y="112" fill="#10b981" font-family="Geist Mono, monospace" font-size="10">Val: "Architecture"</text>
+              <text x="34" y="130" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="9">ts: 10:00:00.104</text>
+
+              <path d="M 220 75 L 180 75" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow)"/>
+            </g>
+
+            <!-- Cross-Ocean Asynchronous Replication Stream with Conflict -->
+            <path d="M 420 115 L 540 115" fill="none" stroke="#eb6c36" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#arrow-accent)"/>
+            <path d="M 540 145 L 420 145" fill="none" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+
+            <!-- Center Conflict Alert Box -->
+            <g transform="translate(380, 200)">
+              <rect width="200" height="90" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="2"/>
+              <text x="100" y="24" fill="#f43f5e" font-family="Geist, sans-serif" font-size="11" font-weight="700" text-anchor="middle">⚡ CONCURRENT CONFLICT</text>
+              <text x="100" y="42" fill="#f0f4fc" font-family="Geist Mono, monospace" font-size="10" text-anchor="middle">Same Key Modified</text>
+              <text x="100" y="58" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="9" text-anchor="middle">Without Prior Knowledge</text>
+              <text x="100" y="76" fill="#f59e0b" font-family="Geist Mono, monospace" font-size="9.5" font-weight="600" text-anchor="middle">Requires Resolution Rule</text>
+            </g>
+
+            <!-- Resolution Paths Below -->
+            <g transform="translate(60, 310)">
+              <rect width="240" height="50" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="12" y="22" fill="#eb6c36" font-family="Geist Mono, monospace" font-size="10" font-weight="700">LWW (Last Write Wins)</text>
+              <text x="12" y="38" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="9.5">Keep ts=104, discard ts=100</text>
+            </g>
+
+            <g transform="translate(360, 310)">
+              <rect width="240" height="50" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="12" y="22" fill="#8b5cf6" font-family="Geist Mono, monospace" font-size="10" font-weight="700">Sibling Multi-Version</text>
+              <text x="12" y="38" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="9.5">Store ["Eng", "Arch"] for App</text>
+            </g>
+
+            <g transform="translate(660, 310)">
+              <rect width="240" height="50" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="12" y="22" fill="#10b981" font-family="Geist Mono, monospace" font-size="10" font-weight="700">CRDT Merge</text>
+              <text x="12" y="38" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="9.5">Deterministic 3-way union</text>
+            </g>
+
+            <!-- Bottom Legend -->
+            <g transform="translate(40, 444)">
+              <line x1="0" y1="0" x2="880" y2="0" stroke="#242c3d" stroke-width="1"/>
+              <circle cx="20" cy="14" r="5" fill="#eb6c36"/>
+              <text x="32" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">US Datacenter Write Flow</text>
+              <circle cx="240" cy="14" r="5" fill="#3b82f6"/>
+              <text x="252" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">EU Datacenter Write Flow</text>
+              <circle cx="460" cy="14" r="5" fill="#f43f5e"/>
+              <text x="472" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Inter-DC Async Conflict Point</text>
+            </g>
+          </svg>
+          <div class="diagram-caption">
+            Figure 5.3: Multi-Leader Concurrent Conflict Generation and Three Convergence Resolution Pathways.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">Shopping Cart Item Merging</h4>
+            <p class="example-body">
+              A user adds Milk on their iPad and Bread on their iPhone while offline. A read-merge handler computes the set union: <code>{Milk, Bread}</code> rather than overwriting.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <h4 class="example-title">NTP Clock Skew Data Loss</h4>
+            <p class="example-body">
+              Leader 1's server clock drifts 200ms behind real time. Under LWW, all writes accepted by Leader 1 are discarded as "stale" when replicating to Leader 2, silently dropping customer orders.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Tombstone Resurrection</h4>
+            <p class="example-body">
+              User A deletes an item (inserting a tombstone marker). Concurrently, User B updates the item's quantity. An uncoordinated LWW merge resurrects the deleted item in the cart.
+            </p>
+          </div>
+        </div>
+
+        <!-- Pedagogy Pillars -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label">💡 Real-World Analogy</div>
+            <p class="pedagogy-text">
+              Multi-leader conflict resolution is like two roommates buying groceries separately without calling each other. If both buy milk, they either throw one away (LWW), keep both (Siblings), or make a recipe that uses two gallons (Merge).
+            </p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label">⚠️ Common Misconception</div>
+            <p class="pedagogy-text">
+              "Using microsecond timestamps in LWW prevents conflicts." False! Physical clocks in distributed systems cannot be synchronized perfectly across datacenters; timestamp order does not equal true causal order.
+            </p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label">🏭 Production Reality</div>
+            <p class="pedagogy-text">
+              Apps like Figma and Google Docs utilize Operational Transformation (OT) and CRDTs over WebSockets rather than relational multi-master database replication to ensure flicker-free collaborative UX.
+            </p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label">🔗 Inter-Module Link</div>
+            <p class="pedagogy-text">
+              To eliminate master failover bottlenecks and complex multi-leader topology setups entirely, modern distributed stores move to <em>Leaderless Dynamo-style systems</em> (Module 06).
+            </p>
+          </div>
+        </div>
+
+        <!-- Interactive Simulator 5: Conflict Resolver Arena -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <div>
+              <span class="interactive-badge">Interactive Simulation 05</span>
+              <h3 class="interactive-title">Concurrent Conflict Resolution Arena</h3>
+            </div>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+            Simulate concurrent edits to the same customer profile row from two worldwide leaders and test how different resolution policies handle the collision.
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label" for="usWriteVal">DC-US Input Value</label>
+              <input type="text" id="usWriteVal" class="sim-btn" style="text-align: left;" value="Alice (Role: Architect)">
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="euWriteVal">DC-EU Input Value</label>
+              <input type="text" id="euWriteVal" class="sim-btn" style="text-align: left;" value="Alice (Role: Director)">
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="conflictPolicy">Resolution Strategy</label>
+              <select id="conflictPolicy" class="sim-btn" style="width: 100%; text-align: left;">
+                <option value="lww">Last Write Wins (Wall-Clock Timestamp)</option>
+                <option value="siblings">Sibling Multi-Value Retention (App Resolves)</option>
+                <option value="crdt">CRDT Field-Level Union Merge</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <button class="sim-btn primary" onclick="resolveConcurrentConflict()">Execute Inter-DC Sync & Resolve</button>
+          </div>
+
+          <div id="conflictArenaOutput" class="sim-display-box">
+            <!-- Dynamic resolution analysis -->
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          ⚡ Memory Pill: Last-Write-Wins is popular because it is easy, but it silently destroys data; CRDTs and Sibling Merges preserve operational truth.
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           MODULE 06: LEADERLESS REPLICATION & DYNAMO QUORUMS
+           ========================================================================= -->
+      <section id="module-06" class="module-card">
+        <div class="module-header">
+          <span class="module-num">Module 06</span>
+          <h2 class="module-heading">Leaderless Replication & Dynamo-Style Quorums ($W + R > N$)</h2>
+        </div>
+
+        <!-- Embedded Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span>📖</span> Key Definitions for Module 06
+          </div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term">Leaderless Replication</div>
+              <div class="def-desc">A peer-to-peer database design (popularized by Amazon Dynamo, Apache Cassandra, and Riak) where any replica can accept writes and reads directly from clients without a designated leader.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Replication Factor ($N$)</div>
+              <div class="def-desc">The total number of replica nodes in the cluster designated to store copies of a specific partition or key.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Write Quorum ($W$)</div>
+              <div class="def-desc">The minimum number of replica nodes that must successfully process and acknowledge a write request for the transaction to be considered successful by the client.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Read Quorum ($R$)</div>
+              <div class="def-desc">The minimum number of replica nodes that a client must query in parallel when reading a key before determining the latest value.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Read Repair</div>
+              <div class="def-desc">When a client reads from $R$ nodes in parallel and notices one replica returned an older version tag, the client writes the newer version back to the stale node immediately.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Anti-Entropy Process & Merkle Trees</div>
+              <div class="def-desc">A background daemon that uses hierarchical cryptographic hash trees (Merkle Trees) to compare data ranges between replicas and copy missing or divergent keys efficiently.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Sloppy Quorum & Hinted Handoff</div>
+              <div class="def-desc">During a network partition when home nodes are unreachable, writes are accepted by surrogate temporary nodes (Sloppy Quorum) and handed back once home nodes recover (Hinted Handoff).</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prose-block">
+          <p>
+            Some distributed data stores abandon the concept of a leader entirely. In <strong>Leaderless Replication</strong> (originating from the seminal 2007 Amazon Dynamo paper, and implemented by Apache Cassandra, ScyllaDB, Riak, and Voldemort), clients send writes and reads directly to multiple replicas in parallel.
+          </p>
+
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">The Quorum Consensus Equation: $W + R > N$</h3>
+          <p>
+            If there are $N$ total replicas for a key, how can a client be certain it is reading the latest written value if some replicas are temporarily down or lagging?
+          </p>
+          <p>
+            The mathematical foundation relies on the <strong>Pigeonhole Principle</strong>:
+          </p>
+          <div style="background: var(--bg-surface-elevated); padding: 16px 24px; border-radius: 8px; font-family: var(--font-mono); font-size: 1.15rem; color: var(--accent); text-align: center; margin: 16px 0; border: 1px solid var(--border-accent);">
+            W + R &gt; N
+          </div>
+          <p>
+            If the number of write-acknowledging nodes ($W$) plus the number of read-queried nodes ($R$) is strictly greater than the total number of replicas ($N$), the set of nodes written to and the set of nodes read from <strong>must overlap by at least one node</strong>! That overlapping node is guaranteed to return the latest version number.
+          </p>
+          <p>
+            Standard production configurations for $N=3$ typically choose $W=2$ and $R=2$ ($2 + 2 = 4 > 3$). This configuration tolerates 1 node failure for writes and 1 node failure for reads without losing consistency or availability.
+          </p>
+
+          <h3 style="margin: 20px 0 10px; font-size: 1.25rem;">How Stale Replicas Catch Up</h3>
+          <p>
+            When an offline node comes back online, how does it catch up on writes it missed?
+          </p>
+          <ul style="margin-left: 24px; margin-bottom: 16px;">
+            <li><strong>Read Repair:</strong> When a client reads from $R=2$ nodes, Node 1 returns <code>{val: "v2", version: 2}</code> while Node 2 returns <code>{val: "v1", version: 1}</code>. The client uses the higher version (v2) and asynchronously sends a write with version 2 back to Node 2 to repair it.</li>
+            <li><strong>Anti-Entropy Background Process:</strong> A background daemon constantly compares datasets across nodes using <strong>Merkle Trees</strong> (hashes of ranges of keys). Nodes only exchange hashes; if a subtree root hash matches, millions of keys are known to be identical without sending raw records across the network.</li>
+            <li><strong>Sloppy Quorums & Hinted Handoff:</strong> If a network partition cuts off the designated $N$ home replicas for a key, the database accepts writes onto temporary surrogate nodes reachable outside the home cluster. When the network heals, the surrogate nodes hand the stored writes back to the home nodes.</li>
+          </ul>
+        </div>
+
+        <!-- DIAGRAM 4: Dynamo Quorums & Read Repair -->
+        <div class="diagram-container">
+          <svg class="diagram-svg" viewBox="0 0 960 480" width="960" height="480" xmlns="http://www.w3.org/2000/svg">
+            <rect width="960" height="480" fill="transparent"/>
+
+            <!-- Client Node -->
+            <g transform="translate(60, 160)">
+              <rect width="140" height="130" rx="8" fill="#12161f" stroke="#eb6c36" stroke-width="1.8"/>
+              <text x="70" y="30" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="13" font-weight="700" text-anchor="middle">CLIENT /</text>
+              <text x="70" y="48" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">COORDINATOR</text>
+              <rect x="15" y="66" width="110" height="48" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="70" y="84" fill="#eb6c36" font-family="Geist Mono, monospace" font-size="10" font-weight="600" text-anchor="middle">Quorum: N=3</text>
+              <text x="70" y="100" fill="#10b981" font-family="Geist Mono, monospace" font-size="10" font-weight="600" text-anchor="middle">W=2, R=2</text>
+            </g>
+
+            <!-- Replica Node 1 (Up-to-Date) -->
+            <g transform="translate(360, 40)">
+              <rect width="220" height="110" rx="8" fill="#12161f" stroke="#10b981" stroke-width="1.5"/>
+              <text x="110" y="24" fill="#10b981" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">REPLICA NODE 1 (HOME)</text>
+              <rect x="20" y="40" width="180" height="52" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="58" fill="#f0f4fc" font-family="Geist Mono, monospace" font-size="11">Key: user_100</text>
+              <text x="30" y="74" fill="#10b981" font-family="Geist Mono, monospace" font-size="11">Val: "New" (Ver: 7)</text>
+            </g>
+
+            <!-- Replica Node 2 (Stale) -->
+            <g transform="translate(360, 180)">
+              <rect width="220" height="110" rx="8" fill="#12161f" stroke="#f59e0b" stroke-width="1.5"/>
+              <text x="110" y="24" fill="#f59e0b" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">REPLICA NODE 2 (STALE)</text>
+              <rect x="20" y="40" width="180" height="52" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="58" fill="#f0f4fc" font-family="Geist Mono, monospace" font-size="11">Key: user_100</text>
+              <text x="30" y="74" fill="#f59e0b" font-family="Geist Mono, monospace" font-size="11">Val: "Old" (Ver: 6)</text>
+            </g>
+
+            <!-- Replica Node 3 (Offline / Surrogate) -->
+            <g transform="translate(360, 320)">
+              <rect width="220" height="110" rx="8" fill="#12161f" stroke="#38455e" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <text x="110" y="24" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="12" font-weight="600" text-anchor="middle">REPLICA NODE 3 (OFFLINE)</text>
+              <rect x="20" y="40" width="180" height="52" rx="4" fill="#1a202c" stroke="#242c3d"/>
+              <text x="30" y="60" fill="#f43f5e" font-family="Geist Mono, monospace" font-size="10">Unreachable (Partition)</text>
+              <text x="30" y="76" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="10">Sloppy Hinted Handoff</text>
+            </g>
+
+            <!-- Read Flow Connectors -->
+            <path d="M 200 190 L 260 190 Q 268 190 268 182 L 268 95 Q 268 87 276 87 L 360 87" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <path d="M 200 210 L 360 210" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <g transform="translate(210, 120)">
+              <rect x="0" y="0" width="90" height="16" rx="3" fill="#12161f"/>
+              <text x="45" y="12" fill="#3b82f6" font-family="Geist Mono, monospace" font-size="9.5" font-weight="600" text-anchor="middle">Read Query R=2</text>
+            </g>
+
+            <!-- Response Flows -->
+            <path d="M 360 115 L 280 115 Q 272 115 272 123 L 272 220 Q 272 228 264 228 L 200 228" fill="none" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow-teal)"/>
+            <path d="M 360 235 L 200 235" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+
+            <!-- Read Repair Action Box -->
+            <g transform="translate(680, 140)">
+              <rect width="220" height="150" rx="8" fill="#12161f" stroke="#eb6c36" stroke-width="2"/>
+              <text x="110" y="26" fill="#eb6c36" font-family="Geist, sans-serif" font-size="12" font-weight="700" text-anchor="middle">⚡ READ REPAIR TRIGGER</text>
+              <text x="16" y="52" fill="#f0f4fc" font-family="Geist, sans-serif" font-size="10.5">1. Client sees Ver 7 &gt; Ver 6</text>
+              <text x="16" y="70" fill="#10b981" font-family="Geist, sans-serif" font-size="10.5">2. Returns Ver 7 to User</text>
+              <text x="16" y="88" fill="#eb6c36" font-family="Geist, sans-serif" font-size="10.5">3. Writes Ver 7 back to Node 2</text>
+              <rect x="16" y="104" width="188" height="30" rx="4" fill="#1a202c" stroke="#38455e"/>
+              <text x="110" y="123" fill="#8d9bb0" font-family="Geist Mono, monospace" font-size="9.5" text-anchor="middle">Async Healing Complete</text>
+            </g>
+
+            <!-- Read Repair Writeback Arrow -->
+            <path d="M 680 235 L 580 235" fill="none" stroke="#eb6c36" stroke-width="2" marker-end="url(#arrow-accent)"/>
+            <g transform="translate(590, 215)">
+              <rect x="0" y="0" width="80" height="16" rx="3" fill="#12161f"/>
+              <text x="40" y="12" fill="#eb6c36" font-family="Geist Mono, monospace" font-size="9" font-weight="600" text-anchor="middle">Writeback Ver 7</text>
+            </g>
+
+            <!-- Bottom Legend Strip -->
+            <g transform="translate(60, 444)">
+              <line x1="0" y1="0" x2="840" y2="0" stroke="#242c3d" stroke-width="1"/>
+              <circle cx="20" cy="14" r="5" fill="#3b82f6"/>
+              <text x="32" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Parallel Read Quorum (R=2)</text>
+              <circle cx="250" cy="14" r="5" fill="#10b981"/>
+              <text x="262" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Up-to-Date Version ACK</text>
+              <circle cx="480" cy="14" r="5" fill="#eb6c36"/>
+              <text x="492" y="18" fill="#8d9bb0" font-family="Geist, sans-serif" font-size="11">Read Repair Background Heal</text>
+            </g>
+          </svg>
+          <div class="diagram-caption">
+            Figure 5.4: Leaderless Quorum Reading (W=2, R=2, N=3) with In-Flight Dynamic Read Repair.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">Cassandra Timeseries Ingestion</h4>
+            <p class="example-body">
+              IoT sensors write 100,000 metrics/sec to an Apache Cassandra cluster configured with N=3, W=1 for lightning-fast write ingestion, relying on anti-entropy to sync nodes.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <h4 class="example-title">Strict Quorum Returning Stale Data</h4>
+            <p class="example-body">
+              Even with W+R &gt; N, if two writes occur concurrently, or if a write succeeds on only W-1 nodes before failing, subsequent quorum reads can return stale or inconsistent data.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Hinted Handoff Accumulation Storm</h4>
+            <p class="example-body">
+              A datacenter suffers an extended 6-hour partition. Surrogate nodes accumulate millions of hinted handoffs on disk, exhausting RAM and crashing when delivering them upon reconnect.
+            </p>
+          </div>
+        </div>
+
+        <!-- Pedagogy Pillars -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label">💡 Real-World Analogy</div>
+            <p class="pedagogy-text">
+              Quorum math (W+R&gt;N) is like a jury of 3 detectives (N=3). If you tell the truth to 2 detectives (W=2), and later interrogate any random 2 detectives (R=2), at least one detective is guaranteed to know the truth.
+            </p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label">⚠️ Common Misconception</div>
+            <p class="pedagogy-text">
+              "Leaderless replication guarantees linearizable ACID consistency." No! Dynamo systems optimize for High Availability and Eventual Consistency; edge cases with concurrent writes still require vector clocks.
+            </p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label">🏭 Production Reality</div>
+            <p class="pedagogy-text">
+              Amazon DynamoDB and Apache Cassandra run anti-entropy Merkle Tree background syncs during off-peak hours to repair silent disk corruption or partition drift.
+            </p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label">🔗 Inter-Module Link</div>
+            <p class="pedagogy-text">
+              Choosing between Single-Leader, Multi-Leader, and Leaderless replication shapes the entire system's fault tolerance, summarized in our <em>Architectural Matrix</em> (Module 07).
+            </p>
+          </div>
+        </div>
+
+        <!-- Interactive Simulator 6: Quorum Consensus Calculator -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <div>
+              <span class="interactive-badge">Interactive Simulation 06</span>
+              <h3 class="interactive-title">Dynamo Quorum Consensus & Stale Read Calculator</h3>
+            </div>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+            Adjust the cluster Replication Factor (N), Write Quorum (W), and Read Quorum (R) to calculate consistency guarantees, fault tolerance, and stale read probabilities.
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label" for="nValSlider">Replication Factor (N): <span id="nDisplay">3</span></label>
+              <input type="range" id="nValSlider" class="sim-range" min="1" max="9" step="2" value="3" oninput="updateQuorumCalculator()">
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="wValSlider">Write Quorum (W): <span id="wDisplay">2</span></label>
+              <input type="range" id="wValSlider" class="sim-range" min="1" max="5" value="2" oninput="updateQuorumCalculator()">
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="rValSlider">Read Quorum (R): <span id="rDisplay">2</span></label>
+              <input type="range" id="rValSlider" class="sim-range" min="1" max="5" value="2" oninput="updateQuorumCalculator()">
+            </div>
+          </div>
+
+          <div id="quorumCalcOutput" class="sim-display-box">
+            <!-- Quorum analysis generated via JS -->
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          ⚡ Memory Pill: If W + R &gt; N, you are mathematically guaranteed to overlap with at least one up-to-date node during a read.
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           MODULE 07: ARCHITECTURAL SYNTHESIS MATRIX
+           ========================================================================= -->
+      <section id="module-07" class="module-card">
+        <div class="module-header">
+          <span class="module-num">Module 07</span>
+          <h2 class="module-heading">Master Replication Architectural Synthesis</h2>
+        </div>
+
+        <div class="prose-block">
+          <p>
+            Distributed systems engineering is the art of navigating trade-offs. No single replication paradigm is universally superior; each excels under specific workload constraints and fails under others.
+          </p>
+        </div>
+
+        <!-- Master Comparison Table -->
+        <div class="table-container">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>Vector / Dimension</th>
+                <th>Single-Leader (Primary-Follower)</th>
+                <th>Multi-Leader (Active-Active)</th>
+                <th>Leaderless (Dynamo-Style)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Primary Write Path</strong></td>
+                <td><span class="tag-badge tag-yellow">Bottleneck</span> Single master node only</td>
+                <td><span class="tag-badge tag-green">Distributed</span> Any local datacenter leader</td>
+                <td><span class="tag-badge tag-green">Distributed</span> Parallel write to W replicas</td>
+              </tr>
+              <tr>
+                <td><strong>Conflict Handling</strong></td>
+                <td><span class="tag-badge tag-green">Trivial</span> Total order dictated by leader log</td>
+                <td><span class="tag-badge tag-red">Complex</span> LWW, Sibling values, CRDTs, OT</td>
+                <td><span class="tag-badge tag-yellow">Moderate</span> Vector clocks, Read repair, LWW</td>
+              </tr>
+              <tr>
+                <td><strong>Failover Risk</strong></td>
+                <td><span class="tag-badge tag-red">High</span> Split-brain risk; replica promotion delay</td>
+                <td><span class="tag-badge tag-yellow">Moderate</span> DC failover isolated per region</td>
+                <td><span class="tag-badge tag-green">None</span> No leader election required</td>
+              </tr>
+              <tr>
+                <td><strong>Consistency Guarantees</strong></td>
+                <td><span class="tag-badge tag-green">Strong</span> Monotonic reads, Read-your-writes possible</td>
+                <td><span class="tag-badge tag-yellow">Weak</span> Cross-DC replication lag anomalies</td>
+                <td><span class="tag-badge tag-green">Tunable</span> Strict Quorum if W+R &gt; N</td>
+              </tr>
+              <tr>
+                <td><strong>Offline Client Support</strong></td>
+                <td><span class="tag-badge tag-red">Impossible</span> Requires live master connection</td>
+                <td><span class="tag-badge tag-green">Ideal</span> Local client acts as master</td>
+                <td><span class="tag-badge tag-yellow">Poor</span> Requires quorum connection</td>
+              </tr>
+              <tr>
+                <td><strong>Operational Complexity</strong></td>
+                <td><span class="tag-badge tag-green">Low / Well-Understood</span> Tooling mature (ProxySQL, Vitess)</td>
+                <td><span class="tag-badge tag-red">Very High</span> Inter-DC sync, split topologies</td>
+                <td><span class="tag-badge tag-yellow">Medium</span> Tuning W, R, N & Anti-Entropy</td>
+              </tr>
+              <tr>
+                <td><strong>Archetypal Systems</strong></td>
+                <td>PostgreSQL, MySQL, Redis, MongoDB</td>
+                <td>CouchDB, Git, Google Docs, Notion</td>
+                <td>Apache Cassandra, Amazon DynamoDB, Riak</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Interactive Simulator 7: Decision Engine -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <div>
+              <span class="interactive-badge">Interactive Simulation 07</span>
+              <h3 class="interactive-title">Replication Architecture Decision Engine</h3>
+            </div>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+            Input your system's operational requirements to receive a principled architectural recommendation with rationale.
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label" for="workloadType">Workload Type</label>
+              <select id="workloadType" class="sim-btn" style="width: 100%; text-align: left;" onchange="evaluateArchitecture()">
+                <option value="read_heavy">Read-Heavy Web App (95% Reads, 5% Writes)</option>
+                <option value="write_heavy">High-Throughput Timeseries / IoT Writes</option>
+                <option value="collaborative">Real-Time Collaborative Editing / Offline Apps</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="multiRegionNeed">Multi-Region Requirement</label>
+              <select id="multiRegionNeed" class="sim-btn" style="width: 100%; text-align: left;" onchange="evaluateArchitecture()">
+                <option value="single_dc">Single Cloud Region (Multi-AZ)</option>
+                <option value="multi_dc">Worldwide Multi-Region Active Writing</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="consistencyReq">Consistency Requirement</label>
+              <select id="consistencyReq" class="sim-btn" style="width: 100%; text-align: left;" onchange="evaluateArchitecture()">
+                <option value="strict">Strict Read-Your-Writes & ACID Transactions</option>
+                <option value="eventual">Eventual Consistency / High Availability</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="decisionOutput" class="sim-display-box">
+            <!-- Evaluated via JS -->
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          ⚡ Memory Pill: Single-Leader for transactional simplicity; Multi-Leader for cross-datacenter & offline apps; Leaderless for massive fault-tolerant write throughput.
+        </div>
+      </section>
+
+      <!-- =========================================================================
+           MODULE 08: MASTER GLOSSARY
+           ========================================================================= -->
+      <section id="module-08" class="module-card">
+        <div class="module-header">
+          <span class="module-num">Module 08</span>
+          <h2 class="module-heading">Master Definitions Glossary & Terminology Vault</h2>
+        </div>
+
+        <div class="prose-block">
+          <p>
+            Mastering distributed systems requires absolute precision in terminology. Below is the comprehensive reference glossary of all 20 essential replication concepts established in Chapter 5.
+          </p>
+        </div>
+
+        <div class="table-container">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th style="width: 25%;">Term</th>
+                <th style="width: 45%;">Formal Definition</th>
+                <th style="width: 30%;">Production Implication / Context</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Replication</strong></td>
+                <td>Maintaining identical copies of data across multiple networked machines to provide fault tolerance, read scaling, and reduced geographic latency.</td>
+                <td>Fundamental building block of distributed databases.</td>
+              </tr>
+              <tr>
+                <td><strong>Leader (Primary / Master)</strong></td>
+                <td>The authoritative database node in a single-leader cluster that accepts all write operations, records them in a WAL, and broadcasts changes.</td>
+                <td>Single serialization point for ordering writes.</td>
+              </tr>
+              <tr>
+                <td><strong>Follower (Replica / Secondary)</strong></td>
+                <td>A database node that applies change logs received from the leader in exact sequence and serves read-only client queries.</td>
+                <td>Enables horizontal read offloading.</td>
+              </tr>
+              <tr>
+                <td><strong>Synchronous Replication</strong></td>
+                <td>The leader blocks client write responses until at least one follower acknowledges committing the log entry to disk.</td>
+                <td>Guarantees zero data loss during failovers.</td>
+              </tr>
+              <tr>
+                <td><strong>Asynchronous Replication</strong></td>
+                <td>The leader acknowledges writes immediately after local commit, streaming logs in the background.</td>
+                <td>Maximum write throughput, but uncommitted writes are lost if the leader crashes.</td>
+              </tr>
+              <tr>
+                <td><strong>Semi-Synchronous Replication</strong></td>
+                <td>A hybrid configuration with 1 synchronous replica and N-1 asynchronous replicas.</td>
+                <td>Standard MySQL/PostgreSQL production standard.</td>
+              </tr>
+              <tr>
+                <td><strong>Failover</strong></td>
+                <td>The automated or manual recovery process of detecting a dead leader, electing a replacement follower, and repointing clients.</td>
+                <td>Must avoid split-brain scenarios.</td>
+              </tr>
+              <tr>
+                <td><strong>Split-Brain</strong></td>
+                <td>A catastrophic failure where two nodes simultaneously believe they are the leader and accept divergent, conflicting writes.</td>
+                <td>Requires node fencing (STONITH) or consensus.</td>
+              </tr>
+              <tr>
+                <td><strong>Replication Lag</strong></td>
+                <td>The duration of time between a write committing on the leader and that write appearing on an asynchronous follower.</td>
+                <td>Causes temporal inconsistencies for users.</td>
+              </tr>
+              <tr>
+                <td><strong>Read-Your-Writes Consistency</strong></td>
+                <td>A guarantee ensuring a user will immediately see updates they submitted when reloading a page.</td>
+                <td>Solved by routing user-edited data to the leader.</td>
+              </tr>
+              <tr>
+                <td><strong>Monotonic Reads</strong></td>
+                <td>A guarantee that once a user observes a data state, subsequent reads will never return an older state (preventing time travel).</td>
+                <td>Enforced via user ID hash-pinning to a replica.</td>
+              </tr>
+              <tr>
+                <td><strong>Consistent Prefix Reads</strong></td>
+                <td>A guarantee that if a sequence of writes occurs in a specific causal order, observers will see them in that exact order.</td>
+                <td>Essential in sharded/partitioned architectures.</td>
+              </tr>
+              <tr>
+                <td><strong>Multi-Leader (Active-Active)</strong></td>
+                <td>An architecture with multiple nodes accepting writes simultaneously across datacenters.</td>
+                <td>Delivers sub-10ms local writes across continents.</td>
+              </tr>
+              <tr>
+                <td><strong>Conflict Avoidance</strong></td>
+                <td>Ensuring all writes for a given entity route to the same leader so concurrent conflicts never occur.</td>
+                <td>The simplest and safest multi-leader strategy.</td>
+              </tr>
+              <tr>
+                <td><strong>Last Write Wins (LWW)</strong></td>
+                <td>Resolving write conflicts by selecting the write with the highest physical NTP timestamp.</td>
+                <td>Subject to clock skew and silent data loss.</td>
+              </tr>
+              <tr>
+                <td><strong>CRDT</strong></td>
+                <td>Conflict-free Replicated Data Types that mathematically guarantee deterministic convergence without coordination.</td>
+                <td>Powers modern collaborative apps (Figma/Apple Notes).</td>
+              </tr>
+              <tr>
+                <td><strong>Leaderless Replication</strong></td>
+                <td>A peer-to-peer architecture (Dynamo) where clients write directly to multiple replicas in parallel.</td>
+                <td>Eliminates failover and leader bottlenecks.</td>
+              </tr>
+              <tr>
+                <td><strong>Quorum (W + R &gt; N)</strong></td>
+                <td>A consensus rule where write acknowledgments (W) and read queries (R) overlap on at least one up-to-date node.</td>
+                <td>Ensures consistent reads in leaderless clusters.</td>
+              </tr>
+              <tr>
+                <td><strong>Read Repair</strong></td>
+                <td>A mechanism where a client detecting version divergence during a quorum read writes the latest value back to stale nodes.</td>
+                <td>Self-healing feature of Cassandra/Dynamo.</td>
+              </tr>
+              <tr>
+                <td><strong>Sloppy Quorum & Hinted Handoff</strong></td>
+                <td>Writing to surrogate nodes during network partitions and delivering them back once primary nodes recover.</td>
+                <td>Maximizes write availability during network splits.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="memory-pill">
+          ⚡ Memory Pill: High availability, low latency, and strong consistency form an eternal engineering tension — replication design is the art of choosing the right compromise.
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="footer-section">
+        <p>Designing Data-Intensive Applications — Chapter 5 Visual Course</p>
+        <p style="margin-top: 6px; font-size: 0.78rem;">Based on the concepts by Martin Kleppmann • Built for Distributed Systems Engineers</p>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // Theme Management
+    function toggleTheme() {
+      const body = document.body;
+      const currentTheme = body.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      body.setAttribute('data-theme', newTheme);
+      document.getElementById('themeIcon').textContent = newTheme === 'light' ? '🌙' : '☀️';
+      localStorage.setItem('ddia_theme', newTheme);
+    }
+
+    // Initialize Theme
+    (function initTheme() {
+      const saved = localStorage.getItem('ddia_theme') || 'dark';
+      document.body.setAttribute('data-theme', saved);
+      const icon = document.getElementById('themeIcon');
+      if (icon) icon.textContent = saved === 'light' ? '🌙' : '☀️';
+    })();
+
+    // Reading Progress Bar
+    window.addEventListener('scroll', () => {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      document.getElementById('reading-progress').style.width = scrolled + '%';
+
+      // Update Active Navigation Item
+      const sections = document.querySelectorAll('.module-card');
+      const navLinks = document.querySelectorAll('.nav-item a');
+      let currentSectionId = '';
+
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop - 120;
+        if (winScroll >= sectionTop) {
+          currentSectionId = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + currentSectionId) {
+          link.classList.add('active');
+        }
+      });
+    });
+
+    // ==========================================
+    // SIMULATION 01: Global Latency Router
+    // ==========================================
+    let geoStrategy = 'centralized';
+
+    const geoLatencies = {
+      'us_east': { 'tokyo': 160, 'london': 75, 'sao_paulo': 120, 'sydney': 210, 'us_east': 5 },
+      'eu_central': { 'tokyo': 230, 'london': 15, 'sao_paulo': 190, 'sydney': 280, 'eu_central': 5 }
+    };
+
+    function setGeoStrategy(strat) {
+      geoStrategy = strat;
+      document.getElementById('btnCentralized').classList.toggle('active', strat === 'centralized');
+      document.getElementById('btnEdge').classList.toggle('active', strat === 'edge');
+      calculateGeoLatency();
+    }
+
+    function calculateGeoLatency() {
+      const user = document.getElementById('userGeo').value;
+      const primary = document.getElementById('primaryGeo').value;
+      const rawRtt = geoLatencies[primary][user] || 150;
+      const out = document.getElementById('geoDisplay');
+
+      if (geoStrategy === 'centralized') {
+        out.innerHTML = `
+          <div style="color: var(--amber); font-weight: 700; margin-bottom: 6px;">[Strategy: Centralized Single Database]</div>
+          <div>• User Location: <span style="color: var(--text);">${user.toUpperCase()}</span> → Primary DB: <span style="color: var(--text);">${primary.toUpperCase()}</span></div>
+          <div>• Physical Fiber Distance: ~${(rawRtt * 100).toLocaleString()} km | Baseline Speed-of-Light RTT: <strong>${rawRtt} ms</strong></div>
+          <div style="margin-top: 8px; color: var(--rose);">⚠️ Client Read Latency: <strong>${rawRtt + 12} ms</strong> (Every web page load incurs full transoceanic delay)</div>
+          <div>• Client Write Latency: <strong>${rawRtt + 15} ms</strong></div>
+          <div style="margin-top: 6px; color: var(--text-muted); font-size: 0.8rem;">Result: Poor user experience; browser blocks rendering while waiting for transatlantic packet headers.</div>
+        `;
+      } else {
+        out.innerHTML = `
+          <div style="color: var(--teal); font-weight: 700; margin-bottom: 6px;">[Strategy: Local Edge Read Replica]</div>
+          <div>• User Location: <span style="color: var(--text);">${user.toUpperCase()}</span> → Nearest Edge Replica: <span style="color: var(--teal);">LOCAL (IN-REGION)</span></div>
+          <div style="color: var(--teal); margin-top: 4px;">✓ Client Read Latency: <strong>6 ms</strong> (Instant local response; 95% of traffic served locally)</div>
+          <div>• Client Write Latency: <strong>${rawRtt + 15} ms</strong> (Writes routed to Primary DB in ${primary.toUpperCase()})</div>
+          <div>• Background Replication Stream Lag: ~${rawRtt / 2} ms</div>
+          <div style="margin-top: 6px; color: var(--text-muted); font-size: 0.8rem;">Result: Ultra-responsive interface; 10x-40x faster page rendering for international users.</div>
+        `;
+      }
+    }
+
+    // ==========================================
+    // SIMULATION 02: Sync vs Async vs Semi-Sync
+    // ==========================================
+    let follower1Alive = true;
+
+    function updateSyncModeSim() {
+      const mode = document.getElementById('syncModeSelect').value;
+      const lag = parseInt(document.getElementById('replicaLagSlider').value);
+      document.getElementById('lagVal').textContent = lag + 'ms';
+      const out = document.getElementById('syncSimOutput');
+
+      if (!follower1Alive) {
+        if (mode === 'full_sync') {
+          out.innerHTML = `
+            <div style="color: var(--rose); font-weight: 700;">[CRITICAL ALERT: CLUSTER FROZEN]</div>
+            <div>• Follower 1 (Synchronous Node) is DEAD / UNREACHABLE.</div>
+            <div>• In Fully Synchronous Mode, the leader MUST wait for all synchronous followers to ACK.</div>
+            <div style="margin-top: 6px; color: var(--rose);">❌ All Client Writes are BLOCKED. Write Throughput = 0 req/sec. Application Downtime!</div>
+          `;
+          return;
+        } else if (mode === 'semi_sync') {
+          out.innerHTML = `
+            <div style="color: var(--amber); font-weight: 700;">[SEMI-SYNC FAILOVER TRIGGERED]</div>
+            <div>• Sync Follower 1 dropped off the network.</div>
+            <div>• Vitess / Orchestrator detected timeout: Demoted Follower 1, promoted Async Follower 2 to Synchronous!</div>
+            <div style="color: var(--teal); margin-top: 4px;">✓ Cluster self-healed in 1.2s. Client Write Latency: <strong>18ms</strong> (Zero dropped writes).</div>
+          `;
+          return;
+        }
+      }
+
+      if (mode === 'semi_sync') {
+        out.innerHTML = `
+          <div style="color: var(--teal); font-weight: 700;">[Configuration: Semi-Synchronous (1 Sync + 2 Async)]</div>
+          <div>• Client Write Latency: <strong>${lag + 4} ms</strong> (Waits ONLY for Follower 1 to ACK).</div>
+          <div>• Follower 2 Lag: ~15ms | Follower 3 Lag: ~45ms.</div>
+          <div>• Durability Guarantee: At least 2 physical nodes (Leader + Follower 1) hold every confirmed write.</div>
+          <div style="color: var(--teal); margin-top: 4px;">✓ Optimal Production Balance: High write speed + strong crash resilience.</div>
+        `;
+      } else if (mode === 'async') {
+        out.innerHTML = `
+          <div style="color: var(--blue); font-weight: 700;">[Configuration: Fully Asynchronous]</div>
+          <div>• Client Write Latency: <strong>1.5 ms</strong> (Leader commits locally and ACKs immediately).</div>
+          <div>• Replication streams in background. Follower 1 Lag: ${lag}ms.</div>
+          <div style="color: var(--amber); margin-top: 4px;">⚠️ Durability Risk: If Leader dies right now, last ${lag}ms of writes are PERMANENTLY LOST.</div>
+        `;
+      } else {
+        out.innerHTML = `
+          <div style="color: var(--purple); font-weight: 700;">[Configuration: Fully Synchronous (All 3 Replicas)]</div>
+          <div>• Client Write Latency: <strong>${Math.max(lag, 65) + 6} ms</strong> (Waits for all 3 nodes to finish disk sync).</div>
+          <div>• Durability Guarantee: 100% synchronized across all nodes.</div>
+          <div style="color: var(--rose); margin-top: 4px;">⚠️ Availability Fragility: Any single slow node throttles the entire database.</div>
+        `;
+      }
+    }
+
+    function simulateFollowerCrash() {
+      follower1Alive = !follower1Alive;
+      document.getElementById('btnKillFollower').textContent = follower1Alive ? "Crash Follower 1" : "Restore Follower 1";
+      document.getElementById('btnKillFollower').style.borderColor = follower1Alive ? "" : "var(--rose)";
+      updateSyncModeSim();
+    }
+
+    function simulateLeaderCrash() {
+      const out = document.getElementById('syncSimOutput');
+      out.innerHTML = `
+        <div style="color: var(--rose); font-weight: 700;">[LEADER CRASH INITIATED]</div>
+        <div>1. Heartbeat timeout (30s) detected by Orchestrator / VTORC.</div>
+        <div>2. Inspecting follower WAL offsets: Follower 1 selected (most up-to-date log position).</div>
+        <div>3. Follower 1 promoted to NEW PRIMARY. ProxySQL repointed in 250ms.</div>
+        <div style="color: var(--teal); margin-top: 4px;">✓ Failover Successful. App resumed writes on New Leader.</div>
+      `;
+    }
+
+    // ==========================================
+    // SIMULATION 03: Replication Lag Simulator
+    // ==========================================
+    let simUserStatus = "Offline";
+    let simWriteTime = 0;
+
+    function simLagWrite() {
+      simUserStatus = "Online (Updated at " + new Date().toLocaleTimeString() + ")";
+      simWriteTime = Date.now();
+      const log = document.getElementById('lagSimLog');
+      log.innerHTML = `
+        <div style="color: var(--teal); font-weight: 700;">[WRITE COMMITTED ON LEADER]</div>
+        <div>• Status updated to: <span style="color: var(--text); font-weight: 700;">"${simUserStatus}"</span></div>
+        <div>• Replication log enqueued for Followers (Estimated lag: 4,500ms).</div>
+        <div style="color: var(--accent); margin-top: 4px;">👉 Now click "2. Issue Read Request" to test how the read behaves!</div>
+      `;
+    }
+
+    function simLagRead() {
+      const log = document.getElementById('lagSimLog');
+      const guarantee = document.getElementById('guaranteeSelect').value;
+      const elapsed = Date.now() - simWriteTime;
+
+      if (simWriteTime === 0) {
+        log.innerHTML = `<div style="color: var(--text-muted);">Please click "1. Submit Write" first to record an update.</div>`;
+        return;
+      }
+
+      if (guarantee === 'none') {
+        if (elapsed < 5000) {
+          log.innerHTML = `
+            <div style="color: var(--rose); font-weight: 700;">[❌ ANOMALY: Read-Your-Own-Writes Violation!]</div>
+            <div>• Read request load-balanced to <span style="color: var(--amber);">Follower Replica 2 (Lag: 4,500ms)</span>.</div>
+            <div>• Follower returned STALE data: <span style="color: var(--rose); font-weight: 700;">"Offline"</span>.</div>
+            <div style="margin-top: 6px; color: var(--text-muted);">The user sees their edit vanish and believes the server crashed!</div>
+          `;
+        } else {
+          log.innerHTML = `
+            <div style="color: var(--teal); font-weight: 700;">[READ SUCCEEDED (Eventually)]</div>
+            <div>• Lag has passed (${Math.round(elapsed/1000)}s elapsed). Follower returned: "${simUserStatus}".</div>
+          `;
+        }
+      } else if (guarantee === 'read_your_writes') {
+        log.innerHTML = `
+          <div style="color: var(--teal); font-weight: 700;">[✓ GUARANTEE ENFORCED: Read-After-Write Consistency]</div>
+          <div>• Router detected user wrote ${Math.round(elapsed/1000)}s ago (&lt; 30s threshold).</div>
+          <div>• Query automatically routed to <span style="color: var(--accent); font-weight: 700;">PRIMARY / LEADER</span>.</div>
+          <div style="color: var(--teal); margin-top: 4px;">✓ Returned current value: <strong>"${simUserStatus}"</strong> (Zero user confusion).</div>
+        `;
+      } else if (guarantee === 'monotonic') {
+        log.innerHTML = `
+          <div style="color: var(--purple); font-weight: 700;">[✓ GUARANTEE ENFORCED: Monotonic Reads]</div>
+          <div>• Client hashed to <span style="color: var(--text); font-weight: 700;">Replica 1 (Sticky Session)</span>.</div>
+          <div>• Guaranteed that subsequent reads will NEVER move backward in time.</div>
+        `;
+      }
+    }
+
+    function resetLagSim() {
+      simUserStatus = "Offline";
+      simWriteTime = 0;
+      document.getElementById('lagSimLog').innerHTML = `<div style="color: var(--text-muted);">Simulator reset. Ready for new transaction.</div>`;
+    }
+
+    // ==========================================
+    // SIMULATION 04: Multi-Leader Topology
+    // ==========================================
+    let nodeBAlive = true;
+
+    function toggleNodeB() {
+      nodeBAlive = !nodeBAlive;
+      const btn = document.getElementById('btnToggleNodeB');
+      btn.textContent = nodeBAlive ? "Toggle DC-Europe (Node B)" : "Restore DC-Europe (Node B)";
+      btn.style.borderColor = nodeBAlive ? "" : "var(--rose)";
+      updateTopologySim();
+    }
+
+    function updateTopologySim() {
+      const top = document.getElementById('topologySelect').value;
+      const out = document.getElementById('topologyOutput');
+
+      if (top === 'all_to_all') {
+        out.innerHTML = `
+          <div style="color: var(--teal); font-weight: 700;">[Topology: All-to-All Mesh]</div>
+          <div>• Every leader directly streams writes to every other leader.</div>
+          <div>• Node B Status: ${nodeBAlive ? '<span style="color: var(--teal);">ONLINE</span>' : '<span style="color: var(--rose);">DEAD</span>'}.</div>
+          <div>• If Node B fails, Node A (US) and Node C (Asia) continue replicating directly without interruption.</div>
+          <div style="color: var(--teal); margin-top: 4px;">✓ Fault-Tolerant, but packets may arrive out of order (Requires Lamport Timestamps).</div>
+        `;
+      } else if (top === 'circular') {
+        out.innerHTML = `
+          <div style="color: var(--amber); font-weight: 700;">[Topology: Circular Ring (A → B → C → A)]</div>
+          <div>• Node B Status: ${nodeBAlive ? '<span style="color: var(--teal);">ONLINE</span>' : '<span style="color: var(--rose); font-weight: 700;">DEAD</span>'}.</div>
+          ${nodeBAlive ?
+            '<div>• Writes hop sequentially around the ring. Low network connections.</div>' :
+            '<div style="color: var(--rose); margin-top: 4px;">❌ Ring is BROKEN! Writes from Node A cannot reach Node C because intermediate Node B is offline.</div>'
+          }
+        `;
+      } else {
+        out.innerHTML = `
+          <div style="color: var(--purple); font-weight: 700;">[Topology: Star / Hub-and-Spoke]</div>
+          <div>• Central Root Node coordinates all broadcast streams.</div>
+          <div>• Single Point of Failure (SPOF) at the root node.</div>
+        `;
+      }
+    }
+
+    function sendMultiLeaderWrite() {
+      const top = document.getElementById('topologySelect').value;
+      const out = document.getElementById('topologyOutput');
+      if (top === 'circular' && !nodeBAlive) {
+        out.innerHTML = `
+          <div style="color: var(--rose); font-weight: 700;">[WRITE DELIVERY FAILED]</div>
+          <div>• Write initiated at DC-US (Node A).</div>
+          <div>• Attempted forward to DC-Europe (Node B) → <span style="color: var(--rose);">CONNECTION REFUSED</span>.</div>
+          <div>❌ Write trapped at Node A; DC-Asia never receives the update.</div>
+        `;
+      } else {
+        out.innerHTML = `
+          <div style="color: var(--teal); font-weight: 700;">[WRITE BROADCAST SUCCESSFUL]</div>
+          <div>• Write committed locally at DC-US in 2.1ms.</div>
+          <div>• Asynchronous stream dispatched to peer leaders.</div>
+          <div>• DC-Asia received write in 140ms. Replicas in sync.</div>
+        `;
+      }
+    }
+
+    // ==========================================
+    // SIMULATION 05: Conflict Resolver Arena
+    // ==========================================
+    function resolveConcurrentConflict() {
+      const vUS = document.getElementById('usWriteVal').value;
+      const vEU = document.getElementById('euWriteVal').value;
+      const policy = document.getElementById('conflictPolicy').value;
+      const out = document.getElementById('conflictArenaOutput');
+
+      if (policy === 'lww') {
+        out.innerHTML = `
+          <div style="color: var(--amber); font-weight: 700;">[Policy: Last Write Wins (LWW)]</div>
+          <div>• US Write: "${vUS}" (Timestamp: 10:00:00.100)</div>
+          <div>• EU Write: "${vEU}" (Timestamp: 10:00:00.108)</div>
+          <div style="margin-top: 6px; color: var(--rose);">⚠️ Discarded US Write entirely. Converged Value: <strong style="color: var(--text);">"${vEU}"</strong></div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Warning: Silent data loss. If EU clock was running 15ms fast, valid earlier work was erased.</div>
+        `;
+      } else if (policy === 'siblings') {
+        out.innerHTML = `
+          <div style="color: var(--purple); font-weight: 700;">[Policy: Sibling Multi-Value Retention]</div>
+          <div>• Conflict detected in replication log. Storing both versions under primary key:</div>
+          <div style="background: var(--bg-surface); padding: 8px 12px; border-radius: 4px; margin: 6px 0; color: var(--accent);">
+            siblings = ["${vUS}", "${vEU}"]
+          </div>
+          <div style="color: var(--teal);">✓ Zero Data Lost. Client application prompted to merge or let user pick on next read.</div>
+        `;
+      } else {
+        out.innerHTML = `
+          <div style="color: var(--teal); font-weight: 700;">[Policy: CRDT Field-Level Union Merge]</div>
+          <div>• Applying mathematical deterministic join operator:</div>
+          <div style="background: var(--bg-surface); padding: 8px 12px; border-radius: 4px; margin: 6px 0; color: var(--teal);">
+            Merged Record = { name: "Alice", roles: ["Architect", "Director"] }
+          </div>
+          <div style="color: var(--teal);">✓ Converged state guaranteed across all datacenters without locks or data deletion.</div>
+        `;
+      }
+    }
+
+    // ==========================================
+    // SIMULATION 06: Quorum Consensus Calculator
+    // ==========================================
+    function updateQuorumCalculator() {
+      const N = parseInt(document.getElementById('nValSlider').value);
+      const W = parseInt(document.getElementById('wValSlider').value);
+      const R = parseInt(document.getElementById('rValSlider').value);
+
+      document.getElementById('nDisplay').textContent = N;
+      document.getElementById('wDisplay').textContent = W;
+      document.getElementById('rDisplay').textContent = R;
+
+      const out = document.getElementById('quorumCalcOutput');
+      const sum = W + R;
+      const isStrict = sum > N;
+      const writeTolerance = N - W;
+      const readTolerance = N - R;
+
+      out.innerHTML = `
+        <div style="display: flex; gap: 16px; margin-bottom: 8px;">
+          <div>Formula: <strong>W (${W}) + R (${R}) = ${sum}</strong> ${isStrict ? '<span style="color: var(--teal); font-weight: 700;">&gt; N (' + N + ') ✓</span>' : '<span style="color: var(--rose); font-weight: 700;">&le; N (' + N + ') ❌</span>'}</div>
+        </div>
+        ${isStrict ? `
+          <div style="color: var(--teal); font-weight: 700;">[STRICT QUORUM GUARANTEE ACHIEVED]</div>
+          <div>• By Pigeonhole Principle, read set and write set overlap by at least <strong>${sum - N} node(s)</strong>.</div>
+          <div>• Tolerates up to <strong>${writeTolerance} node failure(s)</strong> during writes.</div>
+          <div>• Tolerates up to <strong>${readTolerance} node failure(s)</strong> during reads.</div>
+          <div style="color: var(--teal); margin-top: 4px;">✓ Guaranteed to read the most recent version tag on every quorum read.</div>
+        ` : `
+          <div style="color: var(--rose); font-weight: 700;">[STALE READ VULNERABILITY DETECTED]</div>
+          <div>• W + R &le; N means read set and write set can be completely disjoint!</div>
+          <div>• A client can query R=${R} replicas and receive ONLY stale, un-updated values.</div>
+          <div style="color: var(--rose); margin-top: 4px;">⚠️ System provides only Eventual Consistency; stale read probability is high under load.</div>
+        `}
+      `;
+    }
+
+    // ==========================================
+    // SIMULATION 07: Decision Engine
+    // ==========================================
+    function evaluateArchitecture() {
+      const workload = document.getElementById('workloadType').value;
+      const multiRegion = document.getElementById('multiRegionNeed').value;
+      const consistency = document.getElementById('consistencyReq').value;
+      const out = document.getElementById('decisionOutput');
+
+      if (workload === 'collaborative') {
+        out.innerHTML = `
+          <div style="color: var(--purple); font-weight: 700; font-size: 1rem;">Recommended: Multi-Leader with CRDTs / Operational Transformation</div>
+          <div style="margin-top: 4px;">• <strong>Rationale:</strong> Collaborative real-time apps and offline mobile clients require each client to act as an independent leader that accepts writes locally and merges deterministically.</div>
+          <div>• <strong>Key Technologies:</strong> Automerge, Yjs, Figma-style CRDT engines, CouchDB.</div>
+        `;
+      } else if (workload === 'write_heavy' || consistency === 'eventual') {
+        out.innerHTML = `
+          <div style="color: var(--teal); font-weight: 700; font-size: 1rem;">Recommended: Leaderless Replication (Dynamo-Style)</div>
+          <div style="margin-top: 4px;">• <strong>Rationale:</strong> High-volume telemetry, metrics, and IoT writes benefit from parallel writes across W nodes with no master bottleneck and zero failover downtime.</div>
+          <div>• <strong>Tuning:</strong> Set N=3, W=2, R=2 for balanced consistency, or W=1 for maximum ingestion speed.</div>
+          <div>• <strong>Key Technologies:</strong> Apache Cassandra, ScyllaDB, Amazon DynamoDB.</div>
+        `;
+      } else {
+        out.innerHTML = `
+          <div style="color: var(--accent); font-weight: 700; font-size: 1rem;">Recommended: Semi-Synchronous Single-Leader Replication</div>
+          <div style="margin-top: 4px;">• <strong>Rationale:</strong> Standard relational workloads (Postgres, MySQL) requiring strict ACID transactions, foreign keys, and read-your-writes consistency are best served by a single leader with 1 synchronous replica and multiple async read scalers.</div>
+          <div>• <strong>Tooling:</strong> Use Vitess VTGate or ProxySQL for query buffering and zero-downtime leader switchovers.</div>
+        `;
+      }
+    }
+
+    // Initialize all simulator outputs on load
+    window.addEventListener('DOMContentLoaded', () => {
+      calculateGeoLatency();
+      updateSyncModeSim();
+      updateTopologySim();
+      updateQuorumCalculator();
+      evaluateArchitecture();
+    });
+  </script>
+</body>
+</html>

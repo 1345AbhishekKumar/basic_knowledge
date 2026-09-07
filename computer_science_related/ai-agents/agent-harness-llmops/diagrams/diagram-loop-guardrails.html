@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loop Engineering &amp; End-Loop Guardrails</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:       #f5f5f5;   /* white-smoke */
+      --color-paper-2:     #ececec;   /* container fill */
+      --color-ink:         #2d3142;   /* jet-black */
+      --color-muted:       #4f5d75;   /* blue-slate */
+      --color-soft:        #7a8399;   /* sublabels */
+      --color-accent:      #eb6c36;   /* atomic-tangerine */
+      --color-accent-tint: rgba(235,108,54,0.08);
+      --color-rule:        rgba(45,49,66,0.12);
+      --color-rule-solid:  #bfc0c0;
+      --font-sans:         'Geist', system-ui, -apple-system, sans-serif;
+      --font-serif:        'Instrument Serif', Georgia, serif;
+      --font-mono:         'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      line-height: 1.65;
+      padding: 3rem 1.5rem;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .nav-back {
+      margin-bottom: 2rem;
+    }
+
+    .nav-back a {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--color-muted);
+      text-decoration: none;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .nav-back a:hover {
+      color: var(--color-accent);
+    }
+
+    .header {
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--color-rule);
+      padding-bottom: 1.75rem;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(2.2rem, 3.5vw + 1rem, 3.2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 0.75rem;
+    }
+
+    .lead {
+      font-size: 1.15rem;
+      color: var(--color-muted);
+      max-width: 820px;
+      line-height: 1.5;
+    }
+
+    .diagram-card {
+      background: #ffffff;
+      border: 1px solid var(--color-rule);
+      border-radius: 8px;
+      padding: 1.75rem;
+      margin: 2.5rem 0 3rem;
+    }
+
+    .diagram-caption {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-muted);
+      margin-top: 1rem;
+      text-align: center;
+      letter-spacing: 0.06em;
+    }
+
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .explanation-section {
+      margin-top: 3rem;
+    }
+
+    .section-heading {
+      font-family: var(--font-serif);
+      font-size: 2rem;
+      font-weight: 400;
+      color: var(--color-ink);
+      margin-bottom: 1rem;
+      letter-spacing: -0.015em;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin: 1.5rem 0 2.5rem;
+    }
+
+    .info-card {
+      background: #ffffff;
+      border: 1px solid var(--color-rule);
+      border-radius: 6px;
+      padding: 1.5rem;
+    }
+
+    .info-card.focal {
+      border-color: var(--color-accent);
+      background: var(--color-accent-tint);
+    }
+
+    .info-tag {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 0.4rem;
+    }
+
+    .info-title {
+      font-family: var(--font-serif);
+      font-size: 1.35rem;
+      color: var(--color-ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .info-text {
+      font-size: 0.92rem;
+      color: var(--color-muted);
+      line-height: 1.55;
+    }
+
+    .code-block {
+      background: #1e222d;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+
+    .footer {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-soft);
+      text-align: center;
+      margin-top: 4.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--color-rule);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav-back">
+      <a href="index.html">← Back to Master Curriculum Index</a>
+    </div>
+
+    <header class="header">
+      <p class="eyebrow">Execution Control · Diagram Design</p>
+      <h1>Loop Engineering &amp; End-Loop Guardrails</h1>
+      <p class="lead">How autonomous multi-turn tool calling works, why unconstrained agent loops are hazardous, and how end-loop guardrails enforce deterministic goal termination.</p>
+    </header>
+
+    <main>
+      <div class="diagram-card">
+        <!-- STANDALONE EDITORIAL SVG DIAGRAM -->
+        <svg viewBox="0 0 980 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="loop-guard-title loop-guard-desc">
+          <title id="loop-guard-title">Loop Engineering and End-Loop Guardrails</title>
+          <desc id="loop-guard-desc">Diagram showing the iterative reasoning loop, tool execution, safety checks, and guardrail termination.</desc>
+
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+            </marker>
+            <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+            </marker>
+          </defs>
+
+          <rect width="100%" height="100%" fill="#ffffff" rx="8"/>
+
+          <!-- 1. USER PROMPT & GOAL (LEFT) -->
+          <rect x="36" y="36" width="260" height="448" rx="6" fill="#f5f5f5" stroke="#bfc0c0" stroke-width="1"/>
+          <rect x="36" y="36" width="260" height="38" rx="6" fill="#ececec"/>
+          <text x="50" y="60" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#2d3142" letter-spacing="0.12em">1. COMPLEX GOAL INPUT</text>
+
+          <rect x="50" y="88" width="232" height="96" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="60" y="108" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#2d3142">Multi-Step Business Ask</text>
+          <text x="60" y="126" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">"Find customer complaints from</text>
+          <text x="60" y="140" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">the last 2 months. Reimburse</text>
+          <text x="60" y="154" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">unresolved cases &amp; schedule calls."</text>
+
+          <rect x="50" y="200" width="232" height="110" rx="4" fill="rgba(45,49,66,0.04)" stroke="#bfc0c0" stroke-width="0.8"/>
+          <text x="60" y="220" font-family="'Geist Mono', monospace" font-size="8.5" font-weight="600" fill="#2d3142">THE CORE CHALLENGE</text>
+          <text x="60" y="238" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">• Multiple tools required</text>
+          <text x="60" y="252" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">• Step count unknown in advance</text>
+          <text x="60" y="266" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">• Risk of infinite cycling</text>
+          <text x="60" y="280" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">• Unpredictable cost &amp; latency</text>
+
+          <path d="M 296 136 L 348 136" fill="none" stroke="#2d3142" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+
+          <!-- 2. ITERATIVE LOOP REASONER (CENTER) -->
+          <rect x="348" y="36" width="310" height="448" rx="6" fill="#f5f5f5" stroke="#2d3142" stroke-width="1.2"/>
+          <rect x="348" y="36" width="310" height="38" rx="6" fill="#2d3142"/>
+          <text x="362" y="60" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#ffffff" letter-spacing="0.12em">2. ITERATIVE AGENT LOOP</text>
+
+          <!-- Step A: CRM -->
+          <rect x="364" y="88" width="278" height="60" rx="4" fill="#ffffff" stroke="#bfc0c0" stroke-width="0.8"/>
+          <text x="376" y="108" font-family="'Geist Mono', monospace" font-size="8.5" font-weight="600" fill="#2d3142">Turn 1: Read CRM (Salesforce)</text>
+          <text x="376" y="122" font-family="'Geist', sans-serif" font-size="8.5" fill="#7a8399">Found: 30 complaints (8 pending refunds)</text>
+
+          <path d="M 503 148 L 503 166" fill="none" stroke="#2d3142" stroke-width="1" marker-end="url(#arrow)"/>
+
+          <!-- Step B: Stripe -->
+          <rect x="364" y="166" width="278" height="60" rx="4" fill="#ffffff" stroke="#bfc0c0" stroke-width="0.8"/>
+          <text x="376" y="186" font-family="'Geist Mono', monospace" font-size="8.5" font-weight="600" fill="#2d3142">Turn 2: Stripe Refund API</text>
+          <text x="376" y="200" font-family="'Geist', sans-serif" font-size="8.5" fill="#7a8399">Executed refunds for the 8 customers</text>
+
+          <path d="M 503 226 L 503 244" fill="none" stroke="#2d3142" stroke-width="1" marker-end="url(#arrow)"/>
+
+          <!-- Step C: Calendar -->
+          <rect x="364" y="244" width="278" height="60" rx="4" fill="#ffffff" stroke="#bfc0c0" stroke-width="0.8"/>
+          <text x="376" y="264" font-family="'Geist Mono', monospace" font-size="8.5" font-weight="600" fill="#2d3142">Turn 3: Calendar Schedule Tool</text>
+          <text x="376" y="278" font-family="'Geist', sans-serif" font-size="8.5" fill="#7a8399">Booked 8 follow-up meetings</text>
+
+          <path d="M 503 304 L 503 328" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+          <!-- Step D: Evaluation Gate -->
+          <rect x="364" y="328" width="278" height="88" rx="4" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+          <text x="376" y="348" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#eb6c36">End-Loop Guardrail Evaluator</text>
+          <text x="376" y="362" font-family="'Geist Mono', monospace" font-size="7.5" fill="#eb6c36">"IS TASK COMPLETION CONFIRMED?"</text>
+          <text x="376" y="380" font-family="'Geist', sans-serif" font-size="8.5" fill="#2d3142">✓ All 8 customers refunded</text>
+          <text x="376" y="394" font-family="'Geist', sans-serif" font-size="8.5" fill="#2d3142">✓ Meetings scheduled -> TERMINATE LOOP</text>
+
+
+          <!-- 3. GUARDRAILS & NOTIFICATION HOOKS (RIGHT) -->
+          <rect x="686" y="36" width="258" height="448" rx="6" fill="#f5f5f5" stroke="#bfc0c0" stroke-width="1"/>
+          <rect x="686" y="36" width="258" height="38" rx="6" fill="#ececec"/>
+          <text x="700" y="60" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#2d3142" letter-spacing="0.12em">3. SAFETY &amp; NOTIFICATION</text>
+
+          <!-- Guardrail 1: Max Turns -->
+          <rect x="700" y="88" width="230" height="74" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="710" y="108" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#2d3142">1. Max Turn Ceiling</text>
+          <text x="710" y="122" font-family="'Geist Mono', monospace" font-size="7.5" fill="#7a8399">HARD LIMIT = 10 TURNS</text>
+          <text x="710" y="138" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">Prevents infinite budget drain if tools fail.</text>
+
+          <!-- Guardrail 2: Human-in-the-Loop -->
+          <rect x="700" y="170" width="230" height="92" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="710" y="190" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#2d3142">2. Permission Hooks</text>
+          <text x="710" y="204" font-family="'Geist Mono', monospace" font-size="7.5" fill="#7a8399">DESKTOP / PUSH NOTIFICATION</text>
+          <text x="710" y="222" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">Broadcasts notification when</text>
+          <text x="710" y="236" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">agent requires human confirmation.</text>
+
+          <!-- Guardrail 3: Semantic Verification -->
+          <rect x="700" y="270" width="230" height="92" rx="4" fill="rgba(235,108,54,0.06)" stroke="#eb6c36" stroke-width="1"/>
+          <text x="710" y="290" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#eb6c36">3. Output Validator</text>
+          <text x="710" y="304" font-family="'Geist Mono', monospace" font-size="7.5" fill="#eb6c36">RESULT AUDITING</text>
+          <text x="710" y="322" font-family="'Geist', sans-serif" font-size="8.5" fill="#2d3142">Verifies output schema before</text>
+          <text x="710" y="336" font-family="'Geist', sans-serif" font-size="8.5" fill="#2d3142">final payload is returned.</text>
+
+          <!-- Arrow from Guardrail to Output -->
+          <path d="M 642 372 L 700 372" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+          <rect x="700" y="380" width="230" height="52" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="710" y="400" font-family="'Geist', sans-serif" font-size="10" font-weight="600" fill="#2d3142">Safe Return to User</text>
+          <text x="710" y="416" font-family="'Geist Mono', monospace" font-size="7.5" fill="#7a8399">TRANSMIT COMPLETED SUMMARY</text>
+        </svg>
+        <p class="diagram-caption">FIGURE 3.0 — AUTONOMOUS LOOP ITERATION AND SAFETY GUARDRAILS</p>
+      </div>
+
+      <!-- IN-PAGE EXPLANATIONS -->
+      <section class="explanation-section">
+        <h2 class="section-heading">Detailed Architectural Explanations</h2>
+
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Core Tenet 01</p>
+            <h3 class="info-title">The Danger of Unbounded Loops</h3>
+            <p class="info-text">
+              If an agent is given access to multiple tools without explicit termination guardrails, ambiguous tool returns can cause the model to loop indefinitely—re-querying APIs, burning thousands of token dollars, and generating unpredictable latency spikes.
+            </p>
+          </div>
+
+          <div class="info-card focal">
+            <p class="info-tag">Core Tenet 02</p>
+            <h3 class="info-title">End-Loop Guardrails</h3>
+            <p class="info-text">
+              An <strong>End-Loop Guardrail</strong> evaluates whether the task goal is satisfied at the end of each iteration. Once all conditions are met (e.g. <em>"all 8 refunds completed"</em>), the harness immediately breaks the loop, halts tool dispatch, and synthesizes the final user response.
+            </p>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <p class="info-tag">Real-World Pattern</p>
+          <h3 class="info-title">Permission Notification Hooks</h3>
+          <p class="info-text">
+            When an agent requires human clearance (e.g., spending company funds or deleting database rows), it must trigger a desktop or push notification hook rather than silently stalling. This prevents situations where a user leaves their machine only to find the agent blocked on a permission modal 30 minutes later.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      Diagram Design Editorial System · 4px Grid Layout · Jet-Black &amp; Atomic-Tangerine
+    </footer>
+  </div>
+</body>
+</html>

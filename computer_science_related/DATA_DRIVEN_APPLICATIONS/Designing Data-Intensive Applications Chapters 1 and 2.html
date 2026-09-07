@@ -1,0 +1,3048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designing Data-Intensive Applications: Chapters 1 & 2</title>
+  
+  <!-- Diagram Design & Editorial Typography Font Stack -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      /* Editorial Reading Tokens */
+      --bg: #f7f5f0;
+      --surface: #ffffff;
+      --surface-subtle: #f1eee6;
+      --border: #e2ded5;
+      --border-strong: #c8c2b5;
+      --text: #1c1917;
+      --text-muted: #57534e;
+      --text-light: #78716c;
+      --accent: #9a3412;
+      --accent-soft: #fbf0e8;
+      --accent-border: #fed7aa;
+      --code-bg: #ece8de;
+      --code-text: #292524;
+      --nav-width: 288px;
+      --max-text: 68ch;
+      --radius: 6px;
+      --transition: 0.2s ease;
+
+      /* Diagram Design Skill Exact Tokens (Light Skin) */
+      --diagram-paper: #f5f5f5;
+      --diagram-paper-2: #ececec;
+      --diagram-ink: #2d3142;
+      --diagram-muted: #4f5d75;
+      --diagram-soft: #7a8399;
+      --diagram-rule: rgba(45, 49, 66, 0.12);
+      --diagram-rule-solid: #bfc0c0;
+      --diagram-accent: #eb6c36;
+      --diagram-accent-tint: rgba(235, 108, 54, 0.08);
+      --diagram-link: #2e5aa8;
+    }
+
+    [data-theme="dark"] {
+      --bg: #121211;
+      --surface: #1a1a18;
+      --surface-subtle: #242320;
+      --border: #2e2c28;
+      --border-strong: #44413b;
+      --text: #eceae5;
+      --text-muted: #a39f95;
+      --text-light: #736f66;
+      --accent: #ea580c;
+      --accent-soft: #2a1b15;
+      --accent-border: #7c2d12;
+      --code-bg: #22211e;
+      --code-text: #e7e5e4;
+
+      /* Diagram Design Skill Exact Tokens (Dark Skin) */
+      --diagram-paper: #1c1b18;
+      --diagram-paper-2: #242320;
+      --diagram-ink: #f5f5f5;
+      --diagram-muted: #bfc0c0;
+      --diagram-soft: #8e98ac;
+      --diagram-rule: rgba(245, 245, 245, 0.12);
+      --diagram-rule-solid: rgba(191, 192, 192, 0.25);
+      --diagram-accent: #f08a59;
+      --diagram-accent-tint: rgba(240, 138, 89, 0.10);
+      --diagram-link: #6a95d8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.65;
+      font-size: 16px;
+      transition: background-color var(--transition), color var(--transition);
+      overflow-x: hidden;
+    }
+
+    /* Top Progress Bar */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    /* Header */
+    header.site-header {
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 900;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .series-tag {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid var(--accent-border);
+    }
+
+    .doc-title {
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 1.25rem;
+      font-weight: 400;
+      color: var(--text);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .theme-toggle-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius);
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: border-color var(--transition);
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--border-strong);
+    }
+
+    /* Split Atlas Layout */
+    .atlas-container {
+      display: flex;
+      max-width: 1440px;
+      margin: 0 auto;
+      min-height: calc(100vh - 55px);
+    }
+
+    /* Left Nav Rail */
+    aside.nav-rail {
+      width: var(--nav-width);
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      padding: 2rem 1.25rem;
+      position: sticky;
+      top: 55px;
+      height: calc(100vh - 55px);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .rail-heading {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-light);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .nav-item a {
+      display: flex;
+      flex-direction: column;
+      padding: 0.55rem 0.75rem;
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      line-height: 1.35;
+      transition: background var(--transition), color var(--transition);
+      border-left: 2px solid transparent;
+    }
+
+    .nav-item a:hover {
+      background: var(--surface-subtle);
+      color: var(--text);
+    }
+
+    .nav-item.active a {
+      background: var(--surface);
+      color: var(--accent);
+      border-left-color: var(--accent);
+      font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    .nav-num {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-light);
+    }
+
+    .nav-item.active .nav-num {
+      color: var(--accent);
+    }
+
+    .rail-meta {
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text-light);
+      line-height: 1.45;
+    }
+
+    /* Content Pane */
+    main.content-pane {
+      flex: 1;
+      min-width: 0;
+      padding: 3rem 4rem 6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4rem;
+    }
+
+    @media (max-width: 960px) {
+      .atlas-container {
+        flex-direction: column;
+      }
+      aside.nav-rail {
+        width: 100%;
+        position: static;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      main.content-pane {
+        padding: 2rem 1.5rem 4rem;
+      }
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 {
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-weight: 400;
+      line-height: 1.25;
+      color: var(--text);
+    }
+
+    h1 {
+      font-size: 2.75rem;
+      letter-spacing: -0.015em;
+      margin-bottom: 1rem;
+    }
+
+    h2 {
+      font-size: 2rem;
+      letter-spacing: -0.01em;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 1.45rem;
+      margin: 1.75rem 0 0.75rem;
+    }
+
+    p {
+      max-width: var(--max-text);
+      color: var(--text);
+      margin-bottom: 1.15rem;
+      font-size: 1.025rem;
+    }
+
+    p.lead {
+      font-size: 1.25rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+      font-style: italic;
+      font-family: 'Instrument Serif', Georgia, serif;
+      max-width: var(--max-text);
+    }
+
+    /* Learning Outcome Card */
+    .learn-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem 2rem;
+      max-width: var(--max-text);
+    }
+
+    .box-label {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    .learn-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .learn-list li {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    .learn-bullet {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+
+    /* DEFINITIONS CARD (Prominent in Every Module) */
+    .definitions-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 1.5rem 1.75rem;
+      max-width: var(--max-text);
+      margin: 1.25rem 0 1.75rem;
+    }
+
+    .definitions-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .definitions-title {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .definitions-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .def-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .def-term {
+      font-family: 'Geist', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+
+    .def-pronounce {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-light);
+      font-weight: 400;
+    }
+
+    .def-meaning {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Diagram Panel following Diagram Design Skill */
+    .diagram-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      max-width: 820px;
+      margin: 1.5rem 0;
+    }
+
+    .diagram-title-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .diagram-title {
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 1.2rem;
+      color: var(--text);
+      font-weight: 400;
+    }
+
+    .diagram-controls {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .ctrl-btn {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.25rem 0.6rem;
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.72rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .ctrl-btn:hover {
+      border-color: var(--border-strong);
+      background: var(--surface);
+    }
+
+    .svg-container {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    svg.editorial-diagram {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* Step-by-Step Breakdown */
+    .steps-container {
+      max-width: var(--max-text);
+      margin: 1rem 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .step-card {
+      display: flex;
+      gap: 1.25rem;
+      padding: 1.15rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .step-index {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1.5px solid var(--accent);
+      color: var(--accent);
+      font-family: 'Geist Mono', monospace;
+      font-weight: 600;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+
+    .step-body h4 {
+      font-size: 1.05rem;
+      margin-bottom: 0.35rem;
+      font-family: 'Geist', sans-serif;
+      font-weight: 600;
+    }
+
+    .step-body p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      margin-bottom: 0;
+    }
+
+    /* Examples Grid */
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+      max-width: var(--max-text);
+      margin: 1rem 0;
+    }
+
+    .example-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .example-tag {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .example-tag.obvious { color: #2563eb; }
+    .example-tag.counter { color: #d97706; }
+    .example-tag.edge { color: #7c3aed; }
+
+    .example-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    .example-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 0;
+    }
+
+    /* Analogy Card */
+    .analogy-card {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-strong);
+      border-left: 3px solid var(--accent);
+      padding: 1.25rem 1.5rem;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      max-width: var(--max-text);
+      margin: 0.75rem 0;
+    }
+
+    .analogy-title {
+      font-family: 'Geist Mono', monospace;
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 0.4rem;
+    }
+
+    .analogy-body {
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 1.15rem;
+      line-height: 1.5;
+      color: var(--text);
+      font-style: italic;
+      margin-bottom: 0;
+    }
+
+    /* Misconception Box */
+    .misconception-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      max-width: var(--max-text);
+    }
+
+    .misconception-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Geist', sans-serif;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #b91c1c;
+      margin-bottom: 0.5rem;
+    }
+
+    .misconception-text {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .correction-text {
+      font-size: 0.92rem;
+      color: var(--text);
+      font-weight: 500;
+      margin-bottom: 0;
+    }
+
+    /* Why It Matters & Inter-link */
+    .why-it-matters {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.15rem 1.5rem;
+      max-width: var(--max-text);
+      font-size: 0.92rem;
+    }
+
+    .why-title {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      color: var(--text-light);
+      margin-bottom: 0.35rem;
+    }
+
+    .inter-link {
+      font-family: 'Geist', sans-serif;
+      font-size: 0.88rem;
+      color: var(--accent);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-weight: 500;
+      margin-top: 0.5rem;
+    }
+
+    .inter-link:hover {
+      text-decoration: underline;
+    }
+
+    /* Interactive Container */
+    .interactive-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      max-width: var(--max-text);
+      margin: 1.5rem 0;
+    }
+
+    .interactive-label {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    /* Slider Simulator */
+    .slider-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .slider-control {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .slider-control input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+    }
+
+    .slider-val {
+      font-family: 'Geist Mono', monospace;
+      font-weight: 600;
+      font-size: 1rem;
+      min-width: 65px;
+      color: var(--accent);
+    }
+
+    .metric-readout-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .metric-stat {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      padding: 0.75rem;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--text-light);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 1.15rem;
+      font-weight: 600;
+      font-family: 'Geist Mono', monospace;
+      color: var(--text);
+      margin-top: 0.2rem;
+    }
+
+    /* Flashcard */
+    .flashcard-wrap {
+      perspective: 1000px;
+      width: 100%;
+      height: 160px;
+      cursor: pointer;
+    }
+
+    .flashcard-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.4s;
+      transform-style: preserve-3d;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+    }
+
+    .flashcard-wrap.flipped .flashcard-inner {
+      transform: rotateY(180deg);
+    }
+
+    .flashcard-front, .flashcard-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .flashcard-back {
+      transform: rotateY(180deg);
+      background: var(--surface-subtle);
+    }
+
+    .card-prompt {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-light);
+      margin-bottom: 0.5rem;
+    }
+
+    .card-text {
+      font-size: 1.05rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    /* Drag & Drop Matcher */
+    .match-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .match-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .match-item {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      padding: 0.6rem 0.8rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      user-select: none;
+      transition: all var(--transition);
+    }
+
+    .match-target {
+      background: var(--surface);
+      border: 1.5px dashed var(--border-strong);
+      padding: 0.6rem 0.8rem;
+      border-radius: 4px;
+      min-height: 42px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .match-target.matched {
+      border-style: solid;
+      border-color: #10b981;
+      background: #ecfdf5;
+      color: #065f46;
+      font-weight: 500;
+    }
+
+    [data-theme="dark"] .match-target.matched {
+      background: #064e3b;
+      color: #a7f3d0;
+    }
+
+    /* Code Snippets */
+    pre, code {
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.88rem;
+    }
+
+    code.inline-code {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 0.15rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.85em;
+    }
+
+    pre.code-block {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 1.15rem 1.25rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow-x: auto;
+      margin: 0.85rem 0;
+      line-height: 1.45;
+    }
+
+    /* Summary Table */
+    .summary-table-wrap {
+      overflow-x: auto;
+      max-width: var(--max-text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    table.summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      text-align: left;
+    }
+
+    table.summary-table th {
+      background: var(--surface-subtle);
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-family: 'Geist', sans-serif;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    table.summary-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    table.summary-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* FAQ */
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-width: var(--max-text);
+    }
+
+    details.faq-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem 1.25rem;
+      cursor: pointer;
+    }
+
+    details.faq-item summary {
+      font-family: 'Geist', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    details.faq-item summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.faq-item summary::after {
+      content: "+";
+      font-size: 1.2rem;
+      font-weight: 400;
+      color: var(--text-light);
+    }
+
+    details.faq-item[open] summary::after {
+      content: "−";
+    }
+
+    details.faq-item p {
+      margin-top: 0.75rem;
+      margin-bottom: 0;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .copy-btn {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.35rem 0.75rem;
+      border-radius: 4px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 0.75rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-top: 0.5rem;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--border-strong);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="progress-bar"></div>
+
+  <header class="site-header">
+    <div class="header-left">
+      <span class="series-tag">DDIA Masterclass</span>
+      <span class="doc-title">Designing Data-Intensive Applications: Chapters 1 &amp; 2</span>
+    </div>
+    <div class="header-actions">
+      <button class="theme-toggle-btn" id="theme-btn" aria-label="Toggle visual theme">
+        <span id="theme-icon">◐</span>
+        <span id="theme-text">Mode</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="atlas-container">
+    
+    <!-- Left Navigation Rail (Split Atlas Layout) -->
+    <aside class="nav-rail" aria-label="Lesson Outline">
+      <div class="rail-heading">Atlas Navigation</div>
+      <ul class="nav-list" id="nav-list">
+        <li class="nav-item active" data-target="overview">
+          <a href="#overview">
+            <span class="nav-num">Overview</span>
+            <span>Architecture &amp; Scope</span>
+          </a>
+        </li>
+        <li class="nav-item" data-target="module-1">
+          <a href="#module-1">
+            <span class="nav-num">Module 01</span>
+            <span>Composite Data Architecture</span>
+          </a>
+        </li>
+        <li class="nav-item" data-target="module-2">
+          <a href="#module-2">
+            <span class="nav-num">Module 02</span>
+            <span>Percentiles &amp; Tail Latency</span>
+          </a>
+        </li>
+        <li class="nav-item" data-target="module-3">
+          <a href="#module-3">
+            <span class="nav-num">Module 03</span>
+            <span>Imperative vs. Declarative SQL</span>
+          </a>
+        </li>
+        <li class="nav-item" data-target="module-4">
+          <a href="#module-4">
+            <span class="nav-num">Module 04</span>
+            <span>Document vs. Relational Locality</span>
+          </a>
+        </li>
+        <li class="nav-item" data-target="module-5">
+          <a href="#module-5">
+            <span class="nav-num">Module 05</span>
+            <span>Schema-on-Write vs. Read</span>
+          </a>
+        </li>
+        <li class="nav-item" data-target="module-6">
+          <a href="#module-6">
+            <span class="nav-num">Module 06</span>
+            <span>Graphs, Recursive CTEs &amp; Polyglot</span>
+          </a>
+        </li>
+        <li class="nav-item" data-target="summary-faq">
+          <a href="#summary-faq">
+            <span class="nav-num">Review</span>
+            <span>Glossary &amp; Architecture Matrix</span>
+          </a>
+        </li>
+      </ul>
+
+      <div class="rail-meta">
+        Based on Martin Kleppmann’s foundational text and Ben Dicken’s live architectural breakdown. Built on the opinionated <code>diagram-design</code> 4px grid grammar with orthogonal routing and strict definition hierarchies.
+      </div>
+    </aside>
+
+    <!-- Main Learning Pane -->
+    <main class="content-pane">
+
+      <!-- Header & Outcome Overview -->
+      <section id="overview">
+        <span class="series-tag" style="margin-bottom: 0.75rem; display: inline-block;">Core Engineering Curriculum</span>
+        <h1>Foundations of Data Systems Architecture</h1>
+        <p class="lead">
+          Building resilient systems is rarely about memorizing syntax. It is the discipline of evaluating tradeoffs between storage locality, query expressiveness, and tail latency guarantees.
+        </p>
+
+        <div class="learn-box">
+          <div class="box-label">What You’ll Learn</div>
+          <ul class="learn-list">
+            <li>
+              <span class="learn-bullet"></span>
+              <span><strong>Compose layered data systems:</strong> Deconstruct an application into its primary OLTP store, search indexes, in-memory caches, and asynchronous ingestion pipelines.</span>
+            </li>
+            <li>
+              <span class="learn-bullet"></span>
+              <span><strong>Diagnose tail latency:</strong> Calculate why high percentiles (P99, P99.9) dominate user experience and why median (P50) metrics conceal operational catastrophes.</span>
+            </li>
+            <li>
+              <span class="learn-bullet"></span>
+              <span><strong>Demystify query engines:</strong> Understand why the relational model triumphed over hierarchical systems through declarative optimization over procedural cursor traversal.</span>
+            </li>
+            <li>
+              <span class="learn-bullet"></span>
+              <span><strong>Quantify storage locality:</strong> Contrast single-seek document fetches against multi-table normalized joins across physical hard disks, SSDs, and cloud storage volumes.</span>
+            </li>
+            <li>
+              <span class="learn-bullet"></span>
+              <span><strong>Navigate schema paradigms:</strong> Differentiate schema-on-write from schema-on-read, evaluate data duplication costs, and formulate polyglot persistence boundaries.</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Interactive Knowledge Map (Diagram Design Grammar) -->
+      <div class="knowledge-map-card">
+        <div class="map-header">
+          <div class="box-label" style="margin-bottom: 0;">Interactive Knowledge Topology</div>
+          <span style="font-family: 'Geist Mono', monospace; font-size: 0.75rem; color: var(--text-light);">Click any node to navigate</span>
+        </div>
+        <div class="svg-container">
+          <!-- 4px grid: 760x176, r=8 orthogonal connectors, Geist typography, masked labels -->
+          <svg class="editorial-diagram" viewBox="0 0 760 176" role="img" aria-label="Knowledge Map Topology">
+            <defs>
+              <marker id="map-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-muted)"/>
+              </marker>
+              <marker id="map-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-accent)"/>
+              </marker>
+            </defs>
+
+            <!-- Ground -->
+            <rect width="760" height="176" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-rule)" stroke-width="1"/>
+
+            <!-- Connectors (drawn before nodes) -->
+            <!-- 01 -> 02 -->
+            <path d="M 128 56 H 168" fill="none" stroke="var(--diagram-muted)" stroke-width="1.2" marker-end="url(#map-arrow)"/>
+            <!-- 02 -> 03 -->
+            <path d="M 288 56 H 328" fill="none" stroke="var(--diagram-muted)" stroke-width="1.2" marker-end="url(#map-arrow)"/>
+            <!-- 03 -> 04 -->
+            <path d="M 448 56 H 488" fill="none" stroke="var(--diagram-muted)" stroke-width="1.2" marker-end="url(#map-arrow)"/>
+            <!-- 04 -> 06 -->
+            <path d="M 608 56 H 648" fill="none" stroke="var(--diagram-muted)" stroke-width="1.2" marker-end="url(#map-arrow)"/>
+            <!-- 03 -> 05 (Orthogonal elbow path: down & over) -->
+            <path d="M 388 84 V 104 Q 388 112 396 112 H 488" fill="none" stroke="var(--diagram-accent)" stroke-width="1.2" marker-end="url(#map-arrow-accent)"/>
+
+            <!-- Node 01 -->
+            <g class="map-node" data-target="module-1" style="cursor: pointer;">
+              <rect x="16" y="28" width="112" height="56" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-ink)" stroke-width="1"/>
+              <rect x="24" y="36" width="36" height="12" rx="2" fill="none" stroke="var(--diagram-ink)" stroke-width="0.8" opacity="0.4"/>
+              <text x="42" y="45" fill="var(--diagram-ink)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MOD 01</text>
+              <text x="72" y="66" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Composite</text>
+            </g>
+
+            <!-- Node 02 -->
+            <g class="map-node" data-target="module-2" style="cursor: pointer;">
+              <rect x="168" y="28" width="120" height="56" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-ink)" stroke-width="1"/>
+              <rect x="176" y="36" width="36" height="12" rx="2" fill="none" stroke="var(--diagram-ink)" stroke-width="0.8" opacity="0.4"/>
+              <text x="194" y="45" fill="var(--diagram-ink)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MOD 02</text>
+              <text x="228" y="66" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tail Latency</text>
+            </g>
+
+            <!-- Node 03 (Focal Core) -->
+            <g class="map-node" data-target="module-3" style="cursor: pointer;">
+              <rect x="328" y="28" width="120" height="56" rx="6" fill="var(--diagram-accent-tint)" stroke="var(--diagram-accent)" stroke-width="1.2"/>
+              <rect x="336" y="36" width="48" height="12" rx="2" fill="none" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+              <text x="360" y="45" fill="var(--diagram-accent)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OPTIMIZER</text>
+              <text x="388" y="66" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Declarative</text>
+            </g>
+
+            <!-- Node 04 -->
+            <g class="map-node" data-target="module-4" style="cursor: pointer;">
+              <rect x="488" y="28" width="120" height="56" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-ink)" stroke-width="1"/>
+              <rect x="496" y="36" width="36" height="12" rx="2" fill="none" stroke="var(--diagram-ink)" stroke-width="0.8" opacity="0.4"/>
+              <text x="514" y="45" fill="var(--diagram-ink)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MOD 04</text>
+              <text x="548" y="66" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Data Locality</text>
+            </g>
+
+            <!-- Node 05 (Schema Branch) -->
+            <g class="map-node" data-target="module-5" style="cursor: pointer;">
+              <rect x="488" y="96" width="120" height="52" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-muted)" stroke-width="1"/>
+              <rect x="496" y="104" width="36" height="12" rx="2" fill="none" stroke="var(--diagram-muted)" stroke-width="0.8" opacity="0.4"/>
+              <text x="514" y="113" fill="var(--diagram-muted)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MOD 05</text>
+              <text x="548" y="132" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Schema Models</text>
+            </g>
+
+            <!-- Node 06 -->
+            <g class="map-node" data-target="module-6" style="cursor: pointer;">
+              <rect x="648" y="28" width="96" height="56" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-ink)" stroke-width="1"/>
+              <rect x="656" y="36" width="36" height="12" rx="2" fill="none" stroke="var(--diagram-ink)" stroke-width="0.8" opacity="0.4"/>
+              <text x="674" y="45" fill="var(--diagram-ink)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MOD 06</text>
+              <text x="696" y="66" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Polyglot</text>
+            </g>
+
+            <!-- Legend strip -->
+            <line x1="16" y1="160" x2="744" y2="160" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+            <text x="16" y="170" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" letter-spacing="0.14em">TOPOLOGY LEGEND</text>
+            <circle cx="160" cy="168" r="3" fill="var(--diagram-accent)"/>
+            <text x="170" y="171" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">FOCAL / OPTIMIZER PATH</text>
+            <circle cx="340" cy="168" r="3" fill="var(--diagram-muted)"/>
+            <text x="350" y="171" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">SEQUENTIAL MODULE PROGRESSION</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- MODULE 1 -->
+      <section id="module-1" class="lesson-module">
+        <span class="module-badge">Module 01</span>
+        <h2>The Anatomy of a Composite Data System</h2>
+
+        <!-- DEFINITIONS PANEL FOR MODULE 1 -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span class="definitions-title">Core Definitions &amp; Mental Models</span>
+          </div>
+          <div class="definitions-grid">
+            <div class="def-item">
+              <div class="def-term">Data-Intensive Application <span class="def-pronounce">[dey-tuh in-ten-siv]</span></div>
+              <div class="def-meaning">An application where the principal system challenge is the raw volume, velocity, structural heterogeneity, and throughput of data—rather than CPU-bound compute limits.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">OLTP (Online Transaction Processing) <span class="def-pronounce">[oh-el-tee-pee]</span></div>
+              <div class="def-meaning">A database access pattern optimized for high volumes of low-latency, atomic reads and writes. Operations are typically point lookups by primary key (e.g. updating an account balance or fetching a user record).</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">In-Memory Cache <span class="def-pronounce">[in mem-uh-ree kash]</span></div>
+              <div class="def-meaning">A volatile storage tier (e.g. Redis, Memcached) maintaining frequently requested keys in RAM to intercept reads before they reach physical disks, reducing read amplification.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Asynchronous Message Queue <span class="def-pronounce">[ay-sing-kruh-nuhs kyoo]</span></div>
+              <div class="def-meaning">A decoupled buffer (e.g. Kafka, RabbitMQ) that ingests events and tasks for out-of-band processing, preventing background tasks from blocking synchronous client HTTP requests.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            When you examine modern web systems, you quickly observe that few production architectures rely on an isolated, monolithic database engine. While an application in its infancy might survive with a single server wired directly to a MySQL or PostgreSQL instance, growing workloads inevitably demand functional specialization. A data-intensive application is rarely a single database; it is a composite system constructed from multiple specialized components glued together by application code.
+          </p>
+          <p>
+            The primary datastore (typically an OLTP relational database) functions as the definitive source of truth. It handles transactional integrity, strict relational invariants, and point lookups for user accounts and core entities. However, forcing an OLTP database to handle every operational requirement leads directly to system degradation. When users execute fuzzy search queries, full table scans on text columns saturate disk bandwidth. When repeated read traffic inundates identical records, primary database thread pools become exhausted. 
+          </p>
+          <p>
+            To resolve these competing requirements, systems architect specialized data planes. An in-memory cache such as Redis or Memcached sits in front of the primary datastore to absorb repetitive read volume and keep latency beneath single-digit milliseconds. Dedicated full-text search indexes like Elasticsearch or Algolia mirror subsets of the data to execute fuzzy token matching, autocomplete, and inverted index scans. Meanwhile, asynchronous message queues and ingestion pipelines decouple write-heavy tasks, log ingestion, and third-party integrations from the synchronous user request lifecycle.
+          </p>
+        </div>
+
+        <!-- DIAGRAM 1.1: ARCHITECTURE TYPE (Diagram Design Grammar) -->
+        <div class="diagram-panel">
+          <div class="diagram-title-bar">
+            <span class="diagram-title">Figure 1.1: Composite Data Architecture Topology</span>
+            <div class="diagram-controls">
+              <button class="ctrl-btn" onclick="highlightArchFlow('read')">Read Path</button>
+              <button class="ctrl-btn" onclick="highlightArchFlow('write')">Write Path</button>
+              <button class="ctrl-btn" onclick="highlightArchFlow('search')">Search Path</button>
+              <button class="ctrl-btn" onclick="highlightArchFlow('async')">Async Path</button>
+              <button class="ctrl-btn" onclick="highlightArchFlow('all')">Reset</button>
+            </div>
+          </div>
+          <div class="svg-container">
+            <!-- 4px grid: 760x320. Z-order: background -> zones -> connectors -> nodes -> legend -->
+            <svg id="arch-diagram-svg" class="editorial-diagram" viewBox="0 0 760 320" role="img" aria-label="Composite Architecture Diagram">
+              <defs>
+                <marker id="dd-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-muted)"/>
+                </marker>
+                <marker id="dd-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-accent)"/>
+                </marker>
+                <marker id="dd-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-link)"/>
+                </marker>
+              </defs>
+
+              <!-- 1. Background -->
+              <rect width="760" height="320" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-rule)" stroke-width="1"/>
+
+              <!-- 2. Zones (Tiers) -->
+              <!-- Ingress Zone -->
+              <rect x="16" y="24" width="112" height="232" rx="8" fill="rgba(45,49,66,0.02)" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <rect x="24" y="28" width="56" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="52" y="37" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">INGRESS</text>
+
+              <!-- Compute Zone -->
+              <rect x="168" y="24" width="144" height="232" rx="8" fill="rgba(45,49,66,0.02)" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <rect x="176" y="28" width="56" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="204" y="37" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">COMPUTE</text>
+
+              <!-- Data Plane Zone -->
+              <rect x="352" y="24" width="392" height="232" rx="8" fill="rgba(45,49,66,0.02)" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <rect x="360" y="28" width="80" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="400" y="37" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">DATA SERVICES</text>
+
+              <!-- 3. Connectors (Orthogonal r=8 elbows, drawn before nodes) -->
+              <!-- Client to App Server -->
+              <path id="dd-conn-client-app" d="M 108 140 H 188" fill="none" stroke="var(--diagram-muted)" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+              <rect id="dd-mask-client-app" x="124" y="122" width="48" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text id="dd-lbl-client-app" x="148" y="131" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">HTTP/REQ</text>
+
+              <!-- App to Cache (Two-bend elbow: right & up) -->
+              <path id="dd-conn-app-cache" d="M 312 116 H 340 Q 348 116 348 108 V 76 Q 348 68 356 68 H 392" fill="none" stroke="var(--diagram-muted)" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+              <rect id="dd-mask-app-cache" x="328" y="84" width="40" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text id="dd-lbl-app-cache" x="348" y="93" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MEM/GET</text>
+
+              <!-- App to Primary DB (Direct horizontal focal path) -->
+              <path id="dd-conn-app-db" d="M 312 140 H 392" fill="none" stroke="var(--diagram-accent)" stroke-width="1.2" marker-end="url(#dd-arrow-accent)"/>
+              <rect id="dd-mask-app-db" x="328" y="122" width="48" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text id="dd-lbl-app-db" x="352" y="131" fill="var(--diagram-accent)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SQL/ACID</text>
+
+              <!-- App to Search (Two-bend elbow: right & down) -->
+              <path id="dd-conn-app-search" d="M 312 164 H 340 Q 348 164 348 172 V 204 Q 348 212 356 212 H 392" fill="none" stroke="var(--diagram-muted)" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+              <rect id="dd-mask-app-search" x="328" y="180" width="40" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text id="dd-lbl-app-search" x="348" y="189" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SEARCH</text>
+
+              <!-- Primary DB to Message Queue (Dashed async path) -->
+              <path id="dd-conn-db-queue" d="M 532 140 H 592" fill="none" stroke="var(--diagram-muted)" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#dd-arrow)"/>
+              <rect id="dd-mask-db-queue" x="540" y="122" width="44" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text id="dd-lbl-db-queue" x="562" y="131" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">CDC/LOG</text>
+
+              <!-- 4. Node Boxes (5-part pattern: paper mask, styled box, type tag, name, sublabel) -->
+              <!-- Client Node -->
+              <g transform="translate(28, 112)">
+                <rect x="0" y="0" width="88" height="56" rx="6" fill="var(--diagram-paper)"/>
+                <rect x="0" y="0" width="88" height="56" rx="6" fill="rgba(79,93,117,0.08)" stroke="var(--diagram-soft)" stroke-width="1"/>
+                <rect x="8" y="6" width="32" height="12" rx="2" fill="none" stroke="var(--diagram-soft)" stroke-width="0.8" opacity="0.5"/>
+                <text x="24" y="15" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CLIENT</text>
+                <text x="44" y="34" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Browser / App</text>
+                <text x="44" y="47" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tls:443</text>
+              </g>
+
+              <!-- App Server Node (Backend type: white fill, ink stroke) -->
+              <g transform="translate(188, 104)">
+                <rect x="0" y="0" width="124" height="72" rx="6" fill="var(--diagram-paper)"/>
+                <rect x="0" y="0" width="124" height="72" rx="6" fill="var(--surface)" stroke="var(--diagram-ink)" stroke-width="1.2"/>
+                <rect x="8" y="6" width="28" height="12" rx="2" fill="none" stroke="var(--diagram-ink)" stroke-width="0.8" opacity="0.4"/>
+                <text x="22" y="15" fill="var(--diagram-ink)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+                <text x="62" y="36" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">App Services</text>
+                <text x="62" y="52" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">node / go / java</text>
+              </g>
+
+              <!-- In-Memory Cache Node (Store type: ink @ 0.05, muted stroke) -->
+              <g transform="translate(392, 44)">
+                <rect x="0" y="0" width="140" height="48" rx="6" fill="var(--diagram-paper)"/>
+                <rect x="0" y="0" width="140" height="48" rx="6" fill="rgba(45,49,66,0.05)" stroke="var(--diagram-muted)" stroke-width="1"/>
+                <rect x="8" y="6" width="32" height="12" rx="2" fill="none" stroke="var(--diagram-muted)" stroke-width="0.8" opacity="0.5"/>
+                <text x="24" y="15" fill="var(--diagram-muted)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CACHE</text>
+                <text x="80" y="26" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Redis Cluster</text>
+                <text x="80" y="39" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">resp:6379 (RAM)</text>
+              </g>
+
+              <!-- Primary DB Node (Focal 1 max: accent-tint fill, accent stroke) -->
+              <g transform="translate(392, 112)">
+                <rect x="0" y="0" width="140" height="56" rx="6" fill="var(--diagram-paper)"/>
+                <rect x="0" y="0" width="140" height="56" rx="6" fill="var(--diagram-accent-tint)" stroke="var(--diagram-accent)" stroke-width="1.2"/>
+                <rect x="8" y="6" width="36" height="12" rx="2" fill="none" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+                <text x="26" y="15" fill="var(--diagram-accent)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">FOCAL</text>
+                <text x="78" y="32" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">MySQL / Postgres</text>
+                <text x="78" y="46" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tcp:5432 (OLTP Core)</text>
+              </g>
+
+              <!-- Search Index Node (Store type) -->
+              <g transform="translate(392, 188)">
+                <rect x="0" y="0" width="140" height="48" rx="6" fill="var(--diagram-paper)"/>
+                <rect x="0" y="0" width="140" height="48" rx="6" fill="rgba(45,49,66,0.05)" stroke="var(--diagram-muted)" stroke-width="1"/>
+                <rect x="8" y="6" width="32" height="12" rx="2" fill="none" stroke="var(--diagram-muted)" stroke-width="0.8" opacity="0.5"/>
+                <text x="24" y="15" fill="var(--diagram-muted)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">INDEX</text>
+                <text x="80" y="26" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Elasticsearch</text>
+                <text x="80" y="39" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">http:9200 (Fuzzy)</text>
+              </g>
+
+              <!-- Message Queue Node (Optional / Async type) -->
+              <g transform="translate(592, 116)">
+                <rect x="0" y="0" width="132" height="48" rx="6" fill="var(--diagram-paper)"/>
+                <rect x="0" y="0" width="132" height="48" rx="6" fill="rgba(45,49,66,0.02)" stroke="var(--diagram-muted)" stroke-width="1" stroke-dasharray="4,3"/>
+                <rect x="8" y="6" width="32" height="12" rx="2" fill="none" stroke="var(--diagram-muted)" stroke-width="0.8" opacity="0.5"/>
+                <text x="24" y="15" fill="var(--diagram-muted)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">QUEUE</text>
+                <text x="76" y="26" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Kafka Pipeline</text>
+                <text x="76" y="39" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tcp:9092 (Log/Stream)</text>
+              </g>
+
+              <!-- 5. Horizontal Legend Strip at bottom -->
+              <line x1="24" y1="284" x2="736" y2="284" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <text x="24" y="302" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+              
+              <rect x="100" y="294" width="12" height="8" rx="2" fill="var(--diagram-accent-tint)" stroke="var(--diagram-accent)" stroke-width="1"/>
+              <text x="118" y="301" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">PRIMARY FOCAL STORE</text>
+
+              <rect x="270" y="294" width="12" height="8" rx="2" fill="rgba(45,49,66,0.05)" stroke="var(--diagram-muted)" stroke-width="1"/>
+              <text x="288" y="301" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">SPECIALIZED AUXILIARY DATASTORE</text>
+
+              <line x1="490" y1="298" x2="514" y2="298" stroke="var(--diagram-muted)" stroke-width="1" stroke-dasharray="4,3"/>
+              <text x="522" y="301" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">ASYNC PROPAGATION</text>
+            </svg>
+          </div>
+          <p id="arch-flow-desc" style="font-size: 0.82rem; color: var(--text-light); margin-top: 0.75rem; margin-bottom: 0;">
+            Use the control buttons above to trace the precise network paths for read cache hits, transactional writes, lexical text searches, and background asynchronous ingestion.
+          </p>
+        </div>
+
+        <div class="steps-container">
+          <div class="step-card">
+            <div class="step-index">1</div>
+            <div class="step-body">
+              <h4>Isolate the Transactional Core</h4>
+              <p>Direct mission-critical writes and identity lookups to a battle-tested relational database maintaining ACID invariants.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">2</div>
+            <div class="step-body">
+              <h4>Absorb Read Amplification with Cache</h4>
+              <p>Position an in-memory key-value cache to intercept repetitive read patterns, freeing primary database connections for transactional writes.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">3</div>
+            <div class="step-body">
+              <h4>Offload Non-Relational Workloads</h4>
+              <p>Route lexical searches, analytics aggregations, and asynchronous tasks to specialized engines via event streams or background workers.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <div class="example-title">E-Commerce Product Catalog</div>
+            <p class="example-desc">Order checkout hits PostgreSQL to guarantee stock consistency, Redis caches popular product cards, and Elasticsearch handles fuzzy brand filtering.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <div class="example-title">Cache Invalidation Bottleneck</div>
+            <p class="example-desc">Adding a cache can increase latency if the application updates records rapidly, causing cache invalidation storms and thrashing the primary database.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <div class="example-title">Split-Brain Dual Writes</div>
+            <p class="example-desc">Writing to MySQL and Elasticsearch simultaneously from application code without a transactional outbox leads to silent data divergence when one write fails.</p>
+          </div>
+        </div>
+
+        <div class="analogy-card">
+          <div class="analogy-title">Visual Analogy</div>
+          <p class="analogy-body">
+            A professional restaurant kitchen does not make the executive chef chop onions, wash pots, bake pastries, and deliver bills. The executive chef (Primary DB) handles critical culinary composition, while prep cooks (Caches), the dish pit (Queues), and the sommelier (Search Index) handle their specialized domains in parallel.
+          </p>
+        </div>
+
+        <div class="misconception-card">
+          <div class="misconception-header">
+            <span>❌</span> Common Misconception: "One Database Can Do Everything Efficiently"
+          </div>
+          <p class="misconception-text">
+            Developers often assume that because PostgreSQL supports full-text search, JSON storage, and queue-like table polling, they should avoid adding external tools at all costs.
+          </p>
+          <p class="correction-text">
+            While PostgreSQL handles small workloads gracefully, using table polling as a message queue locks rows and bloats the WAL. Heavy full-text queries compete for shared memory buffers with core transactional writes. Architectural maturity means recognizing when workload characteristics diverge.
+          </p>
+        </div>
+
+        <div class="why-it-matters">
+          <div class="why-title">Why This Matters</div>
+          Understanding that your data architecture is fundamentally a composite system shifts your focus from "which database is best" to "how do data changes propagate reliably between specialized systems."
+        </div>
+
+        <a href="#module-2" class="inter-link">Next: Analyze performance degradation through Tail Latency &rarr;</a>
+      </section>
+
+      <!-- MODULE 2 -->
+      <section id="module-2" class="lesson-module">
+        <span class="module-badge">Module 02</span>
+        <h2>Percentiles, Tail Latency &amp; The Math of Scale</h2>
+
+        <!-- DEFINITIONS PANEL FOR MODULE 2 -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span class="definitions-title">Core Definitions &amp; Mental Models</span>
+          </div>
+          <div class="definitions-grid">
+            <div class="def-item">
+              <div class="def-term">Median (P50) <span class="def-pronounce">[mee-dee-uhn]</span></div>
+              <div class="def-meaning">The 50th percentile of response times. Exactly half of all requests are faster than P50, and half are slower. It reflects standard user experience but completely hides extreme outliers.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Tail Latency (P99, P99.9) <span class="def-pronounce">[teyl ley-tuhn-see]</span></div>
+              <div class="def-meaning">The upper percentiles of the response time distribution capturing the slowest 1% or 0.1% of queries. This represents the worst-case degradation experienced by users.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Latency Amplification <span class="def-pronounce">[ley-tuhn-see am-pluh-fuh-key-shuhn]</span></div>
+              <div class="def-meaning">The compounding latency probability that occurs when a single user page request triggers multiple parallel backend calls. If 100 backend calls are required, the odds of hitting at least one P99 spike rise to 63.4%.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Head-of-Line Blocking <span class="def-pronounce">[hed uhv lahyn blok-ing]</span></div>
+              <div class="def-meaning">A phenomenon where a single slow, unindexed query monopolizes a database worker thread or lock, causing dozens of fast sub-millisecond queries queued behind it to stall.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            In production operations, you must resist the temptation to evaluate performance through simple arithmetic averages. Mean latency is an actively deceptive metric. Because latency distributions are heavily skewed to the right—with most requests completing in sub-millisecond windows while a fraction stall for seconds—an average smooths out spikes and conceals critical failures from engineering dashboards.
+          </p>
+          <p>
+            To diagnose real user experience, distributed systems rely on percentiles. If your database reports a <strong>P50 (median)</strong> of 1.5 milliseconds, exactly 50% of your requests executed faster than 1.5 ms, and 50% took longer. However, the true danger lies in the high percentiles: <strong>P99 (the 99th percentile)</strong> and <strong>P99.9 (the 99.9th percentile or tail latency)</strong>. These figures reveal the threshold that the slowest 1% and 0.1% of queries experience.
+          </p>
+          <p>
+            Why does the slowest 0.1% matter? First, the users who trigger the slowest requests are frequently your most valuable customers. In an e-commerce platform or social network, a user with ten items in their cart or five friends triggers minimal database load; a power user with thousands of historical purchases, extensive metadata, or vast social graphs triggers heavy joins and cache misses. Second, modern web pages require dozens of parallel backend calls. If any single sub-query stalls due to a P99.9 latency spike, the entire page load stalls for that user.
+          </p>
+        </div>
+
+        <!-- DIAGRAM 2.1: LATENCY DISTRIBUTION & LONG TAIL (Diagram Design Grammar) -->
+        <div class="diagram-panel">
+          <div class="diagram-title-bar">
+            <span class="diagram-title">Figure 2.1: Response Time Distribution &amp; The Latency Tail</span>
+          </div>
+          <div class="svg-container">
+            <!-- 4px grid: 740x224. Exact tokens, Geist typography, Instrument Serif italic callout -->
+            <svg class="editorial-diagram" viewBox="0 0 740 224" role="img" aria-label="Response time distribution curve showing P50, P90, P99, and P99.9 tail">
+              <!-- Ground -->
+              <rect width="740" height="224" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-rule)" stroke-width="1"/>
+
+              <!-- Gridlines (Divisible by 4) -->
+              <line x1="64" y1="40" x2="64" y2="168" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <line x1="64" y1="168" x2="704" y2="168" stroke="var(--diagram-ink)" stroke-width="1.2"/>
+
+              <!-- Axis Labels in Geist Mono 8px tracked -->
+              <text x="48" y="44" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end">FREQ</text>
+              <text x="48" y="168" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end">0</text>
+              <text x="64" y="184" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">0ms</text>
+              <text x="144" y="184" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">2ms</text>
+              <text x="240" y="184" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">10ms</text>
+              <text x="440" y="184" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">50ms</text>
+              <text x="664" y="184" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">100ms+</text>
+
+              <!-- Distribution Shading & Curve -->
+              <path d="M 64 168 Q 112 40 144 48 T 200 132 Q 260 160 440 166 L 704 167 L 704 168 Z" fill="rgba(45,49,66,0.05)"/>
+              <path d="M 64 168 Q 112 40 144 48 T 200 132 Q 260 160 440 166 L 704 167" fill="none" stroke="var(--diagram-ink)" stroke-width="1.5"/>
+
+              <!-- Milestone Vertical Markers -->
+              <!-- P50 Median (Greenish / Muted) -->
+              <line x1="144" y1="48" x2="144" y2="168" stroke="var(--diagram-muted)" stroke-width="1.2" stroke-dasharray="4,3"/>
+              <rect x="124" y="24" width="40" height="16" rx="2" fill="var(--diagram-paper)" stroke="var(--diagram-muted)" stroke-width="0.8"/>
+              <text x="144" y="35" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle">P50: 1.5ms</text>
+
+              <!-- P90 -->
+              <line x1="240" y1="144" x2="240" y2="168" stroke="var(--diagram-soft)" stroke-width="1" stroke-dasharray="3,2"/>
+              <rect x="220" y="124" width="40" height="14" rx="2" fill="var(--diagram-paper)" stroke="var(--diagram-soft)" stroke-width="0.8"/>
+              <text x="240" y="134" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">P90: 12ms</text>
+
+              <!-- P99 (Accent Focal Marker) -->
+              <line x1="440" y1="156" x2="440" y2="168" stroke="var(--diagram-accent)" stroke-width="1.2"/>
+              <rect x="420" y="136" width="40" height="14" rx="2" fill="var(--diagram-paper)" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+              <text x="440" y="146" fill="var(--diagram-accent)" font-size="7.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle">P99: 45ms</text>
+
+              <!-- P99.9 Tail Region Highlight -->
+              <rect x="624" y="152" width="80" height="16" fill="var(--diagram-accent-tint)" stroke="var(--diagram-accent)" stroke-width="0.8" rx="2"/>
+              <text x="664" y="163" fill="var(--diagram-accent)" font-size="7.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle">P99.9 TAIL CLIFF</text>
+
+              <!-- Editorial Aside Callout in Instrument Serif Italic -->
+              <text x="480" y="80" fill="var(--diagram-ink)" font-size="14" font-style="italic" font-family="'Instrument Serif', Georgia, serif">
+                "The 0.1% tail generates 1,000 slow queries/min
+              </text>
+              <text x="480" y="98" fill="var(--diagram-ink)" font-size="14" font-style="italic" font-family="'Instrument Serif', Georgia, serif">
+                under a standard 1,000,000 QPM load."
+              </text>
+              <path d="M 470 88 H 448" fill="none" stroke="var(--diagram-accent)" stroke-width="1" stroke-dasharray="3,2"/>
+
+              <!-- Bottom Legend Strip -->
+              <line x1="24" y1="200" x2="716" y2="200" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <text x="24" y="214" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" letter-spacing="0.14em">DISTRIBUTION LEGEND</text>
+              <line x1="160" y1="210" x2="184" y2="210" stroke="var(--diagram-muted)" stroke-width="1.2" stroke-dasharray="4,3"/>
+              <text x="192" y="213" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">MEDIAN OPERATIONAL BASELINE</text>
+              <line x1="420" y1="210" x2="444" y2="210" stroke="var(--diagram-accent)" stroke-width="1.2"/>
+              <text x="452" y="213" fill="var(--diagram-accent)" font-size="8" font-family="'Geist Mono', monospace">TAIL PERF THRESHOLD</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Interactive Tail Latency Simulator -->
+        <div class="interactive-container">
+          <div class="interactive-label">Interactive Tail Latency &amp; Scale Simulator</div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Assume your application database handles <strong>1,000,000 queries per minute</strong> (typical for a growing platform). Adjust the percentile slider to reveal the hidden volume of slow queries and their system impact:
+          </p>
+
+          <div class="slider-wrap">
+            <div class="slider-control">
+              <label for="percentile-slider" style="font-size: 0.85rem; font-weight: 600;">Percentile Threshold:</label>
+              <input type="range" id="percentile-slider" min="50" max="99.9" step="0.1" value="99.0" oninput="updateTailSimulator(this.value)">
+              <span class="slider-val" id="slider-display">P99.0</span>
+            </div>
+
+            <div class="metric-readout-grid">
+              <div class="metric-stat">
+                <div class="stat-label">Faster Requests</div>
+                <div class="stat-value" id="stat-faster">990,000</div>
+              </div>
+              <div class="metric-stat">
+                <div class="stat-label">Slow Queries / Min</div>
+                <div class="stat-value" style="color: var(--accent);" id="stat-slower">10,000</div>
+              </div>
+              <div class="metric-stat">
+                <div class="stat-label">Slow Queries / Sec</div>
+                <div class="stat-value" style="color: #b91c1c;" id="stat-per-sec">166.7 /s</div>
+              </div>
+            </div>
+
+            <div id="sim-scenario-box" style="background: var(--surface-subtle); padding: 0.85rem 1rem; border-radius: 4px; border: 1px solid var(--border); font-size: 0.85rem; line-height: 1.5;">
+              At <strong>P99.0</strong>, 1% of your traffic exceeds your target response time. That means <strong>10,000 queries every minute</strong> (over 160 every second) are suffering from latency spikes, table scans, or lock contention.
+            </div>
+          </div>
+        </div>
+
+        <div class="steps-container">
+          <div class="step-card">
+            <div class="step-index">1</div>
+            <div class="step-body">
+              <h4>Establish Baseline P50 (OLTP Target: &le; 2ms)</h4>
+              <p>For transactional workloads executing indexed point lookups by primary key, the median query time should remain near 1 millisecond.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">2</div>
+            <div class="step-body">
+              <h4>Measure P99 Tail Contention</h4>
+              <p>Examine queries exceeding the 99th percentile. These identify missing composite indexes, lock wait timeouts, or un-cached hot keys.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">3</div>
+            <div class="step-body">
+              <h4>Audit P99.9 Catastrophic Outliers</h4>
+              <p>Isolate the 0.1% extreme outliers. In high-throughput clusters, a single 10-second unindexed query can consume worker threads and cascade failure to the entire connection pool.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <div class="example-title">Point Lookup by Primary Key</div>
+            <p class="example-desc">Fetching user profile `id=4521` utilizes a B-Tree index lookup. It executes in 0.8ms, comfortably residing beneath the P50 mark.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <div class="example-title">The Power-Buyer Cart Stall</div>
+            <p class="example-desc">A business customer with 40,000 wholesale items checks out. Even though 99.9% of users checkout in 150ms, this high-value customer hits the P99.9 wall and times out.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <div class="example-title">Head-of-Line Queue Blocking</div>
+            <p class="example-desc">An accidental full-table scan query on a multi-gigabyte table monopolizes an OLTP database connection for 12 seconds, backing up 500 fast queries waiting in queue.</p>
+          </div>
+        </div>
+
+        <div class="analogy-card">
+          <div class="analogy-title">Visual Analogy</div>
+          <p class="analogy-body">
+            Imagine an airport security line where the average processing time is 45 seconds. If the 99th percentile is 40 minutes because luggage inspection searches 1 bag in 100 with manual disassembly, missing your flight depends entirely on whether you are stuck behind that single uninspected suitcase.
+          </p>
+        </div>
+
+        <div class="misconception-card">
+          <div class="misconception-header">
+            <span>❌</span> Common Misconception: "If P99 Looks Acceptable, We Can Safely Ignore the Rest"
+          </div>
+          <p class="misconception-text">
+            Teams often believe that satisfying an SLA at the 99th percentile means their application is healthy and no further investigation is needed.
+          </p>
+          <p class="correction-text">
+            At high query volumes (e.g. 2 million QPM), a P99 threshold ignores 20,000 degraded queries every minute. If those queries represent critical payment processing or checkout steps, the business suffers substantial revenue loss despite looking green on standard SLA dashboards.
+          </p>
+        </div>
+
+        <div class="why-it-matters">
+          <div class="why-title">Why This Matters</div>
+          Distinguishing OLTP workloads (sub-millisecond point queries) from OLAP analytics workloads (large scans and aggregations) establishes clear performance budgets and prevents runaway queries from poisoning transactional health.
+        </div>
+
+        <a href="#module-3" class="inter-link">Next: Explore the declarative engine behind query efficiency &rarr;</a>
+      </section>
+
+      <!-- MODULE 3 -->
+      <section id="module-3" class="lesson-module">
+        <span class="module-badge">Module 03</span>
+        <h2>Imperative Traversal vs. Declarative SQL &amp; The Optimizer</h2>
+
+        <!-- DEFINITIONS PANEL FOR MODULE 3 -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span class="definitions-title">Core Definitions &amp; Mental Models</span>
+          </div>
+          <div class="definitions-grid">
+            <div class="def-item">
+              <div class="def-term">Declarative Query Language <span class="def-pronounce">[dih-klair-uh-tiv]</span></div>
+              <div class="def-meaning">A paradigm (such as SQL) where you specify <em>what</em> data you require without describing <em>how</em> to physically retrieve it. The database engine calculates the most efficient execution plan.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Imperative Traversal <span class="def-pronounce">[im-pair-uh-tiv truh-vur-suhl]</span></div>
+              <div class="def-meaning">A procedural programming approach where the developer explicitly writes step-by-step cursor loops, pointer chasing, and manual in-memory filtering, binding execution to a specific algorithmic path.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Cost-Based Query Optimizer (CBO) <span class="def-pronounce">[kost bayst op-tuh-mahy-zer]</span></div>
+              <div class="def-meaning">The internal relational engine component that inspects table statistics, row counts, and index selectivity to determine the lowest I/O and CPU cost execution plan.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">B-Tree Index <span class="def-pronounce">[bee-tree in-deks]</span></div>
+              <div class="def-meaning">A self-balancing search tree data structure optimized for block storage, enabling logarithmic $O(\log N)$ point lookups and ordered sequential range scans.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            To appreciate why relational databases and SQL dominate modern software, you must examine the historical dilemma they resolved. In early computing during the 1960s and 1970s, databases adhered primarily to the <strong>hierarchical model</strong> (typified by IBM IMS) or the CODASYL <strong>network model</strong>. In these systems, querying was an explicitly <em>imperative</em> process. If you needed to retrieve specific records, you wrote procedural code that navigated physical memory pointers and traversed linked trees record by record.
+          </p>
+          <p>
+            Consider a database containing animal taxonomy. To find all records belonging to the shark family in an imperative system, you had to manually code a loop: initialize an iterator, step through every record, evaluate if <code class="inline-code">record.family == 'sharks'</code>, append matching records to an in-memory list, and manage disk cursor positions. This approach suffers from a catastrophic flaw: the developer is forced to hardcode the <em>execution algorithm</em>. If the table grows from ten thousand rows to ten billion rows, your imperative procedural loop degrades into a grueling $O(N)$ full table scan unless you manually refactor your code to construct and traverse a bespoke index.
+          </p>
+          <p>
+            In 1970, Edgar Codd proposed the relational model, pioneering a <strong>declarative querying paradigm</strong>. In declarative SQL, you state only <em>what</em> data you require (<code class="inline-code">SELECT * FROM animals WHERE family = 'sharks'</code>), never <em>how</em> to retrieve it. This separation of logical intent from physical execution delegates optimization to the <strong>cost-based query optimizer</strong>. The database engine maintains statistical histograms of row distribution, evaluates existing B-Tree indexes, and automatically chooses between index seeks, nested loop joins, hash joins, or merge joins. If hardware or table sizes change, the optimizer automatically adapts the execution plan without requiring a single line of application code to be rewritten.
+          </p>
+        </div>
+
+        <!-- DIAGRAM 3.1: PROCESS / PIPELINE TYPE (Diagram Design Grammar) -->
+        <div class="diagram-panel">
+          <div class="diagram-title-bar">
+            <span class="diagram-title">Figure 3.1: Imperative Procedural Loop vs. Declarative Optimizer Pipeline</span>
+            <div class="diagram-controls">
+              <button class="ctrl-btn" id="anim-play-btn" onclick="toggleOptimizerAnim()">Play Execution</button>
+              <button class="ctrl-btn" onclick="resetOptimizerAnim()">Reset</button>
+            </div>
+          </div>
+          <div class="svg-container">
+            <!-- 4px grid: 740x240. Strict orthogonal connectors, Geist typography, masked labels -->
+            <svg id="optimizer-svg" class="editorial-diagram" viewBox="0 0 740 240" role="img" aria-label="Imperative traversal versus Declarative query optimizer pipeline">
+              <!-- Ground -->
+              <rect width="740" height="240" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-rule)" stroke-width="1"/>
+
+              <!-- Left Side: Imperative Procedural Container -->
+              <rect x="16" y="24" width="340" height="184" rx="8" fill="rgba(45,49,66,0.02)" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <rect x="24" y="28" width="80" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="64" y="37" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.1em">IMPERATIVE</text>
+
+              <text x="32" y="60" fill="var(--diagram-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Manual Cursor Traversal</text>
+              <text x="32" y="80" fill="var(--diagram-muted)" font-size="9.5" font-family="'Geist Mono', monospace">for r in table.all():</text>
+              <text x="48" y="96" fill="var(--diagram-muted)" font-size="9.5" font-family="'Geist Mono', monospace">if r.family == 'sharks':</text>
+              <text x="64" y="112" fill="var(--diagram-muted)" font-size="9.5" font-family="'Geist Mono', monospace">results.append(r)</text>
+
+              <!-- Animated pointer & scan bar -->
+              <circle id="imp-cursor" cx="48" cy="144" r="6" fill="#b91c1c"/>
+              <text id="imp-status" x="64" y="148" fill="var(--diagram-ink)" font-size="10" font-family="'Geist Mono', monospace">Row 1 of 1,000,000...</text>
+
+              <rect x="32" y="168" width="308" height="20" rx="4" fill="var(--surface)" stroke="var(--diagram-rule)" stroke-width="1"/>
+              <rect id="imp-prog-bar" x="32" y="168" width="24" height="20" rx="4" fill="#b91c1c" opacity="0.25"/>
+              <text x="186" y="182" fill="var(--diagram-muted)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Full Scan: O(N) Disk Reads</text>
+
+              <!-- Right Side: Declarative Optimizer Pipeline Container -->
+              <rect x="376" y="24" width="348" height="184" rx="8" fill="rgba(45,49,66,0.02)" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <rect x="384" y="28" width="88" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="428" y="37" fill="var(--diagram-accent)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.1em">DECLARATIVE CBO</text>
+
+              <text x="392" y="56" fill="var(--diagram-ink)" font-size="11" font-weight="600" font-family="'Geist Mono', monospace">SELECT * FROM animals WHERE family = 'sharks'</text>
+
+              <!-- Orthogonal Pipeline Stages -->
+              <!-- Stage 1: Parser -->
+              <g transform="translate(392, 72)">
+                <rect x="0" y="0" width="88" height="48" rx="6" fill="var(--surface)" stroke="var(--diagram-muted)" stroke-width="1"/>
+                <rect x="6" y="6" width="28" height="10" rx="2" fill="none" stroke="var(--diagram-muted)" stroke-width="0.8" opacity="0.5"/>
+                <text x="20" y="14" fill="var(--diagram-muted)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">AST</text>
+                <text x="44" y="32" fill="var(--diagram-ink)" font-size="10.5" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Parser</text>
+                <text x="44" y="42" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Syntax Tree</text>
+              </g>
+
+              <!-- Connector 1->2 -->
+              <path d="M 480 96 H 508" fill="none" stroke="var(--diagram-muted)" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+
+              <!-- Stage 2: Cost Optimizer (Focal Node) -->
+              <g transform="translate(508, 72)">
+                <rect x="0" y="0" width="96" height="48" rx="6" fill="var(--diagram-accent-tint)" stroke="var(--diagram-accent)" stroke-width="1.2"/>
+                <rect x="6" y="6" width="36" height="10" rx="2" fill="none" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+                <text x="24" y="14" fill="var(--diagram-accent)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">PLANNER</text>
+                <text x="48" y="32" fill="var(--diagram-ink)" font-size="10.5" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Cost CBO</text>
+                <text x="48" y="42" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Statistics</text>
+              </g>
+
+              <!-- Connector 2->3 -->
+              <path d="M 604 96 H 628" fill="none" stroke="var(--diagram-accent)" stroke-width="1.2" marker-end="url(#dd-arrow-accent)"/>
+
+              <!-- Stage 3: Index Seek -->
+              <g transform="translate(628, 72)">
+                <rect x="0" y="0" width="84" height="48" rx="6" fill="var(--surface)" stroke="var(--diagram-ink)" stroke-width="1"/>
+                <rect x="6" y="6" width="32" height="10" rx="2" fill="none" stroke="var(--diagram-ink)" stroke-width="0.8" opacity="0.4"/>
+                <text x="22" y="14" fill="var(--diagram-ink)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">INDEX</text>
+                <text x="42" y="32" fill="var(--diagram-ink)" font-size="10.5" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">B-Tree</text>
+                <text x="42" y="42" fill="var(--diagram-soft)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">O(log N)</text>
+              </g>
+
+              <!-- Declarative Result Box -->
+              <rect x="392" y="144" width="320" height="44" rx="4" fill="var(--surface)" stroke="var(--diagram-rule)" stroke-width="1"/>
+              <text x="408" y="162" fill="#047857" font-size="10.5" font-weight="600" font-family="'Geist Mono', monospace">✓ OPTIMAL EXECUTION PLAN SELECTED</text>
+              <text x="408" y="178" fill="var(--diagram-muted)" font-size="9" font-family="'Geist Mono', monospace">Index seek executes in 0.38ms (skipping 999,958 rows)</text>
+
+              <!-- Bottom Legend Strip -->
+              <line x1="24" y1="220" x2="716" y2="220" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <text x="24" y="232" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+              <rect x="96" y="226" width="10" height="6" rx="2" fill="#b91c1c" opacity="0.5"/>
+              <text x="112" y="232" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">PROCEDURAL TABLE SCAN</text>
+              <rect x="270" y="226" width="10" height="6" rx="2" fill="var(--diagram-accent-tint)" stroke="var(--diagram-accent)" stroke-width="1"/>
+              <text x="286" y="232" fill="var(--diagram-accent)" font-size="8" font-family="'Geist Mono', monospace">COST-BASED OPTIMIZATION</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Interactive ORM Flashcard -->
+        <div class="interactive-container">
+          <div class="interactive-label">Interactive Conceptual Recall: The ORM Dilemma</div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            Click the card to toggle between developer productivity advantages and hidden execution traps of ORMs (Prisma, Drizzle, ActiveRecord):
+          </p>
+          <div class="flashcard-wrap" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="flashcard-front">
+                <span class="card-prompt">Productivity Promise</span>
+                <div class="card-text">Why do engineering teams default to Object-Relational Mappers?</div>
+                <span style="font-size: 0.75rem; color: var(--accent); margin-top: 0.5rem;">Click to reveal the architectural tradeoff &rarr;</span>
+              </div>
+              <div class="flashcard-back">
+                <span class="card-prompt">The Optimizer Trap</span>
+                <div class="card-text" style="font-size: 0.95rem; font-weight: 400; line-height: 1.45;">
+                  ORMs deliver type safety, migration tooling, and rapid prototyping. However, they frequently generate overly verbose SQL, trigger accidental N+1 query cascades, and prevent the database optimizer from leveraging covering indexes. Performance hot paths still require raw, hand-tuned SQL.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="steps-container">
+          <div class="step-card">
+            <div class="step-index">1</div>
+            <div class="step-body">
+              <h4>Write the Semantic Intent</h4>
+              <p>Declare the required dataset using SQL clauses (<code class="inline-code">SELECT</code>, <code class="inline-code">WHERE</code>, <code class="inline-code">JOIN</code>) without dictating traversal order.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">2</div>
+            <div class="step-body">
+              <h4>Optimizer Evaluates Statistical Cardinality</h4>
+              <p>The engine consults table metadata: row counts, index distributions, and column value uniqueness to generate candidate execution plans.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">3</div>
+            <div class="step-body">
+              <h4>Physical Execution Selection</h4>
+              <p>The optimizer calculates estimated disk I/O and CPU cost, selecting an index range scan over an expensive table scan automatically.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <div class="example-title">Filtering by Indexed Foreign Key</div>
+            <p class="example-desc"><code class="inline-code">WHERE user_id = 9021</code> utilizes the secondary B-Tree index, completing in microsecond time rather than evaluating millions of rows.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <div class="example-title">Optimizer Ignores Your Index</div>
+            <p class="example-desc">If an index matches 80% of the table's rows, the cost optimizer intentionally skips the index and performs a sequential scan because random index lookups would cost more I/O.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <div class="example-title">Filter Order Insignificance</div>
+            <p class="example-desc">In SQL, writing <code class="inline-code">WHERE A AND B</code> produces the exact same execution plan as <code class="inline-code">WHERE B AND A</code> because the optimizer reorders predicates by selectivity.</p>
+          </div>
+        </div>
+
+        <div class="analogy-card">
+          <div class="analogy-title">Visual Analogy</div>
+          <p class="analogy-body">
+            Imperative programming is like giving turn-by-turn driving directions written in 1985 ("drive 4 miles, turn left at the red barn"). Declarative SQL is telling GPS navigation "take me to the airport." The GPS (the optimizer) checks live traffic, road closures, and speed limits to determine the fastest route in real time.
+          </p>
+        </div>
+
+        <div class="misconception-card">
+          <div class="misconception-header">
+            <span>❌</span> Common Misconception: "SQL Queries Execute in the Order They Are Written"
+          </div>
+          <p class="misconception-text">
+            Many engineers believe that placing the most restrictive filter first in a SQL <code class="inline-code">WHERE</code> clause forces the database to evaluate that condition first.
+          </p>
+          <p class="correction-text">
+            Declarative languages do not dictate execution sequence. The relational optimizer parses your entire query into a relational algebra tree, evaluates index statistics, and reorders joins and filters based on mathematical selectivity estimates, completely ignoring source code order.
+          </p>
+        </div>
+
+        <div class="why-it-matters">
+          <div class="why-title">Why This Matters</div>
+          Relying on a declarative optimizer allows your storage infrastructure and index configurations to evolve without invalidating application business logic.
+        </div>
+
+        <a href="#module-4" class="inter-link">Next: Analyze physical storage mechanics in Document vs. Relational models &rarr;</a>
+      </section>
+
+      <!-- MODULE 4 -->
+      <section id="module-4" class="lesson-module">
+        <span class="module-badge">Module 04</span>
+        <h2>Relational vs. Document Models: Data Locality &amp; Disk I/O</h2>
+
+        <!-- DEFINITIONS PANEL FOR MODULE 4 -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span class="definitions-title">Core Definitions &amp; Mental Models</span>
+          </div>
+          <div class="definitions-grid">
+            <div class="def-item">
+              <div class="def-term">Data Locality (Physical Storage Locality) <span class="def-pronounce">[dey-tuh loh-kal-i-tee]</span></div>
+              <div class="def-meaning">Storing logically related entities in contiguous bytes on physical disk sectors or in contiguous memory pages, allowing complete payloads to be fetched in a single sequential I/O read.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Random vs. Sequential Disk I/O <span class="def-pronounce">[ran-duhm / sih-kwen-shuhl ahy-oh]</span></div>
+              <div class="def-meaning">Sequential I/O reads continuous adjacent disk blocks at peak hardware bus bandwidth. Random I/O forces storage controllers or read heads to jump between scattered blocks, incurring high latency penalties.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">IOPS (Input/Output Operations Per Second) <span class="def-pronounce">[eye-ops]</span></div>
+              <div class="def-meaning">The operational throughput limit of a storage device (e.g. AWS EBS gp3 volumes). Performing multiple scattered disk reads consumes provisioned IOPS budgets rapidly.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Document Store (Document Database) <span class="def-pronounce">[dok-yuh-muhnt stohr]</span></div>
+              <div class="def-meaning">A database model (e.g. MongoDB, Couchbase) that stores data as self-contained tree structures (JSON/BSON), prioritizing single-entity read locality over relational normalization.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            The debate between relational databases (MySQL, PostgreSQL) and document databases (such as MongoDB or Couchbase) is frequently misunderstood as a mere dispute over JSON syntax versus SQL tables. In reality, the fundamental distinction is physical: <strong>data locality on disk</strong> versus <strong>normalization integrity</strong>.
+          </p>
+          <p>
+            Consider a typical social resume application such as a LinkedIn user profile. When a user requests their profile page, the application needs their personal identity, work history, educational degrees, professional recommendations, and industry awards. In a document database, this entire structure can be embedded into a single self-contained JSON document. When the application server requests this profile, the database executes a single primary key lookup and retrieves all required data in <strong>one contiguous disk I/O operation</strong> (or a handful of sequential page reads).
+          </p>
+          <p>
+            In a normalized relational database, this data is structured across multiple tables: <code class="inline-code">users</code>, <code class="inline-code">employment</code>, <code class="inline-code">education</code>, <code class="inline-code">recommendations</code>, and <code class="inline-code">awards</code>, joined together by foreign keys. Fetching this information requires joining across five distinct tables. Unless those rows happen to be pre-cached in RAM buffer pools, the database engine must issue multiple separate disk seek requests across disparate disk blocks. In the era of mechanical spinning hard disks (HDDs), each random seek incurred a severe 5 to 10 millisecond physical head movement penalty. Even in modern NVMe SSD and cloud EBS environments, multiplying I/O operations directly inflates latency and consumes provisioned IOPS budgets.
+          </p>
+        </div>
+
+        <!-- DIAGRAM 4.1: STORAGE LOCALITY (Diagram Design Grammar) -->
+        <div class="diagram-panel">
+          <div class="diagram-title-bar">
+            <span class="diagram-title">Figure 4.1: Storage Locality: Contiguous Document vs. Fragmented Joins</span>
+            <div class="diagram-controls">
+              <button class="ctrl-btn" id="btn-model-doc" style="background: var(--diagram-accent); color: white; border-color: var(--diagram-accent);" onclick="setStorageModel('doc')">Document Model</button>
+              <button class="ctrl-btn" id="btn-model-rel" onclick="setStorageModel('rel')">Normalized Relational</button>
+            </div>
+          </div>
+          <div class="svg-container">
+            <!-- 4px grid: 740x224. Strict orthogonal alignment, Geist typography -->
+            <svg id="disk-svg" class="editorial-diagram" viewBox="0 0 740 224" role="img" aria-label="Physical Disk Sectors: Document Locality vs Relational Fragmentation">
+              <!-- Ground -->
+              <rect width="740" height="224" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-rule)" stroke-width="1"/>
+
+              <!-- Physical Disk Track Representation -->
+              <rect x="24" y="28" width="692" height="48" rx="6" fill="var(--diagram-paper-2)" stroke="var(--diagram-rule-solid)" stroke-width="1"/>
+              <text x="36" y="20" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" letter-spacing="0.14em">PHYSICAL DISK SECTORS (BLOCK ADDRESS SPACE)</text>
+
+              <!-- Document Model State -->
+              <g id="disk-doc-blocks">
+                <rect x="48" y="32" width="256" height="40" rx="4" fill="var(--diagram-accent-tint)" stroke="var(--diagram-accent)" stroke-width="1.2"/>
+                <text x="176" y="56" fill="var(--diagram-accent)" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">User 101 Document (Profile + Jobs + Degrees)</text>
+
+                <!-- Single Read Seek Connector -->
+                <path d="M 176 136 V 78" fill="none" stroke="var(--diagram-accent)" stroke-width="1.5" marker-end="url(#dd-arrow-accent)"/>
+                <rect x="100" y="136" width="152" height="40" rx="4" fill="var(--surface)" stroke="var(--diagram-accent)" stroke-width="1"/>
+                <text x="176" y="152" fill="var(--diagram-accent)" font-size="10.5" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">1 Sequential Read Seek</text>
+                <text x="176" y="166" fill="var(--diagram-muted)" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">Entire entity loaded in 1 I/O pass</text>
+              </g>
+
+              <!-- Relational Model State (Hidden initially) -->
+              <g id="disk-rel-blocks" style="display: none;">
+                <rect x="48" y="32" width="88" height="40" rx="4" fill="rgba(46,90,168,0.12)" stroke="var(--diagram-link)" stroke-width="1"/>
+                <text x="92" y="56" fill="var(--diagram-link)" font-size="10" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">users (row)</text>
+
+                <rect x="200" y="32" width="112" height="40" rx="4" fill="rgba(46,90,168,0.12)" stroke="var(--diagram-link)" stroke-width="1"/>
+                <text x="256" y="56" fill="var(--diagram-link)" font-size="10" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">employment</text>
+
+                <rect x="384" y="32" width="96" height="40" rx="4" fill="rgba(46,90,168,0.12)" stroke="var(--diagram-link)" stroke-width="1"/>
+                <text x="432" y="56" fill="var(--diagram-link)" font-size="10" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">education</text>
+
+                <rect x="560" y="32" width="128" height="40" rx="4" fill="rgba(46,90,168,0.12)" stroke="var(--diagram-link)" stroke-width="1"/>
+                <text x="624" y="56" fill="var(--diagram-link)" font-size="10" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">recommendations</text>
+
+                <!-- 4 Disparate Read Seek Connectors -->
+                <path d="M 92 128 V 78 M 256 128 V 78 M 432 128 V 78 M 624 128 V 78" fill="none" stroke="#b91c1c" stroke-width="1.2" stroke-dasharray="3,2"/>
+                <rect x="256" y="136" width="228" height="40" rx="4" fill="var(--surface)" stroke="#b91c1c" stroke-width="1"/>
+                <text x="370" y="152" fill="#b91c1c" font-size="10.5" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">4 Random Disk Page Seeks</text>
+                <text x="370" y="166" fill="var(--diagram-muted)" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">Traverses distinct indexes &amp; fragmented pages</text>
+              </g>
+
+              <!-- Bottom Legend Strip -->
+              <line x1="24" y1="200" x2="716" y2="200" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <text x="24" y="214" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" letter-spacing="0.14em">STORAGE METRIC</text>
+              <text x="140" y="214" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">SEQUENTIAL ACCESS SPEED: ~500 MB/s</text>
+              <text x="400" y="214" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">RANDOM 4KB SEEK SPEED: ~15-40 MB/s (HDD PENALTY 10ms)</text>
+            </svg>
+          </div>
+          <div id="storage-readout" style="background: var(--surface-subtle); padding: 0.85rem; border-radius: 4px; border: 1px solid var(--border); font-size: 0.85rem; margin-top: 0.75rem;">
+            <strong>Document Locality Benefit:</strong> Because all personal data resides in contiguous bytes, the database pulls the entire entity into memory with 1 single sequential I/O read. Highly efficient when entities are viewed as self-contained units.
+          </div>
+        </div>
+
+        <div class="steps-container">
+          <div class="step-card">
+            <div class="step-index">1</div>
+            <div class="step-body">
+              <h4>Analyze Access Patterns</h4>
+              <p>Determine whether child entities (e.g. user job items) are ever accessed independently of the root document.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">2</div>
+            <div class="step-body">
+              <h4>Evaluate Disk Seek Overhead</h4>
+              <p>Quantify the I/O cost of joining fragmented tables versus loading a single aggregated payload into memory.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">3</div>
+            <div class="step-body">
+              <h4>Identify Many-to-Many Relationships</h4>
+              <p>Recognize when data requires cross-entity references (e.g. shared company profiles), which breaks pure document locality.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <div class="example-title">User Resume Profile Rendering</div>
+            <p class="example-desc">Loading an individual's personal CV in a document store fetches education, jobs, and bio in a single index lookup without joins.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <div class="example-title">SSD Random Access Penalty</div>
+            <p class="example-desc">While SSDs lack spinning mechanical arms, random block reads still incur CPU interrupt and memory bus overhead, making sequential locality faster even on NVMe drives.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <div class="example-title">Document Size Growth &amp; Page Fragmentation</div>
+            <p class="example-desc">When an embedded document exceeds the database page size (e.g. 4KB/16KB), the document database must allocate overflow pages, destroying locality benefits.</p>
+          </div>
+        </div>
+
+        <div class="analogy-card">
+          <div class="analogy-title">Visual Analogy</div>
+          <p class="analogy-body">
+            A document store is like a physical Manila folder containing an employee's resume, tax forms, and references stapled together. You grab one folder and have everything. A relational database is an indexed filing room where tax forms are in Cabinet A, resumes in Cabinet B, and references in Cabinet C. You must make four trips, but each form is neatly cataloged without duplicate paper.
+          </p>
+        </div>
+
+        <div class="misconception-card">
+          <div class="misconception-header">
+            <span>❌</span> Common Misconception: "Document Databases Are Always Faster Than Relational Databases"
+          </div>
+          <p class="misconception-text">
+            Developers often claim document databases are inherently superior in speed because they avoid costly SQL joins.
+          </p>
+          <p class="correction-text">
+            Document databases are only faster when access patterns match document boundaries. If you need to query across entities (e.g., "list all employees who attended Harvard graduating in 2018 across all companies"), a document store must execute costly collection scans or application-side joins, whereas relational indexes answer the query instantly.
+          </p>
+        </div>
+
+        <div class="why-it-matters">
+          <div class="why-title">Why This Matters</div>
+          Selecting between relational and document structures is a physical engineering decision: optimize for single-entity read locality or optimize for multi-entity relational integrity.
+        </div>
+
+        <a href="#module-5" class="inter-link">Next: Analyze schema enforcement and data duplication costs &rarr;</a>
+      </section>
+
+      <!-- MODULE 5 -->
+      <section id="module-5" class="lesson-module">
+        <span class="module-badge">Module 05</span>
+        <h2>Schema-on-Write vs. Schema-on-Read &amp; Normalization Friction</h2>
+
+        <!-- DEFINITIONS PANEL FOR MODULE 5 -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span class="definitions-title">Core Definitions &amp; Mental Models</span>
+          </div>
+          <div class="definitions-grid">
+            <div class="def-item">
+              <div class="def-term">Schema-on-Write <span class="def-pronounce">[skee-muh on rahyt]</span></div>
+              <div class="def-meaning">The traditional relational approach where database schemas, column data types, foreign keys, and constraints are explicitly declared and enforced at insert/update time, rejecting invalid records before storage.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Schema-on-Read <span class="def-pronounce">[skee-muh on reed]</span></div>
+              <div class="def-meaning">The document approach where data is written without structural enforcement. The schema is implicit and interpreted dynamically by application code during read/parse operations.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Write Amplification <span class="def-pronounce">[rahyt am-pluh-fuh-key-shuhn]</span></div>
+              <div class="def-meaning">The ratio of physical data written to disk relative to the logical change requested. In denormalized models, updating one company name requires updating thousands of individual documents.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Normalization (3NF) <span class="def-pronounce">[nawr-muh-luh-zey-shuhn]</span></div>
+              <div class="def-meaning">Structuring relational tables to eliminate redundancy and prevent anomalies by ensuring non-key attributes depend only on the primary key, establishing single sources of truth.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            While document databases offer physical data locality for tree-structured records, they introduce severe architectural friction when entities interact in many-to-one or many-to-many relationships. This brings us to the crucial contrast between <strong>Schema-on-Write</strong> (relational normalization) and <strong>Schema-on-Read</strong> (document schemalessness).
+          </p>
+          <p>
+            Consider what happens when 100,000 employees on LinkedIn list their employer as "Microsoft". In a pure document model, the literal text string <code class="inline-code">"Microsoft"</code>, along with its corporate logo URL and headquarters location, is copied verbatim into 100,000 individual user documents. If Microsoft undergoes a corporate rebrand or updates its official domain, the database cannot perform a single atomic update. Instead, the application must initiate an expensive batch write job to mutate 100,000 separate documents, risking write conflicts, partial failures, and data drift.
+          </p>
+          <p>
+            In a normalized relational model, the <code class="inline-code">companies</code> table stores a single row representing Microsoft with primary key <code class="inline-code">id = 42</code>. The 100,000 rows in the <code class="inline-code">employment</code> table simply reference <code class="inline-code">company_id = 42</code>. Updating the company name requires a single atomic write: <code class="inline-code">UPDATE companies SET name = 'Microsoft Corp' WHERE id = 42;</code>. Schema-on-write enforces structural validity, type safety, and relational constraints at the database boundary, ensuring bad data cannot be persisted. Meanwhile, modern relational engines provide native <code class="inline-code">JSON</code> and <code class="inline-code">JSONB</code> columns, allowing teams to store semi-structured attributes without forfeiting relational guarantees.
+          </p>
+        </div>
+
+        <!-- DIAGRAM 5.1: DATABASE SCHEMA TYPE (Diagram Design Grammar per type-db-schema.md) -->
+        <div class="diagram-panel">
+          <div class="diagram-title-bar">
+            <span class="diagram-title">Figure 5.1: Database Physical Schema &amp; FK Normalization Topology</span>
+          </div>
+          <div class="svg-container">
+            <!-- 4px grid: 740x240. 24px column rows, column-to-column FK routing, constraint chips -->
+            <svg class="editorial-diagram" viewBox="0 0 740 240" role="img" aria-label="Physical Database Schema Diagram showing users, employment, and companies tables with FK constraints">
+              <defs>
+                <marker id="fk-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-link)"/>
+                </marker>
+                <marker id="fk-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-accent)"/>
+                </marker>
+              </defs>
+
+              <!-- Ground -->
+              <rect width="740" height="240" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-rule)" stroke-width="1"/>
+
+              <!-- Foreign Key Connectors (Drawn BEFORE tables to sit behind nodes) -->
+              <!-- FK: employment.user_id (row 2, y=88+12=100) -> users.id (row 1, y=40+12=52) -->
+              <path d="M 248 100 H 228 Q 220 100 220 92 V 60 Q 220 52 212 52 H 188" fill="none" stroke="var(--diagram-link)" stroke-width="1.2" marker-end="url(#fk-arrow)"/>
+              <rect x="200" y="70" width="40" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="220" y="79" fill="var(--diagram-link)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">FK:RESTRICT</text>
+
+              <!-- FK: employment.company_id (row 3, y=112+12=124) -> companies.id (row 1, y=40+12=52) -->
+              <path d="M 464 124 H 492 Q 500 124 500 116 V 60 Q 500 52 508 52 H 536" fill="none" stroke="var(--diagram-accent)" stroke-width="1.2" marker-end="url(#fk-arrow-accent)"/>
+              <rect x="480" y="80" width="40" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="500" y="89" fill="var(--diagram-accent)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">FK:CASCADE</text>
+
+              <!-- TABLE 1: public.users -->
+              <g transform="translate(24, 28)">
+                <rect x="0" y="0" width="164" height="120" rx="6" fill="var(--surface)" stroke="var(--diagram-ink)" stroke-width="1"/>
+                <!-- Header Band -->
+                <rect x="0" y="0" width="164" height="28" rx="6" fill="var(--surface-subtle)"/>
+                <line x1="0" y1="28" x2="164" y2="28" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+                <text x="12" y="18" fill="var(--diagram-ink)" font-size="11" font-weight="600" font-family="'Geist', sans-serif">public.users</text>
+                <rect x="124" y="8" width="32" height="12" rx="2" fill="none" stroke="var(--diagram-soft)" stroke-width="0.8"/>
+                <text x="140" y="17" fill="var(--diagram-soft)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">TABLE</text>
+                
+                <!-- Row 1: id -->
+                <text x="12" y="44" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">id</text>
+                <rect x="36" y="36" width="16" height="10" rx="2" fill="none" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+                <text x="44" y="44" fill="var(--diagram-accent)" font-size="6.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle">PK</text>
+                <text x="152" y="44" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">bigint</text>
+
+                <!-- Row 2: username -->
+                <rect x="0" y="52" width="164" height="24" fill="rgba(45,49,66,0.02)"/>
+                <text x="12" y="68" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">username</text>
+                <text x="152" y="68" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">varchar(60)</text>
+
+                <!-- Row 3: email -->
+                <text x="12" y="92" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">email</text>
+                <text x="152" y="92" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">varchar(255)</text>
+
+                <!-- Row 4: created_at -->
+                <rect x="0" y="100" width="164" height="20" fill="rgba(45,49,66,0.02)"/>
+                <text x="12" y="114" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace">+ 3 more columns</text>
+              </g>
+
+              <!-- TABLE 2: public.employment (Focal Bridge Table) -->
+              <g transform="translate(248, 48)">
+                <rect x="0" y="0" width="216" height="144" rx="6" fill="var(--surface)" stroke="var(--diagram-ink)" stroke-width="1.2"/>
+                <!-- Header Band -->
+                <rect x="0" y="0" width="216" height="28" rx="6" fill="var(--surface-subtle)"/>
+                <line x1="0" y1="28" x2="216" y2="28" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+                <text x="12" y="18" fill="var(--diagram-ink)" font-size="11" font-weight="600" font-family="'Geist', sans-serif">public.employment</text>
+                <rect x="172" y="8" width="36" height="12" rx="2" fill="none" stroke="var(--diagram-soft)" stroke-width="0.8"/>
+                <text x="190" y="17" fill="var(--diagram-soft)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">RELATION</text>
+
+                <!-- Row 1: id -->
+                <text x="12" y="44" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">id</text>
+                <rect x="36" y="36" width="16" height="10" rx="2" fill="none" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+                <text x="44" y="44" fill="var(--diagram-accent)" font-size="6.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle">PK</text>
+                <text x="204" y="44" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">bigint</text>
+
+                <!-- Row 2: user_id (FK to users) -->
+                <rect x="0" y="52" width="216" height="24" fill="rgba(45,49,66,0.02)"/>
+                <text x="12" y="68" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">user_id</text>
+                <rect x="64" y="60" width="16" height="10" rx="2" fill="none" stroke="var(--diagram-link)" stroke-width="0.8"/>
+                <text x="72" y="68" fill="var(--diagram-link)" font-size="6.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle">FK</text>
+                <text x="204" y="68" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">bigint</text>
+
+                <!-- Row 3: company_id (FK to companies) -->
+                <text x="12" y="92" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">company_id</text>
+                <rect x="88" y="84" width="16" height="10" rx="2" fill="none" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+                <text x="96" y="92" fill="var(--diagram-accent)" font-size="6.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle">FK</text>
+                <text x="204" y="92" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">bigint</text>
+
+                <!-- Row 4: custom_company_name (Nullable Override Pattern) -->
+                <rect x="0" y="100" width="216" height="24" fill="rgba(45,49,66,0.02)"/>
+                <text x="12" y="116" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">custom_name</text>
+                <rect x="96" y="108" width="24" height="10" rx="2" fill="none" stroke="var(--diagram-soft)" stroke-width="0.8"/>
+                <text x="108" y="116" fill="var(--diagram-soft)" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">NULL</text>
+                <text x="204" y="116" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">varchar(120)</text>
+
+                <!-- Row 5: title -->
+                <text x="12" y="136" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">title</text>
+                <text x="204" y="136" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">varchar(120)</text>
+              </g>
+
+              <!-- TABLE 3: public.companies (Canonical Parent Table with Accent Header) -->
+              <g transform="translate(536, 28)">
+                <rect x="0" y="0" width="180" height="120" rx="6" fill="var(--surface)" stroke="var(--diagram-accent)" stroke-width="1.2"/>
+                <!-- Accent-tinted header per focal rule -->
+                <rect x="0" y="0" width="180" height="28" rx="6" fill="var(--diagram-accent-tint)"/>
+                <line x1="0" y1="28" x2="180" y2="28" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+                <text x="12" y="18" fill="var(--diagram-accent)" font-size="11" font-weight="600" font-family="'Geist', sans-serif">public.companies</text>
+                <rect x="136" y="8" width="36" height="12" rx="2" fill="none" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+                <text x="154" y="17" fill="var(--diagram-accent)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">TARGET</text>
+
+                <!-- Row 1: id -->
+                <text x="12" y="44" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">id</text>
+                <rect x="36" y="36" width="16" height="10" rx="2" fill="none" stroke="var(--diagram-accent)" stroke-width="0.8"/>
+                <text x="44" y="44" fill="var(--diagram-accent)" font-size="6.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle">PK</text>
+                <text x="168" y="44" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">bigint</text>
+
+                <!-- Row 2: name (Single source of truth) -->
+                <rect x="0" y="52" width="180" height="24" fill="rgba(45,49,66,0.02)"/>
+                <text x="12" y="68" fill="var(--diagram-ink)" font-size="10.5" font-weight="600" font-family="'Geist', sans-serif">name</text>
+                <rect x="52" y="60" width="18" height="10" rx="2" fill="none" stroke="var(--diagram-ink)" stroke-width="0.8"/>
+                <text x="61" y="68" fill="var(--diagram-ink)" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">NN</text>
+                <text x="168" y="68" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">varchar(120)</text>
+
+                <!-- Row 3: logo_url -->
+                <text x="12" y="92" fill="var(--diagram-ink)" font-size="10.5" font-family="'Geist', sans-serif">logo_url</text>
+                <text x="168" y="92" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="end">text</text>
+
+                <!-- Row 4: website -->
+                <rect x="0" y="100" width="180" height="20" fill="rgba(45,49,66,0.02)"/>
+                <text x="12" y="114" fill="var(--diagram-soft)" font-size="9" font-family="'Geist Mono', monospace">+ 4 more columns</text>
+              </g>
+
+              <!-- Bottom Legend Strip -->
+              <line x1="24" y1="216" x2="716" y2="216" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <text x="24" y="228" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" letter-spacing="0.14em">SCHEMA LEGEND</text>
+              <line x1="120" y1="225" x2="144" y2="225" stroke="var(--diagram-accent)" stroke-width="1.2"/>
+              <text x="152" y="228" fill="var(--diagram-accent)" font-size="8" font-family="'Geist Mono', monospace">FOREIGN KEY REFERENCE (SINGLE SOURCE OF TRUTH)</text>
+              <text x="500" y="228" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">AVOIDS 100,000x DUPLICATE STORAGE</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Interactive Update Cost Simulator -->
+        <div class="interactive-container">
+          <div class="interactive-label">Interactive Normalization &amp; Update Cost Calculator</div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            Simulate a corporate name update across an employee workforce to contrast write amplification between Relational and Document architectures:
+          </p>
+          
+          <div class="slider-control" style="margin-bottom: 1rem;">
+            <label for="employee-slider" style="font-size: 0.85rem; font-weight: 600;">Employed Workforce:</label>
+            <input type="range" id="employee-slider" min="1000" max="200000" step="5000" value="50000" oninput="updateNormalizationCalc(this.value)">
+            <span class="slider-val" id="emp-count-display">50,000</span>
+          </div>
+
+          <div class="metric-readout-grid">
+            <div class="metric-stat">
+              <div class="stat-label">Relational DB Writes</div>
+              <div class="stat-value" style="color: #047857;">1 Row</div>
+            </div>
+            <div class="metric-stat">
+              <div class="stat-label">Document DB Writes</div>
+              <div class="stat-value" style="color: #b91c1c;" id="doc-write-count">50,000 Docs</div>
+            </div>
+            <div class="metric-stat">
+              <div class="stat-label">Duplicated String Storage</div>
+              <div class="stat-value" id="doc-bytes-wasted">~2.5 MB</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Company Name Pattern -->
+        <div class="interactive-container" style="background: var(--surface-subtle);">
+          <div class="interactive-label" style="color: var(--text);">Edge Case Pattern: The Custom Override Column</div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+            What if some employees want their resume to display "MSFT" or "Microsoft Research" instead of the standard canonical company name?
+          </p>
+          <pre class="code-block"><code>-- Clean Relational Solution: Normalization with Nullable Override
+CREATE TABLE employment (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    company_id BIGINT NOT NULL, -- Canonical foreign key reference
+    custom_company_name VARCHAR(120) NULL, -- Optional user override
+    title VARCHAR(120) NOT NULL,
+    FOREIGN KEY (company_id) REFERENCES companies(id)
+);
+
+-- Query logic selects override if present, else falls back to canonical
+SELECT COALESCE(e.custom_company_name, c.name) AS company_name, e.title
+FROM employment e
+JOIN companies c ON e.company_id = c.id
+WHERE e.user_id = 901;</code></pre>
+          <button class="copy-btn" onclick="navigator.clipboard.writeText('CREATE TABLE employment (id BIGINT PRIMARY KEY, user_id BIGINT, company_id BIGINT, custom_company_name VARCHAR(120) NULL);')">
+            <span>📋</span> Copy SQL Pattern
+          </button>
+        </div>
+
+        <div class="steps-container">
+          <div class="step-card">
+            <div class="step-index">1</div>
+            <div class="step-body">
+              <h4>Schema-on-Write (Relational)</h4>
+              <p>Schema is explicitly defined before insertion. The database validates types, uniqueness, and foreign keys, rejecting invalid data immediately.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">2</div>
+            <div class="step-body">
+              <h4>Schema-on-Read (Document)</h4>
+              <p>Schema is implicit. The database accepts arbitrary JSON structures; the application code assumes responsibility for parsing and interpreting fields at runtime.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">3</div>
+            <div class="step-body">
+              <h4>Hybrid Convergence (JSON Columns)</h4>
+              <p>Modern relational engines allow semi-structured JSON columns within normalized tables, providing document flexibility without sacrificing ACID constraints.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <div class="example-title">Bank Balance Normalization</div>
+            <p class="example-desc">Account balances and ledger transactions strictly require schema-on-write to prevent null amounts or orphaned entries from corrupting financial state.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <div class="example-title">Heterogeneous Form Fields</div>
+            <p class="example-desc">In a marketplace with 5,000 product categories (clothing vs. laptops vs. groceries), schema-on-read JSON columns prevent maintaining a sparse 500-column table.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <div class="example-title">Schema Drift in Legacy Documents</div>
+            <p class="example-desc">After 4 years of product updates, old MongoDB documents have `name: {first, last}` while new documents have `name: string`, causing runtime null pointer crashes.</p>
+          </div>
+        </div>
+
+        <div class="analogy-card">
+          <div class="analogy-title">Visual Analogy</div>
+          <p class="analogy-body">
+            Schema-on-write is like an airport boarding gate where ticket checkers verify your passport and visa before you board the plane. Schema-on-read is letting everyone board without checking tickets, leaving it up to customs officials at the arrival terminal to figure out who is authorized to enter.
+          </p>
+        </div>
+
+        <div class="misconception-card">
+          <div class="misconception-header">
+            <span>❌</span> Common Misconception: "Document Databases Are Truly Schemaless"
+          </div>
+          <p class="misconception-text">
+            Marketing materials often describe document stores as "schemaless," giving the illusion that developers no longer need to worry about schema design.
+          </p>
+          <p class="correction-text">
+            There is no such thing as an application without a schema. If the database engine does not enforce the schema, the burden simply shifts into the application code (dozens of defensive <code class="inline-code">if (doc.user && doc.user.address)</code> checks). Schema-on-read just means the schema is implicit in your code rather than explicit in your database.
+          </p>
+        </div>
+
+        <div class="why-it-matters">
+          <div class="why-title">Why This Matters</div>
+          Data often outlives application code. Explicit relational schemas protect the organization from accumulated technical debt and data corruption across years of code refactoring.
+        </div>
+
+        <a href="#module-6" class="inter-link">Next: Examine deep relationship networks and Polyglot Persistence &rarr;</a>
+      </section>
+
+      <!-- MODULE 6 -->
+      <section id="module-6" class="lesson-module">
+        <span class="module-badge">Module 06</span>
+        <h2>Graph Models, Recursive CTEs &amp; Polyglot Persistence</h2>
+
+        <!-- DEFINITIONS PANEL FOR MODULE 6 -->
+        <div class="definitions-panel">
+          <div class="definitions-header">
+            <span class="definitions-title">Core Definitions &amp; Mental Models</span>
+          </div>
+          <div class="definitions-grid">
+            <div class="def-item">
+              <div class="def-term">Property Graph Model <span class="def-pronounce">[prop-er-tee graf moh-dl]</span></div>
+              <div class="def-meaning">A data model where vertices (nodes) represent entities and directed edges (relationships) represent connections. Both nodes and edges can hold arbitrary key-value properties.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Cypher Query Language <span class="def-pronounce">[sahy-fer kwir-ee]</span></div>
+              <div class="def-meaning">A declarative graph query language (native to Neo4j) that uses visual ASCII-art pattern matching syntax (e.g. <code class="inline-code">(:Person)-[:BORN_IN]->(:Country)</code>) to traverse relationship networks.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Recursive Common Table Expression (CTE) <span class="def-pronounce">[rih-kur-siv see-tee-ee]</span></div>
+              <div class="def-meaning">A SQL query feature that self-references iteratively to traverse hierarchical or graph data across unknown depths within relational tables.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Log-Structured Merge-Tree (LSM-Tree) <span class="def-pronounce">[el-es-em tree]</span></div>
+              <div class="def-meaning">A storage engine architecture (used by ClickHouse, RocksDB) that appends writes sequentially to memory buffers and flushes immutable sorted files to disk, optimized for write-heavy event streams.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term">Polyglot Persistence <span class="def-pronounce">[pol-ee-glot per-sis-tuhns]</span></div>
+              <div class="def-meaning">The architectural practice of using multiple specialized database technologies within a single software architecture, pairing each tool with the workload it was engineered to handle.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            When data relationships transition from simple one-to-many trees into dense, interconnected many-to-many networks, both relational and document models experience severe strain. Consider a graph problem: <em>"Find all people who currently reside in the United States but who immigrated from a country in Europe."</em>
+          </p>
+          <p>
+            In a relational database, modeling this network requires multiple join tables: <code class="inline-code">people</code>, <code class="inline-code">cities</code>, <code class="inline-code">states</code>, <code class="inline-code">countries</code>, and historical residence tables. To traverse hierarchical geographic relationships across arbitrary depths, you must author complex <strong>Recursive Common Table Expressions (Recursive CTEs)</strong> spanning twenty to thirty lines of dense SQL. These queries are notoriously difficult to write, challenging to optimize, and prone to poor execution plans when join depths increase.
+          </p>
+          <p>
+            In contrast, <strong>Graph Data Models</strong> (such as Neo4j utilizing the <strong>Cypher query language</strong>) treat vertices (nodes) and edges (relationships) as primary entities. In Cypher, traversing arbitrary relationships is expressed through intuitive ASCII-art syntax: <code class="inline-code">(:Person)-[:BORN_IN]->(:Country)-[:IN_CONTINENT]->(:Continent {name: 'Europe'})</code>. Similarly, time-series data (server metrics, click events) demands append-only LSM-tree engines like <strong>ClickHouse</strong> rather than B-Tree row updates. This reality establishes the principle of <strong>Polyglot Persistence</strong>: relying on an OLTP relational database as your primary transactional core while strategically adopting specialized engines (graph, search, columnar) when the domain requires it.
+          </p>
+        </div>
+
+        <!-- DIAGRAM 6.1: GRAPH MODEL VS RECURSIVE SQL (Diagram Design Grammar) -->
+        <div class="diagram-panel">
+          <div class="diagram-title-bar">
+            <span class="diagram-title">Figure 6.1: Property Graph Topology (Neo4j Cypher) vs. Relational Recursion</span>
+          </div>
+          <div class="svg-container">
+            <!-- 4px grid: 740x224. Strict orthogonal connectors, masked labels, Geist typography -->
+            <svg class="editorial-diagram" viewBox="0 0 740 224" role="img" aria-label="Cypher Property Graph Traversal Topology">
+              <defs>
+                <marker id="graph-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-muted)"/>
+                </marker>
+                <marker id="graph-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="var(--diagram-accent)"/>
+                </marker>
+              </defs>
+
+              <!-- Ground -->
+              <rect width="740" height="224" rx="6" fill="var(--diagram-paper)" stroke="var(--diagram-rule)" stroke-width="1"/>
+
+              <!-- Connectors (Drawn before nodes with masked labels) -->
+              <!-- Person to France (BORN_IN) -->
+              <path d="M 128 88 H 224" fill="none" stroke="var(--diagram-accent)" stroke-width="1.2" marker-end="url(#graph-arrow-accent)"/>
+              <rect x="144" y="70" width="56" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="172" y="79" fill="var(--diagram-accent)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">[:BORN_IN]</text>
+
+              <!-- France to Europe (WITHIN) -->
+              <path d="M 336 88 H 424" fill="none" stroke="var(--diagram-accent)" stroke-width="1.2" marker-end="url(#graph-arrow-accent)"/>
+              <rect x="352" y="70" width="48" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="376" y="79" fill="var(--diagram-accent)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">[:WITHIN]</text>
+
+              <!-- Person to New York (LIVES_IN - Orthogonal elbow: down & right) -->
+              <path d="M 80 116 V 148 Q 80 156 88 156 H 224" fill="none" stroke="var(--diagram-link)" stroke-width="1.2" marker-end="url(#graph-arrow)"/>
+              <rect x="136" y="138" width="56" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="164" y="147" fill="var(--diagram-link)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">[:LIVES_IN]</text>
+
+              <!-- New York to USA (WITHIN) -->
+              <path d="M 336 156 H 424" fill="none" stroke="var(--diagram-link)" stroke-width="1.2" marker-end="url(#graph-arrow)"/>
+              <rect x="352" y="138" width="48" height="12" rx="2" fill="var(--diagram-paper)"/>
+              <text x="376" y="147" fill="var(--diagram-link)" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">[:WITHIN]</text>
+
+              <!-- Graph Nodes -->
+              <!-- Person (Focal Node) -->
+              <g transform="translate(32, 60)">
+                <circle cx="48" cy="28" r="28" fill="var(--diagram-accent-tint)" stroke="var(--diagram-accent)" stroke-width="1.2"/>
+                <text x="48" y="24" fill="var(--diagram-accent)" font-size="7.5" font-family="'Geist Mono', monospace" font-weight="600" text-anchor="middle">NODE</text>
+                <text x="48" y="36" fill="var(--diagram-ink)" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">:Person</text>
+              </g>
+
+              <!-- Country: France -->
+              <g transform="translate(224, 60)">
+                <rect x="0" y="0" width="112" height="56" rx="6" fill="var(--surface)" stroke="var(--diagram-ink)" stroke-width="1"/>
+                <rect x="8" y="8" width="48" height="12" rx="2" fill="none" stroke="var(--diagram-soft)" stroke-width="0.8"/>
+                <text x="32" y="17" fill="var(--diagram-soft)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">:Country</text>
+                <text x="56" y="38" fill="var(--diagram-ink)" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">France</text>
+              </g>
+
+              <!-- Continent: Europe -->
+              <g transform="translate(424, 60)">
+                <rect x="0" y="0" width="128" height="56" rx="6" fill="var(--surface)" stroke="var(--diagram-ink)" stroke-width="1"/>
+                <rect x="8" y="8" width="56" height="12" rx="2" fill="none" stroke="var(--diagram-soft)" stroke-width="0.8"/>
+                <text x="36" y="17" fill="var(--diagram-soft)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">:Continent</text>
+                <text x="64" y="38" fill="var(--diagram-ink)" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Europe</text>
+              </g>
+
+              <!-- City: New York -->
+              <g transform="translate(224, 128)">
+                <rect x="0" y="0" width="112" height="56" rx="6" fill="var(--surface)" stroke="var(--diagram-ink)" stroke-width="1"/>
+                <rect x="8" y="8" width="36" height="12" rx="2" fill="none" stroke="var(--diagram-soft)" stroke-width="0.8"/>
+                <text x="26" y="17" fill="var(--diagram-soft)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">:City</text>
+                <text x="56" y="38" fill="var(--diagram-ink)" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">New York</text>
+              </g>
+
+              <!-- Country: USA -->
+              <g transform="translate(424, 128)">
+                <rect x="0" y="0" width="128" height="56" rx="6" fill="var(--surface)" stroke="var(--diagram-ink)" stroke-width="1"/>
+                <rect x="8" y="8" width="48" height="12" rx="2" fill="none" stroke="var(--diagram-soft)" stroke-width="0.8"/>
+                <text x="32" y="17" fill="var(--diagram-soft)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">:Country</text>
+                <text x="64" y="38" fill="var(--diagram-ink)" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">United States</text>
+              </g>
+
+              <!-- Side Code Box (Cypher pattern) -->
+              <g transform="translate(568, 60)">
+                <rect x="0" y="0" width="156" height="124" rx="4" fill="var(--surface-subtle)" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+                <text x="12" y="20" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" letter-spacing="0.1em">CYPHER QUERY</text>
+                <text x="12" y="40" fill="var(--diagram-accent)" font-size="8.5" font-family="'Geist Mono', monospace">MATCH (p:Person)</text>
+                <text x="12" y="56" fill="var(--diagram-muted)" font-size="8.5" font-family="'Geist Mono', monospace">-[:BORN_IN]->(:Country)</text>
+                <text x="12" y="72" fill="var(--diagram-muted)" font-size="8.5" font-family="'Geist Mono', monospace">-[:WITHIN*]->(eu:Europe)</text>
+                <text x="12" y="88" fill="var(--diagram-link)" font-size="8.5" font-family="'Geist Mono', monospace">,(p)-[:LIVES_IN]->(:City)</text>
+                <text x="12" y="104" fill="var(--diagram-link)" font-size="8.5" font-family="'Geist Mono', monospace">-[:WITHIN*]->(us:USA)</text>
+              </g>
+
+              <!-- Bottom Legend Strip -->
+              <line x1="24" y1="200" x2="716" y2="200" stroke="var(--diagram-rule)" stroke-width="0.8"/>
+              <text x="24" y="214" fill="var(--diagram-soft)" font-size="7.5" font-family="'Geist Mono', monospace" letter-spacing="0.14em">GRAPH LEGEND</text>
+              <text x="140" y="214" fill="var(--diagram-accent)" font-size="8" font-family="'Geist Mono', monospace">CYPHER DIRECTED PATH MATCHING (4 LINES OF DECLARATIVE CODE)</text>
+              <text x="500" y="214" fill="var(--diagram-muted)" font-size="8" font-family="'Geist Mono', monospace">REPLACES 25+ LINES OF SQL CTE</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Interactive Drag-and-Drop Matching Exercise -->
+        <div class="interactive-container">
+          <div class="interactive-label">Interactive Matcher: Database Models &amp; Workloads</div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Click a technology item on the left, then click its corresponding architectural match on the right:
+          </p>
+          <div class="match-grid">
+            <div class="match-col" id="match-items">
+              <div class="match-item" data-match="graph" onclick="selectMatchItem(this)">Neo4j (Cypher)</div>
+              <div class="match-item" data-match="oltp" onclick="selectMatchItem(this)">PostgreSQL / MySQL</div>
+              <div class="match-item" data-match="columnar" onclick="selectMatchItem(this)">ClickHouse (LSM-Tree)</div>
+              <div class="match-item" data-match="search" onclick="selectMatchItem(this)">Elasticsearch</div>
+            </div>
+            <div class="match-col" id="match-targets">
+              <div class="match-target" data-target="oltp" onclick="assignMatchTarget(this)">Target: ACID Core &amp; Point Lookups</div>
+              <div class="match-target" data-target="graph" onclick="assignMatchTarget(this)">Target: Deep Network Traversals</div>
+              <div class="match-target" data-target="columnar" onclick="assignMatchTarget(this)">Target: High-Throughput Event Streams</div>
+              <div class="match-target" data-target="search" onclick="assignMatchTarget(this)">Target: Inverted Index Token Matching</div>
+            </div>
+          </div>
+          <div id="match-status" style="font-size: 0.85rem; color: var(--accent); margin-top: 0.75rem; font-weight: 500;"></div>
+        </div>
+
+        <div class="steps-container">
+          <div class="step-card">
+            <div class="step-index">1</div>
+            <div class="step-body">
+              <h4>Start with an OLTP Relational Core</h4>
+              <p>Default to MySQL or PostgreSQL as the authoritative source of truth for accounts, identity, and business transactions.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">2</div>
+            <div class="step-body">
+              <h4>Identify Architectural Mismatches</h4>
+              <p>When query complexity requires unmaintainable recursive SQL CTEs or when log ingestion overwhelms B-Tree indexes, evaluate domain-specific tools.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-index">3</div>
+            <div class="step-body">
+              <h4>Establish Propagation Pipelines</h4>
+              <p>Use Change Data Capture (CDC) or message queues to replicate data asynchronously into specialized stores without compromising transactional boundaries.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <div class="example-title">Social Network Graph</div>
+            <p class="example-desc">Finding "friends of friends who like the same bands" is a 3-hop graph traversal naturally queried in Cypher rather than multi-table SQL self-joins.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive Case</span>
+            <div class="example-title">Operational Complexity Tax</div>
+            <p class="example-desc">Adopting 5 specialized databases for a 3-engineer startup slows development to a crawl due to backup management, monitoring, and dual-write inconsistencies.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <div class="example-title">GitHub API Graph Migration</div>
+            <p class="example-desc">Large platforms frequently use graph databases to model user permissions and repository collaborations, pairing them with relational stores for core commit data.</p>
+          </div>
+        </div>
+
+        <div class="analogy-card">
+          <div class="analogy-title">Visual Analogy</div>
+          <p class="analogy-body">
+            A master carpenter owns a Swiss Army knife (PostgreSQL), which can technically slice, saw, file, and tighten screws. But when framing an entire house, the carpenter brings a heavy-duty table saw (ClickHouse) and an air-powered framing nailer (Neo4j). Use generalist tools for everyday tasks, but bring specialized equipment for heavy workloads.
+          </p>
+        </div>
+
+        <div class="misconception-card">
+          <div class="misconception-header">
+            <span>❌</span> Common Misconception: "Graph Databases Replace Relational Databases Entirely"
+          </div>
+          <p class="misconception-text">
+            Teams enthralled by graph query syntax often consider discarding their relational databases to run the entire business backend on Neo4j.
+          </p>
+          <p class="correction-text">
+            Graph databases excel at pointer-chasing and relationship traversals, but are far less efficient at broad numerical aggregations, bulk analytical scans, or high-concurrency simple point writes compared to hardened relational engines.
+          </p>
+        </div>
+
+        <div class="why-it-matters">
+          <div class="why-title">Why This Matters</div>
+          Polyglot persistence is not about chasing trendy databases; it is the calculated pairing of specialized storage mechanisms to solve specific computational bottlenecks efficiently.
+        </div>
+
+        <a href="#summary-faq" class="inter-link">Next: Review the Synthesis Cheat Sheet &amp; Glossary &rarr;</a>
+      </section>
+
+      <!-- SUMMARY, CHEAT SHEET & FAQ -->
+      <section id="summary-faq" class="lesson-module">
+        <span class="module-badge">Synthesis &amp; Reference</span>
+        <h2>Comprehensive Glossary, Decision Matrix &amp; FAQ</h2>
+
+        <!-- COMPREHENSIVE DEFINITIONS GLOSSARY TABLE -->
+        <div class="learn-box" style="margin-bottom: 2rem;">
+          <div class="box-label">Master Architecture Glossary</div>
+          <div class="summary-table-wrap" style="border: none;">
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th style="width: 25%;">Concept / Term</th>
+                  <th style="width: 45%;">Formal Engineering Definition</th>
+                  <th style="width: 30%;">Operational Architectural Nuance</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Data-Intensive Application</strong></td>
+                  <td>System where data volume, complexity, and rate of change dominate operational challenges over raw CPU.</td>
+                  <td>Requires decomposing into specialized data stores rather than relying on one monolith engine.</td>
+                </tr>
+                <tr>
+                  <td><strong>OLTP vs. OLAP</strong></td>
+                  <td>OLTP handles low-latency point transactions; OLAP handles massive sequential scans and aggregations.</td>
+                  <td>Never run heavy OLAP reporting queries directly against primary OLTP production replicas.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tail Latency (P99, P99.9)</strong></td>
+                  <td>The response time threshold of the slowest 1% or 0.1% of queries in a right-skewed distribution.</td>
+                  <td>Under 1M QPM, P99.9 generates 1,000 slow requests/min, threatening connection pool exhaustion.</td>
+                </tr>
+                <tr>
+                  <td><strong>Declarative SQL</strong></td>
+                  <td>Query language where the client specifies <em>what</em> data is needed, leaving traversal to the cost optimizer.</td>
+                  <td>Allows the physical database layout to change without breaking application business code.</td>
+                </tr>
+                <tr>
+                  <td><strong>Cost-Based Optimizer (CBO)</strong></td>
+                  <td>Engine subsystem using statistics to calculate the lowest I/O and CPU execution plan.</td>
+                  <td>Can purposefully skip an index if the matching cardinality represents more than ~25% of table rows.</td>
+                </tr>
+                <tr>
+                  <td><strong>Data Locality</strong></td>
+                  <td>Storing related records contiguously on disk so an entire entity is retrieved in a single I/O seek.</td>
+                  <td>Gives document stores an advantage on single-entity reads, but incurs high write amplification on updates.</td>
+                </tr>
+                <tr>
+                  <td><strong>Schema-on-Write</strong></td>
+                  <td>Explicit structural schema enforced by the database upon insertion, guaranteeing referential integrity.</td>
+                  <td>Prevents silent data corruption and invalid foreign keys across multi-year codebase lifetimes.</td>
+                </tr>
+                <tr>
+                  <td><strong>Schema-on-Read</strong></td>
+                  <td>Implicit schema where arbitrary data is stored and parsed dynamically by application code.</td>
+                  <td>Transfers the burden of schema validation and null defensive checks into application logic.</td>
+                </tr>
+                <tr>
+                  <td><strong>Property Graph (Cypher)</strong></td>
+                  <td>Data model treating relationships as first-class entities with native ASCII-art pattern matching.</td>
+                  <td>Replaces unmaintainable 30-line SQL recursive CTEs for many-to-many relationship paths.</td>
+                </tr>
+                <tr>
+                  <td><strong>Polyglot Persistence</strong></td>
+                  <td>Pairing a primary relational transactional datastore with specialized auxiliary engines.</td>
+                  <td>Requires reliable asynchronous change propagation (CDC or queues) to avoid split-brain states.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="summary-table-wrap">
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th>Data Model</th>
+                <th>Primary Strength</th>
+                <th>Core Weakness</th>
+                <th>Ideal Workload</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Relational (SQL)</strong></td>
+                <td>ACID guarantees, declarative optimization, normalized integrity.</td>
+                <td>Join overhead across fragmented tables; rigid schema migrations.</td>
+                <td>Core transactional OLTP, user accounts, financial ledgers.</td>
+              </tr>
+              <tr>
+                <td><strong>Document (NoSQL)</strong></td>
+                <td>Data locality (single I/O read seek), schema flexibility.</td>
+                <td>Data duplication, expensive multi-document updates, weak joins.</td>
+                <td>Self-contained trees (user profiles, product catalogs, CMS).</td>
+              </tr>
+              <tr>
+                <td><strong>Graph (Property)</strong></td>
+                <td>Arbitrary-depth traversals, relationships as first-class entities.</td>
+                <td>Poor performance on bulk aggregations and tabular reporting.</td>
+                <td>Social graphs, fraud detection, recommendation networks.</td>
+              </tr>
+              <tr>
+                <td><strong>Columnar / LSM</strong></td>
+                <td>Massive scan throughput, high compression ratio, append-friendly.</td>
+                <td>Extremely slow individual row updates and random point lookups.</td>
+                <td>Time-series event streams, clickstream logs, OLAP analytics.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top: 1.5rem;">
+          <h3 style="margin-bottom: 0.75rem;">Frequently Addressed Confusion Points</h3>
+          <div class="faq-list">
+            <details class="faq-item">
+              <summary>Can modern document databases perform joins?</summary>
+              <p>
+                Yes. Modern document databases such as MongoDB support join-like operations (e.g. <code class="inline-code">$lookup</code> aggregation pipelines). However, these operations are typically application-side or hash-based multi-stage pipelines that lack the decades of sophisticated cost-based optimization found in relational engines like Postgres or MySQL.
+              </p>
+            </details>
+
+            <details class="faq-item">
+              <summary>Why not simply store all semi-structured data in Postgres JSONB?</summary>
+              <p>
+                PostgreSQL's <code class="inline-code">JSONB</code> is exceptionally powerful and supports GIN indexing. However, if multiple tables require referencing nested fields inside those JSON blobs, you lose foreign key constraints and referential integrity guarantees. Use JSONB for terminal attribute bags, not for relational entities.
+              </p>
+            </details>
+
+            <details class="faq-item">
+              <summary>Why does tail latency (P99.9) matter if 99% of requests are fast?</summary>
+              <p>
+                Because tail latency affects your most data-intensive power users, and because complex web applications execute dozens of concurrent backend queries per page. If a single page load triggers 50 microservice calls, the probability that at least one call hits a P99.9 spike is substantial ($1 - 0.999^{50} \approx 4.88\%$).
+              </p>
+            </details>
+
+            <details class="faq-item">
+              <summary>Is using an ORM always considered an anti-pattern?</summary>
+              <p>
+                No. ORMs provide type safety, schema synchronization, and rapid iteration for standard CRUD endpoints. The anti-pattern occurs when teams treat ORMs as black boxes, failing to inspect generated queries on high-traffic endpoints and accidentally triggering N+1 query cascades.
+              </p>
+            </details>
+          </div>
+        </div>
+
+        <!-- Next Steps -->
+        <div class="learn-box" style="margin-top: 2rem;">
+          <div class="box-label">Concrete Next Steps</div>
+          <ul class="learn-list">
+            <li>
+              <span class="learn-bullet"></span>
+              <span><strong>Audit your production latency percentiles:</strong> Navigate to your application APM dashboard. Compare your P50 median against your P99 and P99.9 metrics. Check how many actual queries per minute exceed the 100ms threshold.</span>
+            </li>
+            <li>
+              <span class="learn-bullet"></span>
+              <span><strong>Inspect query plans with EXPLAIN ANALYZE:</strong> Take the slowest query from your database insights dashboard. Run <code class="inline-code">EXPLAIN ANALYZE</code> to see if the cost optimizer chose an index seek, a bitmap index scan, or an unindexed table scan.</span>
+            </li>
+            <li>
+              <span class="learn-bullet"></span>
+              <span><strong>Evaluate schema normalization boundaries:</strong> Identify a frequently updated entity in your codebase that is duplicated across records. Calculate the write amplification cost and determine if extracting a normalized table with foreign keys simplifies consistency.</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // Theme Toggle
+    const themeBtn = document.getElementById('theme-btn');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+
+    function initTheme() {
+      const savedTheme = localStorage.getItem('ddia-theme');
+      if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        updateThemeUI(savedTheme);
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        updateThemeUI('dark');
+      }
+    }
+
+    function updateThemeUI(theme) {
+      if (theme === 'dark') {
+        themeIcon.textContent = '☼';
+        themeText.textContent = 'Light';
+      } else {
+        themeIcon.textContent = '◐';
+        themeText.textContent = 'Dark';
+      }
+    }
+
+    themeBtn.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('ddia-theme', newTheme);
+      updateThemeUI(newTheme);
+    });
+
+    initTheme();
+
+    // Scroll Progress Bar & Nav Rail Highlighting
+    const progressBar = document.getElementById('progress-bar');
+    const navItems = document.querySelectorAll('.nav-item');
+    const sections = Array.from(document.querySelectorAll('section[id], div[id="summary-faq"]'));
+
+    window.addEventListener('scroll', () => {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      progressBar.style.width = scrolled + '%';
+
+      let currentSectionId = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop - 120;
+        if (winScroll >= sectionTop) {
+          currentSectionId = section.getAttribute('id');
+        }
+      });
+
+      if (currentSectionId) {
+        navItems.forEach(item => {
+          if (item.getAttribute('data-target') === currentSectionId) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+      }
+    });
+
+    // Knowledge Map Click Navigation
+    document.querySelectorAll('.map-node').forEach(node => {
+      node.addEventListener('click', () => {
+        const targetId = node.getAttribute('data-target');
+        const el = document.getElementById(targetId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    });
+
+    // Architecture Diagram Flow Highlighting
+    function highlightArchFlow(type) {
+      const conns = ['dd-conn-client-app', 'dd-conn-app-cache', 'dd-conn-app-db', 'dd-conn-app-search', 'dd-conn-db-queue'];
+      const desc = document.getElementById('arch-flow-desc');
+      
+      conns.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.stroke = 'var(--diagram-muted)';
+          el.style.strokeWidth = '1.2';
+        }
+      });
+
+      if (type === 'read') {
+        document.getElementById('dd-conn-client-app').style.stroke = 'var(--diagram-accent)';
+        document.getElementById('dd-conn-app-cache').style.stroke = 'var(--diagram-accent)';
+        desc.innerHTML = '<strong>Read Cache Path:</strong> Client requests hit App Server &rarr; checks Redis In-Memory Cache. Cache hit returns sub-millisecond RAM response. If cache miss, falls back to Primary Database.';
+      } else if (type === 'write') {
+        document.getElementById('dd-conn-client-app').style.stroke = 'var(--diagram-link)';
+        document.getElementById('dd-conn-app-db').style.stroke = 'var(--diagram-link)';
+        document.getElementById('dd-conn-app-db').style.strokeWidth = '1.8';
+        desc.innerHTML = '<strong>Transactional Write Path:</strong> Writes route directly from App Server to Primary Relational Database, guaranteeing ACID atomicity and writing to the WAL disk log.';
+      } else if (type === 'search') {
+        document.getElementById('dd-conn-client-app').style.stroke = '#7c3aed';
+        document.getElementById('dd-conn-app-search').style.stroke = '#7c3aed';
+        desc.innerHTML = '<strong>Lexical Search Path:</strong> Multi-attribute and fuzzy text searches route to Elasticsearch / Algolia to avoid costly unindexed full-table scans on relational rows.';
+      } else if (type === 'async') {
+        document.getElementById('dd-conn-app-db').style.stroke = 'var(--diagram-accent)';
+        document.getElementById('dd-conn-db-queue').style.stroke = 'var(--diagram-accent)';
+        desc.innerHTML = '<strong>Async Ingestion Path:</strong> Database Change Data Capture (CDC) streams row updates to Kafka / RabbitMQ for decoupled consumer workers to process out-of-band.';
+      } else {
+        desc.innerHTML = 'Use the control buttons above to trace the precise network paths for read cache hits, transactional writes, lexical text searches, and background asynchronous ingestion.';
+      }
+    }
+
+    // Tail Latency Simulator
+    function updateTailSimulator(val) {
+      const pNum = parseFloat(val);
+      document.getElementById('slider-display').textContent = 'P' + pNum.toFixed(1);
+      
+      const totalQueries = 1000000;
+      const slowerPercent = 100 - pNum;
+      const slowQueries = Math.round(totalQueries * (slowerPercent / 100));
+      const fastQueries = totalQueries - slowQueries;
+      const slowPerSec = (slowQueries / 60).toFixed(1);
+
+      document.getElementById('stat-faster').textContent = fastQueries.toLocaleString();
+      document.getElementById('stat-slower').textContent = slowQueries.toLocaleString();
+      document.getElementById('stat-per-sec').textContent = slowPerSec + ' /s';
+
+      const descBox = document.getElementById('sim-scenario-box');
+      if (pNum < 90) {
+        descBox.innerHTML = `At <strong>P${pNum.toFixed(1)}</strong>, you are viewing everyday variance. <strong>${slowQueries.toLocaleString()} queries/min</strong> take longer than this threshold.`;
+      } else if (pNum < 99) {
+        descBox.innerHTML = `At <strong>P${pNum.toFixed(1)}</strong>, you begin seeing non-indexed scans and cache eviction friction affecting <strong>${slowQueries.toLocaleString()} queries every minute</strong>.`;
+      } else if (pNum >= 99 && pNum < 99.9) {
+        descBox.innerHTML = `At <strong>P${pNum.toFixed(1)}</strong>, the slowest 1% of queries account for <strong>${slowQueries.toLocaleString()} slow queries/min</strong> (${slowPerSec}/sec), commonly threatening thread pool exhaustion.`;
+      } else {
+        descBox.innerHTML = `At <strong>P99.9 (The Extreme Tail)</strong>: Even with 99.9% looking green, exactly <strong>1,000 queries per minute</strong> are suffering severe latency spikes, full disk scans, or lock contention in high-scale systems.`;
+      }
+    }
+
+    // Optimizer Animation
+    let animTimer = null;
+    let animRunning = false;
+    let cursorX = 48;
+
+    function toggleOptimizerAnim() {
+      const btn = document.getElementById('anim-play-btn');
+      if (animRunning) {
+        clearInterval(animTimer);
+        animRunning = false;
+        btn.textContent = 'Play Execution';
+      } else {
+        animRunning = true;
+        btn.textContent = 'Pause';
+        const cursor = document.getElementById('imp-cursor');
+        const prog = document.getElementById('imp-prog-bar');
+        const status = document.getElementById('imp-status');
+        
+        animTimer = setInterval(() => {
+          cursorX += 8;
+          if (cursorX > 320) {
+            cursorX = 48;
+          }
+          cursor.setAttribute('cx', cursorX);
+          const pct = Math.round(((cursorX - 48) / 272) * 100);
+          prog.setAttribute('width', (pct * 3) + 'px');
+          status.textContent = `Scanning row ${(pct * 10000).toLocaleString()} of 1,000,000...`;
+        }, 80);
+      }
+    }
+
+    function resetOptimizerAnim() {
+      clearInterval(animTimer);
+      animRunning = false;
+      document.getElementById('anim-play-btn').textContent = 'Play Execution';
+      cursorX = 48;
+      document.getElementById('imp-cursor').setAttribute('cx', cursorX);
+      document.getElementById('imp-prog-bar').setAttribute('width', '24px');
+      document.getElementById('imp-status').textContent = 'Row 1 of 1,000,000...';
+    }
+
+    // Storage Model Switcher
+    function setStorageModel(model) {
+      const docBlocks = document.getElementById('disk-doc-blocks');
+      const relBlocks = document.getElementById('disk-rel-blocks');
+      const btnDoc = document.getElementById('btn-model-doc');
+      const btnRel = document.getElementById('btn-model-rel');
+      const readout = document.getElementById('storage-readout');
+
+      if (model === 'doc') {
+        docBlocks.style.display = 'block';
+        relBlocks.style.display = 'none';
+        btnDoc.style.background = 'var(--diagram-accent)';
+        btnDoc.style.color = 'white';
+        btnDoc.style.borderColor = 'var(--diagram-accent)';
+        btnRel.style.background = 'var(--surface-subtle)';
+        btnRel.style.color = 'var(--text)';
+        btnRel.style.borderColor = 'var(--border)';
+        readout.innerHTML = '<strong>Document Locality Benefit:</strong> Because all personal data resides in contiguous bytes, the database pulls the entire entity into memory with 1 single sequential I/O read. Highly efficient when entities are viewed as self-contained units.';
+      } else {
+        docBlocks.style.display = 'none';
+        relBlocks.style.display = 'block';
+        btnRel.style.background = 'var(--diagram-link)';
+        btnRel.style.color = 'white';
+        btnRel.style.borderColor = 'var(--diagram-link)';
+        btnDoc.style.background = 'var(--surface-subtle)';
+        btnDoc.style.color = 'var(--text)';
+        btnDoc.style.borderColor = 'var(--border)';
+        readout.innerHTML = '<strong>Normalized Relational Tradeoff:</strong> Profile data is split into <code class="inline-code">users</code>, <code class="inline-code">employment</code>, <code class="inline-code">education</code>, and <code class="inline-code">recommendations</code>. Fetching the page requires multiple random disk seeks across fragmented table pages, but completely eliminates data duplication.';
+      }
+    }
+
+    // Normalization Calculator
+    function updateNormalizationCalc(count) {
+      const num = parseInt(count, 10);
+      document.getElementById('emp-count-display').textContent = num.toLocaleString();
+      document.getElementById('doc-write-count').textContent = num.toLocaleString() + ' Docs';
+      const bytes = (num * 50) / 1000000;
+      document.getElementById('doc-bytes-wasted').textContent = '~' + bytes.toFixed(1) + ' MB';
+    }
+
+    // Matcher Interactive
+    let selectedMatchItem = null;
+
+    function selectMatchItem(el) {
+      document.querySelectorAll('.match-item').forEach(item => {
+        item.style.borderColor = 'var(--border)';
+        item.style.background = 'var(--surface-subtle)';
+      });
+      selectedMatchItem = el;
+      el.style.borderColor = 'var(--accent)';
+      el.style.background = 'var(--accent-soft)';
+      document.getElementById('match-status').textContent = `Selected: "${el.textContent.trim()}". Now click its matching architectural role on the right.`;
+    }
+
+    function assignMatchTarget(targetEl) {
+      if (!selectedMatchItem) {
+        document.getElementById('match-status').textContent = 'Click an item on the left first!';
+        return;
+      }
+
+      const matchType = selectedMatchItem.getAttribute('data-match');
+      const targetType = targetEl.getAttribute('data-target');
+
+      if (matchType === targetType) {
+        targetEl.classList.add('matched');
+        targetEl.textContent = `✓ Matched: ${selectedMatchItem.textContent.trim()}`;
+        selectedMatchItem.style.display = 'none';
+        selectedMatchItem = null;
+        document.getElementById('match-status').textContent = 'Correct match!';
+
+        const remaining = document.querySelectorAll('.match-item:not([style*="display: none"])');
+        if (remaining.length === 0) {
+          document.getElementById('match-status').textContent = '🎉 Excellent! All database paradigms correctly paired with their workload strengths.';
+        }
+      } else {
+        document.getElementById('match-status').textContent = 'Incorrect match. Consider the fundamental workload requirement for that technology.';
+      }
+    }
+  </script>
+</body>
+</html>

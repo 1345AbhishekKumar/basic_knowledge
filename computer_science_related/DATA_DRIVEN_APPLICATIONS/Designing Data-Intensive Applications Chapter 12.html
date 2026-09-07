@@ -1,0 +1,2409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designing Data-Intensive Applications — Chapter 12: The Future of Data Systems</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg-surface: #12161f;
+      --bg-surface-elevated: #1a202c;
+      --bg-surface-glass: rgba(18, 22, 31, 0.85);
+      --border: #242c3d;
+      --border-accent: #38455e;
+      --text: #f0f4fc;
+      --text-muted: #8d9bb0;
+      --text-subtle: #57657d;
+      --accent: #eb6c36;
+      --accent-glow: rgba(235, 108, 54, 0.2);
+      --accent-subtle: rgba(235, 108, 54, 0.09);
+      --teal: #10b981;
+      --teal-subtle: rgba(16, 185, 129, 0.1);
+      --blue: #3b82f6;
+      --blue-subtle: rgba(59, 130, 246, 0.1);
+      --purple: #8b5cf6;
+      --purple-subtle: rgba(139, 92, 246, 0.1);
+      --amber: #f59e0b;
+      --amber-subtle: rgba(245, 158, 11, 0.1);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.1);
+      --font-serif: "Instrument Serif", Georgia, serif;
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-surface-glass: rgba(255, 255, 255, 0.9);
+      --border: #e2e8f0;
+      --border-accent: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+      --accent: #d9531e;
+      --accent-glow: rgba(217, 83, 30, 0.15);
+      --accent-subtle: rgba(217, 83, 30, 0.08);
+      --teal: #059669;
+      --teal-subtle: rgba(5, 150, 105, 0.08);
+      --blue: #2563eb;
+      --blue-subtle: rgba(37, 99, 235, 0.08);
+      --purple: #7c3aed;
+      --purple-subtle: rgba(124, 58, 237, 0.08);
+      --amber: #d97706;
+      --amber-subtle: rgba(217, 119, 6, 0.08);
+      --rose: #e11d48;
+      --rose-subtle: rgba(225, 29, 72, 0.08);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    #reading-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #f97316);
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.1s ease-out;
+    }
+
+    .top-nav {
+      position: sticky;
+      top: 0;
+      background: var(--bg-surface-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 900;
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .nav-badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .nav-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .theme-toggle-btn {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 3rem;
+      position: relative;
+    }
+
+    @media (max-width: 1024px) {
+      .container {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+        gap: 2rem;
+      }
+      .sidebar {
+        display: none;
+      }
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 5rem;
+      height: calc(100vh - 6rem);
+      overflow-y: auto;
+      padding-right: 1rem;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    .sidebar-heading {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-subtle);
+      margin-bottom: 1rem;
+    }
+
+    .nav-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .nav-links a {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0.75rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s ease;
+      border-left: 2px solid transparent;
+    }
+
+    .nav-links a:hover,
+    .nav-links a.active {
+      color: var(--text);
+      background: var(--bg-surface-elevated);
+      border-left-color: var(--accent);
+    }
+
+    .nav-links a .mod-num {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Main Content */
+    .main-content {
+      min-width: 0;
+    }
+
+    .hero-section {
+      padding: 2.5rem 0 3.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 3.5rem;
+    }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .hero-eyebrow::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+    }
+
+    .hero-title {
+      font-family: var(--font-serif);
+      font-size: clamp(2.4rem, 5vw, 3.8rem);
+      line-height: 1.1;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.25rem;
+      color: var(--text);
+    }
+
+    .hero-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 75ch;
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    .learning-goals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .goal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .goal-icon {
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1;
+      padding-top: 0.15rem;
+    }
+
+    .goal-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .goal-text strong {
+      color: var(--text);
+      display: block;
+      margin-bottom: 0.2rem;
+    }
+
+    /* Knowledge Map */
+    .knowledge-map-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      margin: 2.5rem 0 4rem;
+    }
+
+    .map-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 1.5rem;
+    }
+
+    .map-header h3 {
+      font-family: var(--font-serif);
+      font-size: 1.5rem;
+      font-weight: 400;
+    }
+
+    .map-legend {
+      display: flex;
+      gap: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .map-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .map-legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Lesson Modules */
+    .lesson-module {
+      margin-bottom: 5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .module-badge {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .module-title {
+      font-family: var(--font-serif);
+      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      font-weight: 400;
+      letter-spacing: -0.015em;
+      line-height: 1.15;
+      margin-bottom: 1.5rem;
+      color: var(--text);
+    }
+
+    .prose-block {
+      font-size: 1.05rem;
+      line-height: 1.75;
+      color: var(--text);
+      margin-bottom: 2rem;
+      max-width: 85ch;
+    }
+
+    .prose-block p {
+      margin-bottom: 1.25rem;
+    }
+
+    .prose-block strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .highlight-term {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Definition Pill */
+    .def-callout {
+      background: var(--bg-surface-elevated);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0 2rem;
+    }
+
+    .def-title {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 0.4rem;
+      font-weight: 600;
+    }
+
+    .def-content {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Steps Layout */
+    .steps-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .step-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-subtle);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .step-content h4 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+      color: var(--text);
+    }
+
+    .step-content p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Diagram Wrappers */
+    .diagram-figure {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      margin: 2.5rem 0;
+      overflow-x: auto;
+    }
+
+    .diagram-caption {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-subtle);
+      text-align: center;
+      margin-top: 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .diagram-caption strong {
+      color: var(--text-muted);
+    }
+
+    /* Examples Trio */
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      margin: 2.5rem 0;
+    }
+
+    @media (max-width: 960px) {
+      .examples-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .example-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .example-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
+      align-self: flex-start;
+      margin-bottom: 0.75rem;
+    }
+
+    .tag-obvious {
+      background: var(--blue-subtle);
+      color: var(--blue);
+      border: 1px solid var(--blue);
+    }
+
+    .tag-counter {
+      background: var(--purple-subtle);
+      color: var(--purple);
+      border: 1px solid var(--purple);
+    }
+
+    .tag-edge {
+      background: var(--amber-subtle);
+      color: var(--amber);
+      border: 1px solid var(--amber);
+    }
+
+    .example-card h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .example-card p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Pedagogy Grid */
+    .pedagogy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin: 2.5rem 0;
+    }
+
+    @media (max-width: 800px) {
+      .pedagogy-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .analogy-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--blue);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+    }
+
+    .misconception-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--rose);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+    }
+
+    .why-matters-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--teal);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 1.5rem 0 2.5rem;
+    }
+
+    .card-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .label-analogy { color: var(--blue); }
+    .label-wrong { color: var(--rose); }
+    .label-matters { color: var(--teal); }
+
+    .card-body-text {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .inter-link-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      margin-top: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .inter-link-text {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .inter-link-btn {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      white-space: nowrap;
+    }
+
+    .inter-link-btn:hover {
+      text-decoration: underline;
+    }
+
+    /* Memory Pill */
+    .memory-pill {
+      background: var(--accent-subtle);
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      padding: 0.6rem 1.25rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1.5rem 0 2rem;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .memory-pill-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+    }
+
+    /* Interactive Simulators */
+    .interactive-container {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      margin: 2.5rem 0;
+    }
+
+    .interactive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .interactive-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .interactive-badge {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.15rem 0.45rem;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+    }
+
+    .control-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      background: var(--bg-surface);
+      padding: 1rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      align-items: center;
+    }
+
+    .btn-action {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-action:hover {
+      opacity: 0.9;
+    }
+
+    .btn-secondary {
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent);
+    }
+
+    .sim-output-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      min-height: 120px;
+      line-height: 1.6;
+    }
+
+    /* Active Recall Flashcards */
+    .flashcards-section {
+      margin: 4rem 0;
+      padding: 2.5rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+    }
+
+    .flashcards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .flashcard {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      cursor: pointer;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s, border-color 0.2s;
+      position: relative;
+    }
+
+    .flashcard:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+
+    .flashcard-front, .flashcard-back {
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .flashcard-back {
+      display: none;
+      color: var(--text-muted);
+    }
+
+    .flashcard.flipped .flashcard-front {
+      display: none;
+    }
+
+    .flashcard.flipped .flashcard-back {
+      display: block;
+    }
+
+    .card-flip-prompt {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+      margin-top: 1rem;
+      align-self: flex-end;
+    }
+
+    /* Module Quiz */
+    .module-quiz {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .quiz-question {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .quiz-option {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+
+    .quiz-option:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .quiz-option.correct {
+      background: var(--teal-subtle);
+      border-color: var(--teal);
+      color: var(--teal);
+    }
+
+    .quiz-option.incorrect {
+      background: var(--rose-subtle);
+      border-color: var(--rose);
+      color: var(--rose);
+    }
+
+    .quiz-feedback {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      padding: 0.75rem;
+      border-radius: var(--radius-sm);
+      display: none;
+    }
+
+    /* Summary & Cheat Sheet */
+    .cheat-sheet-section {
+      margin: 5rem 0 3rem;
+      padding-top: 2rem;
+      border-top: 2px solid var(--border);
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .cheat-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    .cheat-table th, .cheat-table td {
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cheat-table th {
+      background: var(--bg-surface-elevated);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .cheat-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* FAQ Section */
+    .faq-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .faq-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+    }
+
+    .faq-item h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    .faq-item p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* SVG Diagram Classes adhering to diagram-design skill */
+    .diag-box-bg { fill: var(--bg-surface); }
+    .diag-card-bg { fill: var(--bg-surface-elevated); stroke: var(--border); stroke-width: 1; }
+    .diag-focal { fill: var(--accent-subtle); stroke: var(--accent); stroke-width: 1.5; }
+    .diag-focal-text { fill: var(--accent); font-weight: 600; font-family: var(--font-sans); }
+    .diag-text { fill: var(--text); font-family: var(--font-sans); font-size: 12px; font-weight: 600; }
+    .diag-subtext { fill: var(--text-muted); font-family: var(--font-mono); font-size: 9px; }
+    .diag-tag-text { fill: var(--text-subtle); font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .diag-line { stroke: var(--border-accent); stroke-width: 1.2; fill: none; }
+    .diag-line-dashed { stroke: var(--text-subtle); stroke-width: 1; stroke-dasharray: 4,4; fill: none; }
+    .diag-line-accent { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+    .diag-line-teal { stroke: var(--teal); stroke-width: 1.5; fill: none; }
+    .diag-line-rose { stroke: var(--rose); stroke-width: 1.5; fill: none; }
+    .diag-mask { fill: var(--bg-surface); }
+    .diag-mask-elevated { fill: var(--bg-surface-elevated); }
+    .diag-label { fill: var(--text-muted); font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.05em; text-anchor: middle; }
+    .diag-label-accent { fill: var(--accent); font-family: var(--font-mono); font-size: 8px; font-weight: 600; text-anchor: middle; }
+  </style>
+</head>
+<body data-theme="dark">
+  <div id="reading-progress"></div>
+
+  <header class="top-nav">
+    <a href="#" class="nav-brand">
+      <span class="nav-badge">DDIA · Ch 12</span>
+      <span class="nav-title">The Future of Data Systems & Architecture Synthesis</span>
+    </a>
+    <div class="nav-controls">
+      <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()">
+        <span id="theme-icon">☀️</span> <span id="theme-text">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Sticky Navigation Rail -->
+    <aside class="sidebar">
+      <p class="sidebar-heading">Curriculum Modules</p>
+      <ul class="nav-links">
+        <li><a href="#overview"><span class="mod-num">00</span> Overview & Map</a></li>
+        <li><a href="#module-1"><span class="mod-num">01</span> Unbundling the DB</a></li>
+        <li><a href="#module-2"><span class="mod-num">02</span> The Read-Write Boundary</a></li>
+        <li><a href="#module-3"><span class="mod-num">03</span> End-to-End Correctness</a></li>
+        <li><a href="#module-4"><span class="mod-num">04</span> Immutable Event Logs</a></li>
+        <li><a href="#module-5"><span class="mod-num">05</span> Continuous Verification</a></li>
+        <li><a href="#module-6"><span class="mod-num">06</span> The AI & Vector Frontier</a></li>
+        <li><a href="#summary-cheatsheet"><span class="mod-num">07</span> Cheat Sheet & FAQ</a></li>
+      </ul>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Hero Section -->
+      <section id="overview" class="hero-section">
+        <div class="hero-eyebrow">The DDIA Grand Finale</div>
+        <h1 class="hero-title">The Future of Data Systems & Heterogeneous Architecture</h1>
+        <p class="hero-subtitle">
+          How modern distributed architectures compose specialized storage engines into a single unified whole—unbundling the monolithic database into event streams, derived materialized views, idempotent pipelines, and AI vector indices.
+        </p>
+
+        <div class="learning-goals-grid">
+          <div class="goal-card">
+            <span class="goal-icon">01</span>
+            <div class="goal-text">
+              <strong>Unbundling the Monolith</strong>
+              Integrate heterogeneous data stores (OLTP, Search, OLAP, Cache) using Change Data Capture and event streams.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">02</span>
+            <div class="goal-text">
+              <strong>The Read-Write Boundary</strong>
+              Master the architectural spectrum between precomputing at write-time versus evaluating queries dynamically at read-time.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">03</span>
+            <div class="goal-text">
+              <strong>End-to-End Correctness</strong>
+              Solve the Client-Server Commit Disconnect using deterministic Idempotency Keys and request deduplication.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">04</span>
+            <div class="goal-text">
+              <strong>Immutable Audit Logs</strong>
+              Harness append-only event logs for time-travel debugging, zero-loss replayability, and verifiable state derivation.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">05</span>
+            <div class="goal-text">
+              <strong>Continuous Backup Verification</strong>
+              Analyze modern cloud backup pipelines that continuously restore, checksum, and test point-in-time recovery.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">06</span>
+            <div class="goal-text">
+              <strong>The AI & Vector Frontier</strong>
+              Explore high-dimensional vector embeddings, learned index structures, and the convergence of LLMs with relational data.
+            </div>
+          </div>
+        </div>
+
+        <!-- Master Interactive Knowledge Map -->
+        <div class="knowledge-map-card">
+          <div class="map-header">
+            <h3>Chapter 12 Architecture & Synthesis Topology</h3>
+            <div class="map-legend">
+              <span class="map-legend-item"><span class="map-legend-dot" style="background: var(--accent);"></span> Core Pattern</span>
+              <span class="map-legend-item"><span class="map-legend-dot" style="background: var(--blue);"></span> Pipeline</span>
+              <span class="map-legend-item"><span class="map-legend-dot" style="background: var(--teal);"></span> Verification</span>
+            </div>
+          </div>
+
+          <svg viewBox="0 0 840 220" role="img" aria-labelledby="map12-title map12-desc" style="width: 100%; height: auto; display: block;">
+            <title id="map12-title">Chapter 12 Knowledge Map Topology</title>
+            <desc id="map12-desc">Interactive topology connecting Unbundled Databases, Read-Write Boundaries, Idempotency, Event Sourcing, Backup Verification, and AI Vector Embeddings.</desc>
+
+            <defs>
+              <marker id="m12-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="m12-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- Orthogonal Connectors (4px grid, r=8) -->
+            <!-- Path 1: M1 to M2 -->
+            <path d="M 140 60 L 200 60" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#m12-arrow)"/>
+            <!-- Path 2: M2 to M3 -->
+            <path d="M 340 60 L 400 60" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#m12-arrow)"/>
+            <!-- Path 3: M3 to M4 (Elbow down-right) -->
+            <path d="M 470 84 L 470 144 Q 470 152 478 152 L 536 152" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#m12-arrow-accent)"/>
+            <!-- Path 4: M3 to M6 (Elbow up-right) -->
+            <path d="M 540 60 L 670 60" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#m12-arrow)"/>
+            <!-- Path 5: M4 to M5 -->
+            <path d="M 280 152 L 200 152" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#m12-arrow)"/>
+            <!-- Path 6: M6 to M4 -->
+            <path d="M 740 84 L 740 144 Q 740 152 732 152 L 684 152" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#m12-arrow)"/>
+
+            <!-- Node 1: Unbundling -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-1').scrollIntoView({behavior: 'smooth'})">
+              <rect x="20" y="36" width="120" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="28" y="42" width="24" height="12" rx="2" fill="none" stroke="var(--blue)" stroke-width="0.8"/>
+              <text x="40" y="51" class="diag-tag-text" fill="var(--blue)" text-anchor="middle">M1</text>
+              <text x="80" y="62" class="diag-text" text-anchor="middle">Unbundled DB</text>
+              <text x="80" y="74" class="diag-subtext" text-anchor="middle">Data Integration</text>
+            </g>
+
+            <!-- Node 2: Read-Write Boundary -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-2').scrollIntoView({behavior: 'smooth'})">
+              <rect x="200" y="36" width="140" height="48" rx="6" class="diag-focal"/>
+              <rect x="208" y="42" width="24" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+              <text x="220" y="51" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">M2</text>
+              <text x="270" y="62" class="diag-focal-text" font-size="12" text-anchor="middle">Read/Write Bounds</text>
+              <text x="270" y="74" class="diag-subtext" text-anchor="middle">Precompute vs Scan</text>
+            </g>
+
+            <!-- Node 3: End-to-End Correctness -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-3').scrollIntoView({behavior: 'smooth'})">
+              <rect x="400" y="36" width="140" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="408" y="42" width="24" height="12" rx="2" fill="none" stroke="var(--purple)" stroke-width="0.8"/>
+              <text x="420" y="51" class="diag-tag-text" fill="var(--purple)" text-anchor="middle">M3</text>
+              <text x="470" y="62" class="diag-text" text-anchor="middle">Idempotency</text>
+              <text x="470" y="74" class="diag-subtext" text-anchor="middle">Dedup Keys & Sagas</text>
+            </g>
+
+            <!-- Node 4: Immutable Event Logs -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-4').scrollIntoView({behavior: 'smooth'})">
+              <rect x="540" y="128" width="140" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="548" y="134" width="24" height="12" rx="2" fill="none" stroke="var(--teal)" stroke-width="0.8"/>
+              <text x="560" y="143" class="diag-tag-text" fill="var(--teal)" text-anchor="middle">M4</text>
+              <text x="610" y="154" class="diag-text" text-anchor="middle">Immutable Logs</text>
+              <text x="610" y="166" class="diag-subtext" text-anchor="middle">CDC & Materialized Views</text>
+            </g>
+
+            <!-- Node 5: Continuous Verification -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-5').scrollIntoView({behavior: 'smooth'})">
+              <rect x="60" y="128" width="140" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="68" y="134" width="24" height="12" rx="2" fill="none" stroke="var(--amber)" stroke-width="0.8"/>
+              <text x="80" y="143" class="diag-tag-text" fill="var(--amber)" text-anchor="middle">M5</text>
+              <text x="130" y="154" class="diag-text" text-anchor="middle">Backup Verification</text>
+              <text x="130" y="166" class="diag-subtext" text-anchor="middle">Automated Restores</text>
+            </g>
+
+            <!-- Node 6: AI & Vectors -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-6').scrollIntoView({behavior: 'smooth'})">
+              <rect x="670" y="36" width="140" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="678" y="42" width="24" height="12" rx="2" fill="none" stroke="var(--purple)" stroke-width="0.8"/>
+              <text x="690" y="51" class="diag-tag-text" fill="var(--purple)" text-anchor="middle">M6</text>
+              <text x="740" y="62" class="diag-text" text-anchor="middle">AI & Vectors</text>
+              <text x="740" y="74" class="diag-subtext" text-anchor="middle">Semantic Embeddings</text>
+            </g>
+          </svg>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 1 -->
+      <!-- ========================================================================= -->
+      <section id="module-1" class="lesson-module">
+        <span class="module-badge">Module 01</span>
+        <h2 class="module-title">Unbundling the Database: Composing Heterogeneous Systems</h2>
+
+        <div class="prose-block">
+          <p>
+            Throughout the history of computing, relational database management systems (RDBMS) like Oracle, MySQL, and PostgreSQL acted as monolithic "do-everything" black boxes. A single engine was responsible for durable storage, transactional locking, secondary B-tree indexes, foreign key constraints, analytical aggregations, and query parsing. However, as applications reached unprecedented scale and diversity, no single storage engine could simultaneously excel at low-latency OLTP writes, high-throughput full-text search, multi-dimensional analytical scans, and sub-millisecond caching.
+          </p>
+          <p>
+            In Chapter 12, Martin Kleppmann synthesizes the architectural movement known as <strong class="highlight-term">Unbundling the Database</strong>. Rather than forcing a single database engine to handle all access patterns, modern architectures treat the entire enterprise infrastructure as a single distributed database. In this model, the underlying components are decomposed into specialized, federated services:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">The Core OLTP Primary (Source of Truth):</strong> MySQL or PostgreSQL records single-row operational writes and transactional state.</li>
+            <li><strong style="color: var(--text);">The Central Append-Only Log:</strong> A durable distributed event stream (Apache Kafka, Redpanda) serves as the system-wide transaction log / Write-Ahead Log (WAL).</li>
+            <li><strong style="color: var(--text);">Specialized Derived Views (Materialized Read Models):</strong> Elasticsearch/Lucene for full-text search, Redis for in-memory caching, ClickHouse/Snowflake for columnar analytics, and vector databases for AI embeddings.</li>
+          </ul>
+          <p>
+            Data synchronization between the source of truth and derived stores is powered by <strong class="highlight-term">Change Data Capture (CDC)</strong>. Instead of having application servers perform brittle dual-writes (e.g., writing to Postgres and simultaneously writing to Elasticsearch, which inevitably diverges during network faults), the CDC system streams WAL log changes directly into the event stream, ensuring asynchronous, totally-ordered convergence across all specialized stores.
+          </p>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">Core Concept: The Unbundled Database</div>
+          <div class="def-content">
+            An architectural philosophy where the traditional monolithic database is broken apart into distinct storage, indexing, and processing components connected by an asynchronous append-only change stream, creating a loosely coupled, federated data platform.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 1: The Unbundled Database Pipeline -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 280" role="img" aria-labelledby="diag12_1-title diag12_1-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag12_1-title">The Unbundled Database Architecture</title>
+            <desc id="diag12_1-desc">Data flow diagram showing client writes entering an OLTP database, captured via CDC into a Kafka event log, and materializing into Search, Cache, and OLAP views.</desc>
+
+            <defs>
+              <marker id="d12_1-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d12_1-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- App Client -->
+            <rect x="30" y="110" width="120" height="60" rx="6" class="diag-card-bg"/>
+            <text x="90" y="136" class="diag-text" text-anchor="middle">App Client</text>
+            <text x="90" y="152" class="diag-subtext" text-anchor="middle">POST /order</text>
+
+            <!-- Primary OLTP DB -->
+            <rect x="200" y="80" width="160" height="120" rx="8" class="diag-focal"/>
+            <rect x="208" y="86" width="48" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+            <text x="232" y="95" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">PRIMARY</text>
+            <text x="280" y="122" class="diag-focal-text" font-size="13" text-anchor="middle">PostgreSQL / MySQL</text>
+            <text x="280" y="138" class="diag-subtext" text-anchor="middle">Source of Truth (OLTP)</text>
+            <text x="280" y="154" class="diag-subtext" text-anchor="middle">WAL / Binary Log</text>
+
+            <!-- CDC Engine + Kafka Stream -->
+            <rect x="410" y="90" width="170" height="100" rx="6" class="diag-card-bg"/>
+            <rect x="418" y="96" width="34" height="12" rx="2" fill="none" stroke="var(--blue)" stroke-width="0.8"/>
+            <text x="435" y="105" class="diag-tag-text" fill="var(--blue)" text-anchor="middle">LOG</text>
+            <text x="495" y="128" class="diag-text" text-anchor="middle">CDC / Kafka Stream</text>
+            <text x="495" y="144" class="diag-subtext" text-anchor="middle">Debezium Event Pipe</text>
+            <text x="495" y="158" class="diag-subtext" text-anchor="middle">Total Order Log</text>
+
+            <!-- Derived Stores Column -->
+            <!-- Search Index -->
+            <rect x="640" y="30" width="200" height="50" rx="6" class="diag-card-bg"/>
+            <text x="680" y="52" class="diag-text">Elasticsearch / Lucene</text>
+            <text x="680" y="66" class="diag-subtext">Inverted Index (Full-Text)</text>
+
+            <!-- Cache -->
+            <rect x="640" y="95" width="200" height="50" rx="6" class="diag-card-bg"/>
+            <text x="680" y="117" class="diag-text">Redis / Memcached</text>
+            <text x="680" y="131" class="diag-subtext">Sub-ms Key-Value Cache</text>
+
+            <!-- OLAP Analytics -->
+            <rect x="640" y="160" width="200" height="50" rx="6" class="diag-card-bg"/>
+            <text x="680" y="182" class="diag-text">ClickHouse / Snowflake</text>
+            <text x="680" y="196" class="diag-subtext">Columnar Analytics Engine</text>
+
+            <!-- Vector Index -->
+            <rect x="640" y="225" width="200" height="50" rx="6" class="diag-card-bg"/>
+            <text x="680" y="247" class="diag-text">Vector Store (pgvector)</text>
+            <text x="680" y="261" class="diag-subtext">HNSW Semantic Embeddings</text>
+
+            <!-- Orthogonal Connectors (4px grid, r=8) -->
+            <path d="M 150 140 L 192 140" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d12_1-arrow-accent)"/>
+            <path d="M 360 140 L 402 140" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d12_1-arrow)"/>
+
+            <!-- Fan-out from Kafka to Derived Views -->
+            <path d="M 580 120 L 610 120 Q 618 120 618 112 L 618 64 Q 618 56 626 56 L 632 56" stroke="#10b981" stroke-width="1.2" fill="none" marker-end="url(#d12_1-arrow)"/>
+            <path d="M 580 135 L 632 135" stroke="#10b981" stroke-width="1.2" fill="none" marker-end="url(#d12_1-arrow)"/>
+            <path d="M 580 150 L 610 150 Q 618 150 618 158 L 618 176 Q 618 184 626 184 L 632 184" stroke="#10b981" stroke-width="1.2" fill="none" marker-end="url(#d12_1-arrow)"/>
+            <path d="M 580 165 L 602 165 Q 610 165 610 173 L 610 242 Q 610 250 618 250 L 632 250" stroke="#10b981" stroke-width="1.2" fill="none" marker-end="url(#d12_1-arrow)"/>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 12.1:</strong> The Unbundled Database. An OLTP write appends to a WAL, streams via CDC into Kafka, and asynchronously materializes into specialized Search, Cache, OLAP, and Vector views.
+          </div>
+        </div>
+
+        <!-- Step-by-Step Breakdown -->
+        <div class="steps-container">
+          <div class="step-item">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h4>Single Canonical Source of Truth</h4>
+              <p>
+                All user writes commit to a durable primary relational database. This maintains strict ACID constraints, unique checks, and serializable transaction invariants at write time.
+              </p>
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h4>Change Data Capture (CDC) Event Streaming</h4>
+              <p>
+                Rather than dual-writing in application code, a CDC connector (like Debezium) tails the database transaction log (binlog/WAL) and streams immutable row mutations to an event log in exact causal order.
+              </p>
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h4>Asynchronous Materialized Derivation</h4>
+              <p>
+                Downstream consumers ingest the log and build specialized data representations: inverted indexes for text, column files for analytics, and in-memory hash tables for high-frequency reads.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>E-Commerce Catalog & Search</h4>
+            <p>
+              Merchants create products in PostgreSQL (OLTP). A CDC event streams to Elasticsearch to update full-text search indexes and to Redis to invalidate cached product detail pages.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>Dual-Write Anti-Pattern Failure</h4>
+            <p>
+              An app writes to Postgres, then issues an HTTP PUT to Elasticsearch. If the app crashes between writes or Elasticsearch is slow, the search index permanently diverges from the database. CDC solves this.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>Schema Migrations on Derived Views</h4>
+            <p>
+              When re-indexing a billion documents with a new tokenizer, an unbundled architecture reads the Kafka log from offset 0 into a brand-new Elasticsearch index without touching the live OLTP database.
+            </p>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-grid">
+          <div class="analogy-card">
+            <div class="card-label label-analogy">💡 Visual Analogy</div>
+            <div class="card-body-text">
+              An unbundled database is like a modern newspaper. The journalists write the master factual articles (OLTP Source of Truth). The printing press publishes the raw daily feed (Event Log). Specialized editors format that feed into audio podcasts, crossword puzzles, financial stock tables, and web search summaries (Materialized Views).
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="card-label label-wrong">❌ What People Get Wrong</div>
+            <div class="card-body-text">
+              <strong>"We can just use one database (like PostgreSQL with 50 extensions) for everything."</strong> While extensions (like `pg_analytics` or `pgvector`) are convenient, running complex multi-minute analytics or heavy vector searches on your primary OLTP instance starves CPU and I/O for mission-critical write transactions.
+            </div>
+          </div>
+        </div>
+
+        <div class="why-matters-card">
+          <div class="card-label label-matters">🎯 Why This Matters in Production</div>
+          <div class="card-body-text">
+            Unbundling allows teams to scale components independently. You can restart, upgrade, or re-index your entire analytical or search stack without risking a single microsecond of downtime on your revenue-generating OLTP checkout pipeline.
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>Unbundled Database:</strong> Primary DB = Source of Truth. Event Stream = Transaction Log. Search / Cache / OLAP = Materialized Derived Views.
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">How do we decide whether work should be executed during write time versus postponed until read time?</span>
+          <a href="#module-2" class="inter-link-btn">Proceed to Module 02: The Read-Write Boundary →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 2 -->
+      <!-- ========================================================================= -->
+      <section id="module-2" class="lesson-module">
+        <span class="module-badge">Module 02</span>
+        <h2 class="module-title">The Shifting Read-Write Boundary & Precomputation</h2>
+
+        <div class="prose-block">
+          <p>
+            One of the deepest unifying insights in database engineering is that <strong>indexing, caching, and materialization are simply different points along a continuous spectrum between write-time work and read-time work</strong>. Whenever you design a data pipeline, you are deciding where to draw the boundary:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">Eager Write-Time Precomputation (Write-Heavy / Read-Light):</strong> When data arrives, the database immediately parses it, tokenizes words, updates B-trees, generates vector embeddings, and recomputes summary aggregates. At query time, reading is virtually instantaneous (a single index seek), but writes incur high CPU, I/O, and <em>write amplification</em>.</li>
+            <li><strong style="color: var(--text);">Lazy Read-Time Computation (Write-Light / Read-Heavy):</strong> When data arrives, the database dumps the raw file directly into cloud storage (e.g., an S3 bucket or append-only log). Writes are blistering fast ($0.1\text{ ms}$), but whenever a user searches, the engine must scan raw bytes, parse text, filter records, and compute aggregates on the fly.</li>
+          </ul>
+          <p>
+            Consider a document upload platform. If you choose the <strong>Write-Time Indexing</strong> approach, the application server immediately runs linguistic tokenization, stems words, extracts keywords, and inserts entries into an Elasticsearch inverted posting list. When another user searches for `"machine learning"`, the query completes in $2\text{ ms}$.
+          </p>
+          <p>
+            Conversely, if you choose the <strong>Raw Storage & Read-Time Scan</strong> approach, uploading simply stores the raw PDF in S3 and writes a metadata row to Postgres. Uploading completes with near-zero latency. But when the user performs a text search, the system must fetch the PDF from S3, parse its contents, and evaluate regex matches dynamically, taking $3\text{ seconds}$ and consuming heavy compute. In read-heavy web applications, shifting the boundary toward eager write-time precomputation almost always yields superior user experiences.
+          </p>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">The Fundamental Trade-Off of Indexes</div>
+          <div class="def-content">
+            A database index is a precomputed materialized view of the data designed to speed up reads at the expense of slower writes and increased disk storage. Moving the boundary to the right speeds up reads; moving it to the left speeds up writes.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 2: Read-Write Spectrum -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 280" role="img" aria-labelledby="diag12_2-title diag12_2-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag12_2-title">The Read-Write Boundary Spectrum</title>
+            <desc id="diag12_2-desc">Architectural comparison showing write-time precomputation (indexing, tokenization, embeddings) vs read-time dynamic evaluation (scanning raw files).</desc>
+
+            <defs>
+              <marker id="d12_2-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d12_2-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+              <marker id="d12_2-arrow-teal" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+              </marker>
+            </defs>
+
+            <!-- Spectrum Container -->
+            <rect x="30" y="30" width="820" height="220" rx="8" class="diag-card-bg"/>
+
+            <!-- Left: Write-Heavy Precomputation -->
+            <rect x="50" y="50" width="360" height="180" rx="6" class="diag-focal"/>
+            <rect x="58" y="56" width="68" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+            <text x="92" y="65" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">PRECOMPUTE</text>
+            <text x="230" y="80" class="diag-focal-text" font-size="13" text-anchor="middle">Write-Time Precomputation</text>
+
+            <rect x="70" y="100" width="320" height="30" rx="4" class="diag-card-bg"/>
+            <text x="85" y="120" class="diag-subtext">1. Tokenize & Stem Text (Linguistic Analysis)</text>
+
+            <rect x="70" y="135" width="320" height="30" rx="4" class="diag-card-bg"/>
+            <text x="85" y="155" class="diag-subtext">2. Update Inverted Indexes & Vector Embeddings</text>
+
+            <rect x="70" y="170" width="320" height="30" rx="4" class="diag-card-bg"/>
+            <text x="85" y="190" class="diag-subtext">3. Recompute Materialized Summary Tables</text>
+
+            <text x="230" y="218" fill="var(--teal)" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" text-anchor="middle">⚡ Query Time: ~2ms (Instant Seek)</text>
+
+            <!-- Right: Read-Heavy Dynamic Scan -->
+            <rect x="470" y="50" width="360" height="180" rx="6" class="diag-card-bg"/>
+            <rect x="478" y="56" width="60" height="12" rx="2" fill="none" stroke="var(--purple)" stroke-width="0.8"/>
+            <text x="508" y="65" class="diag-tag-text" fill="var(--purple)" text-anchor="middle">LAZY SCAN</text>
+            <text x="650" y="80" class="diag-text" font-size="13" text-anchor="middle">Read-Time Dynamic Scan</text>
+
+            <rect x="490" y="100" width="320" height="30" rx="4" class="diag-box-bg"/>
+            <text x="505" y="120" class="diag-subtext">1. Dump raw PDF / JSON into S3 Object Store</text>
+
+            <rect x="490" y="135" width="320" height="30" rx="4" class="diag-box-bg"/>
+            <text x="505" y="155" class="diag-subtext">2. Fast Write Return (Latency: ~0.5ms)</text>
+
+            <rect x="490" y="170" width="320" height="30" rx="4" class="diag-box-bg"/>
+            <text x="505" y="190" class="diag-subtext">3. Query Time: Full file download + regex scan</text>
+
+            <text x="650" y="218" fill="var(--rose)" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" text-anchor="middle">🐢 Query Time: ~3,200ms (Compute Heavy)</text>
+
+            <!-- Spectrum Divider Arrow -->
+            <path d="M 420 140 L 460 140" stroke="#8d9bb0" stroke-width="1.5" fill="none" marker-end="url(#d12_2-arrow)"/>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 12.2:</strong> The Read-Write Spectrum. Shifting work to write time dramatically speeds up queries but increases write amplification and background index maintenance.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>Twitter / X Home Timeline Feed</h4>
+            <p>
+              When a user tweets, X fans out the tweet into the in-memory home timelines of all followers at write time. When a follower opens the app, reading their feed is a simple $O(1)$ memory lookup.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>The Celebrity Fan-out Cliff</h4>
+            <p>
+              For users with 100M+ followers (like Elon Musk), write-time fanout requires 100M writes per tweet! For celebrities, X flips the boundary: celebrity tweets are merged into timelines dynamically at <em>read time</em>.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>LSM-Tree Compaction vs B-Tree Split</h4>
+            <p>
+              LSM-Trees shift write work into sequential memory buffers (memtable), postponing sorting to background compaction. B-Trees perform in-place page splits and random disk I/O immediately at write time.
+            </p>
+          </div>
+        </div>
+
+        <!-- Interactive Simulator 1: Read-Write Boundary Trade-Off Simulator -->
+        <div class="interactive-container">
+          <div class="interactive-header">
+            <div class="interactive-title">
+              <span>Interactive Simulator: Read-Write Boundary & Write Amplification Engine</span>
+            </div>
+            <span class="interactive-badge">Sim 01</span>
+          </div>
+
+          <div class="control-panel">
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text);">
+              Precomputation Level:
+              <select id="sim12_1-level" onchange="updateSim12_1()" style="background: var(--bg-surface-elevated); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: var(--radius-sm); margin-left: 0.4rem;">
+                <option value="raw">Raw Store (Lazy Read Scan)</option>
+                <option value="indexed" selected>Standard Inverted Index + Primary B-Tree</option>
+                <option value="heavy">Full AI Embeddings + Aggregates + Posting Lists</option>
+              </select>
+            </label>
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text); margin-left: 1rem;">
+              Daily Document Ingestion:
+              <input type="range" id="sim12_1-docs" min="1000" max="100000" step="5000" value="25000" oninput="updateSim12_1()" style="vertical-align: middle;">
+              <span id="sim12_1-docs-val" style="color: var(--accent); font-weight: 600;">25,000 docs/day</span>
+            </label>
+          </div>
+
+          <div class="sim-output-box" id="sim12_1-output">
+            Evaluating Standard Inverted Index Profile:
+            - Write Latency: ~18.5 ms (Tokenization + B-Tree + Posting List write)
+            - Read Query Latency: ~2.4 ms (Index Seek)
+            - Write Amplification: 4.2x (Bytes written to disk vs raw payload size)
+            - Daily Background Compute Cost: Moderate
+          </div>
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">Even with perfect database transactions, how can network blips between client and server cause duplicate charges or dropped operations?</span>
+          <a href="#module-3" class="inter-link-btn">Proceed to Module 03: End-to-End Correctness & Idempotency →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 3 -->
+      <!-- ========================================================================= -->
+      <section id="module-3" class="lesson-module">
+        <span class="module-badge">Module 03</span>
+        <h2 class="module-title">End-to-End Correctness, Idempotency & The Disconnect Dilemma</h2>
+
+        <div class="prose-block">
+          <p>
+            Software engineers often assume that if their database supports ACID transactions, their application is automatically immune to data loss or duplicate operations. This is a dangerous fallacy. A database transaction guarantees atomicity <em>inside the database boundary</em>, but it does nothing to protect the distributed network connection between the application client and the database server.
+          </p>
+          <p>
+            This fundamental problem is known as the <strong class="highlight-term">Client-Server Commit Disconnect</strong>. Imagine an app server executing a peer-to-peer payment (e.g., Venmo or Zelle) transferring $11 from Alice to Bob:
+          </p>
+          <ol style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted); line-height: 1.7;">
+            <li>App server sends: `BEGIN; UPDATE accounts SET bal = bal - 11 WHERE user = 'Alice'; UPDATE accounts SET bal = bal + 11 WHERE user = 'Bob'; COMMIT;`</li>
+            <li>The database receives the transaction, flushes the commit record to the WAL, applies the changes, and returns a `COMMIT SUCCESS` acknowledgment over the TCP socket.</li>
+            <li><strong>The Network Drops:</strong> A momentary network switch reset or AWS load balancer timeout drops the return TCP packet before it reaches the app server. Alternatively, the app server container crashes.</li>
+            <li><strong>The Dilemma:</strong> The app server wakes up or receives a `SocketTimeoutException`. The app server <em>does not know</em> whether the database committed the $11 transfer or rolled it back before receiving the commit.</li>
+          </ol>
+          <p>
+            If the app server naively retries the transaction, Alice is charged $22 instead of $11 (a catastrophic double-charge). If the app server assumes failure and gives up, Bob never receives his money.
+          </p>
+          <p>
+            To achieve true end-to-end correctness, systems must implement <strong class="highlight-term">Idempotency</strong> using deterministic <strong>Idempotency Keys</strong>. The client generates a unique UUID for the payment intent and includes it in the transaction. The database enforces a `UNIQUE` constraint on an `idempotency_keys` table inside the transaction. If a network timeout causes a retry, the second attempt collides with the unique constraint, allowing the database to safely suppress the duplicate execution and return the cached receipt.
+          </p>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">Core Definition: Idempotence in Distributed Systems</div>
+          <div class="def-content">
+            An operation is idempotent if executing it multiple times produces the exact same system state and outcome as executing it once: $f(f(x)) = f(x)$.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 3: Client Commit Disconnect & Idempotency Key Defense -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 340" role="img" aria-labelledby="diag12_3-title diag12_3-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag12_3-title">Client Commit Disconnect & Idempotency Defense</title>
+            <desc id="diag12_3-desc">Sequence diagram showing how a dropped commit ACK leads to a retry, and how an Idempotency Key table safely prevents duplicate balance deductions.</desc>
+
+            <defs>
+              <marker id="d12_3-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d12_3-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+              <marker id="d12_3-arrow-rose" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#f43f5e"/>
+              </marker>
+              <marker id="d12_3-arrow-teal" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+              </marker>
+            </defs>
+
+            <!-- Lifelines -->
+            <line x1="160" y1="50" x2="160" y2="310" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+            <line x1="680" y1="50" x2="680" y2="310" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+
+            <!-- Actor Boxes -->
+            <rect x="80" y="20" width="160" height="36" rx="6" class="diag-card-bg"/>
+            <text x="160" y="42" class="diag-text" text-anchor="middle">Payment App Server</text>
+
+            <rect x="600" y="20" width="160" height="36" rx="6" class="diag-focal"/>
+            <text x="680" y="42" class="diag-focal-text" font-size="12" text-anchor="middle">PostgreSQL Database</text>
+
+            <!-- Step 1: Initial Attempt with Idempotency Key -->
+            <path d="M 160 80 L 672 80" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d12_3-arrow-accent)"/>
+            <rect x="280" y="68" width="280" height="14" rx="2" class="diag-mask-elevated"/>
+            <text x="420" y="78" class="diag-label-accent">TXN 1: INSERT key='pay_849f' + Transfer $11</text>
+
+            <!-- Step 2: Database commits -->
+            <rect x="620" y="100" width="120" height="24" rx="3" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="0.8"/>
+            <text x="680" y="116" fill="#10b981" font-family="'Geist Mono', monospace" font-size="8.5" font-weight="700" text-anchor="middle">COMMITTED TO WAL</text>
+
+            <!-- Step 3: Network drops return ACK -->
+            <path d="M 680 140 L 320 140" stroke="#f43f5e" stroke-width="1.5" stroke-dasharray="4,4" fill="none" marker-end="url(#d12_3-arrow-rose)"/>
+            <circle cx="380" cy="140" r="10" fill="#f43f5e"/>
+            <text x="380" y="144" fill="#fff" font-family="'Geist Mono', monospace" font-size="11" font-weight="700" text-anchor="middle">⚡</text>
+            <rect x="400" y="132" width="160" height="14" rx="2" class="diag-mask-elevated"/>
+            <text x="480" y="142" class="diag-label" fill="#f43f5e" font-weight="600">TCP Drop: ACK Lost!</text>
+
+            <!-- Step 4: App Server Timeout & Safe Retry -->
+            <rect x="80" y="165" width="160" height="26" rx="4" class="diag-card-bg"/>
+            <text x="160" y="182" fill="var(--amber)" font-family="'Geist Mono', monospace" font-size="8.5" font-weight="600" text-anchor="middle">TIMEOUT → RETRY WITH SAME KEY</text>
+
+            <path d="M 160 210 L 672 210" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d12_3-arrow-accent)"/>
+            <rect x="280" y="198" width="280" height="14" rx="2" class="diag-mask-elevated"/>
+            <text x="420" y="208" class="diag-label-accent">RETRY TXN: INSERT key='pay_849f'</text>
+
+            <!-- Step 5: DB catches unique key collision -->
+            <rect x="610" y="235" width="140" height="24" rx="3" fill="rgba(245,158,11,0.15)" stroke="var(--amber)" stroke-width="0.8"/>
+            <text x="680" y="251" fill="var(--amber)" font-family="'Geist Mono', monospace" font-size="8.5" font-weight="700" text-anchor="middle">DUPLICATE KEY DETECTED</text>
+
+            <path d="M 680 280 L 168 280" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d12_3-arrow-teal)"/>
+            <rect x="300" y="268" width="240" height="14" rx="2" class="diag-mask-elevated"/>
+            <text x="420" y="278" class="diag-label" fill="#10b981" font-weight="600">SUCCESS: Return Cached Receipt (No Double Charge)</text>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 12.3:</strong> The Client-Server Commit Disconnect. An Idempotency Key table inside the database guarantees that retrying an already-committed transaction safely returns success without executing duplicate mutations.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>Stripe Payment Intents</h4>
+            <p>
+              Stripe API requests accept an `Idempotency-Key: <UUID>` header. If your network times out during credit card authorization, retrying with the same header guarantees the customer is charged exactly once.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>`AUTO_INCREMENT` Primary Key Trap</h4>
+            <p>
+              If an insert relies on database auto-incrementing IDs (`INSERT INTO orders (item) VALUES ('laptop')`), retrying after a disconnect generates two distinct orders with IDs 101 and 102. Client-generated UUIDs are mandatory for idempotency!
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>Kafka Exactly-Once Semantics (EOS)</h4>
+            <p>
+              Kafka achieves exactly-once stream processing by assigning transactional producer IDs and sequence numbers, allowing topic brokers to deduplicate batch retransmissions transparently.
+            </p>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-grid">
+          <div class="analogy-card">
+            <div class="card-label label-analogy">💡 Visual Analogy</div>
+            <div class="card-body-text">
+              An idempotency key is like a postal tracking number. If you mail a package and the postal clerk stamps tracking number `#8492`, submitting the same package with tracking `#8492` five minutes later causes the clerk to say: "We already accepted and processed `#8492`—here is your confirmation receipt."
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="card-label label-wrong">❌ What People Get Wrong</div>
+            <div class="card-body-text">
+              <strong>"Database transactions prevent duplicate user actions."</strong> False! ACID transactions guarantee that if a transaction commits, all its internal statements succeed atomically. They cannot prevent an application server from executing two identical transactions when a network timeout occurs!
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>End-to-End Idempotency:</strong> Client generates a unique request key $\rightarrow$ Database enforces a unique constraint inside the transaction $\rightarrow$ Retries return cached success.
+        </div>
+
+        <!-- Interactive Simulator 2: Idempotency & Network Disconnect Sandbox -->
+        <div class="interactive-container">
+          <div class="interactive-header">
+            <div class="interactive-title">
+              <span>Interactive Simulator: Idempotency & Double-Charge Defense Engine</span>
+            </div>
+            <span class="interactive-badge">Sim 02</span>
+          </div>
+
+          <div class="control-panel">
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text);">
+              Protection Mechanism:
+              <select id="sim12_2-mode" style="background: var(--bg-surface-elevated); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: var(--radius-sm); margin-left: 0.4rem;">
+                <option value="naive">Naive Transaction (No Idempotency Key)</option>
+                <option value="idempotent">Idempotent Transaction (Unique Key Dedup)</option>
+              </select>
+            </label>
+            <button class="btn-action" onclick="runSim12_2()">Execute $11 Payment & Inject Drop</button>
+          </div>
+
+          <div class="sim-output-box" id="sim12_2-output">
+            Click "Execute $11 Payment & Inject Drop" to simulate a network ACK timeout and subsequent client retry.
+          </div>
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">Why are mutable in-place updates dangerous for auditability, and how do immutable event logs transform database durability?</span>
+          <a href="#module-4" class="inter-link-btn">Proceed to Module 04: Immutable Event Logs & CDC →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 4 -->
+      <!-- ========================================================================= -->
+      <section id="module-4" class="lesson-module">
+        <span class="module-badge">Module 04</span>
+        <h2 class="module-title">Immutable Event Logs, Change Data Capture & Derived State</h2>
+
+        <div class="prose-block">
+          <p>
+            Traditional relational databases treat mutable state as the primary primitive. When an employee changes their home address or a user updates their email, the database executes an `UPDATE` statement that overwrites the existing disk block in place. While this conserves disk storage, it permanently destroys the historical timeline of what happened, when it happened, and why it happened.
+          </p>
+          <p>
+            In modern data systems, there is a profound paradigm shift: <strong class="highlight-term">State is a Pure Function of Time</strong>. The fundamental source of truth is not the current mutable snapshot, but an <strong>immutable, append-only log of historical events</strong>:
+          </p>
+          <div style="background: var(--bg-surface); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.95rem; color: var(--accent); margin-bottom: 1.25rem; text-align: center;">
+            $\text{Current State} = \int \text{Event Stream } dt = \text{foldL}(\text{applyEvent}, \text{initialState}, \text{Events})$
+          </div>
+          <p>
+            This principle underlies <strong>Event Sourcing</strong> and <strong>Change Data Capture (CDC)</strong>. Instead of destructively overwriting row `bal = 100` with `bal = 89`, the system appends the immutable event `AccountDebited(amount=11, timestamp=T)`. 
+          </p>
+          <p>
+            The architectural benefits of immutable event logs are transformative:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">Complete Auditability & Compliance:</strong> In accounting and financial ledgers, accountants never erase mistakes with an eraser; they append a new compensating credit or debit entry. Immutable event logs preserve an infallible forensic audit trail.</li>
+            <li><strong style="color: var(--text);">Time-Travel Debugging:</strong> If an application bug corrupts derived analytics or search indices, you don't need to panic or restore tape backups. You fix the code, reset the stream consumer offset to the beginning of the log, and recompute the entire derived datastore from scratch.</li>
+            <li><strong style="color: var(--text);">Concurrency Without Locks:</strong> Appending to an immutable log is inherently sequential and lock-free. Consumers read independently at their own pace without acquiring read locks on the primary database.</li>
+          </ul>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">The Accounting Principle of Data</div>
+          <div class="def-content">
+            Accountants have used immutable event logs for centuries: double-entry bookkeeping records every transaction chronologically. The current balance is simply a derived cache (materialized view) of the ledger's historical log.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 4: Event Sourcing & Derived Views -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 260" role="img" aria-labelledby="diag12_4-title diag12_4-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag12_4-title">Immutable Event Log to Materialized State</title>
+            <desc id="diag12_4-desc">Data flow diagram showing immutable append-only event stream replayed through deterministic state machines to derive current balance and search indexes.</desc>
+
+            <defs>
+              <marker id="d12_4-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d12_4-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- Immutable Append-Only Log Stream -->
+            <rect x="30" y="40" width="460" height="180" rx="8" class="diag-focal"/>
+            <rect x="38" y="46" width="60" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+            <text x="68" y="55" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">EVENT LOG</text>
+            <text x="260" y="70" class="diag-focal-text" font-size="13" text-anchor="middle">Immutable Append-Only Ledger Stream</text>
+
+            <!-- Log Entries -->
+            <rect x="50" y="90" width="90" height="60" rx="4" class="diag-card-bg"/>
+            <text x="95" y="112" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">#101: T=09:00</text>
+            <text x="95" y="128" class="diag-subtext" text-anchor="middle">Deposit +$100</text>
+
+            <rect x="150" y="90" width="90" height="60" rx="4" class="diag-card-bg"/>
+            <text x="195" y="112" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">#102: T=09:15</text>
+            <text x="195" y="128" class="diag-subtext" text-anchor="middle">Debit -$20</text>
+
+            <rect x="250" y="90" width="90" height="60" rx="4" class="diag-card-bg"/>
+            <text x="295" y="112" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">#103: T=09:30</text>
+            <text x="295" y="128" class="diag-subtext" text-anchor="middle">Debit -$11</text>
+
+            <rect x="350" y="90" width="120" height="60" rx="4" class="diag-card-bg" stroke-dasharray="4,4"/>
+            <text x="410" y="112" class="diag-tag-text" fill="var(--teal)" text-anchor="middle">#104: APPENDING</text>
+            <text x="410" y="128" class="diag-subtext" text-anchor="middle">New Event...</text>
+
+            <text x="260" y="195" class="diag-subtext" text-anchor="middle">Append-Only · Never Overwritten · Complete History</text>
+
+            <!-- Materialized State Engine -->
+            <rect x="570" y="40" width="280" height="80" rx="6" class="diag-card-bg"/>
+            <rect x="578" y="46" width="70" height="12" rx="2" fill="none" stroke="var(--teal)" stroke-width="0.8"/>
+            <text x="613" y="55" class="diag-tag-text" fill="var(--teal)" text-anchor="middle">CURRENT STATE</text>
+            <text x="710" y="76" class="diag-text" text-anchor="middle">Materialized Account Balance</text>
+            <text x="710" y="94" fill="var(--teal)" font-family="'Geist Mono', monospace" font-size="12" font-weight="700" text-anchor="middle">Balance = $69.00</text>
+
+            <!-- Time Travel Derivation -->
+            <rect x="570" y="140" width="280" height="80" rx="6" class="diag-card-bg"/>
+            <rect x="578" y="146" width="68" height="12" rx="2" fill="none" stroke="var(--purple)" stroke-width="0.8"/>
+            <text x="612" y="155" class="diag-tag-text" fill="var(--purple)" text-anchor="middle">TIME TRAVEL</text>
+            <text x="710" y="176" class="diag-text" text-anchor="middle">Point-in-Time Audit (T=09:20)</text>
+            <text x="710" y="194" fill="var(--purple)" font-family="'Geist Mono', monospace" font-size="11" font-weight="600" text-anchor="middle">Historical Balance = $80.00</text>
+
+            <!-- Orthogonal Connectors -->
+            <path d="M 490 100 L 562 100" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d12_4-arrow)"/>
+            <path d="M 490 160 L 562 160" stroke="#8b5cf6" stroke-width="1.5" fill="none" marker-end="url(#d12_4-arrow)"/>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 12.4:</strong> Deriving state from an immutable event log. Current balance and historical audit snapshots are pure deterministic fold operations over the append-only event stream.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>Git Version Control System</h4>
+            <p>
+              Git does not store file edits destructively; it appends immutable commit snapshots to a directed acyclic graph. You can checkout any commit from 10 years ago with bit-for-bit exact reproducibility.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>LSM-Tree Log Compaction</h4>
+            <p>
+              While event logs grow indefinitely, storage engines prevent disk exhaustion using <em>Log Compaction</em> (retaining only the latest state per primary key in background segments).
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>GDPR Right to Be Forgotten</h4>
+            <p>
+              In strictly immutable append-only logs, deleting personal data is challenging. Systems implement <em>cryptographic erasure</em> (encrypting user data with a unique key, then deleting the key to render historical log bytes unrecoverable).
+            </p>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>State is a Function of Events:</strong> Mutable tables are throwaway materialized views; the append-only event log is the permanent source of truth.
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">How do modern database cloud platforms guarantee data durability and verify that backup snapshots actually work?</span>
+          <a href="#module-5" class="inter-link-btn">Proceed to Module 05: Continuous Backup Verification →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 5 -->
+      <!-- ========================================================================= -->
+      <section id="module-5" class="lesson-module">
+        <span class="module-badge">Module 05</span>
+        <h2 class="module-title">Continuous Verification & Automated Backup Pipelines</h2>
+
+        <div class="prose-block">
+          <p>
+            In the operations of enterprise database systems, there is a famous industry maxim: <strong class="highlight-term">"Nobody wants backups; everyone wants restores."</strong> Millions of organizations diligently run nightly backup cron jobs that write tarballs to remote storage, only to discover during a catastrophic datacenter fire that the backup files were corrupted, incomplete, or incompatible with the current database engine version.
+          </p>
+          <p>
+            A true database backup is not a passive archive file—it is a <strong>continuously verified recovery pipeline</strong>. In Chapter 12 and modern production architectures (as implemented by PlanetScale, AWS RDS, and Aurora), backup management is engineered as an active, isolated distributed process:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">Zero-Impact Dedicated Backup Nodes:</strong> Taking a physical snapshot on a live production primary database consumes disk I/O and saturates CPU, leading to latency spikes. Modern platforms spin up an isolated, ephemeral backup server that clones state from a designated read-replica without touching the primary OLTP engine.</li>
+            <li><strong style="color: var(--text);">Continuous Verification by Active Restore:</strong> Every backup cycle (e.g., every 12 hours), the backup orchestrator downloads the previous snapshot from cloud object storage (Amazon S3), starts a fresh instance of MySQL/PostgreSQL on the ephemeral runner, and verifies B-tree block checksums and schema integrity.</li>
+            <li><strong style="color: var(--text);">Point-in-Time Recovery (PITR) via WAL Streaming:</strong> Snapshots are paired with continuous Write-Ahead Log (WAL) or binlog archiving. To restore the database to <em>14:03:22 PM</em> yesterday, the system restores the 12:00 PM base snapshot and replays exactly 2 hours, 3 minutes, and 22 seconds of binlog events in lockstep.</li>
+          </ul>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">The Backup Integrity Principle</div>
+          <div class="def-content">
+            An unverified backup is merely a hypothesis. A database backup is only valid if an automated system has spun up a real database process, restored the snapshot, replayed the incremental transaction logs, and successfully executed verification queries.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 5: Modern Continuous Verification Pipeline -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 300" role="img" aria-labelledby="diag12_5-title diag12_5-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag12_5-title">Continuous Backup Verification & WAL Replay Pipeline</title>
+            <desc id="diag12_5-desc">Architecture diagram showing Primary DB, Read-Replica, Ephemeral Backup Runner restoring S3 snapshots, verifying checksums, and streaming incremental WALs.</desc>
+
+            <defs>
+              <marker id="d12_5-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d12_5-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+              <marker id="d12_5-arrow-teal" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+              </marker>
+            </defs>
+
+            <!-- Production Cluster (DC-1) -->
+            <rect x="30" y="30" width="260" height="240" rx="8" class="diag-card-bg"/>
+            <text x="160" y="52" fill="var(--text-muted)" font-family="'Geist Mono', monospace" font-size="10" font-weight="600" text-anchor="middle">LIVE PRODUCTION CLUSTER</text>
+
+            <rect x="50" y="70" width="220" height="50" rx="6" class="diag-focal"/>
+            <text x="160" y="92" class="diag-focal-text" font-size="12" text-anchor="middle">Primary DB (OLTP Writes)</text>
+            <text x="160" y="106" class="diag-subtext" text-anchor="middle">Zero Backup I/O Overhead</text>
+
+            <rect x="50" y="135" width="220" height="50" rx="6" class="diag-card-bg"/>
+            <text x="160" y="157" class="diag-text" text-anchor="middle">Read-Replica 1</text>
+            <text x="160" y="171" class="diag-subtext" text-anchor="middle">Asynchronous Replication</text>
+
+            <rect x="50" y="200" width="220" height="50" rx="6" class="diag-card-bg"/>
+            <text x="160" y="222" class="diag-text" text-anchor="middle">Continuous WAL Streamer</text>
+            <text x="160" y="236" class="diag-subtext" text-anchor="middle">Real-Time Binlog Archiving</text>
+
+            <!-- Cloud Storage (S3) -->
+            <rect x="350" y="90" width="180" height="120" rx="8" class="diag-card-bg"/>
+            <rect x="358" y="96" width="60" height="12" rx="2" fill="none" stroke="var(--blue)" stroke-width="0.8"/>
+            <text x="388" y="105" class="diag-tag-text" fill="var(--blue)" text-anchor="middle">S3 BUCKET</text>
+            <text x="440" y="132" class="diag-text" font-size="13" text-anchor="middle">Cloud Object Store</text>
+            <text x="440" y="150" class="diag-subtext" text-anchor="middle">12-Hour Snapshots</text>
+            <text x="440" y="166" class="diag-subtext" text-anchor="middle">Immutable WAL Archive</text>
+
+            <!-- Ephemeral Verification Runner -->
+            <rect x="590" y="30" width="260" height="240" rx="8" class="diag-focal"/>
+            <rect x="598" y="36" width="76" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+            <text x="636" y="45" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">VERIFICATION</text>
+            <text x="720" y="66" class="diag-focal-text" font-size="13" text-anchor="middle">Isolated Backup Runner</text>
+
+            <rect x="610" y="85" width="220" height="40" rx="4" class="diag-card-bg"/>
+            <text x="625" y="105" class="diag-subtext">1. Download previous S3 base snapshot</text>
+
+            <rect x="610" y="135" width="220" height="40" rx="4" class="diag-card-bg"/>
+            <text x="625" y="155" class="diag-subtext">2. Boot MySQL/PG & verify B-tree checksums</text>
+
+            <rect x="610" y="185" width="220" height="40" rx="4" class="diag-card-bg"/>
+            <text x="625" y="205" class="diag-subtext">3. Replay 12h WAL delta & test PITR restore</text>
+
+            <text x="720" y="250" fill="var(--teal)" font-family="'Geist Mono', monospace" font-size="9" font-weight="700" text-anchor="middle">✅ Continuous Verification PASSED</text>
+
+            <!-- Connectors (Orthogonal 4px grid) -->
+            <path d="M 270 225 L 310 225 Q 318 225 318 217 L 318 160 Q 318 152 326 152 L 342 152" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d12_5-arrow)"/>
+            <path d="M 530 152 L 582 152" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d12_5-arrow-teal)"/>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 12.5:</strong> Modern Continuous Backup Verification. An isolated ephemeral runner restores snapshots from S3, checks page checksums, and replays WAL deltas without impacting production traffic.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>Point-in-Time Recovery (PITR)</h4>
+            <p>
+              A developer accidentally runs `DELETE FROM users;` at 14:02. The operations team restores the 12:00 base snapshot and replays binlogs up to 14:01:59, recovering 100% of data with zero loss.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>Silent Bit Rot & Page Corruption</h4>
+            <p>
+              Hard drives occasionally flip bits on cold storage sectors. If backups are not actively restored and verified with checksum validation, corrupted pages remain undetected until a disaster recovery attempt fails.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>Proactive vs Reactive Failovers</h4>
+            <p>
+              PlanetScale and Uber run thousands of automated failovers every month during routine EC2 host maintenance, proving that replication streams and failover paths work reliably before real emergencies strike.
+            </p>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>Continuous Verification:</strong> Restore the snapshot $\rightarrow$ Check B-Tree checksums $\rightarrow$ Replay incremental WAL logs. Never trust an untested archive.
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">How are modern databases incorporating AI, high-dimensional vector embeddings, and learned index structures?</span>
+          <a href="#module-6" class="inter-link-btn">Proceed to Module 06: The AI & Vector Frontier →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 6 -->
+      <!-- ========================================================================= -->
+      <section id="module-6" class="lesson-module">
+        <span class="module-badge">Module 06</span>
+        <h2 class="module-title">The AI & Vector Frontier: Embeddings & Learned Indexes</h2>
+
+        <div class="prose-block">
+          <p>
+            When <em>Designing Data-Intensive Applications</em> was published in 2017, data systems predominantly processed structured tabular rows, key-value registers, document JSONs, and inverted keyword indexes. Seven years later, the exponential rise of Large Language Models (LLMs) and Multimodal AI has introduced a new fundamental data primitive: <strong class="highlight-term">High-Dimensional Vector Embeddings</strong>.
+          </p>
+          <p>
+            Traditional database indexes (B-trees, LSM-trees, Hash maps) evaluate exact scalar matches or range inequalities (`WHERE price < 50 AND category = 'books'`). In contrast, vector databases evaluate <strong class="highlight-term">Semantic Similarity</strong>. Text, images, audio, and code are passed through an embedding model (like text-embedding-3 or CLIP) that maps unstructured data into a 1536-dimensional vector space. In this space, similarity is computed via <em>Cosine Distance</em> or <em>Dot Product</em>:
+          </p>
+          <div style="background: var(--bg-surface); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.95rem; color: var(--accent); margin-bottom: 1.25rem; text-align: center;">
+            $\text{Cosine Similarity}(u, v) = \frac{u \cdot v}{\|u\| \|v\|} = \frac{\sum_{i=1}^D u_i v_i}{\sqrt{\sum_{i=1}^D u_i^2} \sqrt{\sum_{i=1}^D v_i^2}}$
+          </div>
+          <p>
+            Because finding the exact nearest neighbors in high-dimensional space requires scanning every vector ($O(N)$ linear brute force), databases use <strong>Approximate Nearest Neighbor (ANN)</strong> index algorithms, most notably <strong class="highlight-term">Hierarchical Navigable Small World (HNSW)</strong> graphs and <strong>IVFFlat</strong> (Inverted File Index with Vector Quantization).
+          </p>
+          <p>
+            This evolution has sparked an intense architectural race:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">Relational Convergence (`pgvector`, PlanetScale Vector):</strong> Adding native vector types and HNSW indexes directly into PostgreSQL and MySQL, allowing developers to execute hybrid queries joining relational business tables with semantic vector searches in a single ACID transaction (`SELECT * FROM products ORDER BY embedding <=> query_vec LIMIT 5`).</li>
+            <li><strong style="color: var(--text);">Learned Index Structures:</strong> Pioneered by Jeff Dean and Tim Kraska, machine learning models (Cumulative Distribution Function approximations) are being explored to replace traditional B-trees, using learned neural weights to predict the exact physical storage offset of a key with reduced memory overhead.</li>
+          </ul>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">Core Concept: Hybrid Search</div>
+          <div class="def-content">
+            Combining deterministic keyword filtering (BM25 / Inverted Index) with semantic similarity search (HNSW Vector Index) via Reciprocal Rank Fusion (RRF), yielding search accuracy that captures both exact domain terms and broad conceptual intent.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 6: AI Vector Pipeline & HNSW Semantic Search -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 280" role="img" aria-labelledby="diag12_6-title diag12_6-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag12_6-title">AI Vector Embedding & HNSW Indexing Pipeline</title>
+            <desc id="diag12_6-desc">Data flow diagram showing raw document ingestion, LLM embedding generation, HNSW vector graph construction, and hybrid relational querying in pgvector.</desc>
+
+            <defs>
+              <marker id="d12_6-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d12_6-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- Raw Input -->
+            <rect x="30" y="100" width="130" height="60" rx="6" class="diag-card-bg"/>
+            <text x="95" y="126" class="diag-text" text-anchor="middle">Unstructured Text</text>
+            <text x="95" y="142" class="diag-subtext" text-anchor="middle">"Distributed consensus"</text>
+
+            <!-- Embedding Model -->
+            <rect x="200" y="80" width="160" height="100" rx="8" class="diag-focal"/>
+            <rect x="208" y="86" width="56" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+            <text x="236" y="95" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">LLM MODEL</text>
+            <text x="280" y="122" class="diag-focal-text" font-size="13" text-anchor="middle">Embedding Model</text>
+            <text x="280" y="140" class="diag-subtext" text-anchor="middle">1536-dim Vector Space</text>
+            <text x="280" y="156" class="diag-subtext" text-anchor="middle">[0.024, -0.812, ...]</text>
+
+            <!-- HNSW Vector Index -->
+            <rect x="400" y="70" width="180" height="120" rx="8" class="diag-card-bg"/>
+            <rect x="408" y="76" width="68" height="12" rx="2" fill="none" stroke="var(--purple)" stroke-width="0.8"/>
+            <text x="442" y="85" class="diag-tag-text" fill="var(--purple)" text-anchor="middle">HNSW GRAPH</text>
+            <text x="490" y="112" class="diag-text" font-size="13" text-anchor="middle">Vector Index Graph</text>
+            <text x="490" y="130" class="diag-subtext" text-anchor="middle">Multi-layer Small World</text>
+            <text x="490" y="146" class="diag-subtext" text-anchor="middle">Cosine / L2 Distance</text>
+            <text x="490" y="162" class="diag-subtext" text-anchor="middle">Fast $O(\log N)$ Traversal</text>
+
+            <!-- Hybrid Relational Query Engine -->
+            <rect x="620" y="60" width="230" height="140" rx="8" class="diag-card-bg"/>
+            <rect x="628" y="66" width="76" height="12" rx="2" fill="none" stroke="var(--teal)" stroke-width="0.8"/>
+            <text x="666" y="75" class="diag-tag-text" fill="var(--teal)" text-anchor="middle">HYBRID ENGINE</text>
+            <text x="735" y="102" class="diag-text" font-size="13" text-anchor="middle">PostgreSQL (pgvector)</text>
+            <text x="735" y="120" class="diag-subtext" text-anchor="middle">SQL + Vector Hybrid Query</text>
+            <text x="735" y="136" class="diag-subtext" text-anchor="middle">WHERE user_id = 42</text>
+            <text x="735" y="152" class="diag-subtext" text-anchor="middle">ORDER BY vec <=> q LIMIT 5</text>
+            <text x="735" y="172" fill="var(--teal)" font-family="'Geist Mono', monospace" font-size="9" font-weight="700" text-anchor="middle">⚡ Sub-5ms Hybrid Results</text>
+
+            <!-- Orthogonal Connectors (4px grid) -->
+            <path d="M 160 130 L 192 130" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d12_6-arrow-accent)"/>
+            <path d="M 360 130 L 392 130" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d12_6-arrow)"/>
+            <path d="M 580 130 L 612 130" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d12_6-arrow)"/>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 12.6:</strong> High-Dimensional Vector Pipeline. Unstructured text is transformed into 1536-dimensional embeddings, indexed in an HNSW graph, and queried alongside relational business metadata in pgvector.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>Retrieval-Augmented Generation (RAG)</h4>
+            <p>
+              When a user asks an AI assistant a question, the app vectorizes the query, retrieves the 3 most relevant documentation chunks from `pgvector`, and injects them into the LLM prompt context window.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>Why Dedicated Vector DBs Aren't Always Needed</h4>
+            <p>
+              Unless you store over 50 million vectors, standard relational databases with `pgvector` or PlanetScale Vector eliminate the operational nightmare of syncing data between separate databases while providing full ACID guarantees.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>The Curse of Dimensionality</h4>
+            <p>
+              In 1536-dimensional space, all data points become equidistant from one another. Without spatial pruning (HNSW graph clustering), exact nearest neighbor searches degenerate into full sequential RAM scans.
+            </p>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>Vector Embeddings:</strong> Enable semantic similarity search over high-dimensional spaces using HNSW graphs, uniting AI with relational databases.
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- ACTIVE RECALL FLASHCARDS -->
+      <!-- ========================================================================= -->
+      <section class="flashcards-section">
+        <h3 style="font-family: var(--font-serif); font-size: 1.8rem; font-weight: 400; margin-bottom: 0.5rem;">Chapter 12 Active Recall Challenge Deck</h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">Test your synthesis of the entire DDIA curriculum by clicking each card to flip.</p>
+
+        <div class="flashcards-grid">
+          <!-- Card 1 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 01</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">What is the fundamental architectural philosophy of "Unbundling the Database"?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">Decomposing the monolithic database into specialized stores (OLTP primary, Kafka event log, Elasticsearch search index, Redis cache, ClickHouse OLAP) connected by an asynchronous Change Data Capture (CDC) stream.</p>
+            </div>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 02</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">How does the Client-Server Commit Disconnect cause duplicate transactions despite ACID guarantees?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">The database successfully commits the transaction, but the network drops the return ACK. The app server times out, assumes failure, and retries the request, executing mutations twice unless protected by an Idempotency Key.</p>
+            </div>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 03</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">What is the trade-off between write-time precomputation and read-time evaluation?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">Write-time precomputation (indexes, tokenization, embeddings) slows down writes and increases write amplification, but yields instant sub-millisecond reads. Read-time evaluation minimizes write overhead at the cost of slow full scans.</p>
+            </div>
+          </div>
+
+          <!-- Card 4 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 04</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">Why is an immutable event log superior to in-place mutable table overwrites for auditing?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">Mutable updates overwrite the past, destroying forensic history. Immutable event logs preserve an infallible record of every action over time, allowing time-travel debugging and deterministic recomputation of derived views.</p>
+            </div>
+          </div>
+
+          <!-- Card 5 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 05</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">What three steps define a continuous automated backup verification pipeline?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">1. An isolated ephemeral runner downloads the snapshot from S3. 2. Boots the database engine and verifies B-tree block checksums. 3. Replays incremental WAL deltas to validate Point-in-Time Recovery (PITR).</p>
+            </div>
+          </div>
+
+          <!-- Card 6 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 06</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">How does HNSW indexing enable scalable semantic search in vector databases?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">HNSW builds a multi-layer graph of vectors with long-range and short-range links, enabling approximate nearest neighbor search in $O(\log N)$ time, avoiding full linear scans across millions of embeddings.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- SUMMARY & CHEAT SHEET -->
+      <!-- ========================================================================= -->
+      <section id="summary-cheatsheet" class="cheat-sheet-section">
+        <span class="module-badge">Synthesis & Reference</span>
+        <h2 class="module-title">Chapter 12 Cheat Sheet & Architectural Principles</h2>
+
+        <div class="table-container">
+          <table class="cheat-table">
+            <thead>
+              <tr>
+                <th>Architectural Pattern</th>
+                <th>Core Mechanism</th>
+                <th>Primary Advantage</th>
+                <th>Key Production Trade-Off</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Unbundled Database</strong></td>
+                <td>CDC stream feeding specialized stores</td>
+                <td>Best-of-breed performance for OLTP, Search & OLAP</td>
+                <td>Eventual consistency between derived views</td>
+              </tr>
+              <tr>
+                <td><strong>Idempotency Keys</strong></td>
+                <td>Client UUID + DB unique constraint</td>
+                <td>Eliminates double-charges on network retry</td>
+                <td>Requires tracking and expiring key storage</td>
+              </tr>
+              <tr>
+                <td><strong>Event Sourcing</strong></td>
+                <td>Append-only immutable transaction log</td>
+                <td>Time-travel auditability & lock-free consumers</td>
+                <td>Requires log compaction and snapshotting</td>
+              </tr>
+              <tr>
+                <td><strong>Continuous Verification</strong></td>
+                <td>Automated restore + WAL replay in isolated runner</td>
+                <td>Guaranteed point-in-time disaster recovery</td>
+                <td>Requires dedicated cloud compute budget</td>
+              </tr>
+              <tr>
+                <td><strong>Hybrid Vector Search</strong></td>
+                <td>Relational B-Tree + HNSW Vector Graph</td>
+                <td>Combines business filters with semantic search</td>
+                <td>High RAM consumption for in-memory graph index</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Technical FAQ -->
+        <h3 style="font-family: var(--font-serif); font-size: 1.8rem; font-weight: 400; margin: 3rem 0 1.5rem;">Frequently Asked Technical Questions</h3>
+        <div class="faq-grid">
+          <div class="faq-item">
+            <h4>Q1: Why is Change Data Capture (CDC) preferred over database triggers?</h4>
+            <p>
+              Database triggers execute synchronously inside the user's write transaction, adding latency and risking transaction aborts if downstream logging fails. CDC reads asynchronously directly from the storage engine's write-ahead log (WAL/binlog) on disk with zero impact on user transaction response times.
+            </p>
+          </div>
+          <div class="faq-item">
+            <h4>Q2: How long should idempotency keys be retained in the database?</h4>
+            <p>
+              In production payment and ordering systems, idempotency keys should typically be retained for 24 to 72 hours with an automated time-to-live (TTL) or partition drop, which is sufficient to cover all automatic retry attempts and transient network reconnects.
+            </p>
+          </div>
+          <div class="faq-item">
+            <h4>Q3: What is the difference between MySQL InnoDB table storage and PostgreSQL Heap files?</h4>
+            <p>
+              MySQL InnoDB stores table data directly inside a clustered primary key B+ tree (in-place updates with an undo log). PostgreSQL stores rows in an append-oriented Heap file and builds separate B-tree index files on top, creating new tuple versions (MVCC) for every update that require background vacuuming.
+            </p>
+          </div>
+          <div class="faq-item">
+            <h4>Q4: How do Learned Indexes compare to traditional B+ Trees?</h4>
+            <p>
+              Traditional B+ Trees use a hierarchy of sorted pointer nodes to achieve $O(\log N)$ lookups. Learned indexes train a lightweight neural network or regression model to approximate the Cumulative Distribution Function (CDF) of keys, predicting the memory address in $O(1)$ time with up to 70% less RAM overhead, though with higher write costs.
+            </p>
+          </div>
+        </div>
+
+        <!-- Actionable Next Steps -->
+        <div class="why-matters-card" style="margin-top: 3rem;">
+          <div class="card-label label-matters">🚀 Production Action Items</div>
+          <div class="card-body-text">
+            <ol style="margin-left: 1.5rem; line-height: 1.7;">
+              <li><strong>Audit Your Payment & Order APIs for Idempotency:</strong> Ensure that all state-modifying POST endpoints require a client-generated `Idempotency-Key` and enforce uniqueness at the database layer.</li>
+              <li><strong>Implement Automated Restore Drills:</strong> Set up a scheduled CI/CD job or ephemeral cloud task that downloads your latest database snapshot and performs a real restore test with checksum validation.</li>
+              <li><strong>Replace Brittle Dual-Writes with CDC:</strong> If your application writes to Postgres and manually updates Elasticsearch or Redis in application code, migrate to a WAL-based Change Data Capture pipeline (e.g., Debezium + Kafka).</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Vanilla JavaScript Logic -->
+  <script>
+    // Theme Toggle
+    function toggleTheme() {
+      const body = document.body;
+      const themeBtn = document.getElementById('theme-btn');
+      const themeIcon = document.getElementById('theme-icon');
+      const themeText = document.getElementById('theme-text');
+
+      if (body.getAttribute('data-theme') === 'dark') {
+        body.setAttribute('data-theme', 'light');
+        themeIcon.textContent = '🌙';
+        themeText.textContent = 'Dark';
+      } else {
+        body.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '☀️';
+        themeText.textContent = 'Light';
+      }
+    }
+
+    // Scroll Progress Bar & Nav Activation
+    window.addEventListener('scroll', () => {
+      const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      document.getElementById('reading-progress').style.width = scrolled + '%';
+
+      // Highlight active sidebar item
+      const modules = document.querySelectorAll('.lesson-module, .hero-section');
+      const navLinks = document.querySelectorAll('.nav-links a');
+      let currentSectionId = '';
+
+      modules.forEach(section => {
+        const sectionTop = section.offsetTop - 120;
+        if (winScroll >= sectionTop) {
+          currentSectionId = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + currentSectionId) {
+          link.classList.add('active');
+        }
+      });
+    });
+
+    // Simulator 1: Read-Write Boundary Trade-Off Simulator
+    function updateSim12_1() {
+      const level = document.getElementById('sim12_1-level').value;
+      const docs = parseInt(document.getElementById('sim12_1-docs').value);
+      document.getElementById('sim12_1-docs-val').textContent = docs.toLocaleString() + ' docs/day';
+      const out = document.getElementById('sim12_1-output');
+
+      if (level === 'raw') {
+        out.innerHTML = `
+<strong>Raw Storage Profile (Lazy Read-Time Scan):</strong><br>
+- Write Latency: <span style="color: var(--teal); font-weight: 700;">0.6 ms</span> (Direct S3 Multipart Stream)<br>
+- Search Query Latency: <span style="color: var(--rose); font-weight: 700;">3,450.0 ms</span> (Downloads raw file & regex scans)<br>
+- Write Amplification: <span style="color: var(--teal); font-weight: 600;">1.0x</span> (Zero auxiliary index overhead)<br>
+- Architectural Bottleneck: CPU saturation and heavy network egress during user search queries.
+        `;
+      } else if (level === 'indexed') {
+        out.innerHTML = `
+<strong>Standard Inverted Index Profile (Balanced Precomputation):</strong><br>
+- Write Latency: <span style="color: var(--amber); font-weight: 700;">18.5 ms</span> (Tokenization + Posting List Append)<br>
+- Search Query Latency: <span style="color: var(--teal); font-weight: 700;">2.4 ms</span> (Inverted Index Term Seek)<br>
+- Write Amplification: <span style="color: var(--amber); font-weight: 600;">4.2x</span> (Writes to primary table, WAL, and Lucene segment)<br>
+- Optimal for 95% of web search and document management workloads!
+        `;
+      } else {
+        out.innerHTML = `
+<strong>Heavy AI Precomputation Profile (Embeddings + Aggregates):</strong><br>
+- Write Latency: <span style="color: var(--rose); font-weight: 700;">145.0 ms</span> (LLM Embedding Call + HNSW Graph Insert)<br>
+- Search Query Latency: <span style="color: var(--teal); font-weight: 700;">3.8 ms</span> (HNSW Approximate Nearest Neighbor Seek)<br>
+- Write Amplification: <span style="color: var(--rose); font-weight: 600;">12.5x</span> (1536 float32 dimensions stored per document)<br>
+- Enables natural language semantic search across conceptual topics!
+        `;
+      }
+    }
+
+    // Simulator 2: Idempotency & Network Disconnect Sandbox
+    function runSim12_2() {
+      const mode = document.getElementById('sim12_2-mode').value;
+      const out = document.getElementById('sim12_2-output');
+
+      if (mode === 'naive') {
+        out.innerHTML = `
+<span style="color: var(--accent);">[Attempt 1]</span> App Server issues: <code>UPDATE accounts SET bal = bal - 11 WHERE user = 'Alice'</code><br>
+<span style="color: var(--teal);">[Attempt 1]</span> PostgreSQL commits balance update: Alice's balance = $89.00.<br>
+<span style="color: var(--rose); font-weight: 700;">⚡ NETWORK FAILURE: TCP ACK lost before reaching App Server!</span><br>
+<span style="color: var(--amber);">[Timeout]</span> App Server times out after 3000ms. Assumes transaction failed.<br>
+<span style="color: var(--accent);">[Attempt 2]</span> App Server automatically retries: <code>UPDATE accounts SET bal = bal - 11 WHERE user = 'Alice'</code><br>
+<span style="color: var(--rose); font-weight: 700;">❌ CRITICAL BUG: DOUBLE CHARGE OCCURRED!</span><br>
+Alice's balance is now <span style="color: var(--rose); font-weight: 700;">$78.00</span> instead of $89.00 ($22 deducted!).
+        `;
+      } else {
+        out.innerHTML = `
+<span style="color: var(--accent);">[Attempt 1]</span> App Server generates Idempotency Key <code>key='pay_98a7f'</code>.<br>
+<span style="color: var(--text-muted);">[Attempt 1]</span> Issues: <code>INSERT INTO idempotency_keys (key) VALUES ('pay_98a7f'); UPDATE accounts SET bal = bal - 11;</code><br>
+<span style="color: var(--teal);">[Attempt 1]</span> Database commits transaction. Alice's balance = $89.00.<br>
+<span style="color: var(--rose); font-weight: 700;">⚡ NETWORK FAILURE: TCP ACK lost before reaching App Server!</span><br>
+<span style="color: var(--amber);">[Timeout]</span> App Server times out and automatically retries with SAME key <code>'pay_98a7f'</code>.<br>
+<span style="color: var(--teal);">[Attempt 2]</span> Database detects <strong>UNIQUE KEY VIOLATION</strong> on <code>idempotency_keys</code>.<br>
+<span style="color: var(--teal); font-weight: 700;">✅ DUPLICATE SAFELY SUPPRESSED!</span><br>
+Database returns the original cached confirmation. Alice's balance remains strictly <span style="color: var(--teal); font-weight: 700;">$89.00</span>.
+        `;
+      }
+    }
+  </script>
+</body>
+</html>

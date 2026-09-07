@@ -1,0 +1,2204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designing Data-Intensive Applications — Chapter 4: Encoding and Evolution</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg-surface: #12161f;
+      --bg-surface-elevated: #1a202c;
+      --bg-surface-glass: rgba(18, 22, 31, 0.85);
+      --border: #242c3d;
+      --border-accent: #38455e;
+      --text: #f0f4fc;
+      --text-muted: #8d9bb0;
+      --text-subtle: #57657d;
+      --accent: #eb6c36;
+      --accent-glow: rgba(235, 108, 54, 0.2);
+      --accent-subtle: rgba(235, 108, 54, 0.09);
+      --teal: #10b981;
+      --teal-subtle: rgba(16, 185, 129, 0.1);
+      --blue: #3b82f6;
+      --blue-subtle: rgba(59, 130, 246, 0.1);
+      --purple: #8b5cf6;
+      --purple-subtle: rgba(139, 92, 246, 0.1);
+      --amber: #f59e0b;
+      --amber-subtle: rgba(245, 158, 11, 0.1);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.1);
+      --font-serif: "Instrument Serif", Georgia, serif;
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-surface-glass: rgba(255, 255, 255, 0.9);
+      --border: #e2e8f0;
+      --border-accent: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+      --accent: #d9531e;
+      --accent-glow: rgba(217, 83, 30, 0.15);
+      --accent-subtle: rgba(217, 83, 30, 0.08);
+      --teal: #059669;
+      --teal-subtle: rgba(5, 150, 105, 0.08);
+      --blue: #2563eb;
+      --blue-subtle: rgba(37, 99, 235, 0.08);
+      --purple: #7c3aed;
+      --purple-subtle: rgba(124, 58, 237, 0.08);
+      --amber: #d97706;
+      --amber-subtle: rgba(217, 119, 6, 0.08);
+      --rose: #e11d48;
+      --rose-subtle: rgba(225, 29, 72, 0.08);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    #reading-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #f97316);
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    .app-layout {
+      display: grid;
+      grid-template-columns: 290px 1fr;
+      min-height: 100vh;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 1024px) {
+      .app-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .sidebar-rail {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--bg-surface-glass);
+      backdrop-filter: blur(14px);
+      border-right: 1px solid var(--border);
+      padding: 2rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      z-index: 100;
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar-rail {
+        position: relative;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      background: var(--accent-subtle);
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(235, 108, 54, 0.25);
+      width: fit-content;
+    }
+
+    .sidebar-title h2 {
+      font-family: var(--font-serif);
+      font-size: 1.6rem;
+      font-weight: 400;
+      margin-top: 0.6rem;
+      line-height: 1.15;
+    }
+
+    .sidebar-title p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 0.9rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      transition: all 0.2s ease;
+    }
+    .theme-toggle-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+      background: var(--bg-surface-elevated);
+    }
+
+    .nav-link.active {
+      color: var(--text);
+      background: var(--accent-subtle);
+      border-left: 3px solid var(--accent);
+      font-weight: 500;
+    }
+
+    .nav-index {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      opacity: 0.8;
+      min-width: 1.5rem;
+    }
+
+    .content-canvas {
+      padding: 3rem 4rem 8rem 4rem;
+      max-width: 1120px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    @media (max-width: 768px) {
+      .content-canvas {
+        padding: 2rem 1.25rem 4rem 1.25rem;
+      }
+    }
+
+    .hero-banner {
+      margin-bottom: 4rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-tag {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+
+    .hero-title {
+      font-family: var(--font-serif);
+      font-size: clamp(2.8rem, 5vw, 4.2rem);
+      font-weight: 400;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.2rem;
+    }
+
+    .hero-desc {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 800px;
+      line-height: 1.5;
+    }
+
+    .metadata-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1.25rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .meta-box h4 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-subtle);
+      font-family: var(--font-mono);
+      margin-bottom: 0.35rem;
+    }
+
+    .meta-box p {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .exec-summary-box {
+      background: linear-gradient(135deg, var(--bg-surface-elevated), var(--bg-surface));
+      border: 1px solid var(--border-accent);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-md);
+      padding: 1.75rem 2rem;
+      margin-bottom: 4rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .exec-summary-box h3 {
+      font-family: var(--font-serif);
+      font-size: 1.6rem;
+      font-weight: 400;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .exec-summary-box p {
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1.65;
+    }
+
+    .module-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 3rem;
+      margin-bottom: 4.5rem;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+      transition: border-color 0.2s ease;
+    }
+
+    @media (max-width: 768px) {
+      .module-card {
+        padding: 1.75rem 1.25rem;
+      }
+    }
+
+    .module-card:hover {
+      border-color: var(--border-accent);
+    }
+
+    .module-pill {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+
+    .module-heading {
+      font-family: var(--font-serif);
+      font-size: 2.2rem;
+      font-weight: 400;
+      margin-bottom: 1.5rem;
+      line-height: 1.2;
+    }
+
+    .core-body {
+      font-size: 1.05rem;
+      color: var(--text);
+      line-height: 1.8;
+      margin-bottom: 2rem;
+    }
+
+    .core-body p {
+      margin-bottom: 1.2rem;
+    }
+
+    .core-body strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .core-body code {
+      font-family: var(--font-mono);
+      font-size: 0.88em;
+      background: var(--bg-surface-elevated);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    .definitions-panel {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1.5rem 1.75rem;
+      margin: 2rem 0;
+    }
+
+    .def-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .def-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.15rem;
+    }
+
+    .def-entry dt {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .def-entry dt::before {
+      content: "▪";
+      color: var(--accent);
+    }
+
+    .def-entry dd {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      padding-left: 1.25rem;
+    }
+
+    .diagram-panel {
+      margin: 2.5rem 0;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.75rem;
+      overflow-x: auto;
+    }
+
+    .diagram-panel svg {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+    }
+
+    .diagram-footnote {
+      font-size: 0.82rem;
+      color: var(--text-subtle);
+      font-family: var(--font-mono);
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      margin: 2rem 0;
+    }
+
+    @media (max-width: 900px) {
+      .examples-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .example-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .example-badge {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      width: fit-content;
+      font-weight: 600;
+    }
+
+    .badge-obvious {
+      color: var(--teal);
+      background: var(--teal-subtle);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .badge-counter {
+      color: var(--amber);
+      background: var(--amber-subtle);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .badge-edge {
+      color: var(--rose);
+      background: var(--rose-subtle);
+      border: 1px solid rgba(244, 63, 94, 0.2);
+    }
+
+    .example-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    .example-text {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .pedagogy-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin: 2rem 0;
+    }
+
+    @media (max-width: 768px) {
+      .pedagogy-columns {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .pedagogy-box {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+    }
+
+    .pedagogy-box.full-span {
+      grid-column: 1 / -1;
+    }
+
+    .pedagogy-header {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .pedagogy-header.analogy { color: var(--blue); }
+    .pedagogy-header.misconception { color: var(--rose); }
+    .pedagogy-header.production { color: var(--accent); }
+
+    .pedagogy-body {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .memory-pill {
+      background: linear-gradient(90deg, var(--accent-subtle), transparent);
+      border-left: 3px solid var(--accent);
+      padding: 1rem 1.25rem;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      margin-top: 2rem;
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+    }
+
+    .pill-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill-content {
+      font-size: 0.95rem;
+      color: var(--text);
+      font-style: italic;
+    }
+
+    .interactive-card {
+      background: var(--bg);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1.75rem;
+      margin: 2.5rem 0;
+    }
+
+    .interactive-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .interactive-heading {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn {
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.9rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+
+    .input-box {
+      background: #12161f;
+      border: 1px solid #242c3d;
+      color: #f0f4fc;
+      padding: 0.5rem 0.75rem;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+    }
+    .input-box:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin: 2.5rem 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+    }
+
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+    .matrix-table th, .matrix-table td {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .matrix-table th {
+      background: var(--bg-surface-elevated);
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-subtle);
+    }
+
+    .matrix-table tr:hover td {
+      background: var(--bg-surface-elevated);
+    }
+
+    .connections-panel {
+      border: 1px dashed var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      background: var(--accent-subtle);
+    }
+
+    .conn-header {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .conn-items {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      font-size: 0.88rem;
+    }
+
+    .conn-items li a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .conn-items li a:hover {
+      text-decoration: underline;
+    }
+
+    .glossary-masonry {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+
+    .glossary-tile {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem;
+    }
+
+    .glossary-head {
+      font-family: var(--font-mono);
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 0.4rem;
+    }
+
+    .glossary-content {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* SVG Diagram Styles strictly adhering to diagram-design skill */
+    .dia-bg { fill: #12161f; }
+    .dia-card { fill: #1a202c; stroke: #242c3d; stroke-width: 1px; rx: 8px; }
+    .dia-card-highlight { fill: rgba(235, 108, 54, 0.08); stroke: #eb6c36; stroke-width: 1.5px; rx: 8px; }
+    .dia-card-teal { fill: rgba(16, 185, 129, 0.08); stroke: #10b981; stroke-width: 1.5px; rx: 8px; }
+    .dia-card-blue { fill: rgba(59, 130, 246, 0.08); stroke: #3b82f6; stroke-width: 1.5px; rx: 8px; }
+    .dia-line { stroke: #57657d; stroke-width: 1.5px; fill: none; }
+    .dia-line-accent { stroke: #eb6c36; stroke-width: 1.5px; fill: none; }
+    .dia-line-teal { stroke: #10b981; stroke-width: 1.5px; fill: none; }
+    .dia-title { font-family: "Instrument Serif", Georgia, serif; font-size: 18px; fill: #f0f4fc; }
+    .dia-label { font-family: "Geist", sans-serif; font-size: 12px; fill: #f0f4fc; font-weight: 500; }
+    .dia-subtext { font-family: "Geist", sans-serif; font-size: 10px; fill: #8d9bb0; }
+    .dia-mono { font-family: "Geist Mono", monospace; font-size: 11px; fill: #eb6c36; }
+    .dia-mono-muted { font-family: "Geist Mono", monospace; font-size: 10px; fill: #8d9bb0; }
+    .dia-pill-mask { fill: #12161f; stroke: #242c3d; stroke-width: 1px; rx: 4px; }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <div id="reading-progress"></div>
+
+  <div class="app-layout">
+    <!-- Sidebar Navigation Rail -->
+    <aside class="sidebar-rail">
+      <div class="brand-badge">DDIA Masterclass</div>
+      <div class="sidebar-title">
+        <h2>Chapter 4</h2>
+        <p>Encoding & Evolution</p>
+      </div>
+
+      <button class="theme-toggle-btn" id="theme-toggle">
+        <span id="theme-text">Mode: Dark</span>
+        <span>◐</span>
+      </button>
+
+      <nav class="nav-list">
+        <a href="#overview" class="nav-link active"><span class="nav-index">00</span> Architecture Overview</a>
+        <a href="#module-1" class="nav-link"><span class="nav-index">01</span> Memory vs Wire Formats</a>
+        <a href="#module-2" class="nav-link"><span class="nav-index">02</span> Text Formats & Float Traps</a>
+        <a href="#module-3" class="nav-link"><span class="nav-index">03</span> Schema-less Binary (MsgPack)</a>
+        <a href="#module-4" class="nav-link"><span class="nav-index">04</span> Protobuf, Thrift & Varints</a>
+        <a href="#module-5" class="nav-link"><span class="nav-index">05</span> Avro & Dynamic Schemas</a>
+        <a href="#module-6" class="nav-link"><span class="nav-index">06</span> Schema Evolution Rules</a>
+        <a href="#module-7" class="nav-link"><span class="nav-index">07</span> Modes of Dataflow & Kafka</a>
+        <a href="#glossary" class="nav-link"><span class="nav-index">08</span> Master Definitions Glossary</a>
+      </nav>
+
+      <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--text-subtle); font-family: var(--font-mono);">
+        DDIA Chapter 4: Serialization, RPC & Asynchronous Streams
+      </div>
+    </aside>
+
+    <!-- Main Content Canvas -->
+    <main class="content-canvas">
+
+      <!-- Hero Header -->
+      <section id="overview" class="hero-banner">
+        <div class="hero-tag">Distributed Systems Foundations • Data Protocols</div>
+        <h1 class="hero-title">Encoding and Evolution</h1>
+        <p class="hero-desc">
+          How applications translate in-memory objects into persistent bytes and network packets without breaking compatibility across rolling deployments, schema changes, and distributed microservices.
+        </p>
+
+        <div class="metadata-bar">
+          <div class="meta-box">
+            <h4>Core Problem</h4>
+            <p>Data Outlives Code</p>
+          </div>
+          <div class="meta-box">
+            <h4>Key Formats</h4>
+            <p>JSON, MsgPack, Protobuf, Avro</p>
+          </div>
+          <div class="meta-box">
+            <h4>Evolution Dual</h4>
+            <p>Forward & Backward Safety</p>
+          </div>
+          <div class="meta-box">
+            <h4>Dataflow Modes</h4>
+            <p>DBs, REST/RPC, Message Brokers</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Executive Architecture Summary -->
+      <div class="exec-summary-box">
+        <h3>Executive Systems Summary</h3>
+        <p>
+          In modern distributed architectures, <strong>data formats are perpetual contracts</strong>. Application code is deployed continuously in rolling phases, meaning older versions of code and newer versions of code run concurrently across server fleets. Consequently, storage and network protocols must guarantee both <strong>backward compatibility</strong> (newer code parsing older data) and <strong>forward compatibility</strong> (older code parsing newer data without crashing or dropping unknown fields). While text formats (JSON, XML) prioritize human debuggability, they suffer from type ambiguity and high network bandwidth overhead. Schema-driven binary formats (Protocol Buffers, Thrift, Avro) eliminate string field names from the wire, compress integers using variable-length encodings (Varints), and enforce mathematical schema evolution rules, halving network transit bills and CPU serialization latencies.
+        </p>
+      </div>
+
+      <!-- MODULE 1: Memory vs Wire Formats -->
+      <section id="module-1" class="module-card">
+        <div class="module-tag">Module 01 • Memory to Wire Mechanics</div>
+        <h2 class="module-heading">In-Memory Representations vs Wire Byte Sequences</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="def-header">Crucial Terms & Systems Definitions</div>
+          <dl class="def-grid">
+            <div class="def-entry">
+              <dt>Encoding (Serialization / Marshalling)</dt>
+              <dd>The deterministic translation of in-memory data structures (objects, structs, hash maps, memory pointers) into a self-contained sequence of contiguous bytes suitable for transmission over a network or persistence to disk.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Decoding (Deserialization / Unmarshalling)</dt>
+              <dd>The inverse process of taking raw serialized byte streams from a network socket or disk file and reconstituting them into native, language-specific memory objects.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Data Outlives Code</dt>
+              <dd>The architectural reality that while code is rewritten, refactored, or redeployed within minutes, data written to disk or databases five years ago must still be faithfully read and decoded by today's software.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Language-Specific Serialization</dt>
+              <dd>Built-in language encoders (Java `Serializable`, Python `pickle`, Ruby `Marshal`) that serialize raw memory layouts. Highly discouraged in production due to arbitrary remote code execution (RCE) vulnerabilities and zero cross-language interoperability.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-body">
+          <p>
+            Every software application operates over two fundamentally distinct representations of data. In memory, data is kept in structures optimized for fast CPU instruction access: objects, structs, dynamic arrays, balanced trees, and hash tables with memory pointers linking memory addresses directly. However, memory pointers have meaning <em>only inside a single running operating system process</em>; you cannot send a 64-bit RAM pointer over an Ethernet cable or write it to an SSD block, because another machine (or a restarted process) has an entirely different virtual memory space.
+          </p>
+          <p>
+            Thus, to transmit data across a network or save it durably to disk, the process must convert its memory structures into a <strong>self-contained sequence of bytes</strong>. This transition is known interchangeably as <em>encoding, serialization, or marshalling</em>.
+          </p>
+          <p>
+            Many programming languages provide built-in serialization libraries (such as Java's <code>java.io.Serializable</code>, Python's <code>pickle</code>, or Ruby's <code>Marshal</code>). While convenient for quick prototypes, Martin Kleppmann warns that <strong>using language-specific serialization in production is a catastrophic antipattern</strong>:
+          </p>
+          <p>
+            1. <strong>Security Vulnerabilities (RCE)</strong>: Deserializers in these frameworks instantiate arbitrary classes based on byte instructions, enabling attackers to inject payload byte streams that execute arbitrary shell commands inside your server.
+          </p>
+          <p>
+            2. <strong>Language Lock-in</strong>: A Python process cannot natively decode a Java <code>Serializable</code> stream without complex proxy layers, preventing your architecture from evolving into modern polyglot microservices.
+          </p>
+          <p>
+            3. <strong>Zero Compatibility Governance</strong>: Language-specific formats tightly couple the serialization stream to private class fields, causing instant deserialization crashes when a developer refactors a class name or changes a field type.
+          </p>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-badge badge-obvious">Obvious Case</span>
+            <div class="example-name">Language-Neutral JSON</div>
+            <div class="example-desc">A Go backend serializing a user profile to JSON; an iOS Swift app and a React browser client decode the payload seamlessly.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-counter">Counter-Intuitive</span>
+            <div class="example-name">Pickle Security Exploits</div>
+            <div class="example-desc">Accepting a Python <code>pickle</code> file from an untrusted client allows execution of <code>os.system('rm -rf /')</code> during the simple <code>pickle.loads()</code> invocation!</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-edge">Edge Case</span>
+            <div class="example-name">Java Serialization UID Mismatch</div>
+            <div class="example-desc">Adding a private debug field to a Java entity invalidates its <code>serialVersionUID</code>, causing cached session objects in Redis to fail with <code>InvalidClassException</code>.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-columns">
+          <div class="pedagogy-box">
+            <div class="pedagogy-header analogy">Analogy • Flat-Pack Furniture</div>
+            <div class="pedagogy-content">
+              An assembled wooden desk in your office (in-memory object with joints and legs) cannot fit through a narrow postal slot. You must disassemble it into a flat cardboard box with bolts and screws (serialized byte stream), ship it across town, and reassemble it in the destination room.
+            </div>
+          </div>
+          <div class="pedagogy-box">
+            <div class="pedagogy-header misconception">Misconception • Built-in Encoders Are Production-Grade</div>
+            <div class="pedagogy-content">
+              Engineers assume built-in language tools are optimized. In reality, Python's <code>pickle</code> and Java's <code>Serializable</code> are notoriously slow, consume excessive memory buffers, and introduce severe CVE security vulnerabilities.
+            </div>
+          </div>
+          <div class="pedagogy-box full-span">
+            <div class="pedagogy-header production">Production Reality • Standardized Binary Schemas</div>
+            <div class="pedagogy-content">
+              Enterprise architectures strictly mandate standardized, language-agnostic serialization formats (Protocol Buffers, Avro, Thrift, or JSON Schema) across all network RPC boundaries, database caches, and message queues to ensure 100% interoperability and security isolation.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="pill-label">Memory Pill</span>
+          <span class="pill-content">"Never use language-specific serializers; data always outlives the running application code."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 2: Text Formats & Float Traps -->
+      <section id="module-2" class="module-card">
+        <div class="module-tag">Module 02 • Human-Readable Text</div>
+        <h2 class="module-heading">Textual Formats (JSON, XML, CSV) & The 64-Bit Float Precision Trap</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="def-header">Crucial Terms & Numerical Standards</div>
+          <dl class="def-grid">
+            <div class="def-entry">
+              <dt>JSON (JavaScript Object Notation)</dt>
+              <dd>A lightweight, text-based, language-independent data interchange format based on a subset of JavaScript object literals. Uses key-value maps and arrays.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>IEEE 754 Double Precision (64-Bit Float)</dt>
+              <dd>The standard floating-point format used by JavaScript for all numbers. Has 53 bits of precision, meaning integers greater than $2^{53} - 1$ ($9,007,199,254,740,991$) cannot be represented exactly and suffer silent bit rounding.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Base64 Encoding</dt>
+              <dd>A scheme that converts raw binary byte sequences into ASCII characters to safely travel over text protocols (like JSON or XML), introducing an unavoidable <strong>33% data bloat</strong>.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Field Name Verbosity</dt>
+              <dd>The overhead caused by text formats explicitly printing field strings (e.g. <code>"transaction_timestamp_utc"</code>) in every single record, consuming up to 80% of the byte payload.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-body">
+          <p>
+            Textual formats—predominantly <strong>JSON, XML, and CSV</strong>—are the undisputed lingua franca of the public web and HTTP REST APIs. Their overwhelming popularity stems from being human-readable, easily debuggable in curl/browser consoles, and natively supported in every language without compilation steps.
+          </p>
+          <p>
+            However, textual formats have severe structural flaws that become crippling at production scale:
+          </p>
+          <p>
+            1. <strong>Ambiguous Number Types & The JavaScript Float Trap</strong>: In XML and CSV, numbers and digit strings are indistinguishable without external schemas. In JSON, there is no distinction between integers and floating-point numbers. Furthermore, JavaScript engines parse all JSON numbers as <strong>IEEE 754 double-precision 64-bit floats</strong>, which only provide 53 bits of integer mantissa ($2^{53} - 1 = 9,007,199,254,740,991$). If a database sends an unsigned 64-bit integer ID (e.g., a Twitter tweet ID or Snowflake ID like <code>9007199254740993</code>), JavaScript quietly rounds it down to <code>9007199254740992</code>, corrupting primary keys!
+          </p>
+          <p>
+            2. <strong>Inefficient Binary Data Handling</strong>: JSON and XML cannot directly embed raw binary bytes (such as JPEG thumbnails or encrypted byte blobs). Applications must encode them into Base64 strings, increasing payload size by 33% and wasting CPU cycles encoding and decoding.
+          </p>
+          <p>
+            3. <strong>Extreme Text Verbosity</strong>: When sending a collection of 50,000 JSON records, the field name strings (<code>"user_identification_number"</code>, <code>"shipping_address_line_1"</code>) are printed 50,000 separate times! In high-volume internal microservices, up to 75% of network bandwidth is wasted transmitting repeated string keys.
+          </p>
+        </div>
+
+        <!-- Interactive 1: JS 64-Bit Float Precision Trap Simulator -->
+        <div class="interactive-card">
+          <div class="interactive-top">
+            <div class="interactive-heading">Interactive Lab • JavaScript 64-Bit Integer Precision Trap</div>
+            <button class="btn" onclick="testFloatBug()">Test Number</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+            <div>
+              <label style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); display: block; margin-bottom: 0.4rem;">
+                Enter 64-Bit Database Integer ID (Try 9007199254740993):
+              </label>
+              <input type="text" id="intInput" class="input-box" value="9007199254740993" style="width: 100%;">
+              <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                <button class="btn" onclick="setPresetInt('9007199254740991')">Max Safe ($2^{53}-1$)</button>
+                <button class="btn" onclick="setPresetInt('9007199254740993')">Unsafe ($2^{53}+1$)</button>
+                <button class="btn" onclick="setPresetInt('1548123456789012345')">Twitter Tweet ID</button>
+              </div>
+            </div>
+            <div style="background: var(--bg-surface-elevated); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.82rem;">
+              <div style="color: var(--text-subtle); margin-bottom: 0.4rem;">PARSER RESULT:</div>
+              <div id="floatResultRaw">Raw DB Value: 9007199254740993</div>
+              <div id="floatResultParsed" style="margin-top: 0.3rem;">JavaScript Parsed: ?</div>
+              <div id="floatResultStatus" style="margin-top: 0.5rem; font-weight: 600;">Status: Ready</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-badge badge-obvious">Obvious Case</span>
+            <div class="example-name">Public REST API Response</div>
+            <div class="example-desc">Sending <code>{"status":"ok","items":10}</code> over HTTP. Easy for frontend developers to inspect in Chrome DevTools.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-counter">Counter-Intuitive</span>
+            <div class="example-name">Twitter Tweet ID Bug</div>
+            <div class="example-desc">Twitter's 64-bit Snowflake IDs exceeded $2^{53}$. Web clients broke until Twitter added <code>id_str</code> to JSON alongside numeric <code>id</code>.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-edge">Edge Case</span>
+            <div class="example-name">CSV Comma in Quoted Field</div>
+            <div class="example-desc">Parsing CSV breaks when user input contains commas, semicolons, or unescaped newlines, leading to subtle database column shifts.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-columns">
+          <div class="pedagogy-box">
+            <div class="pedagogy-header analogy">Analogy • Shipping Invoice vs Barcode</div>
+            <div class="pedagogy-content">
+              JSON is a full English invoice written out by hand with descriptions. A binary schema is a standardized 2D barcode: compact, error-checked, and read by machine scanners in microseconds.
+            </div>
+          </div>
+          <div class="pedagogy-box">
+            <div class="pedagogy-header misconception">Misconception • JSON is Compact Enough for Microservices</div>
+            <div class="pedagogy-content">
+              Parsing and stringifying JSON in high-throughput microservices consumes up to 30% of total CPU cycles in Node.js, Go, and Java services just converting strings to memory objects.
+            </div>
+          </div>
+          <div class="pedagogy-box full-span">
+            <div class="pedagogy-header production">Production Reality • The id_str Workaround in Enterprise APIs</div>
+            <div class="pedagogy-content">
+              Because JavaScript frontend clients run in millions of browsers, backend APIs dealing with 64-bit integer keys (Snowflakes, UUID ints) must always serialize IDs as strings (<code>"id": "184920491029301923"</code>) to prevent silent browser rounding.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="pill-label">Memory Pill</span>
+          <span class="pill-content">"JSON numbers larger than $2^{53}$ silently round in JavaScript; always send large IDs as strings."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 3: Schema-less Binary (MsgPack) -->
+      <section id="module-3" class="module-card">
+        <div class="module-tag">Module 03 • Schema-less Binary Encoding</div>
+        <h2 class="module-heading">Binary Encoding without Predefined Schemas (MessagePack & BSON)</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="def-header">Crucial Terms & Format Profiles</div>
+          <dl class="def-grid">
+            <div class="def-entry">
+              <dt>MessagePack</dt>
+              <dd>A binary serialization format for JSON-like objects that replaces textual punctuation (curly braces, commas, colons) with single-byte type and length headers, while preserving field names as literal strings.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>BSON (Binary JSON)</dt>
+              <dd>The primary storage and wire format used by MongoDB. Extends JSON with explicit data types (Date, Raw Binary, Int64, Decimal128) and prepends byte-length headers for fast field traversal.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Schema-less Binary Overhead</dt>
+              <dd>The limitation that because no external schema file exists, the binary byte stream must carry every field name string inside every single encoded record, yielding only modest (10-25%) compression over raw text.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-body">
+          <p>
+            Recognizing the CPU and size inefficiency of text JSON, early binary efforts sought to create drop-in binary replacements that required <strong>no changes to application code and no schema definitions</strong>. The prominent results are <strong>MessagePack</strong>, <strong>BSON</strong> (MongoDB), and <strong>CBOR</strong>.
+          </p>
+          <p>
+            How does MessagePack encode a JSON object like <code>{"userName": "Martin", "favoriteNumber": 1337, "interests": ["daydreaming", "hacking"]}</code>?
+          </p>
+          <p>
+            1. It replaces the outer curly brace <code>{</code> with a single byte <code>0x83</code> (indicating a map with 3 key-value entries).
+          </p>
+          <p>
+            2. It encodes the first key as <code>0xa8</code> (string of length 8), followed by the 8 ASCII bytes <code>u s e r N a m e</code>.
+          </p>
+          <p>
+            3. It encodes the integer <code>1337</code> as a 2-byte <code>uint16</code> (<code>0xcd 0x05 0x39</code>), saving bytes compared to the 4-byte string <code>"1337"</code>.
+          </p>
+          <p>
+            When you tally the entire MessagePack byte sequence for this record, it comes out to <strong>66 bytes</strong>, compared to 81 bytes for minified JSON. While shaving off 15 bytes is an improvement, it is fundamentally disappointing. Why did a binary format only achieve a modest 18% size reduction?
+          </p>
+          <p>
+            Because <strong>all field names are still stored explicitly as ASCII strings inside the byte stream!</strong> The bytes for <code>"userName"</code>, <code>"favoriteNumber"</code>, and <code>"interests"</code> account for 32 out of the 66 bytes—nearly 50% of the entire payload! To achieve true compaction, a format must eliminate field names from the wire entirely.
+          </p>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-badge badge-obvious">Obvious Case</span>
+            <div class="example-name">MongoDB BSON Storage</div>
+            <div class="example-desc">MongoDB stores documents in BSON, enabling native Date objects and raw binary fields without string parsing overhead.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-counter">Counter-Intuitive</span>
+            <div class="example-name">BSON Can Be Larger Than JSON</div>
+            <div class="example-desc">BSON includes explicit document length prefixes and type markers, frequently making a BSON document larger than gzip-compressed JSON!</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-edge">Edge Case</span>
+            <div class="example-name">Redis Caching with MessagePack</div>
+            <div class="example-desc">Using MessagePack for Redis cache values speeds up serialization by 2.5x over JSON without needing schema compilers.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-columns">
+          <div class="pedagogy-box">
+            <div class="pedagogy-header analogy">Analogy • Shorthand vs Removing Names</div>
+            <div class="pedagogy-content">
+              MessagePack is like an office clerk using abbreviations for punctuation ("obj:3" instead of "{ }"), but still writing out full employee job titles on every single index card.
+            </div>
+          </div>
+          <div class="pedagogy-box">
+            <div class="pedagogy-header misconception">Misconception • Binary Automatically Means Ultra-Small</div>
+            <div class="pedagogy-content">
+              Binary encoding without an agreed-upon schema cannot eliminate string keys. If your schema has 20 long field names, a schema-less binary payload remains mostly ASCII text.
+            </div>
+          </div>
+          <div class="pedagogy-box full-span">
+            <div class="pedagogy-header production">Production Reality • When to Choose MessagePack</div>
+            <div class="pedagogy-content">
+              MessagePack is ideal when you need a fast, zero-configuration 2x serialization speedup for dynamic payloads where schema definition is impossible (such as arbitrary user JSON logs in Elasticsearch/Fluentd).
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="pill-label">Memory Pill</span>
+          <span class="pill-content">"Schema-less binary formats save punctuation bytes, but still waste bandwidth transmitting string field names."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 4: Protobuf, Thrift & Varints -->
+      <section id="module-4" class="module-card">
+        <div class="module-tag">Module 04 • Schema-Driven Compaction</div>
+        <h2 class="module-heading">Protocol Buffers (Protobuf), Apache Thrift & Variable-Length Integers</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="def-header">Crucial Terms & Binary Encoding Mechanics</div>
+          <dl class="def-grid">
+            <div class="def-entry">
+              <dt>Protocol Buffers (Protobuf)</dt>
+              <dd>Google's open-source, language-neutral, schema-driven binary serialization mechanism. Replaces field name strings on the wire with compact integer field tags and wire types.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Field Tag (Field Number)</dt>
+              <dd>A unique integer identifier assigned to each field in a <code>.proto</code> schema (e.g. <code>string user_name = 1;</code>). The field tag is what actually travels in the binary wire format.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Varint (Variable-Length Integer)</dt>
+              <dd>An integer encoding method where the Most Significant Bit (MSB) of each byte serves as a continuation flag. Small integers (0–127) take 1 byte; larger integers expand dynamically to multiple bytes.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>ZigZag Encoding</dt>
+              <dd>A bit-manipulation algorithm that maps signed integers to positive unsigned integers ($0 \to 0, -1 \to 1, 1 \to 2, -2 \to 3$), preventing negative numbers from consuming 10 bytes in standard two's-complement varint encoding.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-body">
+          <p>
+            The breakthrough in efficient binary serialization came when Google developed <strong>Protocol Buffers (Protobuf)</strong> and Facebook created <strong>Apache Thrift</strong>. Both frameworks operate on a fundamental insight: <strong>if the sender and receiver both possess a pre-compiled schema, the wire format does not need to contain field name strings at all!</strong>
+          </p>
+          <p>
+            In Protobuf, a schema is defined in a <code>.proto</code> file:
+          </p>
+          <pre style="background: var(--bg); padding: 1rem; border-radius: 6px; border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.88rem; margin: 1rem 0; color: var(--accent);">
+message Person {
+  required string user_name       = 1;
+  optional int64  favorite_number = 2;
+  repeated string interests       = 3;
+}
+          </pre>
+          <p>
+            When Protobuf serializes this record, it represents each field as a 1-byte <strong>Tag Header</strong> combining the <em>Field Number</em> and the <em>Wire Type</em> (encoded as <code>(field_number &lt;&lt; 3) | wire_type</code>). For field 1 (<code>user_name</code>, wire type 2 for length-delimited string), the tag byte is simply <code>0x0A</code>. It then writes a 1-byte string length (<code>0x06</code>), followed by the 6 raw ASCII bytes <code>M a r t i n</code>. The string <code>"user_name"</code> is <strong>never transmitted</strong>.
+          </p>
+          <p>
+            For numeric fields, Protobuf employs <strong>Variable-Length Integers (Varints)</strong>. In standard fixed 64-bit integer encoding, the number <code>1337</code> consumes 8 full bytes on disk. In a Varint, each byte uses 7 bits for data and 1 bit (the MSB) as a continuation marker:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1rem; color: var(--text-muted);">
+            <li>If the integer fits in 7 bits ($0 \le x \le 127$), the MSB is <code>0</code>, and the number consumes precisely <strong>1 single byte</strong>!</li>
+            <li>For <code>1337</code>, it splits into two 7-bit chunks: <code>0x39</code> and <code>0x0A</code>, resulting in the 2-byte sequence <code>0xb9 0x0a</code> (the MSB of the first byte is <code>1</code> indicating more bytes follow).</li>
+          </ul>
+          <p>
+            Thanks to field tags and varints, the exact same record that took 81 bytes in JSON and 66 bytes in MessagePack compresses down to just <strong>33 bytes in Protobuf</strong>—a massive 60% bandwidth reduction!
+          </p>
+        </div>
+
+        <!-- SVG Diagram 1: Strictly adhering to diagram-design skill -->
+        <div class="diagram-panel">
+          <svg viewBox="0 0 960 400" width="960" height="400" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="#8d9bb0" />
+              </marker>
+              <marker id="arrow-accent" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="#eb6c36" />
+              </marker>
+            </defs>
+
+            <!-- Background -->
+            <rect width="960" height="400" class="dia-bg" />
+
+            <!-- Row 1: Minified JSON (81 Bytes) -->
+            <rect x="40" y="30" width="880" height="64" rx="6" class="dia-card" />
+            <text x="60" y="52" class="dia-label" fill="#f0f4fc">1. Plain JSON Text (81 Bytes)</text>
+            <text x="60" y="74" class="dia-mono" font-size="10px" fill="#8d9bb0">{"userName":"Martin","favoriteNumber":1337,"interests":["daydreaming","hacking"]}</text>
+            <rect x="740" y="44" width="160" height="34" rx="4" fill="#242c3d" />
+            <text x="820" y="66" text-anchor="middle" class="dia-mono" font-size="11px" fill="#f43f5e">81 Bytes (100%)</text>
+
+            <!-- Row 2: MessagePack Binary JSON (66 Bytes) -->
+            <rect x="40" y="110" width="880" height="64" rx="6" class="dia-card" />
+            <text x="60" y="132" class="dia-label" fill="#f0f4fc">2. MessagePack Binary JSON (66 Bytes)</text>
+            <text x="60" y="154" class="dia-mono" font-size="10px">
+              <tspan fill="#8b5cf6">0x83</tspan> <tspan fill="#eb6c36">0xa8 "userName"</tspan> <tspan fill="#10b981">0xa6 "Martin"</tspan> <tspan fill="#eb6c36">0xae "favoriteNumber"</tspan> <tspan fill="#3b82f6">0xcd 0x0539</tspan> ...
+            </text>
+            <rect x="740" y="124" width="160" height="34" rx="4" fill="#242c3d" />
+            <text x="820" y="146" text-anchor="middle" class="dia-mono" font-size="11px" fill="#f59e0b">66 Bytes (81%)</text>
+
+            <!-- Row 3: Protocol Buffers (33 Bytes) -->
+            <rect x="40" y="190" width="880" height="80" rx="6" class="dia-card-highlight" />
+            <text x="60" y="214" class="dia-label" fill="#eb6c36">3. Protocol Buffers / Thrift Binary (33 Bytes)</text>
+            <text x="60" y="236" class="dia-mono" font-size="10px">
+              <tspan fill="#eb6c36">[Tag 1 (0x0A)] [Len 6] "Martin"</tspan> |
+              <tspan fill="#3b82f6">[Tag 2 (0x10)] [Varint 0xb9 0x0a (1337)]</tspan> |
+              <tspan fill="#10b981">[Tag 3 (0x1A)] [Interests...]</tspan>
+            </text>
+            <text x="60" y="254" class="dia-subtext">Zero string keys on wire! Field names replaced with 1-byte integer tag numbers.</text>
+            <rect x="740" y="208" width="160" height="42" rx="4" fill="#161924" stroke="#eb6c36" />
+            <text x="820" y="234" text-anchor="middle" class="dia-mono" font-size="12px" fill="#eb6c36">33 Bytes (40%)</text>
+
+            <!-- Row 4: Apache Avro (32 Bytes) -->
+            <rect x="40" y="285" width="880" height="60" rx="6" class="dia-card-teal" />
+            <text x="60" y="308" class="dia-label" fill="#10b981">4. Apache Avro Binary (32 Bytes)</text>
+            <text x="60" y="328" class="dia-mono" font-size="10px">
+              <tspan fill="#10b981">[Len 0x0C] "Martin" | [Varint 0xb9 0x0a] | [Array Count 2] "daydreaming" "hacking"</tspan>
+            </text>
+            <rect x="740" y="296" width="160" height="34" rx="4" fill="#161924" stroke="#10b981" />
+            <text x="820" y="318" text-anchor="middle" class="dia-mono" font-size="11px" fill="#10b981">32 Bytes (39%)</text>
+
+            <!-- Bottom Horizontal Legend -->
+            <rect x="40" y="358" width="880" height="30" rx="4" fill="#161924" stroke="#242c3d" />
+            <circle cx="80" cy="373" r="5" fill="#eb6c36" />
+            <text x="92" y="377" class="dia-subtext">Tag / Field Number Header</text>
+            <circle cx="280" cy="373" r="5" fill="#3b82f6" />
+            <text x="292" y="377" class="dia-subtext">Varint Compressed Integer</text>
+            <circle cx="480" cy="373" r="5" fill="#10b981" />
+            <text x="492" y="377" class="dia-subtext">Length-Delimited String Payload</text>
+            <circle cx="700" cy="373" r="5" fill="#f43f5e" />
+            <text x="712" y="377" class="dia-subtext">Punctuation & String Key Waste</text>
+          </svg>
+          <div class="diagram-footnote">Figure 4.1: Wire byte layout comparison across JSON, MessagePack, Protobuf, and Avro for the exact same data record.</div>
+        </div>
+
+        <!-- Interactive 2: Varint & ZigZag Bitwise Calculator -->
+        <div class="interactive-card">
+          <div class="interactive-top">
+            <div class="interactive-heading">Interactive Tool • Varint & ZigZag Bitwise Encoder</div>
+            <button class="btn" onclick="calcVarint()">Encode Integer</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+            <div>
+              <label style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); display: block; margin-bottom: 0.4rem;">
+                Enter Any Integer (Positive or Negative):
+              </label>
+              <input type="number" id="varintInput" class="input-box" value="1337" style="width: 100%;" oninput="calcVarint()">
+              <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="btn" onclick="setVarintSample(1)">1 (1 byte)</button>
+                <button class="btn" onclick="setVarintSample(127)">127 (1 byte)</button>
+                <button class="btn" onclick="setVarintSample(1337)">1337 (2 bytes)</button>
+                <button class="btn" onclick="setVarintSample(-1)">-1 (ZigZag)</button>
+                <button class="btn" onclick="setVarintSample(-42)">-42 (ZigZag)</button>
+              </div>
+            </div>
+            <div style="background: var(--bg-surface-elevated); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.82rem;">
+              <div style="color: var(--text-subtle); margin-bottom: 0.4rem;">ENCODING BREAKDOWN:</div>
+              <div id="zigzagVal">ZigZag Mapped Value: 2674</div>
+              <div id="varintHex" style="margin-top: 0.3rem; color: var(--accent); font-weight: 600;">Hex Bytes on Wire: 0xb9 0x0a</div>
+              <div id="varintBytesCount" style="margin-top: 0.3rem;">Total Wire Size: 2 bytes (vs 8 bytes fixed int64)</div>
+              <div id="varintBits" style="margin-top: 0.4rem; font-size: 0.75rem; color: var(--text-subtle);">Bits: [1]0111001 [0]0001010</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-badge badge-obvious">Obvious Case</span>
+            <div class="example-name">Small Enum / Counter</div>
+            <div class="example-desc">A status field with value <code>1</code> encodes into 1 single byte for the tag and 1 byte for the varint.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-counter">Counter-Intuitive</span>
+            <div class="example-name">Negative Numbers in Plain Varint</div>
+            <div class="example-desc">Standard two's-complement -1 has its highest bits set to 1, causing standard varint to write <strong>10 full bytes</strong>! ZigZag solves this.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-edge">Edge Case</span>
+            <div class="example-name">Renaming Fields vs Tag Numbers</div>
+            <div class="example-desc">Renaming <code>user_name</code> to <code>full_name</code> is 100% safe. But changing field tag <code>1</code> to <code>4</code> corrupts existing binary decoders.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-columns">
+          <div class="pedagogy-box">
+            <div class="pedagogy-header analogy">Analogy • Numbered Form Fields</div>
+            <div class="pedagogy-content">
+              A paper tax return asks you to fill boxes labeled [1], [2], [3]. When submitting by mail, you only write "1: John, 2: 45000", leaving out the printed legal questions.
+            </div>
+          </div>
+          <div class="pedagogy-box">
+            <div class="pedagogy-header misconception">Misconception • Field Tags 1–15 and 16+ Are Identical</div>
+            <div class="pedagogy-content">
+              Field tags 1 through 15 encode the tag number and wire type in a <strong>single byte</strong>. Field tags 16 and above require 2 or more bytes. Reserve tags 1–15 for your most frequently used fields!
+            </div>
+          </div>
+          <div class="pedagogy-box full-span">
+            <div class="pedagogy-header production">Production Reality • gRPC Microservice Standards</div>
+            <div class="pedagogy-content">
+              Modern high-throughput internal microservices at Google, Netflix, and Uber use gRPC (HTTP/2 + Protobuf) exclusively for inter-service RPCs, slashing network egress costs and eliminating JSON serialization CPU bottlenecks.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="pill-label">Memory Pill</span>
+          <span class="pill-content">"Protobuf transmits integer field tags instead of string names; varints shrink small numbers to 1 byte."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 5: Avro & Dynamic Schemas -->
+      <section id="module-5" class="module-card">
+        <div class="module-tag">Module 05 • Dynamic Schema Resolution</div>
+        <h2 class="module-heading">Apache Avro & Dynamic Schema Resolution</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="def-header">Crucial Terms & Big Data Serialization</div>
+          <dl class="def-grid">
+            <div class="def-entry">
+              <dt>Apache Avro</dt>
+              <dd>A schema-driven binary data serialization system developed within the Apache Hadoop project. Uniquely, Avro binary streams contain <strong>neither field names nor tag numbers nor data types</strong>.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Writer's Schema</dt>
+              <dd>The precise schema definition that the producing application used when it serialized and wrote the record to disk or the Kafka topic.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Reader's Schema</dt>
+              <dd>The schema definition that the consuming application expects and compiles against when decoding incoming records into memory.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Schema Registry</dt>
+              <dd>A centralized network service (e.g. Confluent Schema Registry) that stores all versioned Avro schemas. Messages on Kafka include only a 4-to-8 byte Schema ID prefix rather than the full schema string.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-body">
+          <p>
+            While Protobuf and Thrift rely on static integer field tags, <strong>Apache Avro</strong> takes binary compaction to its theoretical limit. In Avro, the binary encoding of a record is simply the raw values concatenated together: a length prefix followed by string characters, followed by a varint integer, followed by repeated array items.
+          </p>
+          <p>
+            There are <strong>no field tags, no field names, and no wire type markers</strong> anywhere in the record byte stream. For our sample record, Avro produces a binary payload of just <strong>32 bytes</strong>.
+          </p>
+          <p>
+            How can an Avro decoder parse a stream of raw concatenated bytes without any delimiters or tags?
+          </p>
+          <p>
+            The secret is <strong>Dynamic Schema Resolution</strong>:
+          </p>
+          <p>
+            1. The decoder reads the bytes by walking through the fields in the exact order specified by the <strong>Writer's Schema</strong> (the schema used when the file or message was generated).
+          </p>
+          <p>
+            2. The decoder compares the Writer's Schema against the application's <strong>Reader's Schema</strong> by matching field names. If the field order differs between the two schemas, the Avro library dynamically rearranges the fields in memory.
+          </p>
+          <p>
+            3. If the Writer's Schema contains a field that the Reader's Schema does not recognize, Avro reads the bytes using the writer schema's type and silently skips over them. If the Reader's Schema expects a field that was not present in the Writer's Schema, Avro automatically populates the missing field using the <strong>default value</strong> declared in the Reader's Schema.
+          </p>
+          <p>
+            Where does the Writer's Schema come from? In large analytics files (like Apache Parquet / Hadoop container files), the full Writer's Schema is written once at the beginning of the multi-gigabyte file. In streaming message queues like <strong>Apache Kafka</strong>, producers register schemas in a <strong>Schema Registry</strong> and prepend a tiny 4-byte Schema ID to each message, enabling high-throughput validation without sending schema text.
+          </p>
+        </div>
+
+        <!-- SVG Diagram 2: Strictly adhering to diagram-design skill -->
+        <div class="diagram-panel">
+          <svg viewBox="0 0 960 380" width="960" height="380" xmlns="http://www.w3.org/2000/svg">
+            <!-- Background -->
+            <rect width="960" height="380" class="dia-bg" />
+
+            <!-- Left Box: Writer's Schema -->
+            <rect x="50" y="40" width="260" height="240" rx="8" class="dia-card" />
+            <text x="180" y="68" text-anchor="middle" class="dia-label" fill="#f0f4fc">Writer's Schema (v1)</text>
+            <text x="180" y="86" text-anchor="middle" class="dia-subtext">Used during write / serialization</text>
+            <rect x="70" y="100" width="220" height="32" rx="4" fill="#12161f" stroke="#242c3d" />
+            <text x="80" y="121" class="dia-mono" font-size="10px">1. user_name: string</text>
+            <rect x="70" y="140" width="220" height="32" rx="4" fill="#12161f" stroke="#242c3d" />
+            <text x="80" y="161" class="dia-mono" font-size="10px">2. favorite_number: int</text>
+            <rect x="70" y="180" width="220" height="32" rx="4" fill="#12161f" stroke="#242c3d" />
+            <text x="80" y="201" class="dia-mono" font-size="10px">3. old_status: string</text>
+            <text x="180" y="245" text-anchor="middle" class="dia-subtext" fill="#8d9bb0">Emits Raw Byte Sequence (32 B)</text>
+
+            <!-- Center Box: Dynamic Schema Resolution Engine -->
+            <rect x="370" y="80" width="220" height="180" rx="8" class="dia-card-highlight" />
+            <text x="480" y="108" text-anchor="middle" class="dia-label" fill="#eb6c36">Avro Schema Resolver</text>
+            <text x="480" y="126" text-anchor="middle" class="dia-subtext">Field Name Dynamic Matching</text>
+            <rect x="390" y="140" width="180" height="26" rx="4" class="dia-card-teal" />
+            <text x="480" y="157" text-anchor="middle" class="dia-mono" font-size="9px" fill="#10b981">Match: user_name &rarr; OK</text>
+            <rect x="390" y="172" width="180" height="26" rx="4" fill="#12161f" stroke="#eb6c36" />
+            <text x="480" y="189" text-anchor="middle" class="dia-mono" font-size="9px" fill="#eb6c36">Skip: old_status</text>
+            <rect x="390" y="204" width="180" height="26" rx="4" fill="#12161f" stroke="#3b82f6" />
+            <text x="480" y="221" text-anchor="middle" class="dia-mono" font-size="9px" fill="#3b82f6">Inject: photo_url = default</text>
+
+            <!-- Right Box: Reader's Schema -->
+            <rect x="650" y="40" width="260" height="240" rx="8" class="dia-card" />
+            <text x="780" y="68" text-anchor="middle" class="dia-label" fill="#f0f4fc">Reader's Schema (v2)</text>
+            <text x="780" y="86" text-anchor="middle" class="dia-subtext">Expected by consuming code</text>
+            <rect x="670" y="100" width="220" height="32" rx="4" fill="#12161f" stroke="#242c3d" />
+            <text x="680" y="121" class="dia-mono" font-size="10px">1. user_name: string</text>
+            <rect x="670" y="140" width="220" height="32" rx="4" fill="#12161f" stroke="#242c3d" />
+            <text x="680" y="161" class="dia-mono" font-size="10px">2. favorite_number: int</text>
+            <rect x="670" y="180" width="220" height="32" rx="4" class="dia-card-blue" />
+            <text x="680" y="201" class="dia-mono" font-size="10px" fill="#3b82f6">3. photo_url: str (default:null)</text>
+            <text x="780" y="245" text-anchor="middle" class="dia-subtext" fill="#10b981">Successfully Deserialized!</text>
+
+            <!-- Connectors with r=8 Orthogonal routing -->
+            <path d="M 310 120 L 370 120" class="dia-line" marker-end="url(#arrow)" />
+            <path d="M 310 200 L 370 200" class="dia-line" marker-end="url(#arrow)" />
+            <path d="M 590 150 L 650 150" class="dia-line-accent" marker-end="url(#arrow-accent)" />
+            <path d="M 590 220 L 650 200" class="dia-line-teal" marker-end="url(#arrow)" />
+
+            <!-- Bottom Legend -->
+            <rect x="50" y="320" width="860" height="32" rx="4" fill="#161924" stroke="#242c3d" />
+            <circle cx="90" cy="336" r="5" fill="#10b981" />
+            <text x="102" y="340" class="dia-subtext">Direct Field Match</text>
+            <circle cx="280" cy="336" r="5" fill="#eb6c36" />
+            <text x="292" y="340" class="dia-subtext">Ignored Field (Present in Writer, Absent in Reader)</text>
+            <circle cx="620" cy="336" r="5" fill="#3b82f6" />
+            <text x="632" y="340" class="dia-subtext">Default Value Substitution (Absent in Writer, Present in Reader)</text>
+          </svg>
+          <div class="diagram-footnote">Figure 4.2: Avro dynamic schema resolution translating between a v1 Writer's Schema and a v2 Reader's Schema.</div>
+        </div>
+
+        <!-- Interactive 3: Avro Schema Resolution Simulator -->
+        <div class="interactive-card">
+          <div class="interactive-top">
+            <div class="interactive-heading">Interactive Simulator • Avro Schema Compatibility Checker</div>
+            <button class="btn" onclick="testAvroResolution()">Test Resolution</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+            <div>
+              <label style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); display: block; margin-bottom: 0.35rem;">
+                Writer Schema (Producer):
+              </label>
+              <select id="avroWriterSelect" class="input-box" style="width: 100%; margin-bottom: 0.75rem;" onchange="testAvroResolution()">
+                <option value="v1">v1: [user_id: int, user_name: string]</option>
+                <option value="v2">v2: [user_id: int, user_name: string, age: int]</option>
+                <option value="v3">v3: [user_id: int, full_name: string] (Renamed field!)</option>
+              </select>
+
+              <label style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); display: block; margin-bottom: 0.35rem;">
+                Reader Schema (Consumer):
+              </label>
+              <select id="avroReaderSelect" class="input-box" style="width: 100%;" onchange="testAvroResolution()">
+                <option value="r1">Reader expects: [user_id: int, user_name: string]</option>
+                <option value="r2_default">Reader expects: [user_id: int, user_name: string, email: string = "N/A"]</option>
+                <option value="r2_nodefault">Reader expects: [user_id: int, user_name: string, email: string (NO DEFAULT)]</option>
+              </select>
+            </div>
+            <div style="background: var(--bg-surface-elevated); padding: 1.25rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.82rem;">
+              <div style="color: var(--text-subtle); margin-bottom: 0.35rem;">RESOLUTION RESULT:</div>
+              <div id="avroStatusTitle" style="font-size: 1rem; color: var(--teal); font-weight: 600; margin-bottom: 0.4rem;">Status: Compatible</div>
+              <div id="avroStatusDesc" style="color: var(--text-muted); line-height: 1.5;">
+                Fields match cleanly. The reader parses user_id and user_name sequentially from the raw byte stream.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-badge badge-obvious">Obvious Case</span>
+            <div class="example-name">Kafka Event Streaming</div>
+            <div class="example-desc">Sending 100,000 telemetry events/sec through Kafka using Avro + Confluent Schema Registry with 32-byte payloads.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-counter">Counter-Intuitive</span>
+            <div class="example-name">Renaming Fields Breaks Avro</div>
+            <div class="example-desc">In Protobuf, field renaming is free because tag numbers govern matching. In Avro, renaming a field without an alias breaks resolution!</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-edge">Edge Case</span>
+            <div class="example-name">Missing Default on New Field</div>
+            <div class="example-desc">Adding a new field without a default value in Reader Schema causes an instant deserialization crash when reading old historical data.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-columns">
+          <div class="pedagogy-box">
+            <div class="pedagogy-header analogy">Analogy • Rosetta Stone</div>
+            <div class="pedagogy-content">
+              Avro binary data is written in pure shorthand hieroglyphs. The Reader's Schema and Writer's Schema act as two parallel Rosetta stone tablets, enabling the decoder to translate between dialects on the fly.
+            </div>
+          </div>
+          <div class="pedagogy-box">
+            <div class="pedagogy-header misconception">Misconception • Avro Requires Embedding Schema in Every Packet</div>
+            <div class="pedagogy-content">
+              Beginners fear Avro schemas waste network bandwidth. In real-time message streams, only a 4-byte Schema ID is sent; the consumer fetches the full schema once from the Schema Registry and caches it.
+            </div>
+          </div>
+          <div class="pedagogy-box full-span">
+            <div class="pedagogy-header production">Production Reality • Schema Evolution in Data Lakes</div>
+            <div class="pedagogy-content">
+              In petabyte data lakes (Parquet/ORC/Avro on S3), Hive and Spark query tables spanning 5 years of evolving schemas. Avro's dynamic resolution allows modern queries to scan legacy 2021 files alongside 2026 partitions seamlessly.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="pill-label">Memory Pill</span>
+          <span class="pill-content">"Avro transmits zero tags or field names; decoders dynamically resolve Writer Schema against Reader Schema."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 6: Schema Evolution Rules -->
+      <section id="module-6" class="module-card">
+        <div class="module-tag">Module 06 • Compatibility Engineering</div>
+        <h2 class="module-heading">Schema Evolution: Backward, Forward & Full Compatibility</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="def-header">Crucial Terms & Compatibility Axioms</div>
+          <dl class="def-grid">
+            <div class="def-entry">
+              <dt>Backward Compatibility</dt>
+              <dd>Newer code can read and decode data that was written by older code. (Essential when deploying new backend code that must read existing historical database records or cache entries).</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Forward Compatibility</dt>
+              <dd>Older code can read and decode data that was written by newer code. (Essential during rolling deployments where un-upgraded servers or older mobile app versions receive messages from upgraded servers).</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Full Compatibility</dt>
+              <dd>A schema evolution guarantee that is simultaneously backward compatible AND forward compatible across all versions.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Rolling Upgrade (Phased Deployment)</dt>
+              <dd>Deploying a new software version across a 100-node server cluster gradually (e.g. 5 nodes at a time) to avoid downtime. For hours, v1 and v2 software run simultaneously and exchange data.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-body">
+          <p>
+            In large-scale production environments, <strong>instantaneous global upgrades are impossible</strong>. When deploying a new release across 500 microservice nodes, the deployment proceeds as a <em>rolling upgrade</em>. For a window of minutes to days, 50% of your fleet runs Version 2 while the remaining 50% runs Version 1. Furthermore, mobile clients (iOS/Android) may not update for months.
+          </p>
+          <p>
+            This operational reality establishes the twin pillars of schema evolution:
+          </p>
+          <p>
+            1. <strong>Backward Compatibility Rules</strong>: To ensure newer code can read older data:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1rem; color: var(--text-muted);">
+            <li>Every newly added field <strong>must be optional</strong> or declare a sensible <strong>default value</strong>. If new code reads an old record where the field does not exist, it falls back to the default.</li>
+            <li>You must never add a <code>required</code> field in a newer schema version!</li>
+          </ul>
+          <p>
+            2. <strong>Forward Compatibility Rules</strong>: To ensure older code can read newer data:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1rem; color: var(--text-muted);">
+            <li>When older code encounters a field tag or column it does not recognize, it must <strong>gracefully ignore and skip it</strong> rather than crashing.</li>
+            <li>You can only remove a field that was <code>optional</code> (or had a default), and you must <strong>never reuse its tag number</strong> in future schemas.</li>
+          </ul>
+          <p>
+            A critical subtle bug occurs when data flows through an intermediary node: if Version 1 of a service reads a Version 2 record, modifies an unrelated field, and writes the record back to the database, will it preserve or discard the unknown Version 2 fields? In Protobuf and Thrift, newer libraries preserve unknown fields in memory to prevent silent data corruption during round-trips!
+          </p>
+        </div>
+
+        <!-- Master Compatibility Table -->
+        <div class="table-container">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Schema Modification Action</th>
+                <th>Backward Compatible?</th>
+                <th>Forward Compatible?</th>
+                <th>Safety Verdict & Rule</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Add an Optional field with Default</strong></td>
+                <td><span style="color:var(--teal); font-weight:600;">YES</span></td>
+                <td><span style="color:var(--teal); font-weight:600;">YES</span></td>
+                <td><span style="color:var(--teal); font-weight:600;">100% Safe (Fully Compatible)</span></td>
+              </tr>
+              <tr>
+                <td><strong>Add a Required field</strong></td>
+                <td><span style="color:var(--rose); font-weight:600;">NO (Old data lacks it)</span></td>
+                <td><span style="color:var(--teal); font-weight:600;">YES</span></td>
+                <td><span style="color:var(--rose); font-weight:600;">DANGEROUS: Breaks reading old data</span></td>
+              </tr>
+              <tr>
+                <td><strong>Remove an Optional field</strong></td>
+                <td><span style="color:var(--teal); font-weight:600;">YES</span></td>
+                <td><span style="color:var(--rose); font-weight:600;">NO (Old code expects it)</span></td>
+                <td><span style="color:var(--amber); font-weight:600;">CAUTION: Must reserve tag number</span></td>
+              </tr>
+              <tr>
+                <td><strong>Change Field Tag Number (Protobuf)</strong></td>
+                <td><span style="color:var(--rose); font-weight:600;">NO</span></td>
+                <td><span style="color:var(--rose); font-weight:600;">NO</span></td>
+                <td><span style="color:var(--rose); font-weight:600;">FATAL: Corrupts all decoders</span></td>
+              </tr>
+              <tr>
+                <td><strong>Change 32-bit int to 64-bit int</strong></td>
+                <td><span style="color:var(--teal); font-weight:600;">YES (in Protobuf varint)</span></td>
+                <td><span style="color:var(--rose); font-weight:600;">NO (64-bit truncated to 32)</span></td>
+                <td><span style="color:var(--amber); font-weight:600;">PARTIAL: Safe only if values fit 32-bit</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-badge badge-obvious">Obvious Case</span>
+            <div class="example-name">Adding an Optional Avatar URL</div>
+            <div class="example-desc">Adding <code>optional string avatar_url = 4;</code> allows v2 code to render images while v1 code safely skips tag 4.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-counter">Counter-Intuitive</span>
+            <div class="example-name">Removing Required Fields</div>
+            <div class="example-desc">You can never safely remove a <code>required</code> field. Old code will reject every single new record as invalid and throw exceptions.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-edge">Edge Case</span>
+            <div class="example-name">Reusing Tag Numbers</div>
+            <div class="example-desc">Deleting <code>phone_number = 3</code> and later defining <code>email = 3</code> causes old clients to parse email strings as phone numbers!</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-columns">
+          <div class="pedagogy-box">
+            <div class="pedagogy-header analogy">Analogy • Electrical Plugs</div>
+            <div class="pedagogy-content">
+              A modern 3-prong grounded wall outlet is backward compatible (accepts old 2-prong plugs) and forward compatible (old 2-prong extension cords can still plug into modern wall circuits).
+            </div>
+          </div>
+          <div class="pedagogy-box">
+            <div class="pedagogy-header misconception">Misconception • Schema Validation Should Reject Unknown Fields</div>
+            <div class="pedagogy-content">
+              Strict schema validators that throw errors on encountering unknown fields completely destroy forward compatibility, making rolling deployments impossible without full downtime.
+            </div>
+          </div>
+          <div class="pedagogy-box full-span">
+            <div class="pedagogy-header production">Production Reality • Protobuf 3 Removed the `required` Keyword</div>
+            <div class="pedagogy-content">
+              Google learned from painful production outages that <code>required</code> fields prevent safe schema evolution. As a result, <strong>Protobuf version 3 completely removed the <code>required</code> keyword</strong>, making all fields optional by default!
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="pill-label">Memory Pill</span>
+          <span class="pill-content">"Only add optional fields with defaults; never change tag numbers; preserve unknown fields."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 7: Modes of Dataflow & Kafka -->
+      <section id="module-7" class="module-card">
+        <div class="module-tag">Module 07 • Data in Motion</div>
+        <h2 class="module-heading">Modes of Dataflow: Databases, RPC (REST/gRPC) & Asynchronous Message Queues</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="def-header">Crucial Terms & Communication Topologies</div>
+          <dl class="def-grid">
+            <div class="def-entry">
+              <dt>Dataflow Through Databases</dt>
+              <dd>Communication where a process writes bytes to a database and another process reads them later. The writer and reader may be separated by milliseconds or by decades ("data outlives code").</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Remote Procedure Call (RPC)</dt>
+              <dd>A synchronous client-server communication paradigm that attempts to make a network request look syntactically like calling a local function in the programming language (e.g. gRPC, Thrift, REST).</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Asynchronous Message Broker</dt>
+              <dd>An intermediary service (such as Apache Kafka, RabbitMQ, or AWS SQS) where producers publish messages to named topics/queues, and consumers process them asynchronously with decoupled lifecycles.</dd>
+            </div>
+            <div class="def-entry">
+              <dt>Backpressure & Load Buffering</dt>
+              <dd>The capability of a message queue to absorb sudden traffic spikes (e.g., 50,000 requests/sec during Black Friday) and buffer them safely on disk, preventing backend database crashes.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-body">
+          <p>
+            Whenever data leaves an in-memory process, it must flow through one of three primary communication channels:
+          </p>
+          <p>
+            1. <strong>Dataflow Through Databases</strong>: In database storage, the process that wrote the data may have executed 5 minutes ago or 5 years ago. A single table often contains rows written by ten different historical versions of application code. Unless all migrations preserve backward and forward compatibility, legacy rows will crash new services.
+          </p>
+          <p>
+            2. <strong>Dataflow Through Service Calls (REST & RPC)</strong>: In web architectures, clients (browsers, mobile apps) talk to servers via REST over HTTP, while internal microservices communicate via <strong>RPC (Remote Procedure Calls)</strong> such as gRPC. However, Martin Kleppmann emphasizes that <strong>network RPC is fundamentally flawed when treated like a local function call</strong>: local function calls are deterministic and fast, whereas network requests are vulnerable to packet drops, variable network latency, server timeouts, and partial failure states where a server executes an action but the network drops the acknowledgement.
+          </p>
+          <p>
+            3. <strong>Dataflow Through Asynchronous Message Passing (Kafka, RabbitMQ)</strong>: In high-scale systems, sending requests directly between synchronous services leads to catastrophic cascading failure: if downstream Service B slows down, upstream Service A exhausts its connection thread pool and crashes.
+          </p>
+          <p>
+            An <strong>asynchronous message broker</strong> decouples the producer from the consumer:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1rem; color: var(--text-muted);">
+            <li><strong>Load Leveling (Buffering)</strong>: If 100,000 checkout requests spike during a flash sale, Kafka buffers them safely on disk; backend payment workers consume at their maximum stable rate (e.g., 5,000/sec) without crashing.</li>
+            <li><strong>Fault Isolation</strong>: If the downstream inventory service crashes, messages accumulate safely in the broker until the service restarts, with zero lost transactions.</li>
+            <li><strong>Fan-out (Pub/Sub)</strong>: A single order event published to Kafka can be consumed simultaneously by the payment service, notification service, analytics pipeline, and fraud detection engine.</li>
+          </ul>
+        </div>
+
+        <!-- SVG Diagram 3: Strictly adhering to diagram-design skill -->
+        <div class="diagram-panel">
+          <svg viewBox="0 0 960 420" width="960" height="420" xmlns="http://www.w3.org/2000/svg">
+            <!-- Background -->
+            <rect width="960" height="420" class="dia-bg" />
+
+            <!-- Producers: App Servers -->
+            <rect x="40" y="40" width="180" height="320" rx="8" class="dia-card" />
+            <text x="130" y="68" text-anchor="middle" class="dia-label" fill="#f0f4fc">Client Ingestion Tier</text>
+            <text x="130" y="86" text-anchor="middle" class="dia-subtext">Stateless App Servers</text>
+
+            <rect x="55" y="104" width="150" height="50" rx="4" class="dia-card-highlight" />
+            <text x="130" y="128" text-anchor="middle" class="dia-label" fill="#eb6c36">App Server 01</text>
+            <text x="130" y="144" text-anchor="middle" class="dia-mono" font-size="9px">POST /order (JSON)</text>
+
+            <rect x="55" y="174" width="150" height="50" rx="4" class="dia-card-highlight" />
+            <text x="130" y="198" text-anchor="middle" class="dia-label" fill="#eb6c36">App Server 02</text>
+            <text x="130" y="214" text-anchor="middle" class="dia-mono" font-size="9px">POST /order (JSON)</text>
+
+            <rect x="55" y="244" width="150" height="50" rx="4" class="dia-card-highlight" />
+            <text x="130" y="268" text-anchor="middle" class="dia-label" fill="#eb6c36">App Server 03</text>
+            <text x="130" y="284" text-anchor="middle" class="dia-mono" font-size="9px">POST /order (JSON)</text>
+
+            <!-- Center Broker: Apache Kafka -->
+            <rect x="300" y="40" width="340" height="320" rx="8" class="dia-card-teal" />
+            <text x="470" y="68" text-anchor="middle" class="dia-label" fill="#10b981">Message Broker (Apache Kafka)</text>
+            <text x="470" y="86" text-anchor="middle" class="dia-subtext">Disk-Backed Durable Partitioned Queue</text>
+
+            <!-- Topic Partition 0 -->
+            <rect x="320" y="104" width="300" height="60" rx="4" fill="#12161f" stroke="#10b981" />
+            <text x="335" y="126" class="dia-mono" font-size="10px" fill="#10b981">Topic: orders (Partition 0)</text>
+            <rect x="335" y="134" width="50" height="22" rx="2" fill="#242c3d" /><text x="360" y="149" text-anchor="middle" class="dia-mono" font-size="9px">Msg #1</text>
+            <rect x="395" y="134" width="50" height="22" rx="2" fill="#242c3d" /><text x="420" y="149" text-anchor="middle" class="dia-mono" font-size="9px">Msg #2</text>
+            <rect x="455" y="134" width="50" height="22" rx="2" class="dia-card-highlight" /><text x="480" y="149" text-anchor="middle" class="dia-mono" font-size="9px" fill="#eb6c36">Msg #3</text>
+
+            <!-- Topic Partition 1 -->
+            <rect x="320" y="180" width="300" height="60" rx="4" fill="#12161f" stroke="#10b981" />
+            <text x="335" y="202" class="dia-mono" font-size="10px" fill="#10b981">Topic: orders (Partition 1)</text>
+            <rect x="335" y="210" width="50" height="22" rx="2" fill="#242c3d" /><text x="360" y="225" text-anchor="middle" class="dia-mono" font-size="9px">Msg #4</text>
+            <rect x="395" y="210" width="50" height="22" rx="2" class="dia-card-highlight" /><text x="420" y="225" text-anchor="middle" class="dia-mono" font-size="9px" fill="#eb6c36">Msg #5</text>
+
+            <rect x="320" y="260" width="300" height="80" rx="4" fill="#161924" stroke="#242c3d" />
+            <text x="470" y="284" text-anchor="middle" class="dia-label" fill="#f0f4fc">Schema Registry Attached</text>
+            <text x="470" y="302" text-anchor="middle" class="dia-subtext">Messages serialized in Protobuf / Avro (33B)</text>
+            <text x="470" y="322" text-anchor="middle" class="dia-mono" font-size="10px" fill="#10b981">Zero Data Loss Backpressure Buffer</text>
+
+            <!-- Consumers: Asynchronous Processing Tier -->
+            <rect x="720" y="40" width="200" height="320" rx="8" class="dia-card" />
+            <text x="820" y="68" text-anchor="middle" class="dia-label" fill="#f0f4fc">Consumer Group Tier</text>
+            <text x="820" y="86" text-anchor="middle" class="dia-subtext">Decoupled Processing</text>
+
+            <rect x="735" y="104" width="170" height="50" rx="4" class="dia-card-blue" />
+            <text x="820" y="128" text-anchor="middle" class="dia-label" fill="#3b82f6">Payment Service</text>
+            <text x="820" y="144" text-anchor="middle" class="dia-mono" font-size="9px">Consumes @ 5k/sec</text>
+
+            <rect x="735" y="174" width="170" height="50" rx="4" class="dia-card-blue" />
+            <text x="820" y="198" text-anchor="middle" class="dia-label" fill="#3b82f6">Notification Service</text>
+            <text x="820" y="214" text-anchor="middle" class="dia-mono" font-size="9px">Sends Email / SMS</text>
+
+            <rect x="735" y="244" width="170" height="50" rx="4" class="dia-card-blue" />
+            <text x="820" y="268" text-anchor="middle" class="dia-label" fill="#3b82f6">Analytics / DB Sink</text>
+            <text x="820" y="284" text-anchor="middle" class="dia-mono" font-size="9px">Streams to ClickHouse</text>
+
+            <!-- Orthogonal Connectors r=8 -->
+            <path d="M 205 129 L 312 129" class="dia-line-accent" marker-end="url(#arrow-accent)" />
+            <path d="M 205 199 L 312 199" class="dia-line-accent" marker-end="url(#arrow-accent)" />
+            <path d="M 620 134 L 728 129" class="dia-line-teal" marker-end="url(#arrow)" />
+            <path d="M 620 200 L 728 199" class="dia-line-teal" marker-end="url(#arrow)" />
+            <path d="M 620 210 Q 670 210 680 250 L 728 268" class="dia-line-teal" marker-end="url(#arrow)" />
+
+            <!-- Bottom Legend -->
+            <rect x="40" y="375" width="880" height="32" rx="4" fill="#161924" stroke="#242c3d" />
+            <circle cx="80" cy="391" r="5" fill="#eb6c36" />
+            <text x="92" y="395" class="dia-subtext">Asynchronous Production (HTTP Ingest &rarr; Broker)</text>
+            <circle cx="420" cy="391" r="5" fill="#10b981" />
+            <text x="432" y="395" class="dia-subtext">Persistent Disk Partition Buffer (Kafka Topic)</text>
+            <circle cx="720" cy="391" r="5" fill="#3b82f6" />
+            <text x="732" y="395" class="dia-subtext">Independent Parallel Consumer Groups</text>
+          </svg>
+          <div class="diagram-footnote">Figure 4.3: Asynchronous message broker architecture decoupling high-traffic app servers from downstream payment, notification, and database sinks.</div>
+        </div>
+
+        <!-- Interactive 4: Message Queue & Backpressure Simulator -->
+        <div class="interactive-card">
+          <div class="interactive-top">
+            <div class="interactive-heading">Live System Simulator • Traffic Spike: Direct RPC vs Kafka Queue</div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-primary" onclick="simulateTrafficBurst('direct')">Simulate Spike (Direct RPC)</button>
+              <button class="btn" onclick="simulateTrafficBurst('kafka')">Simulate Spike (Kafka Queue)</button>
+              <button class="btn" onclick="resetQueueDemo()">Reset</button>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem; font-family: var(--font-mono); font-size: 0.82rem;">
+            <div style="background: var(--bg-surface-elevated); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+              <div style="color: var(--accent); margin-bottom: 0.4rem;">APP INGESTION (PRODUCER)</div>
+              <div id="producerStatus">Rate: 1,000 req/sec</div>
+              <div id="producerTraffic" style="color: var(--text-muted); margin-top: 0.3rem;">Normal Load</div>
+            </div>
+            <div style="background: var(--bg-surface-elevated); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+              <div style="color: var(--teal); margin-bottom: 0.4rem;">BROKER QUEUE (BUFFER)</div>
+              <div id="queueDepth">Buffered Messages: 0</div>
+              <div id="queueStatus" style="color: var(--text-muted); margin-top: 0.3rem;">Queue Empty</div>
+            </div>
+            <div style="background: var(--bg-surface-elevated); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+              <div style="color: var(--blue); margin-bottom: 0.4rem;">DOWNSTREAM SERVICE (CONSUMER)</div>
+              <div id="consumerCPU">CPU Usage: 22%</div>
+              <div id="consumerStatus" style="color: var(--teal); margin-top: 0.3rem;">Healthy (Processing)</div>
+            </div>
+          </div>
+          <div id="simLog" style="margin-top: 0.75rem; font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-subtle);">
+            Select a mode above to observe how downstream systems behave during sudden traffic spikes.
+          </div>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-badge badge-obvious">Obvious Case</span>
+            <div class="example-name">Email Verification Trigger</div>
+            <div class="example-desc">Publishing a <code>UserSignedUp</code> event to RabbitMQ. If the email gateway is slow, user registration completes in 10ms without blocking.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-counter">Counter-Intuitive</span>
+            <div class="example-name">RPC Retries Create Storms</div>
+            <div class="example-desc">When a downstream service slows down, naive RPC clients retry aggressively, multiplying traffic and driving the server into total collapse.</div>
+          </div>
+          <div class="example-card">
+            <span class="example-badge badge-edge">Edge Case</span>
+            <div class="example-name">Poison Pill Message in Kafka</div>
+            <div class="example-desc">A corrupted Avro message causes a consumer to crash. Upon reboot, it re-reads the same offset and crashes in an infinite loop (needs a Dead Letter Queue).</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-columns">
+          <div class="pedagogy-box">
+            <div class="pedagogy-header analogy">Analogy • Phone Call vs Voice Message</div>
+            <div class="pedagogy-content">
+              An RPC call is a telephone call: both parties must be available simultaneously, and if one drops out, the conversation fails. A message queue is voicemail: you leave a recorded message and the recipient listens when they are free.
+            </div>
+          </div>
+          <div class="pedagogy-box">
+            <div class="pedagogy-header misconception">Misconception • Message Brokers Eliminate Failure</div>
+            <div class="pedagogy-content">
+              Message queues decouple availability, but introduce new failure modes: out-of-order message delivery, duplicate delivery requiring idempotency, and consumer lag accumulation.
+            </div>
+          </div>
+          <div class="pedagogy-box full-span">
+            <div class="pedagogy-header production">Production Reality • Idempotent Consumer Design</div>
+            <div class="pedagogy-content">
+              Because distributed message queues guarantee <em>at-least-once delivery</em>, network acknowledgements can drop, causing consumers to receive duplicate messages. Production consumers must be strictly <strong>idempotent</strong> (e.g. using unique transaction IDs or database upserts) to prevent charging customer credit cards twice!
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="pill-label">Memory Pill</span>
+          <span class="pill-content">"RPC tightly couples availability and latency; message brokers buffer spikes and isolate service failures."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 8: Master Glossary & Definitions -->
+      <section id="glossary" class="module-card">
+        <div class="module-tag">Module 08 • Master Reference</div>
+        <h2 class="module-heading">Master Definitions Glossary</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+          Exhaustive reference of every core data encoding, serialization format, schema evolution rule, and network communication term established in Chapter 4 of Designing Data-Intensive Applications.
+        </p>
+
+        <div class="glossary-masonry">
+          <div class="glossary-tile">
+            <div class="glossary-head">Encoding (Serialization)</div>
+            <div class="glossary-content">The deterministic translation of in-memory data structures (objects, structs, hash maps) into a self-contained sequence of contiguous bytes suitable for transmission over a network or persistence to disk.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Decoding (Deserialization)</div>
+            <div class="glossary-content">The inverse process of parsing a serialized byte stream from a network socket or disk file and reconstituting it into native, language-specific memory objects.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Backward Compatibility</div>
+            <div class="glossary-content">Newer code can read and decode data that was written by older code. Essential for reading historical database records or cache entries.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Forward Compatibility</div>
+            <div class="glossary-content">Older code can read and decode data that was written by newer code. Essential during rolling phased deployments across microservice clusters.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Full Compatibility</div>
+            <div class="glossary-content">A schema evolution state that is simultaneously backward compatible AND forward compatible across all versions.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Protocol Buffers (Protobuf)</div>
+            <div class="glossary-content">Google's open-source, language-neutral, schema-driven binary serialization mechanism that replaces string field names on the wire with compact integer field tags and wire types.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Field Tag (Field Number)</div>
+            <div class="glossary-content">A unique integer identifier assigned to each field in a <code>.proto</code> or Thrift schema. Serves as the key identifier in the binary wire format.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Varint (Variable-Length Integer)</div>
+            <div class="glossary-content">An integer encoding method where the Most Significant Bit (MSB) of each byte indicates continuation. Allows small integers (0–127) to consume just 1 byte.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">ZigZag Encoding</div>
+            <div class="glossary-content">A bitwise mapping that interleaves negative and positive integers ($0 \to 0, -1 \to 1, 1 \to 2$), preventing negative numbers from ballooning to 10 bytes in varints.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Apache Avro</div>
+            <div class="glossary-content">A schema-driven binary data serialization format for Hadoop and Kafka that transmits pure concatenated values with neither field tags nor field names in the byte stream.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Writer's Schema vs Reader's Schema</div>
+            <div class="glossary-content">The schema used when data was written versus the schema expected by the consumer. Avro dynamically matches field names between the two during deserialization.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Schema Registry</div>
+            <div class="glossary-content">A centralized service (e.g. Confluent Schema Registry) that stores versioned Avro/Protobuf schemas. Messages include only a 4-byte Schema ID prefix.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">MessagePack</div>
+            <div class="glossary-content">A schema-less binary encoding for JSON that removes punctuation syntax (braces, colons), but still retains full field name strings in every encoded record.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Remote Procedure Call (RPC)</div>
+            <div class="glossary-content">A synchronous network communication abstraction that attempts to make a remote network request look like calling a local function in application code (e.g. gRPC).</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">Asynchronous Message Broker</div>
+            <div class="glossary-content">An intermediary service (such as Apache Kafka, RabbitMQ, or AWS SQS) where producers publish messages to named topics/queues for asynchronous processing.</div>
+          </div>
+
+          <div class="glossary-tile">
+            <div class="glossary-head">IEEE 754 64-Bit Float Trap</div>
+            <div class="glossary-content">The limitation where JavaScript parses all numbers as 64-bit floats with 53-bit integer precision, silently corrupting numeric IDs exceeding $9,007,199,254,740,991$.</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- JavaScript Implementation -->
+  <script>
+    // Theme Toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    const themeText = document.getElementById('theme-text');
+    themeBtn.addEventListener('click', () => {
+      const current = document.body.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.body.setAttribute('data-theme', next);
+      themeText.textContent = `Mode: ${next.charAt(0).toUpperCase() + next.slice(1)}`;
+    });
+
+    // Reading Progress & Active Nav Highlighting
+    window.addEventListener('scroll', () => {
+      const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      document.getElementById('reading-progress').style.width = scrolled + '%';
+
+      const sections = document.querySelectorAll('.module-card, .hero-banner');
+      const navLinks = document.querySelectorAll('.nav-link');
+      let currentSection = '';
+
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop - 150;
+        if (winScroll >= sectionTop) {
+          currentSection = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${currentSection}`) {
+          link.classList.add('active');
+        }
+      });
+    });
+
+    // Interactive 1: Float Precision Trap Simulator
+    function testFloatBug() {
+      const inputStr = document.getElementById('intInput').value.trim();
+      if (!inputStr) return;
+
+      const rawValDiv = document.getElementById('floatResultRaw');
+      const parsedDiv = document.getElementById('floatResultParsed');
+      const statusDiv = document.getElementById('floatResultStatus');
+
+      rawValDiv.innerText = `Raw DB Value: ${inputStr}`;
+
+      // Simulate JavaScript JSON.parse(inputStr)
+      const num = Number(inputStr);
+      const parsedStr = String(num);
+      parsedDiv.innerText = `JavaScript Parsed (IEEE 754 Float): ${parsedStr}`;
+
+      if (inputStr !== parsedStr) {
+        statusDiv.innerHTML = `<span style="color:var(--rose);">CRITICAL CORRUPTION! Precision lost! (${inputStr} &rarr; ${parsedStr})</span>`;
+      } else {
+        statusDiv.innerHTML = `<span style="color:var(--teal);">SAFE: Integer fits within 53-bit mantissa ($2^{53}-1$).</span>`;
+      }
+    }
+
+    function setPresetInt(val) {
+      document.getElementById('intInput').value = val;
+      testFloatBug();
+    }
+
+    // Interactive 2: Varint & ZigZag Calculator
+    function calcVarint() {
+      const val = parseInt(document.getElementById('varintInput').value);
+      if (isNaN(val)) return;
+
+      // ZigZag encoding: (n << 1) ^ (n >> 31)
+      const zigzag = (val >= 0) ? (val * 2) : ((-val * 2) - 1);
+      document.getElementById('zigzagVal').innerText = `ZigZag Mapped Value: ${zigzag}`;
+
+      // Encode zigzag as varint bytes
+      let bytes = [];
+      let temp = zigzag;
+      let bitsBreakdown = [];
+
+      if (temp === 0) {
+        bytes.push(0);
+        bitsBreakdown.push("[0]0000000");
+      } else {
+        while (temp > 0) {
+          let byte = temp & 0x7F;
+          temp = Math.floor(temp / 128);
+          if (temp > 0) {
+            byte |= 0x80; // set continuation bit
+            bitsBreakdown.push(`[1]${(byte & 0x7F).toString(2).padStart(7, '0')}`);
+          } else {
+            bitsBreakdown.push(`[0]${byte.toString(2).padStart(7, '0')}`);
+          }
+          bytes.push(byte);
+        }
+      }
+
+      const hexStr = bytes.map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ');
+      document.getElementById('varintHex').innerText = `Hex Bytes on Wire: ${hexStr}`;
+      document.getElementById('varintBytesCount').innerText = `Total Wire Size: ${bytes.length} byte(s) (vs 8 bytes fixed int64)`;
+      document.getElementById('varintBits').innerText = `Bits: ${bitsBreakdown.join(' ')}`;
+    }
+
+    function setVarintSample(v) {
+      document.getElementById('varintInput').value = v;
+      calcVarint();
+    }
+
+    // Interactive 3: Avro Schema Resolution
+    function testAvroResolution() {
+      const w = document.getElementById('avroWriterSelect').value;
+      const r = document.getElementById('avroReaderSelect').value;
+      const title = document.getElementById('avroStatusTitle');
+      const desc = document.getElementById('avroStatusDesc');
+
+      if (w === 'v3') {
+        title.innerText = "Resolution Error: Incompatible Schemas";
+        title.style.color = "var(--rose)";
+        desc.innerText = "Fatal Failure: Writer wrote field 'full_name', but Reader expects 'user_name'. Because Avro has no tag numbers, field renaming without an alias breaks resolution!";
+      } else if (w === 'v1' && r === 'r2_nodefault') {
+        title.innerText = "Resolution Error: Missing Default Value";
+        title.style.color = "var(--rose)";
+        desc.innerText = "Fatal Failure: Reader expects new field 'email', but Writer (v1) never wrote it, and Reader defined NO default value! Avro cannot populate the field.";
+      } else if (w === 'v1' && r === 'r2_default') {
+        title.innerText = "Status: Fully Compatible (Default Substituted)";
+        title.style.color = "var(--teal)";
+        desc.innerText = "Success: Writer (v1) omitted 'email'. Reader dynamically injected the declared default value ('N/A') during decoding. Zero errors!";
+      } else if (w === 'v2' && r === 'r1') {
+        title.innerText = "Status: Fully Compatible (Forward Compatible)";
+        title.style.color = "var(--teal)";
+        desc.innerText = "Success: Writer (v2) included new field 'age'. Reader (r1) does not recognize 'age', so Avro safely skipped those bytes. Zero data corruption!";
+      } else {
+        title.innerText = "Status: 100% Compatible";
+        title.style.color = "var(--teal)";
+        desc.innerText = "Fields match cleanly. The reader parses user_id and user_name sequentially from the raw byte stream.";
+      }
+    }
+
+    // Interactive 4: Message Queue & Backpressure Simulator
+    function simulateTrafficBurst(mode) {
+      const prodRate = document.getElementById('producerStatus');
+      const prodTraffic = document.getElementById('producerTraffic');
+      const qDepth = document.getElementById('queueDepth');
+      const qStatus = document.getElementById('queueStatus');
+      const cpu = document.getElementById('consumerCPU');
+      const cStatus = document.getElementById('consumerStatus');
+      const log = document.getElementById('simLog');
+
+      if (mode === 'direct') {
+        prodRate.innerText = "Rate: 50,000 req/sec (BURST)";
+        prodTraffic.innerHTML = "<span style='color:var(--rose);'>Black Friday Spike!</span>";
+        qDepth.innerText = "Buffered Messages: N/A (Direct RPC)";
+        qStatus.innerText = "No Queue Intermediary";
+        cpu.innerText = "CPU Usage: 100% (STALLED)";
+        cStatus.innerHTML = "<span style='color:var(--rose); font-weight:bold;'>CRASHED: Out of Memory / 504 Gateway Timeout</span>";
+        log.innerHTML = "<strong style='color:var(--rose);'>Direct RPC Failure:</strong> 50,000 concurrent HTTP requests overwhelmed downstream server threads. Process crashed; 38,000 client transactions lost.";
+      } else if (mode === 'kafka') {
+        prodRate.innerText = "Rate: 50,000 req/sec (BURST)";
+        prodTraffic.innerHTML = "<span style='color:var(--accent);'>Traffic Spike Ingested</span>";
+        qDepth.innerHTML = "<span style='color:var(--teal); font-weight:bold;'>Buffered: 48,200 messages</span>";
+        qStatus.innerText = "Safely Absorbing Backpressure on Disk";
+        cpu.innerText = "CPU Usage: 78% (Optimal)";
+        cStatus.innerHTML = "<span style='color:var(--teal); font-weight:bold;'>Healthy: Consuming @ 5,000/sec</span>";
+        log.innerHTML = "<strong style='color:var(--teal);'>Kafka Backpressure Success:</strong> Spike buffered in disk-backed partition log. Downstream service processes at steady maximum capacity with ZERO crashed nodes and ZERO lost orders.";
+      }
+    }
+
+    function resetQueueDemo() {
+      document.getElementById('producerStatus').innerText = "Rate: 1,000 req/sec";
+      document.getElementById('producerTraffic').innerText = "Normal Load";
+      document.getElementById('queueDepth').innerText = "Buffered Messages: 0";
+      document.getElementById('queueStatus').innerText = "Queue Empty";
+      document.getElementById('consumerCPU').innerText = "CPU Usage: 22%";
+      document.getElementById('consumerStatus').innerHTML = "<span style='color:var(--teal);'>Healthy (Processing)</span>";
+      document.getElementById('simLog').innerText = "Select a mode above to observe how downstream systems behave during sudden traffic spikes.";
+    }
+
+    // Initialize displays on load
+    testFloatBug();
+    calcVarint();
+    testAvroResolution();
+  </script>
+</body>
+</html>

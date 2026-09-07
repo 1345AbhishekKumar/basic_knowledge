@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG — how chatbots answer from your documents · interactive lesson</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="hero">
+  <p class="eyebrow">Interactive lesson · AI engineering</p>
+  <h1>RAG: how a chatbot answers questions about <em>your</em> documents</h1>
+  <p class="lede">
+    Ask a general-purpose model about your own company policy and it can't know the answer —
+    your policy was never in its training data, and it will cheerfully invent one anyway.
+    <strong>Retrieval-augmented generation (RAG)</strong> fixes that without retraining: before the
+    model answers, a separate <em>retrieval</em> step finds the right passages in an index of your
+    documents and hands them to the model as context. This lesson lets you watch every step —
+    chunking, embedding, similarity search, and the augmented prompt — inside a miniature
+    knowledge base you control.
+  </p>
+  <p class="meta">No install, no server — opens in your browser. Sources: <a href="sources.md">sources.md</a>.</p>
+</header>
+
+<main>
+
+  <!-- ============ HOOK ============ -->
+  <section class="card" aria-labelledby="hook-h">
+    <p class="section-tag">Part 1 · The problem</p>
+    <h2 id="hook-h">The model only knows what it was trained on</h2>
+    <p>
+      Large language models learn from a fixed snapshot of public text. Everything they "know"
+      lives in their weights (researchers call this <strong>parametric memory</strong>), and that memory
+      has a hard date: the <strong>knowledge cutoff</strong> of the training data. Ask about anything newer,
+      private, or niche — your company's return policy, a product manual, this week's prices —
+      and the model has no way to know it. It doesn't stay silent; it answers anyway, fluently and
+      confidently, from patterns in its training data. That confident wrongness is what people call
+      <strong>hallucination</strong>.
+    </p>
+    <p>
+      The expensive fix would be retraining or fine-tuning the model on every new fact. RAG takes
+      the cheap route: <strong>leave the model alone and attach an external, updateable index</strong> of
+      documents — non-parametric memory. At answer time the system first looks the facts up in the
+      index, then hands them to the model inside the prompt. The model never "learns" your
+      documents; it reads the relevant page, the way you would.
+    </p>
+    <p>
+      The name and the architecture come from a 2020 research paper by Patrick Lewis and colleagues
+      at Meta (then Facebook AI Research), which combined a pretrained text generator with a
+      neural retriever over a large passage index. Today the same pattern powers "chat with your
+      docs" support bots, internal knowledge assistants, and research tools — grounded answers with
+      citations, no retraining.
+    </p>
+    <p class="note">
+      Key idea to hold onto: RAG does <em>not</em> put knowledge into the model. The knowledge sits in
+      an index you can edit at any time. To change what the bot knows, you update the index — never
+      the weights.
+    </p>
+  </section>
+
+  <!-- ============ BUILD UP ============ -->
+  <section class="card" aria-labelledby="build-h">
+    <p class="section-tag">Part 2 · The two phases</p>
+    <h2 id="build-h">Index first, then retrieve</h2>
+    <p>
+      Every RAG system runs two separate phases. The first happens <em>before anyone asks a question</em>;
+      the second happens <em>for every question</em>.
+    </p>
+
+    <div class="pipeline" aria-label="the RAG pipeline at a glance">
+      <div class="pipe-phase">
+        <p class="phase-name">Phase 1 · Index (offline, once)</p>
+        <div class="pipe-steps">
+          <span class="pipe-step">Documents</span><span class="pipe-arr">→</span>
+          <span class="pipe-step">Chunks</span><span class="pipe-arr">→</span>
+          <span class="pipe-step">Embeddings</span><span class="pipe-arr">→</span>
+          <span class="pipe-step hl">Vector store</span>
+        </div>
+      </div>
+      <div class="pipe-phase">
+        <p class="phase-name">Phase 2 · Query (online, per question)</p>
+        <div class="pipe-steps">
+          <span class="pipe-step">Question</span><span class="pipe-arr">→</span>
+          <span class="pipe-step">Embed query</span><span class="pipe-arr">→</span>
+          <span class="pipe-step hl">Top-k similar chunks</span><span class="pipe-arr">→</span>
+          <span class="pipe-step">Prompt with context</span><span class="pipe-arr">→</span>
+          <span class="pipe-step hl">Grounded answer</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <h3><span class="step-no">1</span> Chunk: cut the documents into pieces</h3>
+      <p>
+        A model can only read a limited amount of text at once (its <strong>context window</strong>), so you
+        can't paste an entire manual into every prompt — and you usually don't want to, because a
+        passage about refunds buried in a 200-page handbook would drown in noise. Indexers first cut
+        each document into smaller units called <strong>chunks</strong>. Production systems commonly use a few
+        hundred tokens per chunk with a small overlap between neighbours, so that a fact straddling a
+        cut doesn't fall in the crack.
+      </p>
+      <p class="note">
+        Chunking is a quiet superpower of RAG quality. Too big: one chunk holds several ideas and its
+        meaning gets mushy. Too small: a chunk may not carry enough context to be useful. You'll feel
+        both in the playground.
+      </p>
+    </div>
+
+    <div class="step">
+      <h3><span class="step-no">2</span> Embed: turn each chunk into a vector of numbers</h3>
+      <p>
+        Text isn't searchable by computer the way humans search it, so an <strong>embedding model</strong>
+        converts each chunk into a long list of numbers — a vector (a few hundred to a few thousand
+        dimensions; e.g. 768 for BERT-base, 1536 for OpenAI's <code>text-embedding-3-small</code>). The
+        trick is that the numbers are arranged so that <em>similar meaning lands near similar numbers</em>:
+        a sentence about refunds sits closer to another refund sentence than to a sentence about
+        shipping, even if they share no words.
+      </p>
+      <div class="diagram row">
+        <div class="sub-block">
+          <div class="diagram-label">Embedding: text → vector, arranged so meaning is near meaning</div>
+          <div class="mini-formula">"Refunds take 5 days" → [0.21, −0.87, 0.44, …]&nbsp;&nbsp;≈&nbsp;&nbsp;"Money back within a week" → [0.19, −0.90, 0.41, …]</div>
+          <p class="caption">The exact numbers are learned during the embedding model's training. What matters: the two refund-ish sentences end up closer to each other than to a shipping sentence, so later "near" can mean "about the same thing".</p>
+        </div>
+      </div>
+      <p>
+        Every chunk's vector is stored in a <strong>vector database</strong>, alongside the chunk's original
+        text and its metadata (which document, which page). For millions of chunks, the store can't
+        compare the query against every vector on each question, so it uses an
+        <strong>approximate-nearest-neighbour</strong> index to return good matches fast.
+      </p>
+    </div>
+
+    <div class="step">
+      <h3><span class="step-no">3</span> Retrieve: embed the question, find the nearest chunks</h3>
+      <p>
+        When a user asks something, the <em>same</em> embedding model converts the question into a
+        vector. The retriever then scores every chunk vector against the query vector with a
+        similarity measure — commonly <strong>cosine similarity</strong>, which measures the angle between two
+        vectors (ignoring their length) and lands between −1 and 1, with 1 meaning "pointing the same
+        way". The top <strong>k</strong> most similar chunks become the context — k is a tuned parameter you
+        choose: small keeps the prompt focused, large gives the model more to work with.
+      </p>
+      <div class="formula">cosine(q, c) = (q · c) ÷ (|q| × |c|)</div>
+      <p class="note">
+        This is why RAG finds answers keyword search can't. Ask "how long do I have to change my
+        mind?" and the semantic match is the chunk that says "returns are accepted within 30 days" —
+        no word in common, but the meaning lines up.
+      </p>
+    </div>
+
+    <div class="step">
+      <h3><span class="step-no">4</span> Augment &amp; generate: give the model the receipts</h3>
+      <p>
+        The retrieved chunks are pasted into the prompt as context, followed by the user's question,
+        often with an instruction to answer only from that context and to cite which chunk each claim
+        came from. Now the generator does its one job: turn the context into a readable answer. The
+        facts come from your documents — the model contributes the language.
+      </p>
+      <div class="formula">"Context: [c3] … [c7] …\nQuestion: …\nAnswer only from the context, citing chunks."</div>
+      <p>
+        RAG sharply <em>reduces</em> hallucination — the model is answering from passages you chose — but
+        it does not make a model error-proof. If retrieval returns the wrong chunk, the model will
+        confidently answer from the wrong context. In RAG, garbage retrieval in means garbage answer
+        out: the retriever, not the model, is usually where quality is won or lost.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ PLAYGROUND ============ -->
+  <section class="card playground-card" aria-labelledby="play-h">
+    <p class="section-tag">Part 3 · The playground</p>
+    <h2 id="play-h">Ask Aurora's knowledge base</h2>
+    <p class="intro">
+      A small electronics company keeps a 12-sentence policy document. You control the whole RAG
+      pipeline: how the document is <strong>chunked</strong>, whether retrieval is <strong>semantic</strong> (meaning) or
+      <strong>keyword</strong> (exact words), and how many chunks (<strong>top-k</strong>) reach the model. Then ask one of
+      the four questions and watch what the model can and can't ground.
+    </p>
+
+    <div class="controls" role="group" aria-label="lesson controls">
+      <div class="control-group">
+        <span class="control-label">Ask a question</span>
+        <div class="btn-row" id="queryBtns"></div>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Retrieval</span>
+        <div class="btn-row" id="modeBtns"></div>
+      </div>
+      <div class="control-group slider">
+        <label for="chunkSlider">Chunk size (sentences): <span id="chunkVal" class="live-val">4</span></label>
+        <input type="range" id="chunkSlider" min="1" max="12" step="1" value="4">
+      </div>
+      <div class="control-group slider">
+        <label for="overlapSlider">Overlap: <span id="overlapVal" class="live-val">0</span> sentences</label>
+        <input type="range" id="overlapSlider" min="0" max="2" step="1" value="0">
+      </div>
+      <div class="control-group slider">
+        <label for="topkSlider">Top-k (chunks sent to the model): <span id="topkVal" class="live-val">1</span></label>
+        <input type="range" id="topkSlider" min="1" max="3" step="1" value="1">
+      </div>
+    </div>
+
+    <div class="legend" id="stageLegend">
+      <span class="legend-item"><span class="swatch" style="background:#4f9dff"></span> returns</span>
+      <span class="legend-item"><span class="swatch" style="background:#ff8a65"></span> warranty</span>
+      <span class="legend-item"><span class="swatch" style="background:#ffd166"></span> shipping</span>
+      <span class="legend-item"><span class="swatch slate" style="background:#94a3b8"></span> mixed chunk</span>
+      <span class="legend-item"><span class="swatch white-ring"></span> your question</span>
+      <span class="legend-item"><span class="swatch cyan-ring"></span> the sentence with the answer</span>
+    </div>
+
+    <div class="stage" id="stage">
+      <p class="stage-title">The document, as the indexer sees it</p>
+      <p class="stage-caption" id="chunkCaption">Chunked into pieces, then each chunk becomes one point on the meaning map below.</p>
+      <div id="chunkBand" class="chunk-band" aria-live="polite"></div>
+
+      <p class="stage-title sub">The meaning map — one dot per chunk</p>
+      <p class="stage-caption">
+        Each colored dot is a chunk's embedding (its sentences averaged into one point — a stand-in for
+        the real high-dimensional vectors). Drag the chunk-size slider and watch mixed chunks slide
+        toward the middle.
+      </p>
+      <canvas id="mapCanvas" width="900" height="430" aria-label="meaning map of document chunks and the query point"></canvas>
+    </div>
+
+    <div class="result-grid">
+      <div class="card-inset" id="rankingPanel">
+        <h4>Retrieval ranking</h4>
+        <p class="m-label" id="rankingMethod"></p>
+        <div id="rankingList"></div>
+      </div>
+
+      <div class="card-inset">
+        <h4>What the model receives</h4>
+        <div class="promptbox" id="promptBox" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div class="card-inset answer-box" id="answerPanel" aria-live="polite"></div>
+
+    <p class="caption-note" id="honestyNote"></p>
+  </section>
+
+  <!-- ============ QUIZ ============ -->
+  <section class="card" aria-labelledby="quiz-h">
+    <p class="section-tag">Part 4 · Check yourself</p>
+    <h2 id="quiz-h">Check yourself</h2>
+
+    <div class="quiz" data-question="q1">
+      <p class="q-text">1. Which statement about how RAG works is <strong>false</strong>?</p>
+      <div class="answers">
+        <button class="ans">New facts go into an external index; the model's weights are never changed</button>
+        <button class="ans">The same embedding model converts both the documents and the question into vectors</button>
+        <button class="ans" data-correct>Retrieving the right passage guarantees the model cannot hallucinate</button>
+        <button class="ans">At answer time, the retrieved text is inserted into the prompt as context</button>
+      </div>
+      <p class="feedback" hidden></p>
+    </div>
+
+    <div class="quiz" data-question="q2">
+      <p class="q-text">2. A user asks "How long do I have to change my mind about an order?" The policy says returns are accepted within 30 days. Why does an exact-word keyword retriever struggle with this?</p>
+      <div class="answers">
+        <button class="ans" data-correct>"Change my mind" and "30-day returns" share no exact words, and "order" appears in unrelated shipping sentences that lure the search away</button>
+        <button class="ans">Keyword search always fails and is never used in real systems</button>
+        <button class="ans">The query is too long to search with</button>
+        <button class="ans">Keyword search only works on documents shorter than one page</button>
+      </div>
+      <p class="feedback" hidden></p>
+    </div>
+
+    <div class="quiz" data-question="q3">
+      <p class="q-text">3. In the playground, what happens to a chunk's embedding when the chunk is too large and mixes several topics?</p>
+      <div class="answers">
+        <button class="ans">The chunk becomes more precise, so retrieval improves</button>
+        <button class="ans">Nothing — chunk size only affects storage cost</button>
+        <button class="ans" data-correct>Its point drifts to the middle of the map, so it matches no question very closely — meaning gets averaged away</button>
+        <button class="ans">The model refuses to read it</button>
+      </div>
+      <p class="feedback" hidden></p>
+    </div>
+
+    <div class="quiz" data-question="q4">
+      <p class="q-text">4. Two chunk vectors point in the same direction but have very different lengths. What is their cosine similarity?</p>
+      <div class="answers">
+        <button class="ans">Close to 0, because the lengths differ</button>
+        <button class="ans" data-correct>Close to 1, because cosine ignores length and measures only the angle between the vectors</button>
+        <button class="ans">Exactly −1</button>
+        <button class="ans">There is no way to tell without knowing the vector dimension</button>
+      </div>
+      <p class="feedback" hidden></p>
+    </div>
+
+    <div class="quiz" data-question="q5">
+      <p class="q-text">5. A RAG answer is wrong even though retrieval ran without errors. Which is the most likely cause?</p>
+      <div class="answers">
+        <button class="ans">The embedding model was too small</button>
+        <button class="ans" data-correct>The retriever returned the wrong chunks, so the model confidently answered from irrelevant context</button>
+        <button class="ans">Cosine similarity is always unreliable</button>
+        <button class="ans">The user asked in a language the model was never trained on</button>
+      </div>
+      <p class="feedback" hidden></p>
+    </div>
+  </section>
+
+  <!-- ============ SUMMARY ============ -->
+  <section class="card" aria-labelledby="summary-h">
+    <p class="section-tag">Part 5 · Summary</p>
+    <h2 id="summary-h">Summary</h2>
+    <ul class="takeaways">
+      <li>A general LLM only knows its training snapshot. RAG attaches an <strong>external index</strong> of your documents so answers can be grounded without retraining.</li>
+      <li>Two phases: <strong>index</strong> (chunk → embed → store) runs offline once; <strong>query</strong> (embed the question → similarity search → top-k → augment the prompt → generate) runs for every question.</li>
+      <li>Embeddings put <strong>meaning near meaning</strong>: "change my mind" can land next to "returns within 30 days" with zero shared words.</li>
+      <li>Retrieval quality decides answer quality. Chunk size, overlap, the similarity measure, and top-k all move the needle — too-large chunks blur into the middle of the map; exact-word search gets lured by decoy words.</li>
+      <li>RAG reduces hallucination but doesn't eliminate it: the model is only as good as the context you retrieved for it.</li>
+    </ul>
+    <p>
+      Go back to the playground and break it on purpose: ask "how long do I have to change my mind…"
+      with keyword search, or set the chunk size to the whole document and watch every dot collapse.
+      Then flip to semantic search with top-k 2–3 and see the same questions answer cleanly.
+    </p>
+  </section>
+
+  <!-- ============ SOURCES ============ -->
+  <section class="card" aria-labelledby="sources-h">
+    <h2 id="sources-h">Sources &amp; further reading</h2>
+    <p class="sources-intro">
+      Full fact-by-fact sources: <a href="sources.md">sources.md</a>.
+    </p>
+    <ul class="sources-list">
+      <li>Lewis et al., <em>Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks</em> (2020) — <a href="https://arxiv.org/abs/2005.11401">arxiv.org/abs/2005.11401</a></li>
+      <li>IBM, <em>What is retrieval-augmented generation?</em> — <a href="https://www.ibm.com/think/topics/retrieval-augmented-generation">ibm.com/think/topics/retrieval-augmented-generation</a></li>
+      <li>AWS, <em>What is RAG?</em> — <a href="https://aws.amazon.com/what-is/retrieval-augmented-generation/">aws.amazon.com/what-is/retrieval-augmented-generation</a></li>
+      <li>OpenAI, <em>Vector embeddings guide</em> (dimensions) — <a href="https://developers.openai.com/api/docs/guides/embeddings">developers.openai.com/api/docs/guides/embeddings</a></li>
+      <li>Stack Overflow Blog, <em>An intuitive introduction to text embeddings</em> — <a href="https://stackoverflow.blog/2023/11/09/an-intuitive-introduction-to-text-embeddings/">stackoverflow.blog</a></li>
+      <li>Wikipedia, <em>Cosine similarity</em> — <a href="https://en.wikipedia.org/wiki/Cosine_similarity">en.wikipedia.org/wiki/Cosine_similarity</a></li>
+      <li>IBM, <em>What is cosine similarity?</em> — <a href="https://www.ibm.com/think/topics/cosine-similarity">ibm.com/think/topics/cosine-similarity</a></li>
+      <li>Databricks, <em>The ultimate guide to chunking strategies</em> — <a href="https://community.databricks.com/t5/technical-blog/the-ultimate-guide-to-chunking-strategies-for-rag-applications/ba-p/113089">community.databricks.com</a></li>
+      <li>Google Cloud, <em>RAG explained for beginners</em> — <a href="https://cloud.google.com/use-cases/retrieval-augmented-generation">cloud.google.com/use-cases/retrieval-augmented-generation</a></li>
+    </ul>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <p>Interactive lesson — open <code>index.html</code> in any browser. Works fully offline.</p>
+</footer>
+
+<script src="js/viz.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

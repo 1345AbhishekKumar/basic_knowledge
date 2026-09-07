@@ -1,0 +1,2831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Systems Performance: The Software Stack, Bottleneck Analysis, and Flame Graphs</title>
+<style>
+  /* ==========================================================================
+     THEME TOKENS: LAB MANUAL / SYSTEMS BENCH AESTHETIC
+     ========================================================================== */
+  :root {
+    --bg: #fbfaf6;
+    --paper: #ffffff;
+    --card: #f4f0e6;
+    --card-hover: #ede8dc;
+    --ink: #14171c;
+    --ink-secondary: #3b424d;
+    --mut: #687383;
+    --line: #ded7c8;
+    --line-subtle: #eae5d8;
+    --accent: #b85a19;
+    --accent-light: #fbf2ea;
+    --accent-soft: rgba(184, 90, 25, 0.12);
+    --accent-border: #d2732a;
+    --code-bg: #eee9dc;
+    --ok: #237844;
+    --ok-soft: #eaf6ee;
+    --bad: #b71c1c;
+    --bad-soft: #fdeeee;
+    --warn: #8a6308;
+    --warn-soft: #fcf6e5;
+    --bench-cyan: #0b6b7a;
+    --bench-purple: #5c3882;
+    --mono: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --serif: "Charter", Georgia, Cambria, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  html[data-theme="dark"] {
+    --bg: #0f1216;
+    --paper: #161b22;
+    --card: #1c222b;
+    --card-hover: #232b36;
+    --ink: #e6edf3;
+    --ink-secondary: #bdc7d2;
+    --mut: #828f9e;
+    --line: #2b3542;
+    --line-subtle: #202732;
+    --accent: #d97706;
+    --accent-light: #2a1c0d;
+    --accent-soft: rgba(217, 119, 6, 0.18);
+    --accent-border: #f59e0b;
+    --code-bg: #141920;
+    --ok: #38a169;
+    --ok-soft: #12291b;
+    --bad: #e53e3e;
+    --bad-soft: #381618;
+    --warn: #d99b16;
+    --warn-soft: #2e220a;
+    --bench-cyan: #22d3ee;
+    --bench-purple: #c084fc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 16px/1.7 var(--sans);
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  /* Progress Bar */
+  #top-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2.5px;
+    width: 0%;
+    background: var(--accent);
+    z-index: 1100;
+    transition: width 0.1s ease-out;
+  }
+
+  /* Theme Toggle */
+  #theme-toggle {
+    position: fixed;
+    top: 18px;
+    right: 22px;
+    z-index: 1050;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  #theme-toggle:hover {
+    transform: scale(1.08);
+    border-color: var(--accent);
+  }
+
+  /* Page Layout: Lab Manual Frame */
+  .manual-layout {
+    display: flex;
+    max-width: 1440px;
+    margin: 0 auto;
+    position: relative;
+    min-height: 100vh;
+  }
+
+  /* Sticky Navigation & Telemetry Index Rail */
+  .manual-rail {
+    width: 310px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 32px 20px 24px 24px;
+    border-right: 1px solid var(--line);
+    background: var(--bg);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .rail-header {
+    margin-bottom: 24px;
+  }
+  .rail-badge {
+    display: inline-block;
+    font: 600 10.5px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 3px 8px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+  }
+  .rail-title {
+    font: 700 17px/1.3 var(--serif);
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .rail-desc {
+    font-size: 12.5px;
+    color: var(--mut);
+    margin-top: 5px;
+    line-height: 1.4;
+  }
+
+  .nav-checklist {
+    list-style: none;
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .nav-item a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink-secondary);
+    font-size: 13px;
+    padding: 7px 10px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+  }
+  .nav-item a:hover {
+    background: var(--card);
+    color: var(--ink);
+  }
+  .nav-item.active a {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-weight: 600;
+    border-color: var(--accent-border);
+  }
+  .nav-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mut);
+    flex-shrink: 0;
+  }
+  .nav-item.active .nav-dot {
+    background: var(--accent);
+    transform: scale(1.4);
+  }
+
+  /* Quick Diagnostic Telemetry Widget on Sidebar */
+  .telemetry-sidebar-card {
+    margin-top: 24px;
+    padding: 14px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .sidebar-card-title {
+    font: 600 11px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--mut);
+    margin-bottom: 8px;
+  }
+  .stat-pair {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--line-subtle);
+  }
+  .stat-pair:last-child { border-bottom: none; }
+  .stat-key { color: var(--mut); }
+  .stat-val { font-family: var(--mono); font-weight: 600; color: var(--ink); }
+
+  /* Main Document Pane */
+  .manual-content {
+    flex: 1;
+    min-width: 0;
+    padding: 48px 48px 96px 48px;
+    max-width: 1040px;
+  }
+
+  /* Document Header */
+  .doc-header {
+    margin-bottom: 48px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+  }
+  .doc-meta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .meta-tag {
+    font: 600 11px var(--mono);
+    padding: 2px 8px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--ink-secondary);
+  }
+  .doc-title {
+    font: 700 36px/1.2 var(--serif);
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    margin-bottom: 12px;
+  }
+  .doc-lead {
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--ink-secondary);
+    max-width: 78ch;
+  }
+
+  /* Objectives / What You'll Learn */
+  .objectives-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    padding: 20px 24px;
+    border-radius: 4px;
+    margin-bottom: 40px;
+  }
+  .objectives-title {
+    font: 700 14px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .objectives-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .objectives-list li {
+    position: relative;
+    padding-left: 22px;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .objectives-list li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* Knowledge Map SVG Section */
+  .knowledge-map-container {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 24px;
+    border-radius: 4px;
+    margin-bottom: 56px;
+  }
+  .map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line-subtle);
+  }
+  .map-header h3 {
+    font: 700 13px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--mut);
+  }
+  .map-header span {
+    font-size: 12px;
+    color: var(--mut);
+    font-family: var(--mono);
+  }
+  .k-map-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .map-node {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .map-node:hover rect {
+    stroke: var(--accent);
+    stroke-width: 2px;
+    fill: var(--accent-light);
+  }
+
+  /* Module Container Styles */
+  .module-section {
+    margin-bottom: 72px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line-subtle);
+  }
+  .module-tag {
+    font: 600 11px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .module-title {
+    font: 700 26px/1.3 var(--serif);
+    color: var(--ink);
+    letter-spacing: -0.015em;
+    margin-bottom: 18px;
+  }
+
+  .core-prose {
+    font-size: 16px;
+    line-height: 1.75;
+    color: var(--ink-secondary);
+    margin-bottom: 24px;
+    max-width: 72ch;
+  }
+  .core-prose p {
+    margin-bottom: 16px;
+  }
+  .core-prose strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .core-prose code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    background: var(--code-bg);
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  /* Step-by-Step Breakdown Block */
+  .step-breakdown {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin: 28px 0;
+  }
+  .step-breakdown-title {
+    font: 700 13px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .step-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .step-num {
+    font: 700 13px var(--mono);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    color: var(--accent);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step-body {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--ink-secondary);
+  }
+  .step-body strong {
+    color: var(--ink);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  /* Visual Container Box */
+  .visual-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 24px;
+    margin: 28px 0;
+  }
+  .visual-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line-subtle);
+  }
+  .visual-card-title {
+    font: 600 12px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--mut);
+  }
+  .visual-controls {
+    display: flex;
+    gap: 8px;
+  }
+  .bench-btn {
+    font: 600 11px var(--mono);
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .bench-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .bench-btn.active {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+  }
+  .visual-caption {
+    font-size: 12.5px;
+    color: var(--mut);
+    margin-top: 14px;
+    line-height: 1.5;
+    font-family: var(--mono);
+  }
+
+  /* Three Real-World Examples Grid */
+  .examples-container {
+    margin: 28px 0;
+  }
+  .examples-title {
+    font: 700 13px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    margin-bottom: 14px;
+  }
+  .examples-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 900px) {
+    .examples-grid { grid-template-columns: 1fr; }
+    .manual-rail { display: none; }
+    .manual-content { padding: 24px 20px; }
+  }
+  .example-col {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+  }
+  .example-badge {
+    font: 600 10.5px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-bottom: 8px;
+    align-self: flex-start;
+  }
+  .example-badge.obvious { background: rgba(35, 120, 68, 0.12); color: var(--ok); }
+  .example-badge.counter { background: rgba(184, 90, 25, 0.12); color: var(--accent); }
+  .example-badge.edge { background: rgba(92, 56, 130, 0.12); color: var(--bench-purple); }
+  .example-headline {
+    font: 600 14px var(--serif);
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .example-desc {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-secondary);
+  }
+
+  /* Analogy Card */
+  .analogy-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--bench-cyan);
+    padding: 18px 22px;
+    border-radius: 4px;
+    margin: 24px 0;
+  }
+  .analogy-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 700 12px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--bench-cyan);
+    margin-bottom: 8px;
+  }
+  .analogy-body {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--ink-secondary);
+  }
+
+  /* Misconception & Why It Matters Cards */
+  .callout-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  @media (max-width: 768px) {
+    .callout-row { grid-template-columns: 1fr; }
+  }
+  .wrong-card {
+    background: var(--bad-soft);
+    border: 1px solid rgba(183, 28, 28, 0.25);
+    border-radius: 4px;
+    padding: 16px 20px;
+  }
+  .wrong-title {
+    font: 700 12px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--bad);
+    margin-bottom: 8px;
+  }
+  .wrong-desc {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+
+  .why-card {
+    background: var(--ok-soft);
+    border: 1px solid rgba(35, 120, 68, 0.25);
+    border-radius: 4px;
+    padding: 16px 20px;
+  }
+  .why-title {
+    font: 700 12px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ok);
+    margin-bottom: 8px;
+  }
+  .why-desc {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+
+  /* Module Link Pill */
+  .inter-link-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 12.5px var(--mono);
+    color: var(--accent);
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 8px 14px;
+    border-radius: 4px;
+    text-decoration: none;
+    margin-top: 14px;
+    transition: all 0.15s ease;
+  }
+  .inter-link-pill:hover {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  /* Module Inline Checkpoint Quiz */
+  .module-quiz {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 20px;
+    margin-top: 24px;
+  }
+  .quiz-title {
+    font: 700 12px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .quiz-question {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .quiz-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .quiz-btn {
+    text-align: left;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 10px 14px;
+    font-size: 13.5px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--ink-secondary);
+    transition: all 0.15s ease;
+  }
+  .quiz-btn:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
+  .quiz-btn.correct {
+    background: var(--ok-soft);
+    border-color: var(--ok);
+    color: var(--ok);
+    font-weight: 600;
+  }
+  .quiz-btn.incorrect {
+    background: var(--bad-soft);
+    border-color: var(--bad);
+    color: var(--bad);
+  }
+  .quiz-feedback {
+    margin-top: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 10px 12px;
+    border-radius: 4px;
+    display: none;
+  }
+  .quiz-feedback.show { display: block; }
+  .quiz-feedback.pass { background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok); }
+  .quiz-feedback.fail { background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); }
+
+  /* Interactive Elements Showcase Section */
+  .interactive-bench {
+    margin: 56px 0;
+    padding: 28px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .bench-header {
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--line-subtle);
+    padding-bottom: 12px;
+  }
+  .bench-tag {
+    font: 600 11px var(--mono);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .bench-headline {
+    font: 700 22px var(--serif);
+    color: var(--ink);
+    margin-top: 4px;
+  }
+
+  /* Flashcards Grid */
+  .flashcard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .flashcard {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    height: 160px;
+    cursor: pointer;
+    perspective: 1000px;
+    position: relative;
+  }
+  .flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transition: transform 0.4s ease;
+    transform-style: preserve-3d;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .flashcard.flipped .flashcard-inner {
+    transform: rotateY(180deg);
+  }
+  .flashcard-front, .flashcard-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+  }
+  .flashcard-front {
+    color: var(--ink);
+  }
+  .card-label {
+    font: 600 10.5px var(--mono);
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .card-term {
+    font: 700 16px var(--serif);
+    color: var(--ink);
+  }
+  .card-hint {
+    font-size: 11.5px;
+    color: var(--mut);
+    margin-top: 8px;
+    font-family: var(--mono);
+  }
+  .flashcard-back {
+    background: var(--accent-light);
+    color: var(--ink);
+    transform: rotateY(180deg);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  /* Memory Techniques Bar */
+  .memory-cue-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 28px 0;
+    padding: 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .memory-pill {
+    font-size: 12px;
+    font-family: var(--mono);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 6px 12px;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+  .memory-pill strong {
+    color: var(--accent);
+  }
+
+  /* Cheat Sheet Table */
+  .cheatsheet-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 13.5px;
+  }
+  .cheatsheet-table th, .cheatsheet-table td {
+    padding: 10px 14px;
+    text-align: left;
+    border: 1px solid var(--line);
+  }
+  .cheatsheet-table th {
+    background: var(--card);
+    font: 700 12px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+  }
+  .cheatsheet-table tr:nth-child(even) {
+    background: var(--card);
+  }
+  .cheatsheet-table code {
+    font-family: var(--mono);
+    background: var(--code-bg);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  /* FAQ & Next Steps */
+  .faq-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 24px 0;
+  }
+  .faq-item {
+    border: 1px solid var(--line);
+    background: var(--card);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .faq-q {
+    padding: 14px 18px;
+    font: 600 14.5px var(--serif);
+    color: var(--ink);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .faq-q:hover {
+    color: var(--accent);
+  }
+  .faq-a {
+    padding: 0 18px 16px 18px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-secondary);
+    display: none;
+  }
+  .faq-item.open .faq-a { display: block; }
+  .faq-item.open .faq-q { color: var(--accent); }
+
+  /* Interactive Scrubbable Telemetry Dashboard Styles */
+  .dash-panel {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 20px;
+    margin: 20px 0;
+  }
+  .scrubber-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .scrubber-bar label {
+    font: 600 12px var(--mono);
+    text-transform: uppercase;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .time-slider {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .scrubber-readout {
+    font: 700 12px var(--mono);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 4px 10px;
+    border-radius: 3px;
+    min-width: 140px;
+    text-align: center;
+  }
+
+  .metric-charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 768px) {
+    .metric-charts-grid { grid-template-columns: 1fr; }
+  }
+  .chart-box {
+    border: 1px solid var(--line);
+    background: var(--bg);
+    border-radius: 4px;
+    padding: 12px;
+  }
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .chart-title {
+    font: 600 11px var(--mono);
+    text-transform: uppercase;
+    color: var(--mut);
+  }
+  .chart-val-readout {
+    font: 700 12px var(--mono);
+    color: var(--ink);
+  }
+
+  /* Interactive Flame Graph CSS */
+  .flame-viewer-container {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 16px;
+    margin: 20px 0;
+  }
+  .flame-breadcrumbs {
+    font: 600 11px var(--mono);
+    color: var(--accent);
+    margin-bottom: 12px;
+    padding: 6px 10px;
+    background: var(--card);
+    border-radius: 3px;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+  }
+  .flame-hover-info {
+    font: 12px var(--mono);
+    color: var(--ink);
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .flame-bar {
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  .flame-bar:hover {
+    filter: brightness(1.15);
+    stroke: #ffffff;
+    stroke-width: 1px;
+  }
+
+  /* Copy Button */
+  .copy-btn {
+    font: 600 11px var(--mono);
+    padding: 4px 8px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="top-progress"></div>
+<button id="theme-toggle" aria-label="Toggle dark/light mode" title="Toggle theme">◐</button>
+
+<div class="manual-layout">
+  <!-- Sticky Lab Manual Index Rail -->
+  <aside class="manual-rail">
+    <div class="rail-header">
+      <span class="rail-badge">Lab Manual 01</span>
+      <h2 class="rail-title">Systems Performance</h2>
+      <p class="rail-desc">Chapter 1 Diagnostics, Stack Layers & Flame Graphs</p>
+    </div>
+
+    <nav aria-label="Lab Modules">
+      <ul class="nav-checklist">
+        <li class="nav-item active"><a href="#learn-overview"><span class="nav-dot"></span>Overview & Targets</a></li>
+        <li class="nav-item"><a href="#knowledge-map"><span class="nav-dot"></span>Knowledge Map</a></li>
+        <li class="nav-item"><a href="#mod-1"><span class="nav-dot"></span>1. The Software Stack</a></li>
+        <li class="nav-item"><a href="#mod-2"><span class="nav-dot"></span>2. Cascading Latency</a></li>
+        <li class="nav-item"><a href="#mod-3"><span class="nav-dot"></span>3. Mystery Slow Database</a></li>
+        <li class="nav-item"><a href="#mod-4"><span class="nav-dot"></span>4. Profiling vs Tracing</a></li>
+        <li class="nav-item"><a href="#mod-5"><span class="nav-dot"></span>5. Flame Graph Explorer</a></li>
+        <li class="nav-item"><a href="#mod-6"><span class="nav-dot"></span>6. Durability & Migrations</a></li>
+        <li class="nav-item"><a href="#interactive-suite"><span class="nav-dot"></span>Interactive Lab Bench</a></li>
+        <li class="nav-item"><a href="#cheatsheet-sec"><span class="nav-dot"></span>Cheat Sheet & FAQ</a></li>
+      </ul>
+    </nav>
+
+    <div class="telemetry-sidebar-card">
+      <div class="sidebar-card-title">Diagnostic Telemetry</div>
+      <div class="stat-pair">
+        <span class="stat-key">Stack Layers</span>
+        <span class="stat-val">5 Physical/Logical</span>
+      </div>
+      <div class="stat-pair">
+        <span class="stat-key">Case Study</span>
+        <span class="stat-val">Postgres P99 Spikes</span>
+      </div>
+      <div class="stat-pair">
+        <span class="stat-key">Visualization</span>
+        <span class="stat-val">Flame Graph X/Y</span>
+      </div>
+      <div class="stat-pair">
+        <span class="stat-key">Sampling Rate</span>
+        <span class="stat-val">99 Hz (Non-Harmonic)</span>
+      </div>
+      <div class="stat-pair">
+        <span class="stat-key">I/O Primitive</span>
+        <span class="stat-val">fsync vs io_uring</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content Pane -->
+  <main class="manual-content">
+    
+    <!-- Document Header -->
+    <header class="doc-header">
+      <div class="doc-meta">
+        <span class="meta-tag">Brendan Gregg: Systems Performance</span>
+        <span class="meta-tag">Ben Dickin (PlanetScale / CS Faculty)</span>
+        <span class="meta-tag">Runtime Systems & Telemetry</span>
+      </div>
+      <h1 class="doc-title">Systems Performance: The Software Stack, Bottleneck Analysis, and Flame Graphs</h1>
+      <p class="doc-lead">
+        A self-contained, interactive systems engineering manual on identifying root causes, understanding 
+        how userland code crosses the kernel boundary, diagnosing multi-node cascading latency, 
+        and reading call-stack flame graphs to optimize production software.
+      </p>
+    </header>
+
+    <!-- What You'll Learn -->
+    <section id="learn-overview" class="objectives-card">
+      <h2 class="objectives-title">What You'll Learn in This Lab</h2>
+      <ul class="objectives-list">
+        <li>Map any execution stall across the full vertical software stack: from userland app logic, through system libraries and syscall boundaries, into kernel scheduling/page caches, down to physical and virtualized hardware.</li>
+        <li>Isolate distributed cascading bottlenecks where application ORM query patterns falsely disguise themselves as database storage failures.</li>
+        <li>Execute systematic bottleneck analysis using empirical metrics (P99 query latency, IOPS, individual disk request latency, host process tables) without guesswork.</li>
+        <li>Distinguish statistical stack profiling (low-overhead periodic sampling) from event tracing (exact hooks via eBPF/ftrace), and know when each applies.</li>
+        <li>Interpret call-stack flame graphs accurately, navigating root-to-leaf hierarchies on the Y-axis and aggregated on-CPU sample widths on the X-axis to identify high-leverage architectural optimizations.</li>
+        <li>Evaluate critical systems trade-offs including non-volatile write durability (<code>fsync</code>) versus high-throughput async batching (<code>io_uring</code>), and zero-downtime online schema migrations under load.</li>
+      </ul>
+    </section>
+
+    <!-- Interactive Knowledge Map -->
+    <section id="knowledge-map" class="knowledge-map-container">
+      <div class="map-header">
+        <h3>Interactive Knowledge Architecture</h3>
+        <span>Click node to jump directly to section</span>
+      </div>
+      <svg class="k-map-svg" viewBox="0 0 880 180" aria-label="Systems Performance Interactive Knowledge Map">
+        <defs>
+          <marker id="map-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="var(--line)" />
+          </marker>
+        </defs>
+
+        <!-- Connections -->
+        <line x1="130" y1="50" x2="175" y2="50" stroke="var(--line)" stroke-width="1.5" marker-end="url(#map-arrow)" />
+        <line x1="315" y1="50" x2="360" y2="50" stroke="var(--line)" stroke-width="1.5" marker-end="url(#map-arrow)" />
+        <line x1="500" y1="50" x2="545" y2="50" stroke="var(--line)" stroke-width="1.5" marker-end="url(#map-arrow)" />
+        <line x1="685" y1="50" x2="730" y2="50" stroke="var(--line)" stroke-width="1.5" marker-end="url(#map-arrow)" />
+        <line x1="790" y1="75" x2="790" y2="105" stroke="var(--line)" stroke-width="1.5" marker-end="url(#map-arrow)" />
+        <line x1="730" y1="130" x2="505" y2="130" stroke="var(--line)" stroke-width="1.5" marker-end="url(#map-arrow)" />
+        <line x1="365" y1="130" x2="135" y2="130" stroke="var(--line)" stroke-width="1.5" marker-end="url(#map-arrow)" />
+
+        <!-- Nodes Row 1 -->
+        <g class="map-node" onclick="location.href='#mod-1'">
+          <rect x="20" y="25" width="110" height="50" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="75" y="46" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">01. STACK</text>
+          <text x="75" y="62" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--mut)">Userland to Kernel</text>
+        </g>
+
+        <g class="map-node" onclick="location.href='#mod-2'">
+          <rect x="180" y="25" width="135" height="50" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="247" y="46" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">02. CASCADING</text>
+          <text x="247" y="62" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--mut)">Distributed Topologies</text>
+        </g>
+
+        <g class="map-node" onclick="location.href='#mod-3'">
+          <rect x="365" y="25" width="135" height="50" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="432" y="46" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">03. BOTTLENECK</text>
+          <text x="432" y="62" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--mut)">Postgres Case Study</text>
+        </g>
+
+        <g class="map-node" onclick="location.href='#mod-4'">
+          <rect x="550" y="25" width="135" height="50" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="617" y="46" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">04. PROFILING</text>
+          <text x="617" y="62" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--mut)">Sampling vs Tracing</text>
+        </g>
+
+        <g class="map-node" onclick="location.href='#mod-5'">
+          <rect x="735" y="25" width="125" height="50" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="797" y="46" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">05. FLAME GRAPHS</text>
+          <text x="797" y="62" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--mut)">Call Stack Analysis</text>
+        </g>
+
+        <!-- Nodes Row 2 -->
+        <g class="map-node" onclick="location.href='#mod-6'">
+          <rect x="735" y="105" width="125" height="50" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="797" y="126" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">06. TRADE-OFFS</text>
+          <text x="797" y="142" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--mut)">fsync, io_uring, gh-ost</text>
+        </g>
+
+        <g class="map-node" onclick="location.href='#interactive-suite'">
+          <rect x="510" y="105" width="145" height="50" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="582" y="126" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">INTERACTIVE BENCH</text>
+          <text x="582" y="142" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--mut)">Live Telemetry Scrubber</text>
+        </g>
+
+        <g class="map-node" onclick="location.href='#cheatsheet-sec'">
+          <rect x="220" y="105" width="145" height="50" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="292" y="126" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">CHEAT SHEET & FAQ</text>
+          <text x="292" y="142" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--mut)">Formulas & Diagnostic Tools</text>
+        </g>
+      </svg>
+    </section>
+
+    <!-- MODULE 1 -->
+    <section id="mod-1" class="module-section">
+      <div class="module-tag">Module 01</div>
+      <h2 class="module-title">The Modern Software Stack: Layered Performance from Userland to Silicon</h2>
+      
+      <div class="core-prose">
+        <p>
+          When a software application runs sluggishly, the instinctive reaction of most software engineers is to stare 
+          exclusively at their own code. We audit loops, check variable allocations, and debate algorithmic complexity. 
+          Yet in modern operating environments, your application code represents only the very top tier of a deep, multi-layered 
+          pyramid. Beneath your high-level business logic sits a hierarchy of system libraries, a strict kernel boundary, 
+          intricate OS subsystems, and physical or virtualized hardware.
+        </p>
+        <p>
+          As Brendan Gregg emphasizes in <em>Systems Performance</em>, an execution bottleneck can materialize at any layer 
+          of this stack—or within the subtle friction points where layers interact. Userland applications do not possess direct 
+          authority to access network cards, touch physical memory addresses, or command SSD storage controller chips. 
+          Whenever your program wishes to persist a state record or transmit an HTTP payload, it must cross the system call 
+          boundary (<code>syscall</code>), transitioning processor privilege from unprivileged User Mode (Ring 3 on x86-64) 
+          to privileged Kernel Mode (Ring 0).
+        </p>
+        <p>
+          Once inside the kernel, your request enters complex subsystems: the CPU process scheduler deciding when your thread 
+          receives another quantum of execution; the Virtual Memory manager translating virtual pages through page tables 
+          and maintaining the page cache; the Virtual File System (VFS) coordinating journal writes and sector blocks; and the 
+          networking stack processing TCP socket buffers. Understanding this entire hierarchy is what separates guessing 
+          from true systems performance engineering.
+        </p>
+      </div>
+
+      <!-- Step-by-Step Breakdown -->
+      <div class="step-breakdown">
+        <div class="step-breakdown-title">
+          <span>⚙</span> Step-by-Step Traversal of the Software Stack
+        </div>
+        <div class="step-grid">
+          <div class="step-row">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>Application Layer (Userland)</strong>
+              Your custom software (e.g., Node.js backend, Chromium browser, PostgreSQL process) executing business logic in unprivileged user space. Optimization here focuses on algorithms, data structures, and avoiding needless work.
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>System Libraries (Dynamic / Static Linking)</strong>
+              Standard shared libraries like <code>glibc</code> (standard C library), memory allocators (<code>jemalloc</code>, <code>ptmalloc</code>), and cryptography suites (<code>libcrypto</code>/<code>OpenSSL</code>). Application code relies on these primitives daily; poor implementations here degrade the entire runtime.
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>System Call Interface (The Privilege Boundary)</strong>
+              The hardware gate (e.g., <code>syscall</code> / <code>sysenter</code> instructions) where CPU registers are preserved, execution switches to kernel mode, and parameters are validated. Calls include <code>read</code>, <code>write</code>, <code>epoll_wait</code>, <code>mmap</code>, and <code>fsync</code>.
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>The Operating System Kernel</strong>
+              The central arbiter managing physical resources: CPU time-slicing (CFS scheduler), virtual memory page tables and page cache, file system drivers (ext4, XFS, ZFS), and network packet queues.
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">5</div>
+            <div class="step-body">
+              <strong>Hardware & Virtualized I/O Devices</strong>
+              Multi-core CPUs, caches (L1/L2/L3), physical DRAM, NVMe SSDs, network interface cards (NICs), and virtualized hypervisor devices (e.g., AWS EBS volumes, Nitro cards). Latency changes by orders of magnitude across this boundary.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive SVG: Stack Layer Explorer -->
+      <div class="visual-card">
+        <div class="visual-card-header">
+          <span class="visual-card-title">Interactive Stack Layer Inspector</span>
+          <div class="visual-controls">
+            <button class="bench-btn active" onclick="highlightStackLayer('app')">App Layer</button>
+            <button class="bench-btn" onclick="highlightStackLayer('libs')">System Libs</button>
+            <button class="bench-btn" onclick="highlightStackLayer('syscall')">Syscalls</button>
+            <button class="bench-btn" onclick="highlightStackLayer('kernel')">Kernel Subsystems</button>
+            <button class="bench-btn" onclick="highlightStackLayer('hw')">Hardware / Disks</button>
+          </div>
+        </div>
+        
+        <svg id="stack-explorer-svg" viewBox="0 0 760 320" style="width: 100%; height: auto; display: block;">
+          <!-- Background Zones -->
+          <rect x="20" y="20" width="720" height="90" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" id="zone-userland"/>
+          <text x="35" y="42" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--mut)">USER SPACE (RING 3)</text>
+
+          <rect x="20" y="125" width="720" height="35" rx="4" fill="var(--code-bg)" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4,4" id="zone-boundary"/>
+          <text x="380" y="147" text-anchor="middle" font-family="var(--mono)" font-size="12" font-weight="700" fill="var(--accent)">── SYSTEM CALL PRIVILEGE BOUNDARY (syscall / context switch) ──</text>
+
+          <rect x="20" y="175" width="720" height="85" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" id="zone-kernel"/>
+          <text x="35" y="197" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--mut)">KERNEL SPACE (RING 0)</text>
+
+          <rect x="20" y="270" width="720" height="40" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" id="zone-hw"/>
+          <text x="380" y="295" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">PHYSICAL HARDWARE (CPU Cores • DDR5 RAM • NVMe PCIe • 100GbE NIC)</text>
+
+          <!-- Interactive Blocks -->
+          <!-- App -->
+          <g id="block-app" class="map-node" onclick="highlightStackLayer('app')">
+            <rect x="40" y="55" width="320" height="42" rx="3" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" id="rect-app"/>
+            <text x="200" y="80" text-anchor="middle" font-family="var(--serif)" font-size="13" font-weight="600" fill="var(--ink)">Applications (PostgreSQL, OBS, Web APIs)</text>
+          </g>
+
+          <!-- System Libs -->
+          <g id="block-libs" class="map-node" onclick="highlightStackLayer('libs')">
+            <rect x="400" y="55" width="320" height="42" rx="3" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" id="rect-libs"/>
+            <text x="560" y="80" text-anchor="middle" font-family="var(--serif)" font-size="13" font-weight="600" fill="var(--ink)">System Libraries (glibc, libcrypto, jemalloc)</text>
+          </g>
+
+          <!-- Kernel Subsystems -->
+          <g id="block-sched" class="map-node" onclick="highlightStackLayer('kernel')">
+            <rect x="40" y="205" width="155" height="44" rx="3" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" id="rect-sched"/>
+            <text x="117" y="226" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">Scheduler</text>
+            <text x="117" y="240" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="var(--mut)">CPU Time Quanta</text>
+          </g>
+
+          <g id="block-vm" class="map-node" onclick="highlightStackLayer('kernel')">
+            <rect x="210" y="205" width="165" height="44" rx="3" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" id="rect-vm"/>
+            <text x="292" y="226" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">Virtual Memory</text>
+            <text x="292" y="240" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="var(--mut)">Page Cache & TLB</text>
+          </g>
+
+          <g id="block-vfs" class="map-node" onclick="highlightStackLayer('kernel')">
+            <rect x="390" y="205" width="160" height="44" rx="3" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" id="rect-vfs"/>
+            <text x="470" y="226" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">Virtual File System</text>
+            <text x="470" y="240" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="var(--mut)">Block I/O & Inodes</text>
+          </g>
+
+          <g id="block-net" class="map-node" onclick="highlightStackLayer('kernel')">
+            <rect x="565" y="205" width="155" height="44" rx="3" fill="var(--paper)" stroke="var(--line)" stroke-width="1.5" id="rect-net"/>
+            <text x="642" y="226" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">Network Stack</text>
+            <text x="642" y="240" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="var(--mut)">TCP/IP Socket Buffers</text>
+          </g>
+        </svg>
+
+        <div id="stack-layer-desc" class="visual-caption">
+          <strong>Application Layer:</strong> Code you author. Typical stalls: quadratic algorithms, memory thrashing, synchronous locking, and inefficient ORM serialization. Diagnostic tool: Application-level logs, APM, and profilers.
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-container">
+        <div class="examples-title">Three Real-World Manifestations Across Stack Layers</div>
+        <div class="examples-grid">
+          <div class="example-col">
+            <span class="example-badge obvious">Obvious Case</span>
+            <div class="example-headline">High CPU from Inefficient App Logic</div>
+            <div class="example-desc">
+              A developer implements an in-memory deduplication algorithm using nested arrays, triggering an <code>O(N²)</code> CPU spike that consumes 100% of a CPU core in Userland space.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge counter">Counter-Intuitive Case</span>
+            <div class="example-headline">System Library String Parsing Penalty</div>
+            <div class="example-desc">
+              App code is algorithmically clean, but relies on an outdated dynamic C string comparison function in a shared system library that performs excessive memory allocations on every invocation.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge edge">Edge-Case Phenomenon</span>
+            <div class="example-headline">Hypervisor Steal Time & Bus Contention</div>
+            <div class="example-desc">
+              App and kernel telemetry look pristine, but query latency fluctuates wildly because a neighbor virtual machine on the cloud host exhausts the shared PCIe bus or CPU cache lines (L3 cache thrashing).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analogy Card -->
+      <div class="analogy-card">
+        <div class="analogy-header">
+          <span>🏛</span> Visual Analogy: The High-Security Ministry
+        </div>
+        <div class="analogy-body">
+          Imagine Userland as the public lobby of a government ministry where citizens (applications) draft paperwork. 
+          To file a document or retrieve records from the basement vault (hard drive), citizens cannot simply walk downstairs. 
+          They must present requests at a bulletproof teller window (the System Call boundary). A sworn officer (the Kernel) 
+          validates permissions, queues the request in the intake registry (the Scheduler), checks whether a duplicate is already 
+          sitting on the clerk's desk (the Page Cache), and only dispatches a runner to the physical basement if absolutely necessary.
+        </div>
+      </div>
+
+      <!-- Misconception & Why It Matters -->
+      <div class="callout-row">
+        <div class="wrong-card">
+          <div class="wrong-title">❌ What People Get Wrong</div>
+          <div class="wrong-desc">
+            Believing that performance engineering begins and ends with application source code optimization, assuming the operating system and hardware execute every instruction with constant zero-cost friction.
+          </div>
+        </div>
+        <div class="why-card">
+          <div class="why-title">Why This Matters</div>
+          <div class="why-desc">
+            Understanding the vertical hierarchy prevents wasting engineering cycles refactoring perfectly sound application routines when the true stall originates from filesystem journal locks or memory paging.
+          </div>
+        </div>
+      </div>
+
+      <a href="#mod-2" class="inter-link-pill">Next: Distributed Topologies & Cascading Latency →</a>
+
+      <!-- Inline Module Quiz -->
+      <div class="module-quiz">
+        <div class="quiz-title">Checkpoint 1.1: The Privilege Boundary</div>
+        <div class="quiz-question">Which mechanism executes the transition from unprivileged User Space (Ring 3) to privileged Kernel Space (Ring 0)?</div>
+        <div class="quiz-options">
+          <button class="quiz-btn" onclick="checkAnswer(this, false, 'q1-feedback', 'Incorrect. Dynamic linkers resolve shared libraries in user space before execution.')">A) The dynamic linker (ld.so) resolving shared objects</button>
+          <button class="quiz-btn" onclick="checkAnswer(this, true, 'q1-feedback', 'Correct! System calls (syscall/sysenter) trigger hardware privilege level shifts from Ring 3 to Ring 0.')">B) A system call (e.g., read, write, fsync) triggering a CPU privilege mode switch</button>
+          <button class="quiz-btn" onclick="checkAnswer(this, false, 'q1-feedback', 'Incorrect. The page cache is a kernel data structure, not the execution gateway.')">C) An automatic page cache allocation in physical DRAM</button>
+        </div>
+        <div id="q1-feedback" class="quiz-feedback"></div>
+      </div>
+    </section>
+
+    <!-- MODULE 2 -->
+    <section id="mod-2" class="module-section">
+      <div class="module-tag">Module 02</div>
+      <h2 class="module-title">Distributed Topologies: Cascading Latency & Network Amplification</h2>
+      
+      <div class="core-prose">
+        <p>
+          Examining a single server's software stack in isolation is only half the battle. In modern web and enterprise systems, 
+          software is distributed across networks. A request from a mobile client does not execute in a vacuum: it hits a content 
+          delivery network, routes to an application gateway, fans out across microservices, enqueues work onto message brokers 
+          like Apache Kafka, issues relational transactions against PostgreSQL or MySQL, and forwards audit events to analytical 
+          warehouses.
+        </p>
+        <p>
+          In a distributed architecture, latency compounds multiplicatively. A client perceives high latency not because any 
+          single server crashed, but because small delays cascade through the dependency tree. Ben Dickin highlighted on stream 
+          how easily developers misattribute the location of a bottleneck. When an application server takes 800 milliseconds 
+          to respond, the engineering team frequently blames the database server: "PostgreSQL is choking."
+        </p>
+        <p>
+          Yet upon profiling the database node, CPU is sitting at 20% and storage queues are empty. The true culprit is often 
+          an Object-Relational Mapper (ORM) on the application server issuing the classic <code>N+1</code> query anti-pattern—firing 
+          2,000 round-trip queries sequentially over a 0.3ms internal network link. The network round-trips and TCP socket serialization 
+          amplify a 2ms database operation into an 800ms user-facing catastrophe.
+        </p>
+      </div>
+
+      <!-- Distributed Flow SVG Animation -->
+      <div class="visual-card">
+        <div class="visual-card-header">
+          <span class="visual-card-title">Distributed Request Flow & Cascading Path</span>
+          <div class="visual-controls">
+            <button class="bench-btn" id="btn-flow-toggle" onclick="toggleFlowAnimation()">Pause Animation</button>
+            <button class="bench-btn" onclick="stepFlowAnimation()">Step Forward</button>
+          </div>
+        </div>
+
+        <svg id="flow-svg" viewBox="0 0 760 220" style="width: 100%; height: auto; display: block;">
+          <!-- Node Boxes -->
+          <!-- Client -->
+          <rect x="20" y="80" width="100" height="60" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="70" y="108" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">CLIENT</text>
+          <text x="70" y="124" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="var(--mut)">Browser / iOS</text>
+
+          <!-- App Server -->
+          <rect x="200" y="80" width="130" height="60" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="265" y="108" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">APP SERVER</text>
+          <text x="265" y="124" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="var(--mut)">Node / Go / Java</text>
+
+          <!-- DB Primary -->
+          <rect x="420" y="30" width="140" height="60" rx="3" fill="var(--card)" stroke="var(--accent)" stroke-width="1.5"/>
+          <text x="490" y="58" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--accent)">POSTGRESQL</text>
+          <text x="490" y="74" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="var(--mut)">OLTP Primary Node</text>
+
+          <!-- Queue / Kafka -->
+          <rect x="420" y="130" width="140" height="60" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="490" y="158" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">MESSAGE QUEUE</text>
+          <text x="490" y="174" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="var(--mut)">Kafka / Redis Stream</text>
+
+          <!-- Analytics Warehouse -->
+          <rect x="630" y="130" width="110" height="60" rx="3" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="685" y="158" text-anchor="middle" font-family="var(--mono)" font-size="11" font-weight="700" fill="var(--ink)">ANALYTICS</text>
+          <text x="685" y="174" text-anchor="middle" font-family="var(--sans)" font-size="10" fill="var(--mut)">ClickHouse / DW</text>
+
+          <!-- Connecting Lines -->
+          <path d="M 120 110 L 200 110" stroke="var(--line)" stroke-width="2" />
+          <path d="M 330 100 L 420 60" stroke="var(--line)" stroke-width="2" />
+          <path d="M 330 120 L 420 160" stroke="var(--line)" stroke-width="2" />
+          <path d="M 560 160 L 630 160" stroke="var(--line)" stroke-width="2" />
+
+          <!-- Moving Packet Dot -->
+          <circle id="flow-packet" cx="120" cy="110" r="5" fill="var(--accent)">
+            <animate attributeName="opacity" values="1;0.4;1" dur="1s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+
+        <div class="visual-caption">
+          <strong>Network Flow Trace:</strong> Notice how a single inbound client request fans out. If the App Server performs synchronous blocking calls to the queue or issues unbatched queries to PostgreSQL, upstream latency skyrockets while backend CPU remains low.
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-container">
+        <div class="examples-title">Three Real-World Distributed Bottlenecks</div>
+        <div class="examples-grid">
+          <div class="example-col">
+            <span class="example-badge obvious">Obvious Case</span>
+            <div class="example-headline">Cross-Region WAN Latency</div>
+            <div class="example-desc">
+              An application server deployed in Frankfurt synchronously queries a database hosted in Northern Virginia on every user click, incurring an unavoidable 90ms speed-of-light penalty per round trip.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge counter">Counter-Intuitive Case</span>
+            <div class="example-headline">ORM N+1 Masquerading as DB Failure</div>
+            <div class="example-desc">
+              The database admin receives a pager alert for high latency. Investigation reveals the database is executing queries in 0.05ms, but the app server is executing 4,000 round trips sequentially per web request.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge edge">Edge-Case Phenomenon</span>
+            <div class="example-headline">Kafka Partition Backpressure Collapse</div>
+            <div class="example-desc">
+              A downstream analytics consumer slows down, filling Kafka partition leader buffers, which causes producers on the primary app servers to block on network write buffers, choking incoming HTTP traffic.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analogy Card -->
+      <div class="analogy-card">
+        <div class="analogy-header">
+          <span>🚢</span> Visual Analogy: The Logistics Port
+        </div>
+        <div class="analogy-body">
+          Imagine a modern container port. Even if the primary container crane (the database) can lift a shipping crate in 
+          twenty seconds, a cargo truck cannot leave the terminal if the gate security inspection (the app server) verifies 
+          each shipping invoice one sheet at a time, making hundreds of phone calls back to headquarters before releasing the truck. 
+          The crane appears backed up, but the congestion was entirely created at the distribution checkpoint.
+        </div>
+      </div>
+
+      <div class="callout-row">
+        <div class="wrong-card">
+          <div class="wrong-title">❌ What People Get Wrong</div>
+          <div class="wrong-desc">
+            Assuming that because a dashboard flags a database request as taking 500ms, the solution is automatically to scale up database instance sizing or rewrite database indexes.
+          </div>
+        </div>
+        <div class="why-card">
+          <div class="why-title">Why This Matters</div>
+          <div class="why-desc">
+            Distinguishing transport and serialization bottlenecks from true storage engine contention saves companies thousands of dollars in unnecessary database hardware upgrades.
+          </div>
+        </div>
+      </div>
+
+      <a href="#mod-3" class="inter-link-pill">Next: Bottleneck Analysis & The Mystery Slow Database →</a>
+    </section>
+
+    <!-- MODULE 3 -->
+    <section id="mod-3" class="module-section">
+      <div class="module-tag">Module 03</div>
+      <h2 class="module-title">Bottleneck Analysis: Diagnosing the "Mysterious Slow Database"</h2>
+      
+      <div class="core-prose">
+        <p>
+          During the live stream, Ben Dickin walked through an instructive systems incident modeled directly after real-world 
+          production outages discussed in Chapter 1 of <em>Systems Performance</em>. Understanding this diagnostic methodology 
+          is the core foundation of systems engineering: moving methodically through metrics, disproving false assumptions, 
+          and isolating the empirical root cause.
+        </p>
+        <p>
+          <strong>The Incident:</strong> A production PostgreSQL database powering an e-commerce platform has operated reliably for months. 
+          Its P99 query latency is stable at a crisp 2 milliseconds. Suddenly, two days ago, the P99 query latency rockets upward to 
+          50ms, 200ms, and spikes above 500ms. The slow query log—configured to capture any query executing for longer than 1.0 second—begins 
+          filling with dozens of warnings every minute.
+        </p>
+        <p>
+          The on-call engineers run the standard triage checklist:
+        </p>
+        <ul style="margin: 0 0 16px 24px; color: var(--ink-secondary); font-size: 15px; line-height: 1.6;">
+          <li><strong>Did application workload change?</strong> No. Inbound query throughput (QPS), query shapes, and access patterns are identical.</li>
+          <li><strong>Did total data volume change?</strong> No. The database table footprint is exactly 100 Gigabytes, unchanged from last week.</li>
+          <li><strong>Did database configuration change?</strong> No. Buffer pool allocations, work_mem, and WAL settings are untouched.</li>
+        </ul>
+        <p>
+          Looking at basic server health dashboards reveals an apparent contradiction: <strong>CPU utilization is flat at 50%</strong>. 
+          CPU is clearly not the bottleneck. However, <strong>Disk IOPS (I/O operations per second) has skyrocketed tenfold—from 1,000 IOPS 
+          to 10,000 IOPS</strong>. The naive conclusion? <em>"The hard drive is dying! The SSD must be failing!"</em>
+        </p>
+        <p>
+          Yet inspecting <strong>individual disk request latency</strong> reveals that each I/O read/write operation still completes in 
+          0.10 milliseconds. The NVMe SSD hardware is exceptionally healthy. It is not slow; it is simply being bombarded with 10x 
+          more work. Why would an identical workload on an identical table footprint suddenly require 10x more physical disk reads?
+        </p>
+        <p>
+          <strong>The Discovery:</strong> Inspecting the host's active process table (<code>top</code> / telemetry) uncovers 20 new processes. 
+          Two days ago, another developer spun up an unisolated test Docker container on the same production node to test experimental migrations. 
+          The host possesses 64 Gigabytes of physical RAM. Previously, the production PostgreSQL engine enjoyed 50GB of memory for shared buffers 
+          and the Linux kernel page cache. The rogue container seized 25GB of RAM.
+        </p>
+        <p>
+          With host memory sliced in half, PostgreSQL's cache hit ratio collapsed. Pages that previously resided in fast nanosecond DRAM 
+          were evicted by the kernel. PostgreSQL was forced to fetch rows from the physical NVMe storage on every query—exploding disk IOPS 
+          and driving P99 query latency through the roof!
+        </p>
+      </div>
+
+      <!-- Live Scrubbable Telemetry Dashboard -->
+      <div class="dash-panel">
+        <div class="scrubber-bar">
+          <label for="timeline-scrubber">Timeline Scrubber:</label>
+          <input type="range" id="timeline-scrubber" class="time-slider" min="1" max="7" value="2" step="1" oninput="updateIncidentScrubber(this.value)">
+          <div id="scrubber-date" class="scrubber-readout">Day 2 (Normal)</div>
+        </div>
+
+        <div class="metric-charts-grid">
+          <!-- Chart 1: P99 Latency -->
+          <div class="chart-box">
+            <div class="chart-header">
+              <span class="chart-title">Postgres P99 Latency</span>
+              <span id="readout-p99" class="chart-val-readout">2.1 ms</span>
+            </div>
+            <svg id="chart-p99" viewBox="0 0 320 100" style="width:100%; height:80px;"></svg>
+          </div>
+
+          <!-- Chart 2: Disk IOPS -->
+          <div class="chart-box">
+            <div class="chart-header">
+              <span class="chart-title">Disk IOPS</span>
+              <span id="readout-iops" class="chart-val-readout">1,020 IOPS</span>
+            </div>
+            <svg id="chart-iops" viewBox="0 0 320 100" style="width:100%; height:80px;"></svg>
+          </div>
+
+          <!-- Chart 3: Disk I/O Request Latency -->
+          <div class="chart-box">
+            <div class="chart-header">
+              <span class="chart-title">Disk Device Service Latency</span>
+              <span id="readout-disklat" class="chart-val-readout">0.11 ms</span>
+            </div>
+            <svg id="chart-disklat" viewBox="0 0 320 100" style="width:100%; height:80px;"></svg>
+          </div>
+
+          <!-- Chart 4: Host Memory Allocation Split -->
+          <div class="chart-box">
+            <div class="chart-header">
+              <span class="chart-title">64GB RAM Allocation Split</span>
+              <span id="readout-mem" class="chart-val-readout">Prod DB: 50GB | Test: 0GB</span>
+            </div>
+            <svg id="chart-mem" viewBox="0 0 320 100" style="width:100%; height:80px;"></svg>
+          </div>
+        </div>
+
+        <div id="incident-analysis-box" class="visual-caption" style="margin-top:16px; background:var(--card); padding:12px; border-radius:3px;">
+          <strong>Incident Status (Day 2):</strong> Normal production baseline. PostgreSQL has sufficient RAM to keep hot working sets in page cache. IOPS is steady, and P99 latency is below 3ms.
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-container">
+        <div class="examples-title">Three Noisy Neighbor & Cache Eviction Incidents</div>
+        <div class="examples-grid">
+          <div class="example-col">
+            <span class="example-badge obvious">Obvious Case</span>
+            <div class="example-headline">Backup Script Exhausting Page Cache</div>
+            <div class="example-desc">
+              A nightly <code>pg_dump</code> or tar backup reads the entire disk sequentially without <code>POSIX_FADV_DONTNEED</code>, flushing the active database index cache out of DRAM.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge counter">Counter-Intuitive Case</span>
+            <div class="example-headline">Rogue Test Container on Prod Host</div>
+            <div class="example-desc">
+              As demonstrated by Ben, a secondary container claiming 25GB RAM on a 64GB host cuts page cache in half, causing identical queries to generate 10x physical disk IOPS.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge edge">Edge-Case Phenomenon</span>
+            <div class="example-headline">Transparent Huge Pages (THP) Stall</div>
+            <div class="example-desc">
+              The Linux kernel background defragmenter (<code>khugepaged</code>) locks memory regions to allocate contiguous 2MB hugepages, causing sporadic 1000ms latency spikes while CPU is low.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analogy Card -->
+      <div class="analogy-card">
+        <div class="analogy-header">
+          <span>📚</span> Visual Analogy: The Researcher's Desk
+        </div>
+        <div class="analogy-body">
+          Think of the host's 64GB RAM as a spacious library desk where a researcher (PostgreSQL) keeps 50 open reference books 
+          for instant consultation. If a graduate student sits down and dumps their own equipment across half the desk (the test container), 
+          the researcher must pack 25 books away into the basement archives (the SSD). Every time the researcher needs an excerpt, 
+          they must hike down to the basement. The researcher isn't sick, and the basement isn't broken—the desk was simply crowded out.
+        </div>
+      </div>
+
+      <div class="callout-row">
+        <div class="wrong-card">
+          <div class="wrong-title">❌ What People Get Wrong</div>
+          <div class="wrong-desc">
+            Equating a surge in disk IOPS with hardware degradation or demanding faster SSDs, rather than checking if host memory eviction is forcing cache misses.
+          </div>
+        </div>
+        <div class="why-card">
+          <div class="why-title">Why This Matters</div>
+          <div class="why-desc">
+            Saves days of downtime and costly storage migrations by resolving the issue with a single command: isolating or terminating the rogue process.
+          </div>
+        </div>
+      </div>
+
+      <a href="#mod-4" class="inter-link-pill">Next: Profiling vs Tracing →</a>
+    </section>
+
+    <!-- MODULE 4 -->
+    <section id="mod-4" class="module-section">
+      <div class="module-tag">Module 04</div>
+      <h2 class="module-title">Profiling vs. Tracing: Statistical Sampling vs. Event Instrumentation</h2>
+      
+      <div class="core-prose">
+        <p>
+          When you need to investigate where software is spending time, you must choose your observational mechanism carefully. 
+          Engineers frequently conflate two fundamentally distinct observability techniques: <strong>Profiling</strong> and 
+          <strong>Tracing</strong>. Choosing the wrong one can either leave you blind or introduce severe observer overhead that 
+          crashes your production service.
+        </p>
+        <p>
+          <strong>Profiling (Statistical Sampling):</strong> Profiling inspects the system periodically at a defined sample frequency. 
+          For example, a profiler might interrupt the CPU 99 times a second (99 Hertz). At each sample tick, the profiler takes a snapshot 
+          of the CPU's current Program Counter and walks backward through the call stack frames to record: 
+          <code>main() → PostgresMain() → PortalRun() → ExecScan() → libcrypto()</code>. 
+          Over a 10-second window, collecting 990 samples provides an extraordinarily accurate statistical distribution of which functions 
+          occupied CPU cycles, with negligible overhead (typically less than 1–2% CPU penalty).
+        </p>
+        <p>
+          <strong>Tracing (Event Instrumentation):</strong> Tracing, by contrast, is deterministic and event-based. Tools like 
+          <code>strace</code>, <code>ftrace</code>, or eBPF attach hooks to specific probe points (such as function entries and exits 
+          or system call boundaries). Tracing records every single occurrence of that event along with precise timestamps and parameters. 
+          While tracing gives exact counts and catches rare outliers that periodic sampling might miss, attaching high-frequency trace 
+          points to hot function paths (like memory allocations occurring millions of times per second) can cause devastating 
+          10x–100x execution slowdowns.
+        </p>
+      </div>
+
+      <!-- Step-by-Step Breakdown -->
+      <div class="step-breakdown">
+        <div class="step-breakdown-title">
+          <span>🔬</span> How Call Stack Sampling Operates in the Kernel
+        </div>
+        <div class="step-grid">
+          <div class="step-row">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>Non-Harmonic Sampling Timer Setup</strong>
+              The profiler (e.g., Linux <code>perf record -F 99 -p &lt;PID&gt; -g</code>) configures hardware Performance Monitoring Counters (PMC) or a kernel timer to fire at 99Hz. The rate 99Hz is chosen deliberately over 100Hz to prevent harmonic resonance with periodic 10ms operating system timer ticks.
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>Non-Maskable Interrupt (NMI) & Register Freeze</strong>
+              When the counter overflows, the CPU generates an interrupt. The CPU freezes execution of the current thread and records the instruction pointer (RIP register).
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>Frame Pointer Stack Unwinding</strong>
+              The kernel unwinds the stack using frame pointers (RBP register) or DWARF unwind tables, recording the chain of caller return addresses from leaf to root.
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>Symbol Resolution & Aggregation</strong>
+              Hexadecimal memory addresses are matched against the binary's symbol table (e.g., <code>0x7f4e8b → ExecScan</code>). Identical call stacks are grouped and counted.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-container">
+        <div class="examples-title">Three Profiling & Tracing Scenarios</div>
+        <div class="examples-grid">
+          <div class="example-col">
+            <span class="example-badge obvious">Obvious Case</span>
+            <div class="example-headline">Continuous Production CPU Profiling</div>
+            <div class="example-desc">
+              Sampling production database threads at 99Hz continuously using eBPF, outputting aggregated profile weights to Flame Graphs with undetectable 1% CPU overhead.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge counter">Counter-Intuitive Case</span>
+            <div class="example-headline">Production Outage Caused by Strace</div>
+            <div class="example-desc">
+              An engineer runs <code>strace -p &lt;PID&gt;</code> on a heavily loaded production API server. Because ptrace context-switches on every syscall, response latency spikes from 5ms to 800ms.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge edge">Edge-Case Phenomenon</span>
+            <div class="example-headline">Omission of Frame Pointers (-fomit-frame-pointer)</div>
+            <div class="example-desc">
+              A C++ binary compiled with <code>-O3 -fomit-frame-pointer</code> reuses the RBP register for general variables, preventing the kernel profiler from unwinding the stack and yielding a broken flame graph.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analogy Card -->
+      <div class="analogy-card">
+        <div class="analogy-header">
+          <span>📸</span> Visual Analogy: Strobe Photography vs. CCTV Gate Log
+        </div>
+        <div class="analogy-body">
+          Sampling is like setting up a strobe light flashbulb that snaps a photograph of a bustling factory floor every few seconds. 
+          You get an accurate statistical distribution of what workers are doing without slowing them down. Tracing is like stationing 
+          a security guard who stops every worker at every door to log their exact name and badge number. The guard captures every 
+          entry, but creates a massive line at the entrance.
+        </div>
+      </div>
+
+      <div class="callout-row">
+        <div class="wrong-card">
+          <div class="wrong-title">❌ What People Get Wrong</div>
+          <div class="wrong-desc">
+            Assuming that running <code>strace</code> or full event tracing in production is safe because "it's just a diagnostic tool."
+          </div>
+        </div>
+        <div class="why-card">
+          <div class="why-title">Why This Matters</div>
+          <div class="why-desc">
+            Choosing statistical profiling first allows continuous diagnostic visibility in live environments without risking high-overhead cascading outages.
+          </div>
+        </div>
+      </div>
+
+      <a href="#mod-5" class="inter-link-pill">Next: Flame Graph Explorer & Diagnosis →</a>
+    </section>
+
+    <!-- MODULE 5 -->
+    <section id="mod-5" class="module-section">
+      <div class="module-tag">Module 05</div>
+      <h2 class="module-title">Flame Graphs: Mechanics, Navigation, & Deep Query Diagnosis</h2>
+      
+      <div class="core-prose">
+        <p>
+          Before Brendan Gregg invented Flame Graphs in 2011, profiler outputs were dumped as dense tabular text reports. 
+          Engineers had to scroll through thousands of rows of call-tree statistics, trying to mentally assemble deep function 
+          call paths. For modern complex runtimes like PostgreSQL or Chromium—which frequently execute call stacks 30 to 60 frames 
+          deep—tabular profilers made identifying root bottlenecks nearly impossible.
+        </p>
+        <p>
+          A Flame Graph converts thousands of sampled call stacks into an intuitive, compact visual hierarchy. Understanding 
+          the two axes of a flame graph is the single most important rule of systems visualization:
+        </p>
+        <ul style="margin: 0 0 16px 24px; color: var(--ink-secondary); font-size: 15px; line-height: 1.6;">
+          <li><strong>The Vertical Y-Axis (Stack Depth):</strong> Shows the ancestry of function calls. The bottom bar is the root function (e.g., <code>main</code>). Above it is the function it invoked (e.g., <code>PostgresMain</code>), climbing upward until the top-most bar represents the leaf function actively executing on CPU when the sample occurred.</li>
+          <li><strong>The Horizontal X-Axis (Sample Population, NOT Time!):</strong> Spans the entire sample population. <em>The X-axis does NOT represent the passage of time from left to right!</em> Stacks are sorted alphabetically to merge identical code paths. The horizontal width of any function bar is directly proportional to how frequently that function appeared on the CPU.</li>
+        </ul>
+        <p>
+          On stream, Ben Dickin demonstrated a custom interactive flame graph tool inspecting an actual PostgreSQL query execution 
+          profile. We can observe several distinct functional towers:
+        </p>
+        <p>
+          First, an <code>ExecScan</code> tower calls <code>MD5_text</code> and <code>libcrypto</code>. While developers might worry 
+          that cryptography hashing is slowing down their database, looking at the flame graph reveals that the entire 
+          <code>libcrypto</code> block occupies only ~12% of the total width. Applying <strong>Amdahl's Law</strong>, even if you 
+          optimized the cryptographic hashing library to run infinitely fast (reducing its time to zero), the overall query would only 
+          improve by 12%!
+        </p>
+        <p>
+          By contrast, look at the wide blocks for <code>ExecCheckIndexConstraints</code> (22% of runtime) and the massive block 
+          for <code>heap_insert</code> and <code>pg_fsync</code> (38% of runtime). These wider blocks expose the true leverage points: 
+          can we relax non-essential index constraints, or batch transactions to amortize synchronous disk persistence?
+        </p>
+      </div>
+
+      <!-- Interactive Flame Graph Viewer -->
+      <div class="flame-viewer-container">
+        <div class="visual-card-header">
+          <span class="visual-card-title">Interactive PostgreSQL Flame Graph Viewer</span>
+          <div class="visual-controls">
+            <button class="bench-btn" onclick="resetFlameGraph()">Reset Stack Zoom</button>
+          </div>
+        </div>
+
+        <div id="flame-breadcrumbs" class="flame-breadcrumbs">
+          <span>Stack Path:</span> <span id="breadcrumb-text">all (10,000 samples / 100%)</span>
+        </div>
+
+        <svg id="flame-svg" viewBox="0 0 800 240" style="width: 100%; height: auto; display: block; background: var(--bg); border: 1px solid var(--line); border-radius: 3px;">
+          <!-- SVG populated by JavaScript with interactive zoom and hover -->
+        </svg>
+
+        <div id="flame-hover-info" class="flame-hover-info">
+          <span id="flame-func-name">Hover or click any frame to inspect stack weights</span>
+          <span id="flame-func-pct">Width: 100% (10,000 samples)</span>
+        </div>
+
+        <div class="visual-caption">
+          <strong>How to Navigate:</strong> Click any frame to zoom into that function's call subtree. Hover over any bar to view exact sample counts and percentage of total CPU time. Notice how wider plateaus represent greater optimization targets.
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-container">
+        <div class="examples-title">Three Diagnostic Interpretations of Flame Graphs</div>
+        <div class="examples-grid">
+          <div class="example-col">
+            <span class="example-badge obvious">Obvious Case</span>
+            <div class="example-headline">The Wide Flat Plateau</div>
+            <div class="example-desc">
+              A leaf function (e.g., <code>hash_search</code> or <code>spin_lock</code>) spanning 70% of the entire graph width, indicating a glaring hot loop consuming the vast majority of CPU cycles.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge counter">Counter-Intuitive Case</span>
+            <div class="example-headline">Narrow Cryptographic Tower (Amdahl's Trap)</div>
+            <div class="example-desc">
+              Developers spend two weeks optimizing <code>libcrypto</code> assembly, only to realize the flame graph clearly showed it accounted for a modest 10% of total profile width.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge edge">Edge-Case Phenomenon</span>
+            <div class="example-headline">Off-CPU Sleeping Stalls</div>
+            <div class="example-desc">
+              An on-CPU flame graph looks mostly empty while queries take seconds. Switching to an <em>Off-CPU Flame Graph</em> reveals threads blocked waiting on <code>pthread_mutex_lock</code> or disk I/O.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analogy Card -->
+      <div class="analogy-card">
+        <div class="analogy-header">
+          <span>🏔</span> Visual Analogy: The Mountain Range Silhouette
+        </div>
+        <div class="analogy-body">
+          A Flame Graph resembles an inverted mountain range where peak height represents call-stack depth and peak width 
+          represents CPU consumption. A towering spire that is pencil-thin is just a deeply recursive function that returns quickly. 
+          A wide plateau that stretches across half the horizon is where the real energy of the system is being burned.
+        </div>
+      </div>
+
+      <div class="callout-row">
+        <div class="wrong-card">
+          <div class="wrong-title">❌ What People Get Wrong</div>
+          <div class="wrong-desc">
+            Believing the X-axis of a flame graph flows chronologically in time from left to right like a timeline recording.
+          </div>
+        </div>
+        <div class="why-card">
+          <div class="why-title">Why This Matters</div>
+          <div class="why-desc">
+            Understanding that the X-axis is an aggregated, alphabetically sorted sample population prevents misinterpreting code execution order and focuses attention purely on cumulative resource consumption.
+          </div>
+        </div>
+      </div>
+
+      <a href="#mod-6" class="inter-link-pill">Next: Systems Trade-offs & Production Migrations →</a>
+    </section>
+
+    <!-- MODULE 6 -->
+    <section id="mod-6" class="module-section">
+      <div class="module-tag">Module 06</div>
+      <h2 class="module-title">Systems Trade-offs: Durability (fsync), io_uring, & Zero-Downtime Migrations</h2>
+      
+      <div class="core-prose">
+        <p>
+          In production systems engineering, there are no solutions—only trade-offs. Two of the most profound engineering trade-offs 
+          highlighted during the stream involve the relationship between software and storage hardware: <strong>Durability versus Throughput</strong>, 
+          and <strong>Schema Governance versus Development Velocity</strong>.
+        </p>
+        <p>
+          <strong>The fsync Durability Trade-off:</strong> When a database executes an <code>INSERT</code> or <code>UPDATE</code>, 
+          it cannot simply declare the transaction committed by writing bytes into OS page memory. If power fails a millisecond later, 
+          those unwritten bytes in volatile DRAM vanish forever. To guarantee the <em>Durability</em> property of ACID transactions, 
+          the engine must issue an <code>fsync()</code> system call. This forces the operating system to flush all dirty buffers 
+          across the storage controller directly into non-volatile NAND flash.
+        </p>
+        <p>
+          However, <code>fsync()</code> is synchronous and expensive: the calling thread freezes until the physical drive acknowledges 
+          magnetic or flash cell commitment. Ben Dickin noted that while disabling <code>fsync</code> yields blindingly fast write performance, 
+          it introduces real risk of catastrophic data corruption upon power loss. This compromise is acceptable for ephemeral clickstream 
+          logging, but fatal for financial ledgers.
+        </p>
+        <p>
+          <strong>Modern Kernel I/O: io_uring:</strong> Traditionally, asynchronous I/O in Linux (<code>libaio</code>) was notoriously 
+          flawed and limited. Over recent years, the Linux kernel introduced <code>io_uring</code>, a zero-copy asynchronous interface 
+          based on two lockless circular ring buffers shared between Userland and the Kernel (a Submission Queue and a Completion Queue). 
+          By eliminating system call context switches and batching I/O requests, <code>io_uring</code> allows databases like PostgreSQL 
+          (being adopted in versions 18 and 19) to achieve massive IOPS efficiency gains on NVMe storage.
+        </p>
+        <p>
+          <strong>Zero-Downtime Online Schema Changes:</strong> In large-scale systems (such as GitHub, Booking.com, or DigiKala running 
+          multi-terabyte tables), running a simple <code>ALTER TABLE ADD COLUMN</code> will acquire exclusive table locks that block 
+          incoming queries, instantly cascading into sitewide downtime. Tools like <strong>gh-ost</strong> (GitHub Online Schema Migrations, 
+          invented by Shlomi Noach, who now works at PlanetScale) and Vitess VReplication solve this by building a shadow table, 
+          streaming changes asynchronously via binlogs, and executing an instantaneous atomic table swap with zero downtime.
+        </p>
+      </div>
+
+      <!-- Step-by-Step Breakdown of gh-ost -->
+      <div class="step-breakdown">
+        <div class="step-breakdown-title">
+          <span>🔄</span> How Online Zero-Downtime Schema Migrations Work (gh-ost Pattern)
+        </div>
+        <div class="step-grid">
+          <div class="step-row">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>Ghost Table Provisioning</strong>
+              A shadow table (<code>_users_gho</code>) is created with the desired new schema (new columns, indexes, or altered types) on the live database.
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>Asynchronous Change Log Streaming</strong>
+              Instead of placing triggers on the active table (which adds lock contention to production queries), the tool acts as a replication replica, tailing the database binary log (binlog) to capture live inserts, updates, and deletes.
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>Throttled Backfill Iteration</strong>
+              Existing historical rows are copied from the original table to the shadow table in small, throttled primary key batches. If database replica lag or CPU exceeds defined thresholds, the migration automatically throttles back.
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>Atomic Table Swap (Cut-over)</strong>
+              Once backfill matches live replication, an atomic statement: <code>RENAME TABLE users TO _users_del, _users_gho TO users;</code> executes in milliseconds, completing the migration with zero downtime.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-World Examples -->
+      <div class="examples-container">
+        <div class="examples-title">Three Production Trade-off Scenarios</div>
+        <div class="examples-grid">
+          <div class="example-col">
+            <span class="example-badge obvious">Obvious Case</span>
+            <div class="example-headline">Synchronous Commit in Banking</div>
+            <div class="example-desc">
+              Every bank transfer executes a mandatory synchronous <code>fsync</code> to disk before acknowledging the client, ensuring funds are never phantom-lost in a power failure.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge counter">Counter-Intuitive Case</span>
+            <div class="example-headline">Asynchronous WAL for Click Tracking</div>
+            <div class="example-desc">
+              A high-volume analytics ingest pipeline sets <code>synchronous_commit = off</code>. Write throughput 5x increases, accepting that a kernel crash may lose the trailing 20 milliseconds of user telemetry.
+            </div>
+          </div>
+          <div class="example-col">
+            <span class="example-badge edge">Edge-Case Phenomenon</span>
+            <div class="example-headline">Storage Controller Capacitor Failure</div>
+            <div class="example-desc">
+              An enterprise SSD with Battery-Backed Power Loss Protection (PLP) reports immediate <code>fsync</code> completion from onboard volatile DRAM cache, but fails to flush during power outage because internal capacitors dried out.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout-row">
+        <div class="wrong-card">
+          <div class="wrong-title">❌ What People Get Wrong</div>
+          <div class="wrong-desc">
+            Believing that modern NVMe solid-state drives are so fast that synchronous disk flushing and locking coordination are no longer significant bottlenecks.
+          </div>
+        </div>
+        <div class="why-card">
+          <div class="why-title">Why This Matters</div>
+          <div class="why-desc">
+            Balancing durability requirements against throughput limits enables architectures that withstand massive read/write scale without sacrificing data safety.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INTERACTIVE LAB BENCH & FLASHCARDS -->
+    <section id="interactive-suite" class="interactive-bench">
+      <div class="bench-header">
+        <span class="bench-tag">Interactive Exercise Suite</span>
+        <h2 class="bench-headline">Systems Engineering Flashcards & Memory Consolidation</h2>
+      </div>
+
+      <!-- Flashcards (Approved Interactivity: Click to flip) -->
+      <div class="flashcard-grid">
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-inner">
+            <div class="flashcard-front">
+              <span class="card-label">Core Concept</span>
+              <div class="card-term">Flame Graph X-Axis</div>
+              <span class="card-hint">(Click to flip)</span>
+            </div>
+            <div class="flashcard-back">
+              The X-axis represents the <strong>total sample population</strong> sorted alphabetically—NOT chronological time! Horizontal width is proportional to CPU time consumed.
+            </div>
+          </div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-inner">
+            <div class="flashcard-front">
+              <span class="card-label">OS Kernel Boundary</span>
+              <div class="card-term">System Call (Syscall)</div>
+              <span class="card-hint">(Click to flip)</span>
+            </div>
+            <div class="flashcard-back">
+              The hardware-enforced bridge transitioning execution from unprivileged User Mode (Ring 3) to privileged Kernel Mode (Ring 0) to access hardware resources.
+            </div>
+          </div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-inner">
+            <div class="flashcard-front">
+              <span class="card-label">Observability Method</span>
+              <div class="card-term">Profiling vs. Tracing</div>
+              <span class="card-hint">(Click to flip)</span>
+            </div>
+            <div class="flashcard-back">
+              <strong>Profiling:</strong> Periodic statistical sampling (99Hz), low overhead (~1%).<br>
+              <strong>Tracing:</strong> Exact event-by-event instrumentation (hooks), high overhead on hot paths.
+            </div>
+          </div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-inner">
+            <div class="flashcard-front">
+              <span class="card-label">Storage Principle</span>
+              <div class="card-term">fsync() System Call</div>
+              <span class="card-hint">(Click to flip)</span>
+            </div>
+            <div class="flashcard-back">
+              Blocks calling thread until all dirty file pages in volatile DRAM are physically committed onto non-volatile flash/disk storage, guaranteeing ACID durability.
+            </div>
+          </div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-inner">
+            <div class="flashcard-front">
+              <span class="card-label">Modern Kernel I/O</span>
+              <div class="card-term">io_uring</div>
+              <span class="card-hint">(Click to flip)</span>
+            </div>
+            <div class="flashcard-back">
+              Lockless asynchronous kernel submission/completion ring buffer shared with userland, eliminating syscall context switches for ultra-high-throughput I/O.
+            </div>
+          </div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-inner">
+            <div class="flashcard-front">
+              <span class="card-label">Database Operations</span>
+              <div class="card-term">gh-ost Migration Pattern</div>
+              <span class="card-hint">(Click to flip)</span>
+            </div>
+            <div class="flashcard-back">
+              Performs zero-downtime schema migrations by copying historical data to a shadow table, tailing binary replication logs, and completing an atomic swap without table locks.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Memory Techniques Bar -->
+      <div class="memory-cue-bar">
+        <div class="memory-pill"><strong>Mnemonic:</strong> U-L-S-K-H (Userland → Libs → Syscall → Kernel → Hardware)</div>
+        <div class="memory-pill"><strong>Flame Graph Rule:</strong> "Height = Depth, Width = Weight, NOT Time"</div>
+        <div class="memory-pill"><strong>Amdahl's Reminder:</strong> Never spend 2 weeks tuning a 10%-wide block</div>
+        <div class="memory-pill"><strong>Sampling Frequency:</strong> 99Hz avoids harmonic timer resonance</div>
+      </div>
+    </section>
+
+    <!-- CHEAT SHEET & SUMMARY -->
+    <section id="cheatsheet-sec" class="module-section">
+      <div class="module-tag">Reference Guide</div>
+      <h2 class="module-title">Summary, Systems Formulas, & Diagnostic Cheat Sheet</h2>
+      
+      <div class="core-prose">
+        <p>
+          Keep this reference handy whenever triaging production performance degradation or configuring continuous 
+          observability pipelines.
+        </p>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <span style="font: 700 12px var(--mono); text-transform: uppercase; color: var(--mut);">Systems Performance Cheat Sheet</span>
+        <button class="copy-btn" onclick="copyCheatSheet()">Copy Table Text</button>
+      </div>
+
+      <table id="cheat-table" class="cheatsheet-table">
+        <thead>
+          <tr>
+            <th>Layer / Concept</th>
+            <th>Primary Telemetry Metric</th>
+            <th>Standard Linux Diagnostic Tool</th>
+            <th>Common Bottleneck Signature</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Userland Application</strong></td>
+            <td>User CPU Time, Instructions Per Cycle (IPC)</td>
+            <td><code>pidstat -u</code>, APM traces</td>
+            <td>High <code>%usr</code> CPU, algorithmic <code>O(N²)</code> loops</td>
+          </tr>
+          <tr>
+            <td><strong>System Libraries</strong></td>
+            <td>Memory allocations, crypto hashing</td>
+            <td><code>ltrace</code>, <code>valgrind</code>, profilers</td>
+            <td>Lock contention in <code>malloc</code> / heap allocators</td>
+          </tr>
+          <tr>
+            <td><strong>System Calls</strong></td>
+            <td>Syscall rate, context switches</td>
+            <td><code>perf trace</code>, <code>strace -c</code></td>
+            <td>Excessive system mode time (<code>%sys</code>)</td>
+          </tr>
+          <tr>
+            <td><strong>Process Scheduler</strong></td>
+            <td>Run queue latency, CPU load average</td>
+            <td><code>uptime</code>, <code>sar -q</code>, <code>vmstat 1</code></td>
+            <td>Load average significantly exceeding core count</td>
+          </tr>
+          <tr>
+            <td><strong>Virtual Memory</strong></td>
+            <td>Page faults, page cache hit ratio</td>
+            <td><code>vmstat</code>, <code>free -m</code>, <code>sar -B</code></td>
+            <td>High major page faults, sudden page cache evictions</td>
+          </tr>
+          <tr>
+            <td><strong>File System / Disk</strong></td>
+            <td>IOPS, queue depth, disk wait latency</td>
+            <td><code>iostat -xz 1</code>, <code>biolatency</code></td>
+            <td>Spike in IOPS with low device latency (cache miss)</td>
+          </tr>
+          <tr>
+            <td><strong>Physical Storage</strong></td>
+            <td>Device service time (await)</td>
+            <td><code>iostat -x</code>, SMART tools</td>
+            <td>Spike in service latency (>20ms on SSD indicates drive failure)</td>
+          </tr>
+          <tr>
+            <td><strong>Call Stack Profiling</strong></td>
+            <td>Sample counts, on-CPU stack depth</td>
+            <td><code>perf record -F 99 -g</code></td>
+            <td>Wide horizontal plateaus on Flame Graph</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Key Performance Laws -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0;">
+        <div style="background: var(--card); border: 1px solid var(--line); padding: 16px; border-radius: 4px;">
+          <div style="font: 700 12px var(--mono); color: var(--accent); margin-bottom: 6px;">AMDAHL'S LAW OF OPTIMIZATION</div>
+          <div style="font-size: 13.5px; line-height: 1.5; color: var(--ink-secondary);">
+            $$S_{\text{latency}} = \frac{1}{(1 - p) + \frac{p}{s}}$$
+            The potential speedup of an entire system is strictly bounded by the proportion \(p\) of execution time that the optimized component actually consumes.
+          </div>
+        </div>
+        <div style="background: var(--card); border: 1px solid var(--line); padding: 16px; border-radius: 4px;">
+          <div style="font: 700 12px var(--mono); color: var(--accent); margin-bottom: 6px;">LITTLE'S LAW FOR QUEUING SYSTEMS</div>
+          <div style="font-size: 13.5px; line-height: 1.5; color: var(--ink-secondary);">
+            $$L = \lambda \times W$$
+            The average number of requests in a system \(L\) equals the long-term arrival rate \(\lambda\) multiplied by the average time \(W\) each request spends in the system.
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ Section -->
+      <div style="margin-top: 36px;">
+        <h3 style="font: 700 16px var(--serif); margin-bottom: 16px;">Frequently Asked Questions from the Stream</h3>
+        <div class="faq-accordion">
+          <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">
+              <span>Why does the flame graph show libcrypto taking only 12% if the query uses MD5 hashing?</span>
+              <span>+</span>
+            </div>
+            <div class="faq-a">
+              Because cryptographic hashing was only executed on individual row tokens during record projection. The remainder of the execution was occupied by index checks, heap table tuple updates, and write-ahead log synchronization. Never assume a complex function dominates runtime without viewing the measured sample width.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">
+              <span>Why choose 99 Hz instead of an even 100 Hz for sampling call stacks?</span>
+              <span>+</span>
+            </div>
+            <div class="faq-a">
+              Operating system schedulers and periodic background routines frequently operate on round intervals (e.g., every 10ms = 100Hz). Sampling at exactly 100Hz risks phase-locking (harmonic lock-in) with these background tasks, producing skewed profiles. 99Hz or 49Hz breaks this resonance.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">
+              <span>If disk latency was still 0.1ms, why did query P99 latency spike to 500ms?</span>
+              <span>+</span>
+            </div>
+            <div class="faq-a">
+              Because each query had to execute hundreds of disk read operations in sequence. Even when an individual NVMe read takes only 0.1ms, executing 500 sequential physical reads due to cache misses totals 50ms of blocking I/O time per query, backing up connection pools.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">
+              <span>When should I use an Off-CPU Flame Graph instead of an On-CPU Flame Graph?</span>
+              <span>+</span>
+            </div>
+            <div class="faq-a">
+              Use an On-CPU Flame Graph when the system is CPU-bound (high %CPU usage). Use an Off-CPU Flame Graph when software is unexpectedly slow but CPU utilization is low or idle, indicating threads are blocked waiting on locks, disk I/O, or network sockets.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Next Steps -->
+      <div style="margin-top: 36px; padding: 20px; background: var(--paper); border: 1px solid var(--line); border-radius: 4px;">
+        <h4 style="font: 700 14px var(--mono); text-transform: uppercase; color: var(--accent); margin-bottom: 8px;">Recommended Next Steps</h4>
+        <ol style="margin: 0 0 0 20px; font-size: 14.5px; line-height: 1.6; color: var(--ink-secondary);">
+          <li><strong>Audit your production builds:</strong> Ensure all critical binaries are compiled with frame pointers enabled (<code>-fno-omit-frame-pointer</code>) so kernel profilers like <code>perf</code> can unwind stacks accurately.</li>
+          <li><strong>Inspect host memory reservations:</strong> Verify that production database nodes run with strict cgroup memory isolation or dedicated instances to prevent noisy neighbors from cannibalizing the page cache.</li>
+          <li><strong>Run sample profiles:</strong> Try running <code>perf record -F 99 -a -g -- sleep 10</code> on a local Linux development box, and generate a Flame Graph using Brendan Gregg's open-source <code>flamegraph.pl</code> scripts.</li>
+        </ol>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ==========================================================================
+     INTERACTIVE LOGIC: SCRUBBER, FLAME GRAPH, STACK EXPLORER, QUIZZES
+     ========================================================================== -->
+<script>
+  // Top Scroll Progress Bar
+  window.addEventListener('scroll', () => {
+    const docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    const scrolled = (window.scrollY / docHeight) * 100;
+    document.getElementById('top-progress').style.width = scrolled + '%';
+
+    // Highlight Rail Navigation on Scroll
+    const sections = document.querySelectorAll('.module-section, #learn-overview, #knowledge-map, #interactive-suite, #cheatsheet-sec');
+    let current = '';
+    sections.forEach(sec => {
+      const top = sec.offsetTop - 120;
+      if (window.scrollY >= top) {
+        current = sec.getAttribute('id');
+      }
+    });
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.classList.remove('active');
+      const href = item.querySelector('a').getAttribute('href').substring(1);
+      if (href === current) {
+        item.classList.add('active');
+      }
+    });
+  });
+
+  // Dark/Light Mode Toggle
+  const themeToggle = document.getElementById('theme-toggle');
+  themeToggle.addEventListener('click', () => {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+      document.documentElement.removeAttribute('data-theme');
+      themeToggle.textContent = '◐';
+      localStorage.setItem('theme', 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      themeToggle.textContent = '☼';
+      localStorage.setItem('theme', 'dark');
+    }
+  });
+  if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    themeToggle.textContent = '☼';
+  }
+
+  // Module 1: Stack Layer Inspector
+  function highlightStackLayer(layer) {
+    const desc = document.getElementById('stack-layer-desc');
+    const buttons = document.querySelectorAll('#mod-1 .bench-btn');
+    buttons.forEach(b => b.classList.remove('active'));
+
+    const rectApp = document.getElementById('rect-app');
+    const rectLibs = document.getElementById('rect-libs');
+    const rectBoundary = document.getElementById('zone-boundary');
+    const rectSched = document.getElementById('rect-sched');
+    const rectVm = document.getElementById('rect-vm');
+    const rectVfs = document.getElementById('rect-vfs');
+    const rectNet = document.getElementById('rect-net');
+    const zoneHw = document.getElementById('zone-hw');
+
+    [rectApp, rectLibs, rectBoundary, rectSched, rectVm, rectVfs, rectNet, zoneHw].forEach(el => {
+      el.style.stroke = 'var(--line)';
+      el.style.strokeWidth = '1.5';
+    });
+
+    if (layer === 'app') {
+      buttons[0].classList.add('active');
+      rectApp.style.stroke = 'var(--accent)';
+      rectApp.style.strokeWidth = '2.5';
+      desc.innerHTML = '<strong>Application Layer:</strong> Code you author. Typical stalls: quadratic algorithms, memory thrashing, synchronous locking, and inefficient ORM serialization. Diagnostic tool: Application-level logs, APM, and profilers.';
+    } else if (layer === 'libs') {
+      buttons[1].classList.add('active');
+      rectLibs.style.stroke = 'var(--accent)';
+      rectLibs.style.strokeWidth = '2.5';
+      desc.innerHTML = '<strong>System Libraries:</strong> Shared dynamic/static code (glibc, libcrypto, jemalloc). Stalls: lock contention in memory allocators, inefficient string parsing, or suboptimal crypto versions. Diagnostic tool: ltrace, valgrind.';
+    } else if (layer === 'syscall') {
+      buttons[2].classList.add('active');
+      rectBoundary.style.stroke = 'var(--accent)';
+      rectBoundary.style.strokeWidth = '3';
+      desc.innerHTML = '<strong>System Call Boundary:</strong> The CPU privilege gate switching from Ring 3 to Ring 0. Stalls: excessive context switching, blocking I/O (fsync), and cache line invalidation. Diagnostic tool: strace -c, perf trace.';
+    } else if (layer === 'kernel') {
+      buttons[3].classList.add('active');
+      [rectSched, rectVm, rectVfs, rectNet].forEach(el => {
+        el.style.stroke = 'var(--accent)';
+        el.style.strokeWidth = '2.5';
+      });
+      desc.innerHTML = '<strong>Kernel Subsystems:</strong> Scheduler (CPU quanta), Virtual Memory (Page Cache hit/miss), VFS, and Sockets. Stalls: CPU run queue delay, page cache evictions, dirty buffer flushes. Diagnostic tool: vmstat, sar, ebpf.';
+    } else if (layer === 'hw') {
+      buttons[4].classList.add('active');
+      zoneHw.style.stroke = 'var(--accent)';
+      zoneHw.style.strokeWidth = '2.5';
+      desc.innerHTML = '<strong>Hardware & Storage:</strong> Physical CPU cores, DRAM buses, NVMe flash cells, network PHY. Stalls: hardware degraded flash sectors, memory bus saturation, thermal throttling. Diagnostic tool: iostat -xz, SMART logs.';
+    }
+  }
+
+  // Module 2: Flow Animation Toggle
+  let flowRunning = true;
+  let flowTimer = null;
+  let packetPos = 0;
+  const flowPath = [
+    {x: 70, y: 110},
+    {x: 265, y: 110},
+    {x: 490, y: 60},
+    {x: 265, y: 110},
+    {x: 490, y: 160},
+    {x: 685, y: 160},
+    {x: 265, y: 110},
+    {x: 70, y: 110}
+  ];
+  let curIndex = 0;
+
+  function runFlowStep() {
+    curIndex = (curIndex + 1) % flowPath.length;
+    const packet = document.getElementById('flow-packet');
+    if (packet) {
+      packet.setAttribute('cx', flowPath[curIndex].x);
+      packet.setAttribute('cy', flowPath[curIndex].y);
+    }
+  }
+
+  function startFlowLoop() {
+    flowTimer = setInterval(runFlowStep, 900);
+  }
+  startFlowLoop();
+
+  function toggleFlowAnimation() {
+    const btn = document.getElementById('btn-flow-toggle');
+    if (flowRunning) {
+      clearInterval(flowTimer);
+      flowRunning = false;
+      btn.textContent = 'Resume Animation';
+    } else {
+      startFlowLoop();
+      flowRunning = true;
+      btn.textContent = 'Pause Animation';
+    }
+  }
+
+  function stepFlowAnimation() {
+    if (flowRunning) {
+      toggleFlowAnimation();
+    }
+    runFlowStep();
+  }
+
+  // Module 3: Scrubber Logic & Live Charts
+  const incidentData = [
+    { day: 1, p99: 2.0, iops: 980, disklat: 0.10, prodMem: 50, testMem: 0, status: "Baseline Day 1: Normal steady-state. Queries hit page cache. P99 is 2.0ms." },
+    { day: 2, p99: 2.1, iops: 1020, disklat: 0.11, prodMem: 50, testMem: 0, status: "Baseline Day 2: Normal operation. No alerts. Workload stable at 1,020 IOPS." },
+    { day: 3, p99: 2.2, iops: 1050, disklat: 0.10, prodMem: 50, testMem: 0, status: "Baseline Day 3: Normal throughput. Memory fully utilized for buffer pool + OS cache." },
+    { day: 4, p99: 14.5, iops: 3800, disklat: 0.11, prodMem: 38, testMem: 12, status: "Incident Start (Day 4): Rogue test container spun up on host. Host page cache shrinking. Minor latency increase." },
+    { day: 5, p99: 180.0, iops: 8900, disklat: 0.11, prodMem: 27, testMem: 23, status: "Incident Surge (Day 5): Test container claims 23GB RAM. Postgres cache hit ratio falls below 60%. IOPS approaches 9,000!" },
+    { day: 6, p99: 420.0, iops: 10400, disklat: 0.12, prodMem: 25, testMem: 25, status: "Peak Outage (Day 6): P99 reaches 420ms! Slow query log overflows (>1s). Notice disk device latency is still 0.12ms (drive is healthy!)." },
+    { day: 7, p99: 490.0, iops: 10800, disklat: 0.12, prodMem: 25, testMem: 25, status: "Critical Outage (Day 7): Root cause confirmed via process table. Terminating the rogue container restores full 50GB RAM instantly." }
+  ];
+
+  function drawIncidentChart(svgId, key, minVal, maxVal, unit, curDay) {
+    const svg = document.getElementById(svgId);
+    if (!svg) return;
+    svg.innerHTML = '';
+
+    const width = 320;
+    const height = 80;
+    const padding = 20;
+
+    let points = [];
+    for (let i = 0; i < incidentData.length; i++) {
+      const d = incidentData[i];
+      const x = padding + (i / (incidentData.length - 1)) * (width - 2 * padding);
+      const val = d[key];
+      const y = height - padding - ((val - minVal) / (maxVal - minVal)) * (height - 2 * padding);
+      points.push({x, y, val, day: d.day});
+    }
+
+    // Draw path
+    let dStr = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      dStr += ` L ${points[i].x} ${points[i].y}`;
+    }
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', dStr);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', key === 'disklat' ? 'var(--ok)' : (key === 'p99' || key === 'iops' ? 'var(--accent)' : 'var(--bench-cyan)'));
+    path.setAttribute('stroke-width', '2');
+    svg.appendChild(path);
+
+    // Draw points
+    points.forEach(pt => {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', pt.x);
+      circle.setAttribute('cy', pt.y);
+      circle.setAttribute('r', pt.day === parseInt(curDay) ? '5' : '3');
+      circle.setAttribute('fill', pt.day === parseInt(curDay) ? 'var(--accent)' : 'var(--paper)');
+      circle.setAttribute('stroke', 'var(--line)');
+      circle.setAttribute('stroke-width', '1.5');
+      svg.appendChild(circle);
+    });
+  }
+
+  function drawMemorySplitChart(curDay) {
+    const svg = document.getElementById('chart-mem');
+    if (!svg) return;
+    svg.innerHTML = '';
+    const d = incidentData[curDay - 1];
+
+    const width = 320;
+    const height = 70;
+    const prodWidth = (d.prodMem / 64) * 280;
+    const testWidth = (d.testMem / 64) * 280;
+    const osWidth = 280 - prodWidth - testWidth;
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    // Prod DB rect
+    const r1 = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r1.setAttribute('x', 20);
+    r1.setAttribute('y', 25);
+    r1.setAttribute('width', prodWidth);
+    r1.setAttribute('height', 24);
+    r1.setAttribute('fill', 'var(--bench-cyan)');
+    g.appendChild(r1);
+
+    // Test DB rect
+    if (testWidth > 0) {
+      const r2 = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      r2.setAttribute('x', 20 + prodWidth);
+      r2.setAttribute('y', 25);
+      r2.setAttribute('width', testWidth);
+      r2.setAttribute('height', 24);
+      r2.setAttribute('fill', 'var(--bad)');
+      g.appendChild(r2);
+    }
+
+    // OS rect
+    const r3 = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r3.setAttribute('x', 20 + prodWidth + testWidth);
+    r3.setAttribute('y', 25);
+    r3.setAttribute('width', osWidth);
+    r3.setAttribute('height', 24);
+    r3.setAttribute('fill', 'var(--mut)');
+    g.appendChild(r3);
+
+    // Legend texts
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', 20);
+    t.setAttribute('y', 16);
+    t.setAttribute('font-family', 'var(--mono)');
+    t.setAttribute('font-size', '10.5');
+    t.setAttribute('fill', 'var(--ink)');
+    t.textContent = `Prod: ${d.prodMem}GB | Test: ${d.testMem}GB | OS/Other: 14GB`;
+    g.appendChild(t);
+
+    svg.appendChild(g);
+  }
+
+  function updateIncidentScrubber(dayVal) {
+    const day = parseInt(dayVal);
+    const d = incidentData[day - 1];
+
+    document.getElementById('scrubber-date').textContent = `Day ${day} (${day <= 3 ? 'Baseline' : 'Outage Phase'})`;
+    document.getElementById('readout-p99').textContent = `${d.p99} ms`;
+    document.getElementById('readout-iops').textContent = `${d.iops.toLocaleString()} IOPS`;
+    document.getElementById('readout-disklat').textContent = `${d.disklat} ms`;
+    document.getElementById('readout-mem').textContent = `Prod: ${d.prodMem}GB | Test: ${d.testMem}GB`;
+
+    document.getElementById('incident-analysis-box').innerHTML = `<strong>Day ${day} Diagnostic Status:</strong> ${d.status}`;
+
+    drawIncidentChart('chart-p99', 'p99', 0, 500, 'ms', day);
+    drawIncidentChart('chart-iops', 'iops', 500, 12000, 'IOPS', day);
+    drawIncidentChart('chart-disklat', 'disklat', 0.05, 0.20, 'ms', day);
+    drawMemorySplitChart(day);
+  }
+  updateIncidentScrubber(2);
+
+  // Module 5: Interactive Flame Graph Implementation
+  const flameData = {
+    name: "main",
+    samples: 10000,
+    children: [
+      {
+        name: "PostgresMain",
+        samples: 9800,
+        children: [
+          {
+            name: "PortalRun",
+            samples: 9600,
+            children: [
+              {
+                name: "PortalRunSelect",
+                samples: 9500,
+                children: [
+                  {
+                    name: "ExecScan",
+                    samples: 1200,
+                    children: [
+                      {
+                        name: "ExecProject",
+                        samples: 1150,
+                        children: [
+                          {
+                            name: "MD5_text",
+                            samples: 1100,
+                            children: [
+                              { name: "libcrypto (EVP_DigestUpdate)", samples: 980 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    name: "ExecCheckIndexConstraints",
+                    samples: 2200,
+                    children: [
+                      {
+                        name: "GetTupleIdentity",
+                        samples: 1200
+                      },
+                      {
+                        name: "RelationGetIndexList",
+                        samples: 900
+                      }
+                    ]
+                  },
+                  {
+                    name: "ExecInsertIndexTuples",
+                    samples: 2800,
+                    children: [
+                      {
+                        name: "btinsert",
+                        samples: 2600,
+                        children: [
+                          { name: "_bt_doinsert", samples: 2400 }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    name: "heap_insert",
+                    samples: 3300,
+                    children: [
+                      {
+                        name: "RelationPutHeapTuple",
+                        samples: 1400
+                      },
+                      {
+                        name: "XLogInsert",
+                        samples: 1800,
+                        children: [
+                          { name: "pg_fsync", samples: 1550 }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+
+  let currentFlameRoot = flameData;
+
+  function renderFlameGraph(rootNode) {
+    const svg = document.getElementById('flame-svg');
+    if (!svg) return;
+    svg.innerHTML = '';
+
+    const width = 800;
+    const barHeight = 28;
+    const totalSamples = rootNode.samples;
+
+    // BFS to layout rows
+    let levels = [];
+    function traverse(node, depth, leftFrac, widthFrac) {
+      if (!levels[depth]) levels[depth] = [];
+      levels[depth].push({
+        node: node,
+        left: leftFrac,
+        width: widthFrac
+      });
+
+      if (node.children && node.children.length > 0) {
+        let childLeft = leftFrac;
+        node.children.forEach(child => {
+          const childFrac = (child.samples / node.samples) * widthFrac;
+          traverse(child, depth + 1, childLeft, childFrac);
+          childLeft += childFrac;
+        });
+      }
+    }
+
+    traverse(rootNode, 0, 0, 1.0);
+
+    const maxDepth = levels.length;
+    svg.setAttribute('viewBox', `0 0 800 ${Math.max(200, maxDepth * 32 + 20)}`);
+
+    // Draw from bottom to top
+    for (let depth = 0; depth < maxDepth; depth++) {
+      const y = (maxDepth - 1 - depth) * 30 + 10;
+      levels[depth].forEach(item => {
+        const x = item.left * (width - 20) + 10;
+        const w = Math.max(2, item.width * (width - 20) - 1);
+
+        // Color algorithm based on depth and module
+        let fill = '#d2732a';
+        if (item.node.name.includes('libcrypto') || item.node.name.includes('MD5')) fill = '#e2944b';
+        else if (item.node.name.includes('Index')) fill = '#c85a17';
+        else if (item.node.name.includes('heap') || item.node.name.includes('fsync')) fill = '#943809';
+        else fill = depth % 2 === 0 ? '#b85a19' : '#d2732a';
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'flame-bar');
+        g.onclick = (e) => {
+          e.stopPropagation();
+          currentFlameRoot = item.node;
+          updateFlameBreadcrumbs(item.node);
+          renderFlameGraph(item.node);
+        };
+        g.onmouseenter = () => {
+          const pct = ((item.node.samples / flameData.samples) * 100).toFixed(1);
+          document.getElementById('flame-func-name').textContent = `Function: ${item.node.name}`;
+          document.getElementById('flame-func-pct').textContent = `Weight: ${pct}% of profile (${item.node.samples.toLocaleString()} samples)`;
+        };
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', w);
+        rect.setAttribute('height', barHeight);
+        rect.setAttribute('rx', 2);
+        rect.setAttribute('fill', fill);
+        rect.setAttribute('stroke', '#ffffff');
+        rect.setAttribute('stroke-width', '0.5');
+        g.appendChild(rect);
+
+        if (w > 45) {
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', x + 5);
+          text.setAttribute('y', y + 18);
+          text.setAttribute('font-family', 'var(--mono)');
+          text.setAttribute('font-size', '10');
+          text.setAttribute('fill', '#ffffff');
+          text.setAttribute('font-weight', '600');
+          text.textContent = item.node.name.length > Math.floor(w / 7) ? item.node.name.substring(0, Math.floor(w / 7)) + '..' : item.node.name;
+          g.appendChild(text);
+        }
+
+        svg.appendChild(g);
+      });
+    }
+  }
+
+  function updateFlameBreadcrumbs(node) {
+    const pct = ((node.samples / flameData.samples) * 100).toFixed(1);
+    document.getElementById('breadcrumb-text').textContent = `${node.name} (${node.samples.toLocaleString()} samples / ${pct}%)`;
+  }
+
+  function resetFlameGraph() {
+    currentFlameRoot = flameData;
+    updateFlameBreadcrumbs(flameData);
+    renderFlameGraph(flameData);
+  }
+  renderFlameGraph(flameData);
+
+  // Quiz evaluation helper
+  function checkAnswer(btn, isCorrect, feedbackId, message) {
+    const parent = btn.parentElement;
+    parent.querySelectorAll('.quiz-btn').forEach(b => {
+      b.disabled = true;
+      b.classList.remove('correct', 'incorrect');
+    });
+
+    const feedback = document.getElementById(feedbackId);
+    feedback.classList.remove('pass', 'fail');
+    feedback.classList.add('show');
+
+    if (isCorrect) {
+      btn.classList.add('correct');
+      feedback.classList.add('pass');
+      feedback.textContent = '✓ ' + message;
+    } else {
+      btn.classList.add('incorrect');
+      feedback.classList.add('fail');
+      feedback.textContent = '✗ ' + message;
+    }
+  }
+
+  // FAQ Accordion
+  function toggleFaq(el) {
+    const item = el.parentElement;
+    item.classList.toggle('open');
+    const span = el.querySelector('span:last-child');
+    span.textContent = item.classList.contains('open') ? '−' : '+';
+  }
+
+  // Copy Cheat Sheet
+  function copyCheatSheet() {
+    const table = document.getElementById('cheat-table');
+    let text = '';
+    for (let r of table.rows) {
+      let rowVals = [];
+      for (let c of r.cells) {
+        rowVals.push(c.innerText.trim());
+      }
+      text += rowVals.join(' | ') + '\n';
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Cheat sheet copied to clipboard.');
+    });
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Long-Session Evals &amp; Cache Preservation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:       #f5f5f5;   /* white-smoke */
+      --color-paper-2:     #ececec;   /* container fill */
+      --color-ink:         #2d3142;   /* jet-black */
+      --color-muted:       #4f5d75;   /* blue-slate */
+      --color-soft:        #7a8399;   /* sublabels */
+      --color-accent:      #eb6c36;   /* atomic-tangerine */
+      --color-accent-tint: rgba(235,108,54,0.08);
+      --color-rule:        rgba(45,49,66,0.12);
+      --color-rule-solid:  #bfc0c0;
+      --font-sans:         'Geist', system-ui, -apple-system, sans-serif;
+      --font-serif:        'Instrument Serif', Georgia, serif;
+      --font-mono:         'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      line-height: 1.65;
+      padding: 3rem 1.5rem;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .nav-back {
+      margin-bottom: 2rem;
+    }
+
+    .nav-back a {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--color-muted);
+      text-decoration: none;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .nav-back a:hover {
+      color: var(--color-accent);
+    }
+
+    .header {
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--color-rule);
+      padding-bottom: 1.75rem;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(2.2rem, 3.5vw + 1rem, 3.2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 0.75rem;
+    }
+
+    .lead {
+      font-size: 1.15rem;
+      color: var(--color-muted);
+      max-width: 820px;
+      line-height: 1.5;
+    }
+
+    .diagram-card {
+      background: #ffffff;
+      border: 1px solid var(--color-rule);
+      border-radius: 8px;
+      padding: 1.75rem;
+      margin: 2.5rem 0 3rem;
+    }
+
+    .diagram-caption {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-muted);
+      margin-top: 1rem;
+      text-align: center;
+      letter-spacing: 0.06em;
+    }
+
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .explanation-section {
+      margin-top: 3rem;
+    }
+
+    .section-heading {
+      font-family: var(--font-serif);
+      font-size: 2rem;
+      font-weight: 400;
+      color: var(--color-ink);
+      margin-bottom: 1rem;
+      letter-spacing: -0.015em;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin: 1.5rem 0 2.5rem;
+    }
+
+    .info-card {
+      background: #ffffff;
+      border: 1px solid var(--color-rule);
+      border-radius: 6px;
+      padding: 1.5rem;
+    }
+
+    .info-card.focal {
+      border-color: var(--color-accent);
+      background: var(--color-accent-tint);
+    }
+
+    .info-tag {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 0.4rem;
+    }
+
+    .info-title {
+      font-family: var(--font-serif);
+      font-size: 1.35rem;
+      color: var(--color-ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .info-text {
+      font-size: 0.92rem;
+      color: var(--color-muted);
+      line-height: 1.55;
+    }
+
+    .footer {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-soft);
+      text-align: center;
+      margin-top: 4.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--color-rule);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav-back">
+      <a href="index.html">← Back to Master Curriculum Index</a>
+    </div>
+
+    <header class="header">
+      <p class="eyebrow">Evaluation &amp; Optimization · Diagram Design</p>
+      <h1>Long-Session Evals &amp; Cache Preservation</h1>
+      <p class="lead">Why context failures appear late in user sessions (Turn 15+), how Arize uses 10-turn synthetic replay harnesses to test Turn 11, and how cache preservation avoids recomputation penalties.</p>
+    </header>
+
+    <main>
+      <div class="diagram-card">
+        <!-- STANDALONE EDITORIAL SVG DIAGRAM -->
+        <svg viewBox="0 0 980 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="eval-cache-title eval-cache-desc">
+          <title id="eval-cache-title">Long-Session Evaluation and Cache Preservation Architecture</title>
+          <desc id="eval-cache-desc">Diagram showing the 10 turn load replay test harness alongside prompt cache alignment.</desc>
+
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+            </marker>
+            <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+            </marker>
+          </defs>
+
+          <rect width="100%" height="100%" fill="#ffffff" rx="8"/>
+
+          <!-- LEFT: LONG-SESSION EVAL HARNESS (LOAD 10 -> TEST 11) -->
+          <rect x="36" y="36" width="436" height="428" rx="6" fill="#f5f5f5" stroke="#bfc0c0" stroke-width="1"/>
+          <rect x="36" y="36" width="436" height="38" rx="6" fill="#ececec"/>
+          <text x="50" y="60" font-family="'Geist Mono', monospace" font-size="8.5" font-weight="600" fill="#2d3142" letter-spacing="0.12em">1. LONG-SESSION EVALUATION HARNESS</text>
+
+          <!-- 10 turns chain -->
+          <rect x="52" y="88" width="404" height="150" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="64" y="108" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" fill="#2d3142">Synthetic 10-Turn Preload Sequence</text>
+          <text x="64" y="122" font-family="'Geist Mono', monospace" font-size="8" fill="#7a8399">REPLAYING HISTORICAL USER JOURNEY</text>
+
+          <!-- 10 Turns Visual Blocks -->
+          <rect x="64" y="140" width="34" height="24" rx="2" fill="#2d3142"/>
+          <text x="72" y="156" font-family="'Geist Mono', monospace" font-size="8" fill="#ffffff">T1</text>
+
+          <rect x="102" y="140" width="34" height="24" rx="2" fill="#2d3142"/>
+          <text x="110" y="156" font-family="'Geist Mono', monospace" font-size="8" fill="#ffffff">T2</text>
+
+          <rect x="140" y="140" width="34" height="24" rx="2" fill="#2d3142"/>
+          <text x="148" y="156" font-family="'Geist Mono', monospace" font-size="8" fill="#ffffff">T3</text>
+
+          <text x="180" y="156" font-family="'Geist Mono', monospace" font-size="10" fill="#4f5d75">...</text>
+
+          <rect x="200" y="140" width="34" height="24" rx="2" fill="#2d3142"/>
+          <text x="206" y="156" font-family="'Geist Mono', monospace" font-size="8" fill="#ffffff">T8</text>
+
+          <rect x="238" y="140" width="34" height="24" rx="2" fill="#2d3142"/>
+          <text x="244" y="156" font-family="'Geist Mono', monospace" font-size="8" fill="#ffffff">T9</text>
+
+          <rect x="276" y="140" width="38" height="24" rx="2" fill="#2d3142"/>
+          <text x="280" y="156" font-family="'Geist Mono', monospace" font-size="8" fill="#ffffff">T10</text>
+
+          <!-- Arrow to Turn 11 -->
+          <path d="M 320 152 L 344 152" fill="none" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+
+          <!-- Test Turn 11 (Focal) -->
+          <rect x="348" y="136" width="96" height="32" rx="3" fill="rgba(235,108,54,0.1)" stroke="#eb6c36" stroke-width="1.2"/>
+          <text x="356" y="156" font-family="'Geist Mono', monospace" font-size="8" font-weight="600" fill="#eb6c36">TEST TURN 11</text>
+
+          <text x="64" y="196" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">Injects probe: "What was the span ID we diagnosed in Turn 2?"</text>
+          <text x="64" y="212" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">Evaluates whether context truncation preserved critical historical keys.</text>
+
+          <!-- Benefits of 10-turn evals -->
+          <rect x="52" y="250" width="404" height="136" rx="4" fill="#ffffff" stroke="#bfc0c0" stroke-width="0.8"/>
+          <text x="64" y="272" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#2d3142">Why Long-Session Evals are Critical</text>
+          <text x="64" y="292" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Single-turn tests hide 90% of production context bugs</text>
+          <text x="64" y="308" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Users rarely restart chats; they navigate across multiple UI pages</text>
+          <text x="64" y="324" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Makes late-stage memory decay testable in CI/CD pipelines</text>
+
+          <text x="52" y="420" font-family="'Instrument Serif', serif" font-style="italic" font-size="14" fill="#eb6c36">"Don't wait for users to report memory loss at Turn 20."</text>
+
+
+          <!-- RIGHT: PROMPT CACHE PRESERVATION (CLAUDE CODE LEAK) -->
+          <rect x="508" y="36" width="436" height="428" rx="6" fill="rgba(235,108,54,0.06)" stroke="#eb6c36" stroke-width="1.2"/>
+          <rect x="508" y="36" width="436" height="38" rx="6" fill="#eb6c36"/>
+          <text x="522" y="60" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#ffffff" letter-spacing="0.12em">2. PROMPT CACHE PRESERVATION ARCHITECTURE</text>
+
+          <!-- Cache Layout -->
+          <rect x="524" y="88" width="404" height="150" rx="4" fill="#ffffff" stroke="#eb6c36" stroke-width="1"/>
+          <text x="536" y="108" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" fill="#eb6c36">Prefix-Stable Context Layout</text>
+          <text x="536" y="122" font-family="'Geist Mono', monospace" font-size="8" fill="#eb6c36">AVOIDING CACHE INVALIDATION</text>
+
+          <!-- Static prefix -->
+          <rect x="536" y="142" width="180" height="28" rx="2" fill="#2d3142"/>
+          <text x="546" y="160" font-family="'Geist Mono', monospace" font-size="8" fill="#ffffff">STATIC SYSTEM PROMPT (CACHED)</text>
+
+          <!-- Dynamic tail -->
+          <rect x="724" y="142" width="190" height="28" rx="2" fill="rgba(235,108,54,0.12)" stroke="#eb6c36" stroke-width="0.8"/>
+          <text x="732" y="160" font-family="'Geist Mono', monospace" font-size="8" fill="#eb6c36">APPEND-ONLY TURNS</text>
+
+          <text x="536" y="196" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">1. Never modify system prompt or tool schemas between turns.</text>
+          <text x="536" y="212" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">2. Maintain deterministic prefix ordering to hit 90% prompt cache rate.</text>
+
+          <!-- Cache Benefits -->
+          <rect x="524" y="250" width="404" height="136" rx="4" fill="#ffffff" stroke="#bfc0c0" stroke-width="0.8"/>
+          <text x="536" y="272" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#2d3142">Engineering Rules for High Cache Hit Rates</text>
+          <text x="536" y="292" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Append new user turns strictly to the tail</text>
+          <text x="536" y="308" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Truncate internal tool payloads in-place with fixed ID placeholders</text>
+          <text x="536" y="324" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Reduces prompt token billing by up to 80% on Claude/Gemini APIs</text>
+
+          <text x="524" y="420" font-family="'Instrument Serif', serif" font-style="italic" font-size="14" fill="#eb6c36">"A stable context prefix turns expensive inference into cheap cached hits."</text>
+        </svg>
+        <p class="diagram-caption">FIGURE 4.0 — LONG-SESSION EVALUATION HARNESS &amp; PROMPT CACHE PRESERVATION</p>
+      </div>
+
+      <!-- IN-PAGE EXPLANATIONS -->
+      <section class="explanation-section">
+        <h2 class="section-heading">Detailed Architectural Explanations</h2>
+
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Evaluation Pattern</p>
+            <h3 class="info-title">The Turn-11 Evaluation Pattern</h3>
+            <p class="info-text">
+              Standard unit tests only evaluate Turn 1. However, in production applications, users traverse multiple pages, causing sessions to extend beyond 20 turns. The <strong>Turn-11 Eval</strong> loads 10 realistic historical turns (filled with tool calls, middle truncations, and conversation shifts) and tests whether Turn 11 accurately recalls critical facts from Turn 2.
+            </p>
+          </div>
+
+          <div class="info-card focal">
+            <p class="info-tag">Cost &amp; Latency</p>
+            <h3 class="info-title">Cache-Aware Context Layout</h3>
+            <p class="info-text">
+              Modern frontier providers (Anthropic Claude, Google Gemini) offer prompt caching discounts (up to 80-90% cheaper for cached prefixes). If an agent modifies its system prompt or inserts dynamic timestamps at the beginning of the context, it invalidates the entire cache. Keeping a deterministic static prefix ensures high cache hit rates across long multi-turn sessions.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      Diagram Design Editorial System · 4px Grid Layout · Jet-Black &amp; Atomic-Tangerine
+    </footer>
+  </div>
+</body>
+</html>

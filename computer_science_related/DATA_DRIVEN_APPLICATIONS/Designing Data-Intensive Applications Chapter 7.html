@@ -1,0 +1,2836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designing Data-Intensive Applications — Chapter 7: Transactions, ACID & Isolation Levels</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg-surface: #12161f;
+      --bg-surface-elevated: #1a202c;
+      --bg-surface-glass: rgba(18, 22, 31, 0.85);
+      --border: #242c3d;
+      --border-accent: #38455e;
+      --text: #f0f4fc;
+      --text-muted: #8d9bb0;
+      --text-subtle: #57657d;
+      --accent: #eb6c36;
+      --accent-glow: rgba(235, 108, 54, 0.2);
+      --accent-subtle: rgba(235, 108, 54, 0.09);
+      --teal: #10b981;
+      --teal-subtle: rgba(16, 185, 129, 0.1);
+      --blue: #3b82f6;
+      --blue-subtle: rgba(59, 130, 246, 0.1);
+      --purple: #8b5cf6;
+      --purple-subtle: rgba(139, 92, 246, 0.1);
+      --amber: #f59e0b;
+      --amber-subtle: rgba(245, 158, 11, 0.1);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.1);
+      --font-serif: "Instrument Serif", Georgia, serif;
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-surface-glass: rgba(255, 255, 255, 0.9);
+      --border: #e2e8f0;
+      --border-accent: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+      --accent: #d9531e;
+      --accent-glow: rgba(217, 83, 30, 0.15);
+      --accent-subtle: rgba(217, 83, 30, 0.08);
+      --teal: #059669;
+      --teal-subtle: rgba(5, 150, 105, 0.08);
+      --blue: #2563eb;
+      --blue-subtle: rgba(37, 99, 235, 0.08);
+      --purple: #7c3aed;
+      --purple-subtle: rgba(124, 58, 237, 0.08);
+      --amber: #d97706;
+      --amber-subtle: rgba(217, 119, 6, 0.08);
+      --rose: #e11d48;
+      --rose-subtle: rgba(225, 29, 72, 0.08);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    #reading-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #f97316);
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.1s ease-out;
+    }
+
+    .top-nav {
+      position: sticky;
+      top: 0;
+      background: var(--bg-surface-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 900;
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .nav-badge {
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent);
+    }
+
+    .theme-toggle-btn {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .page-container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 6rem;
+    }
+
+    /* Hero Section */
+    .hero-section {
+      margin-bottom: 3.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .meta-tag {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: var(--accent-subtle);
+      padding: 0.25rem 0.6rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(235, 108, 54, 0.3);
+      font-weight: 600;
+    }
+
+    .hero-title {
+      font-family: var(--font-sans);
+      font-size: 3rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.25rem;
+      background: linear-gradient(135deg, var(--text) 30%, var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      max-width: 960px;
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    .hero-takeaways {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .takeaway-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .takeaway-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-accent);
+    }
+
+    .takeaway-icon {
+      font-size: 1.3rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .takeaway-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.35rem;
+    }
+
+    .takeaway-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Knowledge Map Card */
+    .knowledge-map-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      margin-bottom: 3.5rem;
+      box-shadow: var(--shadow-md);
+    }
+
+    .section-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      display: block;
+      font-weight: 700;
+    }
+
+    .section-heading {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.5rem;
+      color: var(--text);
+    }
+
+    /* Modules */
+    .module-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2.25rem;
+      margin-bottom: 3rem;
+      box-shadow: var(--shadow-sm);
+      scroll-margin-top: 5rem;
+    }
+
+    .module-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .module-num {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.25rem 0.6rem;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+    }
+
+    .module-heading {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .prose-block {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.75;
+      margin-bottom: 1.5rem;
+    }
+
+    .prose-block p {
+      margin-bottom: 1rem;
+    }
+
+    .prose-block strong {
+      color: #ffffff;
+    }
+
+    [data-theme="light"] .prose-block strong {
+      color: #0f172a;
+    }
+
+    .prose-block code {
+      font-family: var(--font-mono);
+      font-size: 0.88em;
+      background: var(--bg-surface-elevated);
+      color: var(--accent);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    /* Definitions Panel */
+    .definitions-panel {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .definitions-header {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .def-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .def-item {
+      border-left: 2px solid var(--accent);
+      padding-left: 0.75rem;
+    }
+
+    .def-term {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .def-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* SVG Diagram Containers */
+    .svg-diagram-wrapper {
+      background: #0e121a;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 1.75rem 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: auto;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    [data-theme="light"] .svg-diagram-wrapper {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .svg-diagram-wrapper svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Step Breakdown */
+    .steps-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 1.5rem 0;
+    }
+
+    .step-node {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+    }
+
+    .step-index-badge {
+      background: var(--accent);
+      color: #ffffff;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 0.15rem;
+    }
+
+    .step-content-box h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+    }
+
+    .step-content-box p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Examples Trio */
+    .examples-trio {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin: 1.75rem 0;
+    }
+
+    .example-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .example-tag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      display: inline-block;
+    }
+
+    .example-tag.obvious { color: var(--teal); }
+    .example-tag.counter { color: var(--amber); }
+    .example-tag.edge { color: var(--rose); }
+
+    .example-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+
+    .example-body {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Pedagogy Grid */
+    .pedagogy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+      margin: 1.75rem 0;
+    }
+
+    .pedagogy-box {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+    }
+
+    .pedagogy-box.analogy { border-top: 3px solid var(--blue); }
+    .pedagogy-box.misconception { border-top: 3px solid var(--rose); }
+    .pedagogy-box.reality { border-top: 3px solid var(--teal); }
+    .pedagogy-box.connection { border-top: 3px solid var(--purple); }
+
+    .pedagogy-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .pedagogy-box.analogy .pedagogy-label { color: var(--blue); }
+    .pedagogy-box.misconception .pedagogy-label { color: var(--rose); }
+    .pedagogy-box.reality .pedagogy-label { color: var(--teal); }
+    .pedagogy-box.connection .pedagogy-label { color: var(--purple); }
+
+    .pedagogy-text {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .memory-pill {
+      background: var(--accent-subtle);
+      border: 1px dashed var(--accent);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1.25rem;
+      margin-top: 1.5rem;
+      font-size: 0.88rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .memory-pill span {
+      font-weight: 700;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+
+    /* Interactive Widgets */
+    .interactive-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 2rem 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .interactive-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .interactive-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .interactive-badge {
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .control-group {
+      flex: 1;
+      min-width: 220px;
+    }
+
+    .control-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+      display: block;
+      font-weight: 600;
+    }
+
+    .text-input-field {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 0.8rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .text-input-field:focus {
+      border-color: var(--accent);
+    }
+
+    .sim-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 1.2rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .sim-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .sim-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .sim-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    .sim-display-box {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.84rem;
+      color: #e6edf3;
+      min-height: 120px;
+      overflow-x: auto;
+    }
+
+    [data-theme="light"] .sim-display-box {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      color: #0f172a;
+    }
+
+    /* Active Recall Flashcards */
+    .flashcards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin: 2rem 0;
+    }
+
+    .flashcard {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      min-height: 180px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      user-select: none;
+    }
+
+    .flashcard:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .flashcard-q {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .flashcard-a {
+      font-size: 0.85rem;
+      color: var(--teal);
+      line-height: 1.5;
+      margin-top: 1rem;
+      display: none;
+      border-top: 1px dashed var(--border);
+      padding-top: 0.75rem;
+    }
+
+    .flashcard.flipped .flashcard-a {
+      display: block;
+    }
+
+    .flashcard-hint {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-subtle);
+      margin-top: 0.5rem;
+    }
+
+    /* Self Check Quiz */
+    .quiz-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .quiz-question {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .quiz-opt-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      text-align: left;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .quiz-opt-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .quiz-opt-btn.correct {
+      background: var(--teal-subtle);
+      border-color: var(--teal);
+      color: var(--teal);
+    }
+
+    .quiz-opt-btn.incorrect {
+      background: var(--rose-subtle);
+      border-color: var(--rose);
+      color: var(--rose);
+    }
+
+    .quiz-feedback {
+      margin-top: 1rem;
+      padding: 0.9rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      line-height: 1.5;
+      display: none;
+    }
+
+    .quiz-feedback.show {
+      display: block;
+    }
+
+    .quiz-feedback.correct-feedback {
+      background: var(--teal-subtle);
+      border: 1px solid var(--teal);
+      color: var(--teal);
+    }
+
+    .quiz-feedback.incorrect-feedback {
+      background: var(--rose-subtle);
+      border: 1px solid var(--rose);
+      color: var(--rose);
+    }
+
+    /* Cheat Sheet Table */
+    .cheat-sheet-table-wrapper {
+      overflow-x: auto;
+      margin: 1.75rem 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .cheat-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    .cheat-table th {
+      background: var(--bg-surface-elevated);
+      padding: 0.9rem 1.2rem;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cheat-table td {
+      padding: 0.9rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .cheat-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .cheat-table tr:hover td {
+      background: var(--bg-surface-elevated);
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .status-badge.allowed {
+      background: var(--rose-subtle);
+      color: var(--rose);
+      border: 1px solid var(--rose);
+    }
+
+    .status-badge.prevented {
+      background: var(--teal-subtle);
+      color: var(--teal);
+      border: 1px solid var(--teal);
+    }
+
+    /* FAQ Accordion */
+    .faq-accordion {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 2rem 0;
+    }
+
+    .faq-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .faq-question {
+      padding: 1.2rem 1.5rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background-color 0.2s ease;
+    }
+
+    .faq-question:hover {
+      background: var(--bg-surface-elevated);
+    }
+
+    .faq-icon {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      color: var(--accent);
+      transition: transform 0.2s ease;
+    }
+
+    .faq-item.open .faq-icon {
+      transform: rotate(45deg);
+    }
+
+    .faq-answer {
+      padding: 0 1.5rem 1.2rem;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      display: none;
+      border-top: 1px solid var(--border);
+      padding-top: 1rem;
+    }
+
+    .faq-item.open .faq-answer {
+      display: block;
+    }
+
+    /* Footer */
+    .lesson-footer {
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-subtle);
+    }
+
+    @media (max-width: 768px) {
+      .hero-title { font-size: 2.2rem; }
+      .top-nav { padding: 0.75rem 1rem; }
+      .nav-links { display: none; }
+      .module-card { padding: 1.5rem; }
+      .page-container { padding: 1.5rem 1rem 4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="reading-progress"></div>
+
+  <!-- Sticky Header -->
+  <nav class="top-nav">
+    <a href="#" class="nav-brand">
+      <span>Designing Data-Intensive Applications</span>
+      <span class="nav-badge">Chapter 07</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#module-1">ACID Realities</a></li>
+      <li><a href="#module-2">Weak Isolation</a></li>
+      <li><a href="#module-3">Snapshot & MVCC</a></li>
+      <li><a href="#module-4">Write Skew</a></li>
+      <li><a href="#module-5">Serializability</a></li>
+      <li><a href="#module-6">SSI & Distributed</a></li>
+      <li><a href="#cheat-sheet">Cheat Sheet</a></li>
+      <li><a href="#quiz">Quiz</a></li>
+    </ul>
+    <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Dark/Light Mode">
+      <span id="theme-icon">☀️</span> <span id="theme-text">Light</span>
+    </button>
+  </nav>
+
+  <div class="page-container">
+    <!-- Hero Section -->
+    <header class="hero-section">
+      <div class="hero-meta">
+        <span class="meta-tag">MARTIN KLEPPMANN • CHAPTER 07</span>
+        <span class="meta-tag">CONCURRENCY & ISOLATION</span>
+        <span class="meta-tag">POSTGRESQL & MYSQL INTERNALS</span>
+      </div>
+      <h1 class="hero-title">Transactions, ACID & Isolation Levels</h1>
+      <p class="hero-subtitle">
+        In distributed systems and relational engines, hardware crashes, network partitions, race conditions, and out-of-order writes are unavoidable realities. Transactions are an abstraction mechanism designed to simplify application development by grouping multiple reads and writes into a single logical execution unit with strict safety guarantees.
+      </p>
+
+      <div class="hero-takeaways">
+        <div class="takeaway-card">
+          <div class="takeaway-icon">🛡️</div>
+          <div class="takeaway-title">ACID vs. Marketing Slop</div>
+          <div class="takeaway-desc">Atomicity is about abortability; Consistency is an application invariant; Isolation simulates serial execution; Durability guarantees persistence against crashes.</div>
+        </div>
+        <div class="takeaway-card">
+          <div class="takeaway-icon">📸</div>
+          <div class="takeaway-title">MVCC Storage Engines</div>
+          <div class="takeaway-desc">Snapshot isolation allows readers to never block writers and writers to never block readers using PostgreSQL <code>xmin/xmax</code> tuple chains or MySQL InnoDB Undo Logs.</div>
+        </div>
+        <div class="takeaway-card">
+          <div class="takeaway-icon">🩺</div>
+          <div class="takeaway-title">The Danger of Write Skew</div>
+          <div class="takeaway-desc">Write skew occurs when concurrent transactions read overlapping rows, check a business premise, and write to disjoint rows, violating global invariants without triggering raw dirty write locks.</div>
+        </div>
+        <div class="takeaway-card">
+          <div class="takeaway-icon">⚡</div>
+          <div class="takeaway-title">Serializable Snapshot Isolation</div>
+          <div class="takeaway-desc">SSI provides true mathematical serializability with the optimistic performance of snapshot isolation by dynamically tracking dependency cycles and aborting conflicts.</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Master Architecture Knowledge Map -->
+    <section class="knowledge-map-card">
+      <span class="section-eyebrow">System Topology</span>
+      <h2 class="section-heading">Transaction Processing & Concurrency Pipeline</h2>
+      <p class="prose-block" style="margin-bottom:12px; font-size: 0.92rem; color: var(--text-muted);">
+        An architectural schematic tracing an incoming multi-statement transaction through connection pooling, AST query planning, concurrency lock managers, multi-version tuple storage, and Write-Ahead Log (WAL) durability.
+      </p>
+
+      <!-- SVG Diagram 1: Master Transaction Pipeline Map -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 960 420" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Transaction Processing Architecture Map">
+          <title>Transaction Processing & Concurrency Control Engine Map</title>
+          <rect width="960" height="420" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Client Tier Box -->
+          <g transform="translate(24, 30)">
+            <rect width="170" height="360" rx="6" fill="#1a202c" stroke="#38455e" stroke-width="1" stroke-dasharray="4,4"/>
+            <text x="85" y="24" fill="#8d9bb0" font-family="'Geist Mono', monospace" font-size="9" font-weight="700" letter-spacing="0.08em" text-anchor="middle">CLIENT & CONNECTION POOL</text>
+            
+            <rect x="15" y="44" width="140" height="52" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+            <text x="85" y="66" fill="#f0f4fc" font-size="10" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Client App / ORM</text>
+            <text x="85" y="82" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">BEGIN ... COMMIT</text>
+
+            <rect x="15" y="112" width="140" height="52" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+            <text x="85" y="134" fill="#f0f4fc" font-size="10" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">PgBouncer / Pooler</text>
+            <text x="85" y="150" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Session / Tx Pooling</text>
+
+            <rect x="15" y="180" width="140" height="190" rx="4" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+            <text x="85" y="202" fill="#eb6c36" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Transaction Boundaries</text>
+            <text x="25" y="226" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">1. Explicit BEGIN</text>
+            <text x="25" y="246" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">2. DML Operations</text>
+            <text x="25" y="266" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">3. Unique Validations</text>
+            <text x="25" y="286" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">4. Explicit Locks</text>
+            <text x="25" y="306" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">5. COMMIT / ROLLBACK</text>
+            <text x="85" y="345" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">✓ All-or-Nothing</text>
+          </g>
+
+          <!-- Transaction Engine Box -->
+          <g transform="translate(216, 30)">
+            <rect width="250" height="360" rx="6" fill="#1a202c" stroke="#eb6c36" stroke-width="1.2"/>
+            <rect x="14" y="12" width="140" height="18" rx="3" fill="#eb6c36" fill-opacity="0.15" stroke="#eb6c36" stroke-width="0.8"/>
+            <text x="84" y="24" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">TRANSACTION MANAGER</text>
+
+            <rect x="15" y="44" width="220" height="54" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+            <text x="125" y="66" fill="#f0f4fc" font-size="10" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tx ID Allocator & Snapshot</text>
+            <text x="125" y="84" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Monotonic counter: txid_current()</text>
+
+            <rect x="15" y="110" width="220" height="74" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1.2"/>
+            <text x="125" y="132" fill="#eb6c36" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Lock Manager & Deadlock Detector</text>
+            <text x="125" y="150" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Row Exclusive • Shared • Predicate</text>
+            <text x="125" y="168" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Wait-For Graph Cycle Detection</text>
+
+            <rect x="15" y="196" width="220" height="74" rx="4" fill="#12161f" stroke="#8b5cf6" stroke-width="1.2"/>
+            <text x="125" y="218" fill="#8b5cf6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">SSI Graph Tracker (Optimistic)</text>
+            <text x="125" y="236" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">SIREAD Locks • rw-antidependencies</text>
+            <text x="125" y="254" fill="#8b5cf6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Abort on dangerous cycle commit</text>
+
+            <rect x="15" y="282" width="220" height="88" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+            <text x="125" y="302" fill="#10b981" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Isolation Level Controller</text>
+            <text x="25" y="322" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Read Uncommitted (Dirty reads allowed)</text>
+            <text x="25" y="336" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Read Committed (Statement snapshots)</text>
+            <text x="25" y="350" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Repeatable Read (Tx snapshot / MVCC)</text>
+            <text x="25" y="364" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Serializable (2PL / SSI / Serial)</text>
+          </g>
+
+          <!-- Storage Engine Tier -->
+          <g transform="translate(488, 30)">
+            <rect width="226" height="360" rx="6" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+            <rect x="14" y="12" width="130" height="18" rx="3" fill="#3b82f6" fill-opacity="0.15" stroke="#3b82f6" stroke-width="0.8"/>
+            <text x="79" y="24" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">MVCC STORAGE ENGINES</text>
+
+            <!-- Postgres Heap -->
+            <rect x="14" y="44" width="198" height="145" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1"/>
+            <text x="113" y="66" fill="#3b82f6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">PostgreSQL Tuple Heap</text>
+            <text x="24" y="86" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace">xmin: Creating TxID</text>
+            <text x="24" y="102" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace">xmax: Deleting/Updating TxID</text>
+            <text x="24" y="118" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Updates append new tuple versions</text>
+            <rect x="24" y="128" width="178" height="48" rx="3" fill="#1a202c" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="113" y="146" fill="#f43f5e" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Auto-Vacuum Engine</text>
+            <text x="113" y="162" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Cleans dead tuples & table bloat</text>
+
+            <!-- MySQL InnoDB -->
+            <rect x="14" y="200" width="198" height="170" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+            <text x="113" y="222" fill="#10b981" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">MySQL InnoDB Clustered B-Tree</text>
+            <text x="24" y="242" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace">In-Place B-Tree Page Updates</text>
+            <text x="24" y="258" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Avoids Heap Table Bloat</text>
+            <rect x="24" y="268" width="178" height="88" rx="3" fill="#1a202c" stroke="#10b981" stroke-width="0.8"/>
+            <text x="113" y="288" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Undo Log Segments</text>
+            <text x="113" y="304" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Rollback Pointers (DB_ROLL_PTR)</text>
+            <text x="113" y="320" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Reconstructs historical versions</text>
+            <text x="113" y="338" fill="#10b981" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Purged automatically on tx close</text>
+          </g>
+
+          <!-- Durability / WAL Tier -->
+          <g transform="translate(736, 30)">
+            <rect width="200" height="360" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+            <rect x="14" y="12" width="110" height="18" rx="3" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+            <text x="69" y="24" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">DURABILITY (WAL)</text>
+
+            <rect x="14" y="44" width="172" height="120" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+            <text x="100" y="66" fill="#10b981" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Write-Ahead Log (WAL)</text>
+            <text x="24" y="86" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace">Sequential append-only</text>
+            <text x="24" y="102" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace">Flush on commit (fsync)</text>
+            <text x="24" y="118" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">ARIES recovery protocol</text>
+            <text x="24" y="134" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Crash-safe replay</text>
+            <text x="100" y="152" fill="#10b981" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">✓ Durability Guarantee</text>
+
+            <rect x="14" y="180" width="172" height="190" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+            <text x="100" y="202" fill="#3b82f6" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Multi-Node Replication</text>
+            <text x="24" y="224" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Synchronous Primary</text>
+            <text x="24" y="240" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Quorum replication</text>
+            <text x="24" y="256" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Semi-sync MySQL</text>
+            <text x="24" y="272" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Multi-region copies</text>
+            <rect x="22" y="292" width="156" height="64" rx="3" fill="#1a202c" stroke="#eb6c36" stroke-width="0.8"/>
+            <text x="100" y="312" fill="#eb6c36" font-size="7.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Distributed ACID</text>
+            <text x="100" y="328" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Two-Phase Commit (2PC)</text>
+            <text x="100" y="342" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Raft / Paxos consensus</text>
+          </g>
+
+          <!-- Connectors between Tiers -->
+          <path d="M 194 70 L 216 70" stroke="#3b82f6" stroke-width="1.5"/>
+          <polygon points="214,67 220,70 214,73" fill="#3b82f6"/>
+
+          <path d="M 466 116 L 488 116" stroke="#eb6c36" stroke-width="1.5"/>
+          <polygon points="486,113 492,116 486,119" fill="#eb6c36"/>
+
+          <path d="M 714 104 L 736 104" stroke="#10b981" stroke-width="1.5"/>
+          <polygon points="734,101 740,104 734,107" fill="#10b981"/>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         MODULE 1: ACID Realities & Marketing Slop
+         ========================================== -->
+    <article class="module-card" id="module-1">
+      <header class="module-header">
+        <span class="module-num">Module 01</span>
+        <h2 class="module-heading">The Foundations of ACID: Deconstructing the Myth</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          In database theory and software engineering folklore, <strong>ACID</strong> (Atomicity, Consistency, Isolation, Durability) is frequently invoked as a golden stamp of absolute transactional safety. Coined in 1983 by Theo Härder and Andreas Reuter building on Jim Gray’s seminal 1970s transaction research, ACID was designed to establish a precise vocabulary for fault-tolerance in data management systems.
+        </p>
+        <p>
+          However, in commercial database marketing, ACID has degraded into a vague catch-all buzzword. Different vendors define and implement ACID properties in wildly divergent ways. To build resilient applications, engineers must deconstruct each letter of ACID and understand what the database engine guarantees versus what remains the software developer’s responsibility:
+        </p>
+        <p>
+          <strong>Atomicity (Abortability):</strong> Atomicity does <em>not</em> mean concurrency safety (which is the job of Isolation). Atomicity means <em>all-or-nothing execution with clean abortability</em>. If a transaction consists of multiple writes (e.g., updating a user’s balance, deducting inventory, and inserting an audit log), and a failure occurs halfway through—such as a network drop, a power loss, a disk quota exhaustion, or a unique constraint violation—the database discards or rolls back all modifications made by that transaction. The database never leaves the data in a half-finished state.
+        </p>
+        <p>
+          <strong>Consistency (Application Invariants):</strong> Unlike Atomicity, Isolation, and Durability—which are pure properties of the database engine—Consistency is fundamentally an <em>application-level invariant</em>. If your business rule states that "credits must equal debits" or "a bank balance cannot drop below zero", the database cannot inherently understand your application logic. The database provides tools (such as foreign key constraints and <code>UNIQUE</code> checks), but if the application writes malformed or illogical data, the database will faithfully store that bad data. Therefore, Consistency belongs to the application.
+        </p>
+        <p>
+          <strong>Isolation (Concurrency Control):</strong> Concurrently executing transactions must not interfere with or corrupt each other. The ultimate ideal of isolation is <em>Serializability</em>: the guarantee that even if thousands of transactions run concurrently on multi-core CPUs, the final database state is identical to what would have occurred if they ran one after the other in serial sequence.
+        </p>
+        <p>
+          <strong>Durability (Crash Resilience):</strong> Once a transaction successfully commits, its written data will never be lost, even if the database process crashes or hardware powers down immediately afterward. In a single-node database, durability is achieved via a Write-Ahead Log (WAL) flushed to non-volatile storage with <code>fsync</code>. In modern cloud databases, durability relies on cross-datacenter quorum replication.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Core Architectural Definitions</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>🛑</span> Abortability (Atomicity)</div>
+            <div class="def-desc">The ability of the database to discard all partial writes of a failed transaction, allowing the client to safely retry without leaving corrupt state.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>⚖️</span> Application Invariant (Consistency)</div>
+            <div class="def-desc">A business truth about the data (e.g. accounting balances) that must always hold true before and after a transaction commits.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>💾</span> Write-Ahead Log / WAL (Durability)</div>
+            <div class="def-desc">An append-only log on disk where modifications are written and fsynced before pages are altered in the buffer pool.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 2: Atomicity Abort & Recovery vs Partial State -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 300" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Atomicity and Abortability Mechanism">
+          <title>Diagram 01: Atomicity & Abortability vs Partial Failure</title>
+          <rect width="900" height="300" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Left Box: Non-Atomic Failure (Corrupted In-Between State) -->
+          <g transform="translate(24, 24)">
+            <rect width="410" height="252" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#f43f5e" fill-opacity="0.15" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">WITHOUT ATOMICITY (BROKEN)</text>
+
+            <text x="205" y="46" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Batch 10 Rows Insertion Fails at Row 6</text>
+
+            <!-- Row 1..5 Committed -->
+            <rect x="20" y="60" width="370" height="38" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+            <text x="35" y="84" fill="#10b981" font-size="9" font-family="'Geist Mono', monospace">Rows 1..5: Inserted successfully into table & indexes</text>
+
+            <!-- Row 6 Crash / Unique Constraint Violation -->
+            <rect x="20" y="106" width="370" height="46" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.5"/>
+            <text x="35" y="126" fill="#f43f5e" font-size="9" font-weight="700" font-family="'Geist Mono', monospace">💥 Row 6: Unique Constraint Crash / Network Drop</text>
+            <text x="35" y="142" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Partial state left orphaned in database heap</text>
+
+            <!-- Leftover State -->
+            <rect x="20" y="160" width="370" height="42" rx="4" fill="#12161f" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="35" y="178" fill="#f43f5e" font-size="8.5" font-weight="600" font-family="'Geist', sans-serif">Fatal: Client cannot safely retry (Duplicate rows error on retry!)</text>
+            <text x="35" y="192" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Half-written records permanently pollute production tables</text>
+
+            <rect x="12" y="212" width="386" height="26" rx="3" fill="#12161f" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="205" y="228" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">❌ Inconsistent State • Orphaned Records • Unsafe Retries</text>
+          </g>
+
+          <!-- Right Box: Atomic Transaction (Clean Rollback) -->
+          <g transform="translate(466, 24)">
+            <rect width="410" height="252" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">WITH ACID ATOMICITY (SAFE)</text>
+
+            <text x="205" y="46" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Automatic Transaction Rollback on Fault</text>
+
+            <!-- Execution Steps -->
+            <rect x="20" y="60" width="370" height="38" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1"/>
+            <text x="35" y="78" fill="#3b82f6" font-size="8.5" font-family="'Geist Mono', monospace">BEGIN TRANSACTION; -- TxID: 1042</text>
+            <text x="35" y="90" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Rows 1..5 inserted under uncommitted transaction visibility</text>
+
+            <!-- Fault Detected -->
+            <rect x="20" y="106" width="370" height="46" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1.2"/>
+            <text x="35" y="126" fill="#eb6c36" font-size="9" font-weight="700" font-family="'Geist Mono', monospace">⚡ Fault Detected at Row 6 -> Trigger ABORT</text>
+            <text x="35" y="142" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Storage engine rolls back Undo Log / marks tuples dead</text>
+
+            <!-- Clean Result -->
+            <rect x="20" y="160" width="370" height="42" rx="4" fill="#12161f" stroke="#10b981" stroke-width="0.8"/>
+            <text x="35" y="178" fill="#10b981" font-size="8.5" font-weight="600" font-family="'Geist', sans-serif">Database returns exactly to pre-transaction state</text>
+            <text x="35" y="192" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Application can safely retry entire batch from scratch</text>
+
+            <rect x="12" y="212" width="386" height="26" rx="3" fill="#12161f" stroke="#10b981" stroke-width="0.8"/>
+            <text x="205" y="228" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">✓ 100% Abortability • Zero Corruption • Safe Client Retries</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="steps-container">
+        <div class="step-node">
+          <div class="step-index-badge">1</div>
+          <div class="step-content-box">
+            <h4>Transaction Initiation & WAL Buffering</h4>
+            <p>The client issues <code>BEGIN</code>. As SQL statements execute, modifications are buffered in memory and recorded to the Write-Ahead Log buffer with the allocated transaction identifier (TxID).</p>
+          </div>
+        </div>
+        <div class="step-node">
+          <div class="step-index-badge">2</div>
+          <div class="step-content-box">
+            <h4>Constraint Validation & Fault Detection</h4>
+            <p>Before committing, the engine validates unique indexes, foreign keys, and column nullability. If any statement triggers an error, the database enters an error state and rejects further commands until rollback.</p>
+          </div>
+        </div>
+        <div class="step-node">
+          <div class="step-index-badge">3</div>
+          <div class="step-content-box">
+            <h4>Synchronous Fsync on Commit vs. Instant Undo</h4>
+            <p>On <code>COMMIT</code>, the WAL buffer is flushed to disk via <code>fsync()</code>. On failure or <code>ROLLBACK</code>, the engine rolls back in-flight changes using Undo logs (MySQL) or marks tuples as dead (Postgres).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">Bank Transfer Debit & Credit</h4>
+          <p class="example-body">Deducting $100 from Alice and adding $100 to Bob must execute in one atomic transaction. If the server crashes after deducting Alice, atomicity ensures Alice’s $100 is refunded on restart.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">Consistency Is Not a Database Guarantee</h4>
+          <p class="example-body">If your software accidentally transfers funds to the wrong user account number, the database will happily commit the transaction. The database guarantees ACID atomicity and isolation, not your business logic.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">Multi-Datacenter Durability Mirage</h4>
+          <p class="example-body">A single-node database that completes <code>fsync</code> is durable against OS crashes, but if a fire destroys the datacenter, data is lost. True durability in 2026 requires multi-region synchronous replication.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">Atomicity is like a contract signing ceremony: either both parties sign every page and exchange keys, or someone tears up the paperwork and no property changes hands.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Confusing Atomicity with Thread Isolation. Atomicity only protects against crashes and partial write failures; it does NOT prevent two concurrent threads from reading and overwriting each other’s data.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">Databases that promise "ACID" without specifying their isolation level often default to weak isolation (Read Committed), leaving systems vulnerable to subtle concurrency anomalies.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">Because atomicity only solves partial crash failures, we must explore Isolation levels (Module 2) to control how concurrent transactions see each other’s writes.</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> Atomicity = Abortability (clean rollback on crash); Consistency = Invariant preservation (your code); Isolation = Concurrency control; Durability = Non-volatile persistence.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 2: Weak Isolation & Anomalies
+         ========================================== -->
+    <article class="module-card" id="module-2">
+      <header class="module-header">
+        <span class="module-num">Module 02</span>
+        <h2 class="module-heading">Weak Isolation Levels & The Concurrency Anomaly Hierarchy</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          If transactions could only be executed one after another in strict serial order, database concurrency bugs would not exist. However, true serial execution destroys performance: throughput plummets and latency skyrockets on multi-core database servers handling thousands of simultaneous connections.
+        </p>
+        <p>
+          To maintain high transaction throughput, relational databases implement <strong>Weak (Non-Serializable) Isolation Levels</strong>. Instead of guaranteeing absolute isolation, weak isolation levels trade specific concurrency safety guarantees for raw speed. Unfortunately, weak isolation introduces subtle, notoriously difficult-to-debug concurrency phenomena (race conditions):
+        </p>
+        <p>
+          <strong>1. Dirty Reads:</strong> A transaction reads data written by another concurrent transaction that has not yet committed. If Transaction A updates a row from $100 to $200, and Transaction B reads $200 before Transaction A aborts and rolls back to $100, Transaction B made decisions based on data that technically never existed.
+        </p>
+        <p>
+          <strong>2. Dirty Writes:</strong> A transaction overwrites uncommitted data that was written by another concurrent transaction that has not yet committed. If Transaction A updates the buyer of a car and Transaction B concurrently updates the recipient of the invoice on the same car, dirty writes can cause the invoice to go to Transaction B’s user while the car is transferred to Transaction A’s user.
+        </p>
+        <p>
+          <strong>3. Non-Repeatable Read (Read Skew):</strong> A client reads the same record twice during a single transaction and sees different values because another transaction committed an update in between. The classic example is a bank transfer: Alice has two accounts with $500 each ($1000 total). She checks Account 1 (sees $500). Concurrently, Bob transfers $100 from Account 2 to Account 1 and commits. Alice then checks Account 2 (sees $400). In Alice’s view, her total balance is $900—a temporary illusion of lost money called <em>Read Skew</em>.
+        </p>
+        <p>
+          <strong>Read Committed</strong> is the industry’s most widely used baseline isolation level (the default in PostgreSQL, Oracle, and SQL Server). It completely eliminates Dirty Reads (by only returning committed data) and Dirty Writes (by acquiring row-level write locks until commit). However, Read Committed does <em>not</em> prevent Read Skew, Lost Updates, or Write Skew.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Core Concurrency Anomalies</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>👻</span> Dirty Read</div>
+            <div class="def-desc">Reading uncommitted modifications made by another in-flight transaction that might later be aborted.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>✍️</span> Dirty Write</div>
+            <div class="def-desc">Overwriting uncommitted data written by another active transaction, corrupting multi-table integrity.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>📉</span> Read Skew (Non-Repeatable Read)</div>
+            <div class="def-desc">Seeing different snapshots of the database at different points in time during a single transaction.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 3: Read Skew Interleaving Race Condition -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Read Skew Concurrency Anomaly Timeline">
+          <title>Diagram 02: Read Skew Anomaly during Bank Balance Transfer</title>
+          <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Alice Timeline -->
+          <g transform="translate(24, 24)">
+            <rect width="410" height="272" rx="6" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+            <text x="205" y="28" fill="#3b82f6" font-size="12" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Transaction 1: Alice (View Balance)</text>
+
+            <!-- Step 1: Read Account 1 ($500) -->
+            <g transform="translate(20, 48)">
+              <rect width="370" height="42" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+              <text x="16" y="20" fill="#f0f4fc" font-size="9" font-family="'Geist Mono', monospace">T1: SELECT balance FROM accounts WHERE id=1;</text>
+              <text x="16" y="34" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">Result: $500 (Account 1)</text>
+            </g>
+
+            <!-- Idle / Waiting for next query -->
+            <path d="M 205 92 L 205 148" stroke="#38455e" stroke-width="1.5" stroke-dasharray="4,4"/>
+            <rect x="145" y="112" width="120" height="18" rx="2" fill="#12161f"/>
+            <text x="205" y="124" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Delay between queries</text>
+
+            <!-- Step 3: Read Account 2 ($400) -->
+            <g transform="translate(20, 150)">
+              <rect width="370" height="42" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+              <text x="16" y="20" fill="#f0f4fc" font-size="9" font-family="'Geist Mono', monospace">T1: SELECT balance FROM accounts WHERE id=2;</text>
+              <text x="16" y="34" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">Result: $400 (Account 2 after T2 commit!)</text>
+            </g>
+
+            <!-- Anomaly Result -->
+            <rect x="20" y="202" width="370" height="56" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+            <text x="205" y="222" fill="#f43f5e" font-size="9.5" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Read Skew: Total Observed Balance = $900</text>
+            <text x="205" y="238" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Actual true total is $1000 ($600 + $400). Alice sees phantom lost $100!</text>
+            <text x="205" y="250" fill="#eb6c36" font-size="7.5" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">Occurs under standard READ COMMITTED isolation.</text>
+          </g>
+
+          <!-- Bob Timeline -->
+          <g transform="translate(466, 24)">
+            <rect width="410" height="272" rx="6" fill="#1a202c" stroke="#eb6c36" stroke-width="1.2"/>
+            <text x="205" y="28" fill="#eb6c36" font-size="12" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Transaction 2: Bob ($100 Transfer)</text>
+
+            <!-- Step 2: Bob transfers $100 from Acct 2 to Acct 1 -->
+            <g transform="translate(20, 78)">
+              <rect width="370" height="88" rx="4" fill="#12161f" stroke="#eb6c36" stroke-width="1"/>
+              <text x="16" y="20" fill="#f0f4fc" font-size="8.5" font-family="'Geist Mono', monospace">T2: BEGIN;</text>
+              <text x="16" y="36" fill="#eb6c36" font-size="8.5" font-family="'Geist Mono', monospace">T2: UPDATE accounts SET balance = 600 WHERE id=1;</text>
+              <text x="16" y="52" fill="#eb6c36" font-size="8.5" font-family="'Geist Mono', monospace">T2: UPDATE accounts SET balance = 400 WHERE id=2;</text>
+              <text x="16" y="68" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">T2: COMMIT; -- Instant flush</text>
+            </g>
+
+            <rect x="20" y="180" width="370" height="78" rx="4" fill="#12161f" stroke="#10b981" stroke-width="0.8"/>
+            <text x="205" y="202" fill="#10b981" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">How Snapshot Isolation Fixes This</text>
+            <text x="30" y="222" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">• T1 takes snapshot at start (TxID 100)</text>
+            <text x="30" y="236" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">• T2 commits at TxID 101</text>
+            <text x="30" y="250" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace">• T1 only reads tuples created before TxID 100 ($500 + $500 = $1000)</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Interactive Widget 01: Isolation & Anomaly Matrix Explorer -->
+      <div class="interactive-card">
+        <div class="interactive-header">
+          <h3 class="interactive-title">Live Simulator: Concurrency Anomaly & Isolation Matrix</h3>
+          <span class="interactive-badge">Interactive Widget 01</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+          Select an isolation level to see which concurrency anomalies are mathematically prevented versus which dangerous race conditions can still execute in production.
+        </p>
+        <div class="control-row">
+          <div class="control-group">
+            <label class="control-label" for="sim-isolation-level">Select Database Isolation Level:</label>
+            <select id="sim-isolation-level" class="text-input-field">
+              <option value="read_uncommitted">Read Uncommitted (Weakest / Raw Performance)</option>
+              <option value="read_committed" selected>Read Committed (PostgreSQL / Oracle Default)</option>
+              <option value="repeatable_read">Repeatable Read / Snapshot Isolation (MySQL InnoDB Default)</option>
+              <option value="serializable">Serializable (Strongest / 2PL / SSI)</option>
+            </select>
+          </div>
+          <button class="sim-btn primary" id="btn-eval-isolation" style="align-self:flex-end;">Evaluate Safety Guarantees</button>
+        </div>
+        <div class="sim-display-box" id="sim-isolation-output">
+          Select an isolation level to evaluate protected anomalies and risk vectors...
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">Dirty Read in Analytics Query</h4>
+          <p class="example-body">Running an hourly sales report under Read Uncommitted reads uncommitted Black Friday checkout transactions that fail credit card verification, producing inflated gross revenue numbers.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">Read Committed Reads Committed Data Multiple Times</h4>
+          <p class="example-body">In Read Committed, each query in a transaction takes a fresh snapshot. Two identical <code>SELECT</code> queries 100ms apart inside the same transaction can return different rows if another thread commits.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">Database Backup Corruption under Read Committed</h4>
+          <p class="example-body">Taking a 4-hour <code>pg_dump</code> database backup under Read Committed produces an inconsistent backup image where some tables reflect 8:00 AM state and others reflect 12:00 PM state.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">Read Committed is like reading live newspaper ticker updates: each sentence you read is verified, but the world changes between the first paragraph and the last paragraph.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Believing that "Repeatable Read" has the exact same definition in all databases. In PostgreSQL, Repeatable Read is actually Snapshot Isolation; in Oracle, it does not exist; in MySQL, it allows some phantoms without locking.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">Most production outages attributed to "database bugs" are actually race conditions permissible under the database’s default weak isolation level.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">To prevent Read Skew and take consistent backups, modern engines use Snapshot Isolation and Multi-Version Concurrency Control (Module 3).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> Read Committed prevents dirty reads and dirty writes; Snapshot Isolation / Repeatable Read prevents read skew by freezing the database view at transaction start.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 3: Snapshot Isolation & MVCC Internals
+         ========================================== -->
+    <article class="module-card" id="module-3">
+      <header class="module-header">
+        <span class="module-num">Module 03</span>
+        <h2 class="module-heading">Snapshot Isolation & MVCC Internals: PostgreSQL vs. MySQL InnoDB</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          The definitive solution to Read Skew without sacrificing read throughput is <strong>Snapshot Isolation</strong> (commonly called Repeatable Read). Under snapshot isolation, each transaction reads from a consistent point-in-time snapshot of the database taken at the exact moment the transaction began.
+        </p>
+        <p>
+          The core design principle of snapshot isolation is: <strong>Readers never block writers, and writers never block readers.</strong> A long-running analytics query or database backup can execute for hours without taking read locks, while concurrent write transactions continue modifying the database at full speed.
+        </p>
+        <p>
+          To implement snapshot isolation, storage engines use <strong>Multi-Version Concurrency Control (MVCC)</strong>. Instead of overwriting existing table rows in-place, the database maintains multiple physical versions of each row simultaneously. Each version is stamped with metadata identifying the creating transaction ID and the deleting/updating transaction ID:
+        </p>
+        <p>
+          <strong>PostgreSQL MVCC (Append-Only Tuples & Heap Vacuuming):</strong> In PostgreSQL, every row (tuple) in the heap table contains hidden header columns: <code>xmin</code> (the transaction ID of the transaction that inserted the row) and <code>xmax</code> (the transaction ID of the transaction that deleted or updated the row; 0 if still active). When an <code>UPDATE</code> runs, PostgreSQL does not modify the old row; it writes a brand-new tuple into the heap and sets <code>xmax</code> on the old tuple. 
+        </p>
+        <p>
+          The visibility rule is straightforward: A transaction with ID $T$ can see a tuple if $T \ge \text{xmin}$, the creating transaction was committed, and either $\text{xmax} = 0$ or $\text{xmax} > T$ (meaning the row was deleted after $T$ began). Over time, old row versions that are no longer visible to any running transaction become "dead tuples". PostgreSQL uses a background <strong>Auto-Vacuum</strong> daemon to scan pages, mark dead tuple slots as reusable, and prevent severe <strong>Table Bloat</strong>.
+        </p>
+        <p>
+          <strong>MySQL InnoDB MVCC (In-Place Clustered Index & Undo Logs):</strong> MySQL InnoDB takes a radically different architectural approach. InnoDB stores table data directly inside a clustered B-Tree index organized by primary key. When an <code>UPDATE</code> occurs, InnoDB modifies the row <em>in-place</em> inside the B-Tree page to maximize cache locality and eliminate heap bloat. 
+        </p>
+        <p>
+          To provide snapshot views for older running transactions, InnoDB records the before-image of the modified row into an <strong>Undo Log</strong> segment on disk and attaches a 7-byte rollback pointer (<code>DB_ROLL_PTR</code>) to the row. When an older transaction queries the row, InnoDB follows the rollback pointer chain back through the Undo Log to reconstruct the historical row snapshot on the fly in memory. Once all older transactions commit, a background purge thread truncates and reclaims the undo log.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Core MVCC Storage Primitives</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>🏷️</span> xmin / xmax (Postgres)</div>
+            <div class="def-desc">Header fields on heap tuples tracking creating (xmin) and deleting (xmax) transaction IDs for snapshot visibility calculations.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>📜</span> Undo Log (InnoDB)</div>
+            <div class="def-desc">A rollback data structure storing delta chains of historical row values, enabling in-place updates in clustered B-Trees.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🧹</span> Vacuum vs. Purge Thread</div>
+            <div class="def-desc">Postgres Auto-Vacuum reclaims heap dead tuple slots; MySQL InnoDB Purge thread trims completed Undo Log segments.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 4: PostgreSQL Heap vs MySQL Undo Log Comparison -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 340" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="PostgreSQL Heap MVCC vs MySQL InnoDB Undo Log">
+          <title>Diagram 03: PostgreSQL Append-Only Heap vs MySQL InnoDB In-Place + Undo Log</title>
+          <rect width="900" height="340" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Left Box: PostgreSQL Heap Multi-Version Storage -->
+          <g transform="translate(24, 20)">
+            <rect width="410" height="300" rx="6" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#3b82f6" fill-opacity="0.15" stroke="#3b82f6" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">POSTGRESQL TUPLE HEAP</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Append-Only Tuples with xmin/xmax</text>
+
+            <!-- Tuple 1 (Old Version) -->
+            <g transform="translate(18, 56)">
+              <rect width="374" height="54" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+              <text x="14" y="20" fill="#f0f4fc" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">Tuple 1: id=1 | name='robot' | game_id=222</text>
+              <text x="14" y="36" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace">xmin: 100 (Created)</text>
+              <text x="140" y="36" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace">xmax: 200 (Updated)</text>
+              <text x="280" y="36" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">[Dead Tuple Slot]</text>
+            </g>
+
+            <!-- Pointer to next version -->
+            <path d="M 205 110 L 205 124" stroke="#3b82f6" stroke-width="1.5"/>
+            <polygon points="201,122 205,128 209,122" fill="#3b82f6"/>
+
+            <!-- Tuple 2 (Current Version) -->
+            <g transform="translate(18, 128)">
+              <rect width="374" height="54" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.2"/>
+              <text x="14" y="20" fill="#f0f4fc" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">Tuple 2: id=1 | name='monkey' | game_id=100</text>
+              <text x="14" y="36" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace">xmin: 200 (Created)</text>
+              <text x="140" y="36" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">xmax: 0 (Active)</text>
+              <text x="280" y="36" fill="#10b981" font-size="7.5" font-weight="700" font-family="'Geist Mono', monospace">[Live Tuple]</text>
+            </g>
+
+            <!-- Auto-Vacuum Warning -->
+            <rect x="18" y="196" width="374" height="88" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1"/>
+            <text x="187" y="216" fill="#eb6c36" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Postgres Vacuuming & Table Bloat</text>
+            <text x="28" y="234" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Dead tuples remain on disk until VACUUM runs</text>
+            <text x="28" y="248" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• High-write workloads can create massive table bloat</text>
+            <text x="28" y="262" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Long-running tx freezes vacuum cleanup horizon</text>
+            <text x="187" y="278" fill="#10b981" font-size="7.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">✓ Fast Append Writes • Overhead in Vacuum Maintenance</text>
+          </g>
+
+          <!-- Right Box: MySQL InnoDB Clustered B-Tree + Undo Log -->
+          <g transform="translate(466, 20)">
+            <rect width="410" height="300" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">MYSQL INNODB B-TREE</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">In-Place B-Tree Update with Undo Log Delta</text>
+
+            <!-- Clustered Index Page -->
+            <g transform="translate(18, 56)">
+              <rect width="374" height="60" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.2"/>
+              <text x="14" y="20" fill="#f0f4fc" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">Clustered Leaf Page: id=1 | name='monkey' | desc='bananas'</text>
+              <text x="14" y="36" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace">DB_TRX_ID: 300</text>
+              <text x="140" y="36" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace">DB_ROLL_PTR: -> Undo Log #4912</text>
+              <text x="14" y="50" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">In-Place Updated • Zero heap page fragmentation</text>
+            </g>
+
+            <!-- Pointer to Undo Log -->
+            <path d="M 205 116 L 205 132" stroke="#eb6c36" stroke-width="1.5"/>
+            <polygon points="201,130 205,136 209,130" fill="#eb6c36"/>
+
+            <!-- Undo Log Structure -->
+            <g transform="translate(18, 136)">
+              <rect width="374" height="74" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1"/>
+              <text x="187" y="18" fill="#eb6c36" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Undo Log Rollback Segment (On Disk)</text>
+              <text x="14" y="34" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">Undo Rec 1 (Tx 300): desc='bot' -> rollback ptr -> Rec 2</text>
+              <text x="14" y="48" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">Undo Rec 2 (Tx 200): name='robot' -> origin record</text>
+              <text x="14" y="64" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace">TxID 150 reads historical view by executing undo deltas</text>
+            </g>
+
+            <!-- Undo Purge Advantage -->
+            <rect x="18" y="222" width="374" height="62" rx="4" fill="#12161f" stroke="#10b981" stroke-width="0.8"/>
+            <text x="187" y="240" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Why InnoDB Avoids Postgres-Style Table Bloat</text>
+            <text x="28" y="256" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Clustered index stays compact; disk space does not balloon</text>
+            <text x="28" y="270" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Purge thread truncates undo logs without table rewrites</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Interactive Widget 02: MVCC Visibility Calculator -->
+      <div class="interactive-card">
+        <div class="interactive-header">
+          <h3 class="interactive-title">Live Simulator: MVCC Snapshot Visibility Engine</h3>
+          <span class="interactive-badge">Interactive Widget 02</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+          Set your transaction ID and inspect multiple tuple versions to observe how PostgreSQL <code>xmin/xmax</code> visibility rules determine which row version is returned.
+        </p>
+        <div class="control-row">
+          <div class="control-group">
+            <label class="control-label" for="sim-tx-id">Your Transaction ID (TxID):</label>
+            <input type="number" id="sim-tx-id" class="text-input-field" value="150" min="50" max="500" step="10">
+          </div>
+          <div class="control-group">
+            <label class="control-label" for="sim-row-action">Simulate Concurrent Action:</label>
+            <select id="sim-row-action" class="text-input-field">
+              <option value="none">Baseline (No concurrent write)</option>
+              <option value="update_200">Tx 200 updates row (Committed)</option>
+              <option value="update_300">Tx 300 updates row (Committed)</option>
+              <option value="uncommitted_120">Tx 120 updates row (In-Flight / Uncommitted)</option>
+            </select>
+          </div>
+          <button class="sim-btn primary" id="btn-run-mvcc" style="align-self:flex-end;">Calculate Visible Snapshot</button>
+        </div>
+        <div class="sim-display-box" id="sim-mvcc-output">
+          Click Calculate to evaluate tuple visibility against xmin/xmax thresholds...
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">Consistent pg_dump Backup</h4>
+          <p class="example-body">A 500GB database backup running under Snapshot Isolation captures a frozen, 100% consistent state of all tables as of 02:00:00 AM, even as 10,000 writes/sec continue on the live database.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">The Danger of Long-Running Transactions</h4>
+          <p class="example-body">Leaving an idle <code>psql</code> terminal open in a transaction (<code>BEGIN</code> without <code>COMMIT</code>) holds the global vacuum horizon back, preventing Postgres from cleaning dead tuples across the entire database.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">MySQL Undo Log Exhaustion</h4>
+          <p class="example-body">A 3-hour analytical report on MySQL prevents the purge thread from freeing undo logs. If millions of updates occur, the undo tablespace can expand to hundreds of gigabytes, consuming disk storage.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">MVCC is like a digital camera that takes a photograph of the entire city at 9:00 AM. Even if buildings are renovated at 9:15 AM, your photograph remains completely unchanged.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Assuming that snapshot isolation makes writes completely independent. If two transactions attempt to update the same row under snapshot isolation, the second transaction is blocked until the first commits or aborts.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">Postgres and MySQL achieved different architectural equilibria: Postgres has faster write append throughput but requires aggressive autovacuum tuning; MySQL avoids bloat but adds undo log overhead.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">While Snapshot Isolation guarantees consistent reads, it does NOT prevent Lost Updates or Write Skew (Module 4).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> MVCC rule: Readers never block writers, writers never block readers. Visibility is calculated by comparing your TxID against row creation/deletion stamps.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 4: Lost Updates & Write Skew
+         ========================================== -->
+    <article class="module-card" id="module-4">
+      <header class="module-header">
+        <span class="module-num">Module 04</span>
+        <h2 class="module-heading">Preventing Lost Updates, Write Skew & The Phantom Menace</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          While Snapshot Isolation provides clean, repeatable reads, it does not solve all concurrency conflicts when multiple transactions write to the database concurrently. The two most infamous write concurrency hazards are <strong>Lost Updates</strong> and <strong>Write Skew</strong>.
+        </p>
+        <p>
+          <strong>The Lost Update Hazard:</strong> A lost update occurs during a read-modify-write cycle. If two transactions concurrently read value $V = 42$, compute $V + 1$, and write $43$ back to the database, the second write silently overwrites the first. One increment is permanently lost.
+        </p>
+        <p>
+          Modern applications prevent lost updates using several battle-tested patterns:
+        </p>
+        <ul style="margin-left:1.5rem; margin-bottom:1rem; color:var(--text-muted); line-height:1.7;">
+          <li><strong>Atomic Update Operations:</strong> <code>UPDATE counters SET value = value + 1 WHERE id = 42;</code> (eliminates the client-side read-modify-write cycle by acquiring a row lock in the engine).</li>
+          <li><strong>Explicit Locking:</strong> <code>SELECT * FROM accounts WHERE id = 42 FOR UPDATE;</code> (forces concurrent transactions to queue until the first transaction commits).</li>
+          <li><strong>Optimistic Compare-and-Set:</strong> <code>UPDATE wiki SET text = 'new' WHERE id = 1 AND version = 5;</code> (if another editor bumped version to 6, the update matches 0 rows and the app retries).</li>
+        </ul>
+        <p>
+          <strong>Write Skew & Phantoms:</strong> Write skew is a generalized, subtle manifestation of race conditions that occurs when two transactions read overlapping rows, verify a business rule, and then update <em>disjoint</em> rows. Because they modify different records, raw row-level write locks do not conflict, allowing both transactions to commit and violate the global invariant!
+        </p>
+        <p>
+          The classic example is the <strong>Doctor On-Call Shift System</strong>. The hospital policy mandates that at least one doctor must remain on call at all times. Currently, Alice and Bob are both on call. Alice feels sick and requests leave; her transaction checks <code>SELECT count(*) FROM doctors WHERE on_call = true</code> (sees 2), and updates Alice to <code>on_call = false</code>. Concurrently, Bob also feels sick; his transaction checks <code>SELECT count(*)</code> (sees 2), and updates Bob to <code>on_call = false</code>. Both transactions commit. Now <strong>zero doctors are on call</strong>!
+        </p>
+        <p>
+          Write skew occurs because a write in one transaction changes the premise of a search query in another transaction. This phenomenon is known as a <strong>Phantom</strong> (a write in one transaction changes the search result set of another transaction). Mitigating phantoms requires either Materializing Conflicts (creating lock rows), Index-Range Locks, or true <strong>Serializable Isolation</strong>.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Write Concurrency Primitives</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>🔄</span> Lost Update</div>
+            <div class="def-desc">Two concurrent read-modify-write cycles where the second write clobbers the first without incorporating its changes.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🩺</span> Write Skew</div>
+            <div class="def-desc">Concurrent transactions reading common state and updating disjoint rows, breaking a multi-record invariant.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>👻</span> Phantom Read</div>
+            <div class="def-desc">A write in one transaction inserting or altering rows that match the predicate query of a concurrent transaction.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 5: Doctor On-Call Write Skew Sequence -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Doctor On-Call Write Skew Sequence Diagram">
+          <title>Diagram 04: The Doctor On-Call Write Skew & Phantom Race Condition</title>
+          <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Hospital Rule Header -->
+          <rect x="24" y="16" width="852" height="30" rx="4" fill="#1a202c" stroke="#38455e" stroke-width="1"/>
+          <text x="450" y="36" fill="#f0f4fc" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">HOSPITAL SAFETY INVARIANT: COUNT(doctors WHERE on_call = true) >= 1</text>
+
+          <!-- Alice Lifeline (Tx 1) -->
+          <line x1="160" y1="56" x2="160" y2="280" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <rect x="90" y="56" width="140" height="28" rx="4" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+          <text x="160" y="74" fill="#3b82f6" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 1: Dr. Alice</text>
+
+          <!-- Database Lifeline -->
+          <line x1="450" y1="56" x2="450" y2="280" stroke="#8d9bb0" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <rect x="380" y="56" width="140" height="28" rx="4" fill="#1a202c" stroke="#8d9bb0" stroke-width="1.2"/>
+          <text x="450" y="74" fill="#f0f4fc" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Database Engine</text>
+
+          <!-- Bob Lifeline (Tx 2) -->
+          <line x1="740" y1="56" x2="740" y2="280" stroke="#eb6c36" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <rect x="670" y="56" width="140" height="28" rx="4" fill="#1a202c" stroke="#eb6c36" stroke-width="1.2"/>
+          <text x="740" y="74" fill="#eb6c36" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 2: Dr. Bob</text>
+
+          <!-- Step 1: Alice Checks Count -->
+          <path d="M 160 100 L 442 100" stroke="#3b82f6" stroke-width="1.2"/>
+          <polygon points="442,97 450,100 442,103" fill="#3b82f6"/>
+          <rect x="230" y="90" width="150" height="16" rx="2" fill="#12161f"/>
+          <text x="305" y="102" fill="#3b82f6" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">SELECT count(*) -> 2 (Alice & Bob)</text>
+
+          <!-- Step 2: Bob Checks Count -->
+          <path d="M 740 125 L 458 125" stroke="#eb6c36" stroke-width="1.2"/>
+          <polygon points="458,122 450,125 458,128" fill="#eb6c36"/>
+          <rect x="520" y="115" width="150" height="16" rx="2" fill="#12161f"/>
+          <text x="595" y="127" fill="#eb6c36" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">SELECT count(*) -> 2 (Alice & Bob)</text>
+
+          <!-- Step 3: Alice Updates Her Own Row (Alice = false) -->
+          <path d="M 160 160 L 442 160" stroke="#3b82f6" stroke-width="1.5"/>
+          <polygon points="442,157 450,160 442,163" fill="#3b82f6"/>
+          <rect x="210" y="150" width="190" height="16" rx="2" fill="#12161f"/>
+          <text x="305" y="162" fill="#3b82f6" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">UPDATE doc SET on_call=F WHERE id=1;</text>
+
+          <!-- Step 4: Bob Updates His Own Row (Bob = false) -->
+          <path d="M 740 185 L 458 185" stroke="#eb6c36" stroke-width="1.5"/>
+          <polygon points="458,182 450,185 458,188" fill="#eb6c36"/>
+          <rect x="500" y="175" width="190" height="16" rx="2" fill="#12161f"/>
+          <text x="595" y="187" fill="#eb6c36" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">UPDATE doc SET on_call=F WHERE id=2;</text>
+
+          <!-- Both Commit Successfully (Disjoint Row Locks!) -->
+          <path d="M 160 220 L 442 220" stroke="#10b981" stroke-width="1.5"/>
+          <polygon points="442,217 450,220 442,223" fill="#10b981"/>
+          <rect x="250" y="210" width="110" height="16" rx="2" fill="#12161f"/>
+          <text x="305" y="222" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">COMMIT (Tx 1 Safe)</text>
+
+          <path d="M 740 235 L 458 235" stroke="#10b981" stroke-width="1.5"/>
+          <polygon points="458,232 450,235 458,238" fill="#10b981"/>
+          <rect x="540" y="225" width="110" height="16" rx="2" fill="#12161f"/>
+          <text x="595" y="237" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">COMMIT (Tx 2 Safe)</text>
+
+          <!-- Disaster Banner -->
+          <rect x="24" y="260" width="852" height="46" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.5"/>
+          <text x="450" y="278" fill="#f43f5e" font-size="9.5" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">💥 INVARIANT VIOLATED: 0 DOCTORS ON CALL (CRITICAL HOSPITAL FAILURE)</text>
+          <text x="450" y="294" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Row locks on id=1 and id=2 did not conflict. Snapshot isolation permitted write skew. Mitigation: SELECT ... FOR UPDATE or Serializable.</text>
+        </svg>
+      </div>
+
+      <!-- Interactive Widget 03: Doctor On-Call Race Condition Simulator -->
+      <div class="interactive-card">
+        <div class="interactive-header">
+          <h3 class="interactive-title">Live Simulator: Doctor On-Call Write Skew & Explicit Locking</h3>
+          <span class="interactive-badge">Interactive Widget 03</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+          Simulate Alice and Bob attempting to take off simultaneously under standard Snapshot Isolation vs. Explicit Locking (<code>SELECT ... FOR UPDATE</code>) vs. Serializable Isolation.
+        </p>
+        <div class="control-row">
+          <div class="control-group">
+            <label class="control-label" for="sim-concurrency-strategy">Concurrency Strategy:</label>
+            <select id="sim-concurrency-strategy" class="text-input-field">
+              <option value="snapshot_unlocked">Snapshot Isolation without Locks (Permits Write Skew)</option>
+              <option value="for_update">Explicit Row Locking (SELECT ... FOR UPDATE)</option>
+              <option value="serializable">Serializable Isolation (SSI / Conflict Abort)</option>
+            </select>
+          </div>
+          <button class="sim-btn primary" id="btn-run-skew-sim" style="align-self:flex-end;">Run Concurrent Race Condition</button>
+        </div>
+        <div class="sim-display-box" id="sim-skew-output">
+          Select a concurrency strategy and execute the race condition simulation...
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">Meeting Room Double-Booking</h4>
+          <p class="example-body">Two users check room availability at 2:00 PM (sees 0 bookings) and insert reservations for the same room. Neither updated an existing row, so regular row locks didn't conflict.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">Multiplayer Game Username Sniping</h4>
+          <p class="example-body">Two players register username "Shadow" concurrently. If uniqueness is checked via <code>SELECT count(*) WHERE user='Shadow'</code> without a database <code>UNIQUE</code> index, both insert successfully.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">Credit Limit Double Spend</h4>
+          <p class="example-body">A user with a $500 balance places two simultaneous $400 orders on different checkout threads. Both threads read $500 balance, verify $500 >= $400, and insert two orders, overspending by $300.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">Write skew is like two roommates opening an empty fridge simultaneously, seeing 0 cartons of milk, and both going to the grocery store to buy milk, resulting in unwanted duplicate milk.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Assuming that "Repeatable Read" guarantees protection against all race conditions. Repeatable Read guarantees read consistency, but write skew easily slips past it.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">To prevent write skew under Snapshot Isolation without full serializability, developers use <code>SELECT ... FOR UPDATE</code> to lock the rows checked in the premise query.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">When rows do not yet exist (e.g., room booking phantoms), you cannot lock them with <code>FOR UPDATE</code>. You need true Serializability (Module 5 & 6).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> Write Skew = Read common state -> Check business premise -> Write to disjoint rows -> Invariant broken! Solution: FOR UPDATE, predicate locks, or Serializable.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 5: True Serializability & 2PL
+         ========================================== -->
+    <article class="module-card" id="module-5">
+      <header class="module-header">
+        <span class="module-num">Module 05</span>
+        <h2 class="module-heading">True Serializability: Actual Serial Execution & Two-Phase Locking (2PL)</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          <strong>Serializable Isolation</strong> is universally recognized as the strongest possible isolation level. It guarantees that even if transactions execute concurrently, the end result is mathematically indistinguishable from having executed them one at a time in some serial order. Under serializability, dirty reads, dirty writes, read skew, lost updates, write skew, and phantoms are completely eliminated.
+        </p>
+        <p>
+          Historically, database engines implemented Serializability through two classical techniques:
+        </p>
+        <p>
+          <strong>1. Actual Serial Execution (Single-Threaded Engines):</strong> If multi-threaded locking causes overhead and deadlocks, why not run every transaction sequentially on a single CPU core? Made viable in the mid-2000s by RAM affordability (keeping entire working datasets in memory) and OLTP workload profiles, systems like <strong>VoltDB</strong>, <strong>Redis</strong>, and <strong>Datomic</strong> execute transactions strictly one by one on a single thread. 
+        </p>
+        <p>
+          However, actual serial execution requires that every transaction is packaged as an in-memory <strong>Stored Procedure</strong>. If a transaction waited for interactive network round-trips from a client web server, the entire database throughput would drop to single-digit queries per second.
+        </p>
+        <p>
+          <strong>2. Two-Phase Locking (2PL):</strong> For over 30 years, Two-Phase Locking was the dominant implementation of serializability in relational databases (such as MySQL InnoDB's <code>SERIALIZABLE</code> mode). 2PL enforces a strict rule: <strong>Readers block writers, and writers block readers.</strong>
+        </p>
+        <p>
+          In 2PL, locks are categorized into <strong>Shared Mode (Read)</strong> and <strong>Exclusive Mode (Write)</strong>:
+        </p>
+        <ul style="margin-left:1.5rem; margin-bottom:1rem; color:var(--text-muted); line-height:1.7;">
+          <li>If Transaction A has read a row (Shared lock), Transaction B must wait before writing to that row.</li>
+          <li>If Transaction A has written to a row (Exclusive lock), Transaction B must wait before reading or writing that row.</li>
+          <li><strong>Phase 1 (Growing Phase):</strong> The transaction acquires locks as it reads and writes. Locks can only be acquired, never released.</li>
+          <li><strong>Phase 2 (Shrinking Phase):</strong> At the end of the transaction (commit or abort), all locks are released simultaneously (Strict 2PL).</li>
+        </ul>
+        <p>
+          To prevent Phantom Writes (e.g., preventing a new booking row from being inserted into an empty time slot), 2PL uses <strong>Predicate Locking</strong> or practical <strong>Index-Range Locking (Next-Key Locking)</strong>, which locks all index records in the search range, plus the gap before the next record.
+        </p>
+        <p>
+          The severe downside of 2PL is <strong>performance degradation</strong>. Lock contention causes throughput collapse, high p99 tail latencies, and frequent <strong>Deadlocks</strong> (e.g., Transaction 1 holds Lock A and waits for Lock B, while Transaction 2 holds Lock B and waits for Lock A). The database must run background deadlock detection graphs and forcefully abort one transaction.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Serializability Primitives</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>🔒</span> Two-Phase Locking (2PL)</div>
+            <div class="def-desc">Pessimistic concurrency where readers block writers and writers block readers, holding all locks until final commit.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>📐</span> Index-Range / Next-Key Lock</div>
+            <div class="def-desc">Locking existing index keys plus the empty gaps between them to prevent phantom inserts from concurrent transactions.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>💀</span> Deadlock Cycle</div>
+            <div class="def-desc">A cyclic dependency where two or more transactions are blocked waiting for locks held by each other, requiring an engine abort.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 6: 2PL Locking Protocol & Deadlock Wait-For Graph -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Two-Phase Locking Protocol and Deadlock Detection">
+          <title>Diagram 05: Two-Phase Locking (2PL) & Deadlock Wait-For Graph</title>
+          <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Left Box: 2PL Shared/Exclusive Lock Matrix -->
+          <g transform="translate(24, 20)">
+            <rect width="410" height="280" rx="6" fill="#1a202c" stroke="#eb6c36" stroke-width="1.2"/>
+            <rect x="12" y="10" width="140" height="18" rx="3" fill="#eb6c36" fill-opacity="0.15" stroke="#eb6c36" stroke-width="0.8"/>
+            <text x="82" y="22" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">2PL LOCK COMPATIBILITY</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Readers Block Writers • Writers Block Readers</text>
+
+            <!-- Table Matrix -->
+            <g transform="translate(30, 60)">
+              <!-- Header -->
+              <rect x="0" y="0" width="110" height="28" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="55" y="18" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Lock Mode</text>
+
+              <rect x="110" y="0" width="120" height="28" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="170" y="18" fill="#3b82f6" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shared (Read)</text>
+
+              <rect x="230" y="0" width="120" height="28" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="290" y="18" fill="#eb6c36" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Exclusive (Write)</text>
+
+              <!-- Row 1: Shared Lock -->
+              <rect x="0" y="28" width="110" height="34" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="55" y="49" fill="#3b82f6" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shared</text>
+
+              <rect x="110" y="28" width="120" height="34" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="170" y="50" fill="#10b981" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">✓ Compatible</text>
+
+              <rect x="230" y="28" width="120" height="34" fill="#201815" stroke="#38455e" stroke-width="0.8"/>
+              <text x="290" y="50" fill="#f43f5e" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">❌ BLOCKED</text>
+
+              <!-- Row 2: Exclusive Lock -->
+              <rect x="0" y="62" width="110" height="34" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="55" y="83" fill="#eb6c36" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Exclusive</text>
+
+              <rect x="110" y="62" width="120" height="34" fill="#201815" stroke="#38455e" stroke-width="0.8"/>
+              <text x="170" y="84" fill="#f43f5e" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">❌ BLOCKED</text>
+
+              <rect x="230" y="62" width="120" height="34" fill="#201815" stroke="#38455e" stroke-width="0.8"/>
+              <text x="290" y="84" fill="#f43f5e" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">❌ BLOCKED</text>
+            </g>
+
+            <rect x="18" y="170" width="374" height="96" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+            <text x="28" y="190" fill="#eb6c36" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">Two Phases of 2PL:</text>
+            <text x="28" y="208" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">1. Growing Phase: Acquire locks as queries execute.</text>
+            <text x="28" y="222" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">2. Shrinking Phase: Release all locks at COMMIT/ABORT.</text>
+            <text x="28" y="242" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace">Cost: Unstable tail latency, queue buildup, deadlocks.</text>
+          </g>
+
+          <!-- Right Box: Deadlock Detection Graph -->
+          <g transform="translate(466, 20)">
+            <rect width="410" height="280" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#f43f5e" fill-opacity="0.15" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">DEADLOCK WAIT-FOR GRAPH</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Cyclic Lock Dependency Detection</text>
+
+            <!-- Tx 1 Node -->
+            <circle cx="100" cy="110" r="32" fill="#12161f" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="100" y="108" fill="#3b82f6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 1</text>
+            <text x="100" y="122" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Holds Row A</text>
+
+            <!-- Tx 2 Node -->
+            <circle cx="310" cy="110" r="32" fill="#12161f" stroke="#eb6c36" stroke-width="1.5"/>
+            <text x="310" y="108" fill="#eb6c36" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 2</text>
+            <text x="310" y="122" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Holds Row B</text>
+
+            <!-- Arrow: Tx 1 waits for Row B -->
+            <path d="M 132 96 C 180 70, 230 70, 278 96" stroke="#f43f5e" stroke-width="1.8" stroke-dasharray="3,3"/>
+            <polygon points="274,93 282,98 277,103" fill="#f43f5e"/>
+            <rect x="155" y="60" width="100" height="16" rx="2" fill="#12161f"/>
+            <text x="205" y="72" fill="#f43f5e" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 1 waits for Row B</text>
+
+            <!-- Arrow: Tx 2 waits for Row A -->
+            <path d="M 278 124 C 230 150, 180 150, 132 124" stroke="#f43f5e" stroke-width="1.8" stroke-dasharray="3,3"/>
+            <polygon points="137,127 128,122 133,117" fill="#f43f5e"/>
+            <rect x="155" y="140" width="100" height="16" rx="2" fill="#12161f"/>
+            <text x="205" y="152" fill="#f43f5e" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 2 waits for Row A</text>
+
+            <!-- Engine Abort Resolution -->
+            <rect x="18" y="180" width="374" height="86" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1"/>
+            <text x="187" y="200" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">💥 Deadlock Cycle Detected</text>
+            <text x="28" y="218" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Background thread runs cycle detection every 1000ms</text>
+            <text x="28" y="232" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Engine victimizes Tx 1 (issues SQLSTATE 40P01 / 1213)</text>
+            <text x="28" y="246" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace">• Tx 2 completes; Tx 1 client must catch error and retry</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="steps-container">
+        <div class="step-node">
+          <div class="step-index-badge">1</div>
+          <div class="step-content-box">
+            <h4>Growing Phase (Acquiring Locks)</h4>
+            <p>As each SQL statement in the transaction executes, the engine requests Shared (S) locks for reads and Exclusive (X) locks for writes. If another transaction holds a conflicting lock, this transaction is placed into a wait queue.</p>
+          </div>
+        </div>
+        <div class="step-node">
+          <div class="step-index-badge">2</div>
+          <div class="step-content-box">
+            <h4>Deadlock Graph Traversal</h4>
+            <p>The database engine periodically constructs a directed Wait-For graph. If a closed directed cycle is discovered (A waits for B, B waits for A), the engine picks a victim transaction, forcibly aborts it, and releases its locks.</p>
+          </div>
+        </div>
+        <div class="step-node">
+          <div class="step-index-badge">3</div>
+          <div class="step-content-box">
+            <h4>Shrinking Phase (Atomic Release on Commit)</h4>
+            <p>Under Strict 2PL, locks are never released during execution. Only after the WAL log is completely flushed on <code>COMMIT</code> or rolled back on <code>ROLLBACK</code> are all held locks released to unblock queued transactions.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">Strict 2PL in Financial Ledgers</h4>
+          <p class="example-body">Core banking engines running in MySQL <code>SERIALIZABLE</code> mode acquire exclusive row locks on accounts during high-value transfers, mathematically preventing concurrent overdrafts.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">Single-Threaded Speed in VoltDB & Redis</h4>
+          <p class="example-body">Running transactions on a single CPU core without locks is often 10x faster than running multi-threaded 2PL with locks, because lock manager synchronization overhead and cache line bouncing are eliminated.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">Next-Key Lock Escalation in MySQL</h4>
+          <p class="example-body">In MySQL InnoDB, querying <code>WHERE age > 30 FOR UPDATE</code> locks not just matching records, but all gap intervals up to infinity, accidentally blocking concurrent inserts for <code>age = 35</code>.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">2PL is like reserving individual tools in a workshop: you borrow tools as you need them and hold onto every single tool until your entire carpentry project is finished.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Confusing 2PL (Two-Phase Locking) with 2PC (Two-Phase Commit). 2PL is a single-node concurrency control mechanism; 2PC is a distributed consensus protocol for committing across multiple nodes.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">Very few modern high-scale web systems use 2PL because the latency penalty of lock queues under high concurrency is catastrophic. Modern systems prefer SSI (Module 6).</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">To achieve the gold standard of Serializability without the crippling lock overhead of 2PL, researchers created Serializable Snapshot Isolation (Module 6).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> Two-Phase Locking: Readers block writers, writers block readers. Hold all locks until commit. High safety, terrible concurrency throughput under write contention.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 6: Modern SSI & Distributed Realities
+         ========================================== -->
+    <article class="module-card" id="module-6">
+      <header class="module-header">
+        <span class="module-num">Module 06</span>
+        <h2 class="module-heading">Modern Serializable Snapshot Isolation (SSI) & Distributed ACID</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          For decades, software engineers were forced to make a painful compromise: either accept the severe performance bottlenecks and deadlocks of Two-Phase Locking (2PL), or settle for weak isolation (Snapshot Isolation) and manually defend against write skew and phantoms with custom application locks.
+        </p>
+        <p>
+          In 2008, researchers Michael Cahill, Uwe Röhm, and Alan Fekete invented <strong>Serializable Snapshot Isolation (SSI)</strong>. Formally integrated into PostgreSQL 9.1 and modern distributed engines like CockroachDB, SSI provides <strong>true mathematical serializability with the raw performance and non-blocking reads of snapshot isolation</strong>.
+        </p>
+        <p>
+          SSI is an <strong>Optimistic Concurrency Control (OCC)</strong> algorithm. Instead of blocking transactions with pessimistic read/write locks, SSI lets transactions execute concurrently without delay. Transactions read from multi-version snapshots and perform local writes. 
+        </p>
+        <p>
+          While transactions execute, the SSI engine tracks <strong>dangerous dependency structures</strong> in background memory. Specifically, SSI detects <em>anti-dependencies</em> (also called <code>rw-antidependencies</code> or SIREAD locks), which occur when Transaction 1 reads a version of data, and concurrent Transaction 2 subsequently writes a newer version of that same data.
+        </p>
+        <p>
+          Mathematical graph theory proves that a serializability violation can only occur if there is a <strong>cycle of two consecutive anti-dependency edges</strong> in the dependency graph (i.e., $T_1 \xrightarrow{rw} T_2 \xrightarrow{rw} T_1$). When a transaction attempts to commit, the SSI engine inspects the graph: if a dangerous cycle is detected, the engine safely aborts one of the conflicting transactions with a retry error (SQLSTATE <code>40001: serialization_failure</code>).
+        </p>
+        <p>
+          If contention is low to moderate (the standard reality for 99% of web applications), almost no cycles occur, and SSI achieves near 100% of the throughput of raw Snapshot Isolation while mathematically guaranteeing complete immunity to Lost Updates, Write Skew, and Phantoms.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Modern SSI Primitives</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>⚡</span> Optimistic Concurrency Control</div>
+            <div class="def-desc">Executing transactions without locking and validating conflicts only at commit time, assuming conflicts are rare.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>👁️</span> SIREAD Lock</div>
+            <div class="def-desc">A non-blocking ephemeral in-memory marker recording that a transaction read a specific tuple or index gap.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🔄</span> rw-Antidependency</div>
+            <div class="def-desc">A directed conflict edge created when a transaction reads an older version of data that is subsequently updated by another.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 7: SSI Dependency Graph & Conflict Cycle Abort -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Serializable Snapshot Isolation Dependency Graph">
+          <title>Diagram 06: SSI Dependency Graph & Conflict Cycle Abort</title>
+          <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Left Box: Optimistic Execution (No Locks) -->
+          <g transform="translate(24, 20)">
+            <rect width="410" height="280" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">OPTIMISTIC NON-BLOCKING READS</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Transactions Execute at Full MVCC Speed</text>
+
+            <rect x="20" y="60" width="370" height="50" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1"/>
+            <text x="35" y="80" fill="#3b82f6" font-size="9" font-weight="700" font-family="'Geist Mono', monospace">1. Readers Never Wait for Writers</text>
+            <text x="35" y="96" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Reads create lightweight in-memory SIREAD lock tags</text>
+
+            <rect x="20" y="120" width="370" height="50" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+            <text x="35" y="140" fill="#10b981" font-size="9" font-weight="700" font-family="'Geist Mono', monospace">2. Writers Never Wait for Readers</text>
+            <text x="35" y="156" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Writes append tuples and check for concurrent SIREAD locks</text>
+
+            <rect x="20" y="180" width="370" height="90" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+            <text x="205" y="202" fill="#f0f4fc" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">SSI Advantage over Two-Phase Locking</text>
+            <text x="35" y="222" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace">• 0ms lock wait queues during standard operation</text>
+            <text x="35" y="238" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace">• p99 latency stays flat under read-heavy workloads</text>
+            <text x="35" y="254" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace">• Eliminates manual SELECT ... FOR UPDATE boilerplate</text>
+          </g>
+
+          <!-- Right Box: Dangerous Cycle Detection & Abort -->
+          <g transform="translate(466, 20)">
+            <rect width="410" height="280" rx="6" fill="#1a202c" stroke="#8b5cf6" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#8b5cf6" fill-opacity="0.15" stroke="#8b5cf6" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#8b5cf6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">SIREAD CONFLICT GRAPH</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Detecting rw-Antidependency Cycles</text>
+
+            <!-- Tx 1 (Alice) -->
+            <circle cx="100" cy="100" r="28" fill="#12161f" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="100" y="98" fill="#3b82f6" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 1</text>
+            <text x="100" y="112" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Alice</text>
+
+            <!-- Tx 2 (Bob) -->
+            <circle cx="310" cy="100" r="28" fill="#12161f" stroke="#eb6c36" stroke-width="1.5"/>
+            <text x="310" y="98" fill="#eb6c36" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 2</text>
+            <text x="310" y="112" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Bob</text>
+
+            <!-- Conflict Edges -->
+            <path d="M 128 90 C 180 70, 230 70, 282 90" stroke="#f43f5e" stroke-width="1.5"/>
+            <polygon points="280,86 287,92 281,96" fill="#f43f5e"/>
+            <rect x="160" y="60" width="90" height="14" rx="2" fill="#12161f"/>
+            <text x="205" y="70" fill="#f43f5e" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">rw-edge (Alice->Bob)</text>
+
+            <path d="M 282 110 C 230 130, 180 130, 128 110" stroke="#f43f5e" stroke-width="1.5"/>
+            <polygon points="130,114 123,108 129,104" fill="#f43f5e"/>
+            <rect x="160" y="125" width="90" height="14" rx="2" fill="#12161f"/>
+            <text x="205" y="135" fill="#f43f5e" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">rw-edge (Bob->Alice)</text>
+
+            <!-- Commit-Time Abort Decision -->
+            <rect x="20" y="160" width="370" height="106" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+            <text x="205" y="180" fill="#f43f5e" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">⚡ Commit-Time Serialization Abort</text>
+            <text x="35" y="200" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">1. Alice issues COMMIT -> Allowed to commit first</text>
+            <text x="35" y="216" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace">2. Bob issues COMMIT -> SSI detects completed 2-hop cycle!</text>
+            <text x="35" y="232" fill="#f43f5e" font-size="7.5" font-weight="700" font-family="'Geist Mono', monospace">3. Bob's Tx ABORTED (SQLSTATE 40001 serialization_failure)</text>
+            <text x="35" y="248" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace">4. Application client catches error and retries safely</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Interactive Widget 04: 2PL vs SSI Concurrency Benchmark Simulator -->
+      <div class="interactive-card">
+        <div class="interactive-header">
+          <h3 class="interactive-title">Live Simulator: 2PL vs. SSI Throughput & Abort Rate Benchmark</h3>
+          <span class="interactive-badge">Interactive Widget 04</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+          Adjust transaction concurrency and write ratio to observe how Two-Phase Locking suffers from lock queue contention while SSI maintains high throughput with modest abort retries.
+        </p>
+        <div class="control-row">
+          <div class="control-group">
+            <label class="control-label" for="sim-concurrency-threads">Concurrent Threads: <span id="lbl-threads" style="color:var(--accent);">200</span></label>
+            <input type="range" id="sim-concurrency-threads" min="10" max="1000" step="10" value="200" style="width:100%;">
+          </div>
+          <div class="control-group">
+            <label class="control-label" for="sim-write-ratio">Write Ratio (%): <span id="lbl-write-ratio" style="color:var(--accent);">20%</span></label>
+            <input type="range" id="sim-write-ratio" min="1" max="90" step="1" value="20" style="width:100%;">
+          </div>
+        </div>
+        <div class="sim-display-box" id="sim-benchmark-output">
+          Loading concurrency benchmark metrics...
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">PostgreSQL SSI in Production</h4>
+          <p class="example-body">Setting <code>SET TRANSACTION ISOLATION LEVEL SERIALIZABLE</code> in PostgreSQL uses SSI under the hood, completely preventing doctor on-call write skew without writing manual locks.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">High Abort Rates under Extreme Write Contention</h4>
+          <p class="example-body">If 500 threads attempt to increment the exact same counter row simultaneously, SSI will abort and retry 490 of them. In extreme single-row write hotspots, pessimistic locking is faster.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">Google Spanner TrueTime Serializability</h4>
+          <p class="example-body">Google Spanner uses GPS and atomic clocks (TrueTime API) to generate monotonically increasing timestamps with guaranteed uncertainty bounds (&plusmn;7ms) for global distributed serializability.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">Pessimistic 2PL is like locking the conference room door whenever anyone is inside; Optimistic SSI is like letting everyone enter, and if two people speak at once, the moderator asks one person to repeat.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Believing that SSI eliminates all errors. Under SSI, applications MUST implement automatic retry loops to catch serialization failures (SQLSTATE 40001) and replay the transaction.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">SSI is the fastest way to achieve true serializability for read-dominated workloads, making it the algorithm of choice for modern next-gen distributed SQL databases.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">In distributed databases where transactions span multiple physical nodes, serializability requires distributed consensus protocols (Chapter 8 & 9).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> Serializable Snapshot Isolation (SSI): Non-blocking optimistic MVCC execution + Commit-time cycle detection = Pure serializability without pessimistic lock queues!
+      </div>
+    </article>
+
+    <!-- ==========================================
+         COMPREHENSIVE KNOWLEDGE CHEAT SHEET
+         ========================================== -->
+    <section class="module-card" id="cheat-sheet">
+      <header class="module-header">
+        <span class="module-num">Reference</span>
+        <h2 class="module-heading">Master Isolation Levels & Concurrency Anomalies Cheat Sheet</h2>
+      </header>
+
+      <p class="prose-block">
+        A definitive architectural reference matrix comparing all four standard SQL isolation levels, their vulnerability to concurrency anomalies, and their underlying engine implementation mechanisms.
+      </p>
+
+      <div class="cheat-sheet-table-wrapper">
+        <table class="cheat-table">
+          <thead>
+            <tr>
+              <th>Isolation Level</th>
+              <th>Dirty Read</th>
+              <th>Dirty Write</th>
+              <th>Read Skew</th>
+              <th>Lost Update</th>
+              <th>Write Skew</th>
+              <th>Phantom Read</th>
+              <th>Underlying Engine Implementation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Read Uncommitted</strong></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td>Row-level write locks for dirty writes; non-blocking uncommitted heap reads.</td>
+            </tr>
+            <tr>
+              <td><strong>Read Committed</strong> (Pg/Oracle Default)</td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td>Row-level write locks; fresh statement-level snapshot for each query.</td>
+            </tr>
+            <tr>
+              <td><strong>Repeatable Read / Snapshot</strong> (MySQL Default)</td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge prevented">Prevented (Pg)</span></td>
+              <td><span class="status-badge allowed">Vulnerable</span></td>
+              <td><span class="status-badge allowed">Vulnerable (MySQL)</span></td>
+              <td>MVCC transaction snapshot (Postgres xmin/xmax, MySQL InnoDB Undo Logs).</td>
+            </tr>
+            <tr>
+              <td><strong>Serializable</strong> (Gold Standard)</td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td><span class="status-badge prevented">Prevented</span></td>
+              <td>Two-Phase Locking (2PL), Single-Threaded Serial Execution, or SSI.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         ACTIVE RECALL FLASHCARDS
+         ========================================== -->
+    <section class="module-card">
+      <header class="module-header">
+        <span class="module-num">Memory Gym</span>
+        <h2 class="module-heading">Active Recall Flashcards</h2>
+      </header>
+      <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">Click any flashcard to flip and test your knowledge of Chapter 7 concepts.</p>
+
+      <div class="flashcards-grid">
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">What is the precise definition of Atomicity in ACID?</div>
+          <div class="flashcard-a">Atomicity means abortability (all-or-nothing execution). If any fault occurs, the database rolls back all partial writes, returning state to the pre-transaction baseline.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">How does PostgreSQL MVCC differ from MySQL InnoDB MVCC?</div>
+          <div class="flashcard-a">PostgreSQL appends new tuple versions to heap files using <code>xmin/xmax</code> headers and cleans dead tuples via Auto-Vacuum. MySQL InnoDB updates B-Trees in-place and stores historical snapshots in Undo Logs.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">What is Write Skew and why doesn't row locking prevent it?</div>
+          <div class="flashcard-a">Write skew occurs when transactions read common state, verify a rule, and update disjoint rows. Because they write to different rows, normal row-level write locks do not conflict.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">What is the fundamental rule of Two-Phase Locking (2PL)?</div>
+          <div class="flashcard-a">Readers block writers, and writers block readers. Transactions acquire Shared (read) or Exclusive (write) locks during the Growing Phase and hold all locks until Commit (Shrinking Phase).</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">How does Serializable Snapshot Isolation (SSI) prevent conflicts without locks?</div>
+          <div class="flashcard-a">SSI executes optimistically using MVCC snapshots and tracks SIREAD locks in memory. It detects cycles of two consecutive <code>rw-antidependencies</code> and aborts conflicting commits.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">Why does a long-running transaction cause table bloat in PostgreSQL?</div>
+          <div class="flashcard-a">Because the long-running transaction's TxID holds back the global vacuum horizon. Auto-Vacuum cannot delete dead tuples with <code>xmax</code> newer than the oldest active transaction.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         INTERACTIVE SELF-CHECK QUIZ
+         ========================================== -->
+    <section class="module-card" id="quiz">
+      <header class="module-header">
+        <span class="module-num">Knowledge Check</span>
+        <h2 class="module-heading">Interactive Self-Check Assessment</h2>
+      </header>
+
+      <div class="quiz-card">
+        <div class="quiz-question">1. In the Doctor On-Call scenario, why do Alice and Bob both successfully commit their leave requests under standard Snapshot Isolation?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt-btn" onclick="checkQuiz(this, false, 'Incorrect. Snapshot isolation prevents dirty reads completely.')">
+            <span>A</span> Alice and Bob read dirty uncommitted data from each other.
+          </button>
+          <button class="quiz-opt-btn" onclick="checkQuiz(this, true, 'Correct! Alice updates row id=1 and Bob updates row id=2. Because their writes touch disjoint rows, row-level write locks do not conflict under snapshot isolation.')">
+            <span>B</span> They read from identical snapshot views and update disjoint rows (Alice updates row 1, Bob updates row 2), avoiding row-lock conflicts.
+          </button>
+          <button class="quiz-opt-btn" onclick="checkQuiz(this, false, 'Incorrect. Unique constraints on primary keys do not protect multi-record business invariants.')">
+            <span>C</span> The database primary key index was corrupted by concurrent transactions.
+          </button>
+          <button class="quiz-opt-btn" onclick="checkQuiz(this, false, 'Incorrect. Write-Ahead Logs handle durability, not concurrency conflicts.')">
+            <span>D</span> The Write-Ahead Log buffer ran out of disk space during commit.
+          </button>
+        </div>
+        <div class="quiz-feedback" id="quiz-feedback"></div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         FREQUENTLY ASKED QUESTIONS
+         ========================================== -->
+    <section class="module-card">
+      <header class="module-header">
+        <span class="module-num">Deep Dive</span>
+        <h2 class="module-heading">Frequently Asked Questions</h2>
+      </header>
+
+      <div class="faq-accordion">
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>Why isn't true Serializable isolation the default in all relational databases?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Historical databases used Two-Phase Locking (2PL) for serializability, which introduced crippling lock wait queues, deadlocks, and severe latency spikes. While modern Serializable Snapshot Isolation (SSI) has dramatically reduced overhead, Read Committed and Repeatable Read remain the defaults in PostgreSQL and MySQL to ensure backwards compatibility and maximum throughput for non-conflicting workloads.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>How does PostgreSQL handle transaction ID (TxID) wraparound?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            PostgreSQL transaction IDs are 32-bit integers, wrapping around every 4 billion transactions ($2^{32}$). To prevent ancient committed tuples from suddenly becoming invisible, PostgreSQL uses modular arithmetic (modulo $2^{31}$) and runs an aggressive "Vacuum Freeze" process. Vacuum Freeze sets a special <code>FrozenXID</code> flag on old tuples, treating them as permanently older than all existing transaction IDs.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>Why is MySQL InnoDB less susceptible to table bloat than PostgreSQL?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            InnoDB stores primary data directly inside clustered B-Tree pages and updates records in-place. Historical row snapshots are stored separately in Undo Log segments. When updates occur, only the undo log expands, keeping clustered B-Tree index pages tightly packed. Once older transactions commit, the background purge thread reclaims undo log space without rewriting table pages.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>What is Next-Key Locking and why does MySQL use it?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Next-Key Locking combines an index-record lock with a gap lock on the gap immediately preceding the index record. MySQL InnoDB uses next-key locking in Repeatable Read isolation to lock both matching records and empty gap ranges (e.g. locking the gap between ID 10 and 20), preventing phantom inserts from other transactions.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>Can optimistic concurrency control (like SSI) cause transaction starvation?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Yes. Under intense write contention on a single shared key, long-running transactions will repeatedly detect conflicts and abort. In high-contention write hotspots (such as ticketing flash sales), combining SSI with exponential backoff retries or switching to explicit pessimistic row locking (<code>SELECT ... FOR UPDATE</code>) is necessary to ensure forward progress.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>What is the difference between single-node ACID and distributed ACID?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Single-node ACID relies on local OS memory locks and local disk <code>fsync</code> calls on a single server. Distributed ACID (e.g., across CockroachDB, Spanner, or Vitess) requires distributed consensus protocols (Raft/Paxos) for durability and Two-Phase Commit (2PC) or TrueTime synchronized clocks for cross-shard atomicity and isolation, introducing network round-trip overhead.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="lesson-footer">
+      <p>Designing Data-Intensive Applications — Interactive Lesson Series • Chapter 07: Transactions, ACID & Isolation Levels</p>
+      <p style="margin-top:4px;">Crafted for senior backend engineers, database architects, and distributed systems specialists.</p>
+    </footer>
+  </div>
+
+  <!-- Interactive Simulator Logic -->
+  <script>
+    // Reading Progress Bar
+    window.addEventListener('scroll', () => {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      document.getElementById('reading-progress').style.width = scrolled + '%';
+    });
+
+    // Theme Toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    let isLight = false;
+
+    themeBtn.addEventListener('click', () => {
+      isLight = !isLight;
+      if (isLight) {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeIcon.textContent = '🌙';
+        themeText.textContent = 'Dark';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent = '☀️';
+        themeText.textContent = 'Light';
+      }
+    });
+
+    // Simulator 1: Isolation Level & Anomaly Evaluator
+    const isolationData = {
+      read_uncommitted: {
+        title: "READ UNCOMMITTED (Weakest / Raw Throughput)",
+        guarantees: [
+          { name: "Dirty Read", status: "❌ PERMITTED", color: "var(--rose)", desc: "Transactions can read in-flight uncommitted modifications." },
+          { name: "Dirty Write", status: "✓ PREVENTED", color: "var(--teal)", desc: "Row-level write locks prevent clobbering active writes." },
+          { name: "Read Skew", status: "❌ PERMITTED", color: "var(--rose)", desc: "Queries observe changing data across the transaction." },
+          { name: "Lost Update", status: "❌ PERMITTED", color: "var(--rose)", desc: "Concurrent read-modify-write cycles clobber values." },
+          { name: "Write Skew", status: "❌ PERMITTED", color: "var(--rose)", desc: "Disjoint row updates break multi-record invariants." }
+        ],
+        verdict: "Suitable only for approximate analytics or telemetry counters where data precision is non-critical."
+      },
+      read_committed: {
+        title: "READ COMMITTED (PostgreSQL & Oracle Default)",
+        guarantees: [
+          { name: "Dirty Read", status: "✓ PREVENTED", color: "var(--teal)", desc: "Only committed data is ever returned to queries." },
+          { name: "Dirty Write", status: "✓ PREVENTED", color: "var(--teal)", desc: "Row write locks held until transaction commit." },
+          { name: "Read Skew", status: "❌ PERMITTED", color: "var(--rose)", desc: "Each query takes a fresh snapshot; identical SELECTs differ." },
+          { name: "Lost Update", status: "❌ PERMITTED", color: "var(--rose)", desc: "Concurrent read-modify-write clobbers without FOR UPDATE." },
+          { name: "Write Skew", status: "❌ PERMITTED", color: "var(--rose)", desc: "Doctors on-call leave race condition occurs silently." }
+        ],
+        verdict: "The industry standard default. Safe for simple OLTP CRUD; requires explicit FOR UPDATE for multi-row logic."
+      },
+      repeatable_read: {
+        title: "REPEATABLE READ / SNAPSHOT ISOLATION (MySQL Default)",
+        guarantees: [
+          { name: "Dirty Read", status: "✓ PREVENTED", color: "var(--teal)", desc: "Freeze snapshot taken at transaction start." },
+          { name: "Dirty Write", status: "✓ PREVENTED", color: "var(--teal)", desc: "Exclusive row locks held until commit." },
+          { name: "Read Skew", status: "✓ PREVENTED", color: "var(--teal)", desc: "All SELECTs view the identical point-in-time MVCC snapshot." },
+          { name: "Lost Update", status: "✓ PREVENTED (Pg) / ❌ (MySQL)", color: "var(--amber)", desc: "Postgres aborts on concurrent update; MySQL needs FOR UPDATE." },
+          { name: "Write Skew", status: "❌ PERMITTED", color: "var(--rose)", desc: "Permits phantom premise shifts when modifying disjoint rows." }
+        ],
+        verdict: "Flawless for backups and financial reporting. Still vulnerable to Write Skew without SSI or explicit locks."
+      },
+      serializable: {
+        title: "SERIALIZABLE (Mathematical Gold Standard)",
+        guarantees: [
+          { name: "Dirty Read", status: "✓ PREVENTED", color: "var(--teal)", desc: "Complete mathematical serializability." },
+          { name: "Dirty Write", status: "✓ PREVENTED", color: "var(--teal)", desc: "Complete mathematical serializability." },
+          { name: "Read Skew", status: "✓ PREVENTED", color: "var(--teal)", desc: "Complete mathematical serializability." },
+          { name: "Lost Update", status: "✓ PREVENTED", color: "var(--teal)", desc: "Automatic serialization conflict abort." },
+          { name: "Write Skew", status: "✓ PREVENTED", color: "var(--teal)", desc: "SIREAD conflict graph tracks dangerous cycles and aborts." }
+        ],
+        verdict: "100% immune to all concurrency anomalies. Implemented via SSI (Postgres) or Strict 2PL (MySQL InnoDB)."
+      }
+    };
+
+    function renderIsolationEval() {
+      const level = document.getElementById('sim-isolation-level').value;
+      const data = isolationData[level];
+      const out = document.getElementById('sim-isolation-output');
+
+      out.innerHTML = `
+        <div style="color:var(--accent); font-weight:700; font-size:0.95rem; margin-bottom:8px;">❯ EVALUATION: ${data.title}</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px; margin:10px 0;">
+          ${data.guarantees.map(g => `
+            <div style="background:var(--bg-surface); padding:8px 12px; border-radius:4px; border:1px solid var(--border);">
+              <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+                <span style="font-weight:700; color:var(--text);">${g.name}</span>
+                <span style="font-weight:700; color:${g.color};">${g.status}</span>
+              </div>
+              <div style="font-size:0.75rem; color:var(--text-muted);">${g.desc}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div style="margin-top:10px; padding:8px 12px; background:var(--accent-subtle); border-left:3px solid var(--accent); color:var(--text); font-size:0.84rem;">
+          <strong>Architectural Verdict:</strong> ${data.verdict}
+        </div>
+      `;
+    }
+
+    document.getElementById('btn-eval-isolation').addEventListener('click', renderIsolationEval);
+    document.getElementById('sim-isolation-level').addEventListener('change', renderIsolationEval);
+    renderIsolationEval();
+
+    // Simulator 2: MVCC Visibility Calculator
+    function runMvccCalc() {
+      const txId = parseInt(document.getElementById('sim-tx-id').value) || 150;
+      const action = document.getElementById('sim-row-action').value;
+      const out = document.getElementById('sim-mvcc-output');
+
+      let tupleState = "";
+      if (action === 'none') {
+        tupleState = `
+          <div style="color:var(--teal); font-weight:700;">❯ VISIBILITY CALCULATION: Live Tuple 1 Visible</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            • Tuple 1 Header: <code>xmin = 100</code> (Created by Tx 100, COMMITTED), <code>xmax = 0</code> (Never deleted)<br>
+            • Rule Check: Your TxID (<strong>${txId}</strong>) >= <code>xmin (100)</code> AND <code>xmax (0)</code> is inactive.<br>
+            • Query Output: <strong>id=1, name='robot', game_id=222</strong><br>
+            • Engine State: Single live tuple in heap page. Zero vacuum action required.
+          </div>
+        `;
+      } else if (action === 'update_200') {
+        const canSeeNew = txId >= 200;
+        tupleState = `
+          <div style="color:${canSeeNew ? 'var(--teal)' : 'var(--amber)'}; font-weight:700;">❯ VISIBILITY CALCULATION: ${canSeeNew ? 'Tuple 2 Visible (New Version)' : 'Tuple 1 Visible (Historical Snapshot)'}</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            • Tuple 1 (Old): <code>xmin = 100</code>, <code>xmax = 200</code> (Deleted by Tx 200)<br>
+            • Tuple 2 (New): <code>xmin = 200</code>, <code>xmax = 0</code> (Created by Tx 200, name='monkey')<br>
+            • Decision for your TxID (<strong>${txId}</strong>):<br>
+            ${canSeeNew 
+              ? `&nbsp;&nbsp;→ Your TxID (${txId}) >= 200. Tuple 1 is dead to you (xmax <= ${txId}). <strong>You see Tuple 2: name='monkey'</strong>`
+              : `&nbsp;&nbsp;→ Your TxID (${txId}) < 200. Tuple 2 was created after your snapshot! <strong>You see Tuple 1: name='robot'</strong>`
+            }<br>
+            • Vacuum Horizon: PostgreSQL cannot delete Tuple 1 while any active transaction with TxID < 200 is running!
+          </div>
+        `;
+      } else if (action === 'update_300') {
+        const canSee300 = txId >= 300;
+        tupleState = `
+          <div style="color:${canSee300 ? 'var(--teal)' : 'var(--amber)'}; font-weight:700;">❯ VISIBILITY CALCULATION: ${canSee300 ? 'Tuple 3 Visible (Latest Version)' : 'Tuple 1/2 Visible depending on TxID'}</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            • Tuple 1: <code>xmin = 100, xmax = 200</code> (name='robot')<br>
+            • Tuple 2: <code>xmin = 200, xmax = 300</code> (name='monkey')<br>
+            • Tuple 3: <code>xmin = 300, xmax = 0</code> (name='elephant')<br>
+            • Result for TxID (<strong>${txId}</strong>): ${txId < 200 ? "Views Tuple 1 ('robot')" : txId < 300 ? "Views Tuple 2 ('monkey')" : "Views Tuple 3 ('elephant')"}<br>
+            • MVCC Heap State: 3 physical tuple versions exist simultaneously on disk.
+          </div>
+        `;
+      } else {
+        tupleState = `
+          <div style="color:var(--rose); font-weight:700;">❯ VISIBILITY CALCULATION: Uncommitted In-Flight Transaction</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            • Tx 120 updated row (<code>xmax = 120</code>), but Tx 120 is still ACTIVE (not committed).<br>
+            • MVCC Snapshot Rule: Uncommitted writes of other transactions are strictly invisible.<br>
+            • Result for your TxID (<strong>${txId}</strong>): You ignore Tx 120's uncommitted modification and read <strong>Tuple 1 (name='robot')</strong>.<br>
+            • Zero dirty read anomaly occurred.
+          </div>
+        `;
+      }
+      out.innerHTML = tupleState;
+    }
+
+    document.getElementById('btn-run-mvcc').addEventListener('click', runMvccCalc);
+    document.getElementById('sim-tx-id').addEventListener('input', runMvccCalc);
+    document.getElementById('sim-row-action').addEventListener('change', runMvccCalc);
+    runMvccCalc();
+
+    // Simulator 3: Doctor On-Call Race Condition Simulator
+    function runSkewSim() {
+      const strat = document.getElementById('sim-concurrency-strategy').value;
+      const out = document.getElementById('sim-skew-output');
+
+      if (strat === 'snapshot_unlocked') {
+        out.innerHTML = `
+          <div style="color:var(--rose); font-weight:700;">💥 SIMULATION RESULT: WRITE SKEW OCCURRED (0 DOCTORS ON CALL)</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            1. Alice (Tx 1): <code>SELECT count(*) WHERE on_call=T</code> → Returns <strong>2</strong> (Premise Valid: >= 1)<br>
+            2. Bob (Tx 2): <code>SELECT count(*) WHERE on_call=T</code> → Returns <strong>2</strong> (Premise Valid: >= 1)<br>
+            3. Alice updates <code>id=1 (Alice) -> false</code>; Bob updates <code>id=2 (Bob) -> false</code><br>
+            4. Both transactions COMMIT successfully because their row locks did not intersect!<br>
+            5. <strong>Hospital Disaster:</strong> Invariant broken. Zero doctors left on call.
+          </div>
+        `;
+      } else if (strat === 'for_update') {
+        out.innerHTML = `
+          <div style="color:var(--teal); font-weight:700;">✓ SIMULATION RESULT: WRITE SKEW PREVENTED VIA EXPLICIT LOCKING</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            1. Alice (Tx 1): <code>SELECT * FROM doctors WHERE on_call=T FOR UPDATE;</code><br>
+            2. Alice acquires Exclusive Row Locks on both Alice (id=1) and Bob (id=2).<br>
+            3. Bob (Tx 2) runs <code>SELECT ... FOR UPDATE</code> → <strong>BLOCKED on lock wait queue!</strong><br>
+            4. Alice updates herself to <code>on_call = false</code> and issues COMMIT.<br>
+            5. Bob is unblocked, re-reads count (now returns <strong>1</strong>), realizes leaving violates policy, and halts!
+          </div>
+        `;
+      } else {
+        out.innerHTML = `
+          <div style="color:var(--teal); font-weight:700;">✓ SIMULATION RESULT: WRITE SKEW PREVENTED VIA SERIALIZABLE (SSI)</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            1. Both Alice and Bob execute optimistically without acquiring blocking locks.<br>
+            2. SSI engine registers SIREAD locks on the doctor table search predicate.<br>
+            3. Alice writes to id=1; Bob writes to id=2. SSI records two concurrent <code>rw-antidependencies</code>.<br>
+            4. Alice commits first: Successfully committed.<br>
+            5. Bob commits second: <strong>SSI detects dependency cycle and ABORTS Bob's transaction (SQLSTATE 40001)!</strong>
+          </div>
+        `;
+      }
+    }
+
+    document.getElementById('btn-run-skew-sim').addEventListener('click', runSkewSim);
+    document.getElementById('sim-concurrency-strategy').addEventListener('change', runSkewSim);
+    runSkewSim();
+
+    // Simulator 4: 2PL vs SSI Concurrency Benchmark
+    function updateBenchmarkCalc() {
+      const threads = parseInt(document.getElementById('sim-concurrency-threads').value);
+      const writeRatio = parseInt(document.getElementById('sim-write-ratio').value);
+
+      document.getElementById('lbl-threads').textContent = threads;
+      document.getElementById('lbl-write-ratio').textContent = writeRatio + '%';
+
+      // Mathematical simulation models
+      const lockContentionFactor = (threads / 100) * (writeRatio / 20);
+      const tplThroughput = Math.max(250, Math.round(18000 / (1 + (lockContentionFactor * 1.8))));
+      const tplP99 = Math.round(12 + (lockContentionFactor * 85));
+
+      const ssiThroughput = Math.max(1200, Math.round(22000 / (1 + (lockContentionFactor * 0.35))));
+      const ssiP99 = Math.round(8 + (lockContentionFactor * 12));
+      const ssiAbortRate = Math.min(65, Math.round(0.5 + (lockContentionFactor * 4.2)));
+
+      const out = document.getElementById('sim-benchmark-output');
+      out.innerHTML = `
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+          <div style="background:var(--bg-surface); padding:14px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--teal); font-size:0.8rem; font-weight:700; text-transform:uppercase;">Serializable Snapshot Isolation (SSI)</div>
+            <div style="font-size:1.6rem; font-weight:700; color:var(--teal); margin-top:4px;">${ssiThroughput.toLocaleString()} TPS</div>
+            <div style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">p99 Latency: <strong>${ssiP99}ms</strong> • Abort Rate: <strong>${ssiAbortRate}%</strong></div>
+            <div style="font-size:0.75rem; color:var(--text-subtle); margin-top:4px;">Optimistic MVCC reads; minimal lock queueing.</div>
+          </div>
+          <div style="background:var(--bg-surface); padding:14px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--rose); font-size:0.8rem; font-weight:700; text-transform:uppercase;">Two-Phase Locking (Strict 2PL)</div>
+            <div style="font-size:1.6rem; font-weight:700; color:var(--rose); margin-top:4px;">${tplThroughput.toLocaleString()} TPS</div>
+            <div style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">p99 Latency: <strong>${tplP99}ms</strong> • Deadlock Aborts: <strong>${Math.round(lockContentionFactor * 2)}%</strong></div>
+            <div style="font-size:0.75rem; color:var(--text-subtle); margin-top:4px;">Pessimistic shared/exclusive locks cause heavy queueing.</div>
+          </div>
+        </div>
+        <div style="margin-top:12px; font-size:0.85rem; color:var(--text-muted);">
+          <strong>Architectural Analysis:</strong> At ${threads} threads and ${writeRatio}% writes, SSI delivers <strong>${(ssiThroughput / tplThroughput).toFixed(1)}x higher throughput</strong> with ${(tplP99 / ssiP99).toFixed(1)}x lower p99 latency compared to 2PL.
+        </div>
+      `;
+    }
+
+    document.getElementById('sim-concurrency-threads').addEventListener('input', updateBenchmarkCalc);
+    document.getElementById('sim-write-ratio').addEventListener('input', updateBenchmarkCalc);
+    updateBenchmarkCalc();
+
+    // Self-Check Quiz Logic
+    function checkQuiz(btn, isCorrect, explanation) {
+      const parent = btn.parentElement;
+      const buttons = parent.querySelectorAll('.quiz-opt-btn');
+      buttons.forEach(b => {
+        b.classList.remove('correct', 'incorrect');
+        b.disabled = true;
+      });
+
+      const feedback = document.getElementById('quiz-feedback');
+      feedback.className = 'quiz-feedback show ' + (isCorrect ? 'correct-feedback' : 'incorrect-feedback');
+      feedback.innerHTML = `<strong>${isCorrect ? '✓ Correct!' : '✗ Incorrect.'}</strong> ${explanation}`;
+
+      if (isCorrect) {
+        btn.classList.add('correct');
+      } else {
+        btn.classList.add('incorrect');
+      }
+    }
+
+    // FAQ Accordion Toggle
+    function toggleFaq(el) {
+      const item = el.parentElement;
+      item.classList.toggle('open');
+    }
+  </script>
+</body>
+</html>

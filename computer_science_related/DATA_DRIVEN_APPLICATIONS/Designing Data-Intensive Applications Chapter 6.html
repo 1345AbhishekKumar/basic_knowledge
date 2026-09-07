@@ -1,0 +1,2905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designing Data-Intensive Applications — Chapter 6: Partitioning (Sharding)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg-surface: #12161f;
+      --bg-surface-elevated: #1a202c;
+      --bg-surface-glass: rgba(18, 22, 31, 0.85);
+      --border: #242c3d;
+      --border-accent: #38455e;
+      --text: #f0f4fc;
+      --text-muted: #8d9bb0;
+      --text-subtle: #57657d;
+      --accent: #eb6c36;
+      --accent-glow: rgba(235, 108, 54, 0.2);
+      --accent-subtle: rgba(235, 108, 54, 0.09);
+      --teal: #10b981;
+      --teal-subtle: rgba(16, 185, 129, 0.1);
+      --blue: #3b82f6;
+      --blue-subtle: rgba(59, 130, 246, 0.1);
+      --purple: #8b5cf6;
+      --purple-subtle: rgba(139, 92, 246, 0.1);
+      --amber: #f59e0b;
+      --amber-subtle: rgba(245, 158, 11, 0.1);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.1);
+      --font-serif: "Instrument Serif", Georgia, serif;
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-surface-glass: rgba(255, 255, 255, 0.9);
+      --border: #e2e8f0;
+      --border-accent: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+      --accent: #d9531e;
+      --accent-glow: rgba(217, 83, 30, 0.15);
+      --accent-subtle: rgba(217, 83, 30, 0.08);
+      --teal: #059669;
+      --teal-subtle: rgba(5, 150, 105, 0.08);
+      --blue: #2563eb;
+      --blue-subtle: rgba(37, 99, 235, 0.08);
+      --purple: #7c3aed;
+      --purple-subtle: rgba(124, 58, 237, 0.08);
+      --amber: #d97706;
+      --amber-subtle: rgba(217, 119, 6, 0.08);
+      --rose: #e11d48;
+      --rose-subtle: rgba(225, 29, 72, 0.08);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    #reading-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #f97316);
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    .app-layout {
+      display: grid;
+      grid-template-columns: 310px 1fr;
+      min-height: 100vh;
+      max-width: 1640px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 1024px) {
+      .app-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Sidebar Navigation Rail */
+    .sidebar-rail {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar-rail {
+        display: none;
+      }
+    }
+
+    .sidebar-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-tag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: inline-block;
+    }
+
+    .sidebar-title {
+      font-family: var(--font-serif);
+      font-size: 1.35rem;
+      font-weight: normal;
+      line-height: 1.25;
+      color: var(--text);
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .nav-item a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.83rem;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+
+    .nav-item a:hover {
+      color: var(--text);
+      background: var(--bg-surface-elevated);
+    }
+
+    .nav-item a.active {
+      color: var(--accent);
+      background: var(--accent-subtle);
+      font-weight: 600;
+      border-left: 2px solid var(--accent);
+    }
+
+    .nav-item .nav-idx {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      opacity: 0.7;
+      min-width: 22px;
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 0.82rem;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      margin-top: 16px;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-subtle);
+    }
+
+    .main-content {
+      padding: 48px 64px;
+      max-width: 1200px;
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        padding: 24px 16px;
+      }
+    }
+
+    /* Hero Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-surface-elevated) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 48px 40px;
+      margin-bottom: 48px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+    }
+
+    .hero-banner::before {
+      content: "";
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 340px;
+      height: 340px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-pill {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      background: var(--accent-subtle);
+      border: 1px solid var(--accent);
+      padding: 4px 12px;
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+
+    .hero-title {
+      font-family: var(--font-serif);
+      font-size: 3rem;
+      font-weight: normal;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    @media (max-width: 768px) {
+      .hero-title {
+        font-size: 2.2rem;
+      }
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 860px;
+      line-height: 1.65;
+      margin-bottom: 28px;
+    }
+
+    .hero-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+    }
+
+    .hero-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .hero-meta-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hero-meta-val {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* What You'll Learn Section */
+    .learn-overview-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      margin-bottom: 48px;
+    }
+
+    .section-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .section-heading {
+      font-family: var(--font-serif);
+      font-size: 2rem;
+      font-weight: normal;
+      margin-bottom: 20px;
+      color: var(--text);
+    }
+
+    .learn-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .learn-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .learn-bullet {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--accent-subtle);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .learn-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .learn-text strong {
+      color: var(--text);
+    }
+
+    /* Interactive Knowledge Map */
+    .knowledge-map-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      margin-bottom: 48px;
+    }
+
+    .svg-diagram-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      margin: 24px 0;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 18px;
+    }
+
+    .svg-diagram-wrapper svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-width: 760px;
+    }
+
+    /* Module Card */
+    .module-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px;
+      margin-bottom: 48px;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+      transition: border-color 0.25s ease;
+    }
+
+    .module-card:hover {
+      border-color: var(--border-accent);
+    }
+
+    .module-header {
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+    }
+
+    .module-num {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .module-heading {
+      font-family: var(--font-serif);
+      font-size: 2.2rem;
+      font-weight: normal;
+      line-height: 1.2;
+      color: var(--text);
+    }
+
+    @media (max-width: 768px) {
+      .module-heading {
+        font-size: 1.7rem;
+      }
+      .module-card {
+        padding: 24px 18px;
+      }
+    }
+
+    /* Core Prose */
+    .prose-block {
+      font-size: 1.02rem;
+      line-height: 1.78;
+      color: var(--text);
+      margin-bottom: 28px;
+    }
+
+    .prose-block p {
+      margin-bottom: 18px;
+    }
+
+    .prose-block strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .prose-block code {
+      font-family: var(--font-mono);
+      font-size: 0.88em;
+      background: var(--bg-surface-elevated);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    /* Definitions Box */
+    .definitions-panel {
+      background: linear-gradient(180deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%);
+      border: 1px solid var(--border-accent);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .definitions-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+    }
+
+    .def-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .def-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+    }
+
+    .def-term {
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .def-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Step-by-Step Breakdown */
+    .steps-container {
+      margin: 28px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .step-node {
+      display: flex;
+      gap: 16px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 18px;
+    }
+
+    .step-index-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-content-box h4 {
+      font-size: 0.96rem;
+      color: var(--text);
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    .step-content-box p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Examples Trio */
+    .examples-trio {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 28px 0;
+    }
+
+    @media (max-width: 900px) {
+      .examples-trio {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .example-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .example-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 10px;
+      align-self: flex-start;
+    }
+
+    .example-tag.obvious {
+      background: var(--teal-subtle);
+      color: var(--teal);
+      border: 1px solid var(--teal);
+    }
+
+    .example-tag.counter {
+      background: var(--amber-subtle);
+      color: var(--amber);
+      border: 1px solid var(--amber);
+    }
+
+    .example-tag.edge {
+      background: var(--rose-subtle);
+      color: var(--rose);
+      border: 1px solid var(--rose);
+    }
+
+    .example-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .example-body {
+      font-size: 0.87rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+      flex: 1;
+    }
+
+    /* Pedagogy Pillars Grid */
+    .pedagogy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .pedagogy-box {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      background: var(--bg-surface-elevated);
+    }
+
+    .pedagogy-box.analogy {
+      border-left: 3px solid var(--purple);
+    }
+    .pedagogy-box.misconception {
+      border-left: 3px solid var(--rose);
+    }
+    .pedagogy-box.reality {
+      border-left: 3px solid var(--blue);
+    }
+    .pedagogy-box.connection {
+      border-left: 3px solid var(--teal);
+    }
+
+    .pedagogy-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pedagogy-box.analogy .pedagogy-label { color: var(--purple); }
+    .pedagogy-box.misconception .pedagogy-label { color: var(--rose); }
+    .pedagogy-box.reality .pedagogy-label { color: var(--blue); }
+    .pedagogy-box.connection .pedagogy-label { color: var(--teal); }
+
+    .pedagogy-text {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Memory Pill */
+    .memory-pill {
+      background: linear-gradient(90deg, var(--accent-subtle) 0%, transparent 100%);
+      border-left: 3px solid var(--accent);
+      padding: 12px 18px;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-family: var(--font-mono);
+      font-size: 0.84rem;
+      color: var(--accent);
+      margin-top: 24px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Interactive Simulator Containers */
+    .interactive-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      margin: 32px 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .interactive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .interactive-badge {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    .interactive-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .control-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .control-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .text-input-field {
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .text-input-field:focus {
+      border-color: var(--accent);
+    }
+
+    .sim-btn {
+      padding: 8px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .sim-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-subtle);
+      color: var(--accent);
+    }
+
+    .sim-btn.primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+
+    .sim-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    .sim-range {
+      accent-color: var(--accent);
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .sim-display-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: var(--text);
+      min-height: 120px;
+      overflow-x: auto;
+    }
+
+    /* Master Matrix Table */
+    .table-container {
+      overflow-x: auto;
+      margin: 28px 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .styled-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      text-align: left;
+    }
+
+    .styled-table th {
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 14px 18px;
+      border-bottom: 2px solid var(--border-accent);
+    }
+
+    .styled-table td {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+
+    .styled-table tr:hover td {
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+    }
+
+    .styled-table td strong {
+      color: var(--text);
+    }
+
+    /* Flashcards */
+    .flashcards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin: 28px 0;
+    }
+
+    .flashcard {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      min-height: 180px;
+      padding: 20px;
+      cursor: pointer;
+      perspective: 1000px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+      user-select: none;
+    }
+
+    .flashcard:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .flashcard-prompt {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .flashcard-answer {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      display: none;
+      border-top: 1px dashed var(--border);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+
+    .flashcard.revealed .flashcard-answer {
+      display: block;
+    }
+
+    .flashcard-hint {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Self-Check Quiz Card */
+    .quiz-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-top: 28px;
+    }
+
+    .quiz-question {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .quiz-opt-btn {
+      text-align: left;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-sans);
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .quiz-opt-btn:hover {
+      border-color: var(--border-accent);
+      color: var(--text);
+    }
+
+    .quiz-opt-btn.correct {
+      background: var(--teal-subtle);
+      border-color: var(--teal);
+      color: var(--teal);
+      font-weight: 600;
+    }
+
+    .quiz-opt-btn.incorrect {
+      background: var(--rose-subtle);
+      border-color: var(--rose);
+      color: var(--rose);
+    }
+
+    .quiz-feedback {
+      font-size: 0.85rem;
+      line-height: 1.5;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      display: none;
+    }
+
+    .quiz-feedback.show {
+      display: block;
+    }
+
+    .quiz-feedback.correct-feedback {
+      background: var(--teal-subtle);
+      color: var(--teal);
+      border: 1px solid var(--teal);
+    }
+
+    .quiz-feedback.incorrect-feedback {
+      background: var(--rose-subtle);
+      color: var(--rose);
+      border: 1px solid var(--rose);
+    }
+
+    /* FAQ Accordion */
+    .faq-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      margin-bottom: 12px;
+      background: var(--bg-surface);
+      overflow: hidden;
+    }
+
+    .faq-question {
+      padding: 18px 24px;
+      cursor: pointer;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+
+    .faq-question:hover {
+      background: var(--bg-surface-elevated);
+    }
+
+    .faq-answer {
+      padding: 0 24px 20px 24px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      display: none;
+    }
+
+    .faq-item.open .faq-answer {
+      display: block;
+    }
+
+    .faq-item.open .faq-toggle-icon {
+      transform: rotate(180deg);
+    }
+
+    .faq-toggle-icon {
+      transition: transform 0.2s ease;
+      font-family: var(--font-mono);
+      color: var(--accent);
+    }
+
+    /* Footer */
+    .lesson-footer {
+      border-top: 1px solid var(--border);
+      padding: 48px 0 24px 0;
+      margin-top: 64px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--text-subtle);
+      font-family: var(--font-mono);
+    }
+
+    @media (max-width: 768px) {
+      .lesson-footer {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="reading-progress"></div>
+
+  <div class="app-layout">
+    <!-- Left Navigation Rail -->
+    <aside class="sidebar-rail">
+      <div class="sidebar-header">
+        <span class="sidebar-tag">DDIA Deep Dive</span>
+        <h2 class="sidebar-title">Chapter 6: Partitioning</h2>
+      </div>
+      <ul class="nav-list">
+        <li class="nav-item"><a href="#overview"><span class="nav-idx">00</span> Overview</a></li>
+        <li class="nav-item"><a href="#module-1"><span class="nav-idx">01</span> Scaling & Blast Radius</a></li>
+        <li class="nav-item"><a href="#module-2"><span class="nav-idx">02</span> Range vs. Hash Keys</a></li>
+        <li class="nav-item"><a href="#module-3"><span class="nav-idx">03</span> Routing & Proxies</a></li>
+        <li class="nav-item"><a href="#module-4"><span class="nav-idx">04</span> Scatter-Gather & Joins</a></li>
+        <li class="nav-item"><a href="#module-5"><span class="nav-idx">05</span> Live Resharding</a></li>
+        <li class="nav-item"><a href="#module-6"><span class="nav-idx">06</span> Operational Velocity</a></li>
+        <li class="nav-item"><a href="#cheat-sheet"><span class="nav-idx">07</span> Master Cheat Sheet</a></li>
+        <li class="nav-item"><a href="#faq"><span class="nav-idx">08</span> FAQ & Confusion Points</a></li>
+      </ul>
+      <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Color Theme">
+        <span id="theme-icon">☀️</span> <span id="theme-text">Toggle Theme</span>
+      </button>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Hero Banner -->
+      <section class="hero-banner" id="overview">
+        <div class="hero-pill">System Architecture • Scalability Patterns</div>
+        <h1 class="hero-title">Database Sharding & Partitioning</h1>
+        <p class="hero-subtitle">
+          Breaking monolithic limits: How modern data systems scale beyond terabytes and millions of queries per second using key-range routing, cryptographic hashing, proxy tiers (Vitess/vtgate), distributed scatter-gather joins, and zero-downtime rebalancing.
+        </p>
+        <div class="hero-meta-grid">
+          <div class="hero-meta-item">
+            <span class="hero-meta-label">Source Book</span>
+            <span class="hero-meta-val">DDIA by Martin Kleppmann</span>
+          </div>
+          <div class="hero-meta-item">
+            <span class="hero-meta-label">Focus Area</span>
+            <span class="hero-meta-val">Chapter 6 (Partitioning / Sharding)</span>
+          </div>
+          <div class="hero-meta-item">
+            <span class="hero-meta-label">Real-World Case</span>
+            <span class="hero-meta-val">PlanetScale, Vitess, GitHub</span>
+          </div>
+          <div class="hero-meta-item">
+            <span class="hero-meta-label">Core Trade-off</span>
+            <span class="hero-meta-val">Uniform Load vs Range Query Latency</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- What You'll Learn -->
+      <section class="learn-overview-card">
+        <span class="section-eyebrow">Curriculum Outline</span>
+        <h2 class="section-heading">What You Will Master in This Lesson</h2>
+        <div class="learn-grid">
+          <div class="learn-item">
+            <div class="learn-bullet">1</div>
+            <div class="learn-text"><strong>Vertical Limits vs. Horizontal Shards:</strong> Understand when monolithic hardware saturation forces horizontal splits and how sharding limits failure blast radius.</div>
+          </div>
+          <div class="learn-item">
+            <div class="learn-bullet">2</div>
+            <div class="learn-text"><strong>Key-Range vs. Hash-Based Partitioning:</strong> Analyze skew, hot spots, range scan performance, and why hashing distributes celebrity loads evenly.</div>
+          </div>
+          <div class="learn-item">
+            <div class="learn-bullet">3</div>
+            <div class="learn-text"><strong>Routing Tiers & Proxy Topologies:</strong> Discover how proxies like Vitess vtgate parse SQL, buffer queries, and route commands using ZooKeeper/etcd metadata.</div>
+          </div>
+          <div class="learn-item">
+            <div class="learn-bullet">4</div>
+            <div class="learn-text"><strong>Cross-Shard Joins & Scatter-Gather:</strong> Learn how queries across multiple shards are executed, aggregated, and joined without overloading app code.</div>
+          </div>
+          <div class="learn-item">
+            <div class="learn-bullet">5</div>
+            <div class="learn-text"><strong>Zero-Downtime Live Resharding:</strong> Follow the step-by-step lifecycle of splitting shards, shadow stream replication, catchup sync, and instant proxy cutovers.</div>
+          </div>
+          <div class="learn-item">
+            <div class="learn-bullet">6</div>
+            <div class="learn-text"><strong>Operational Superpowers:</strong> Master 4x faster parallel backups, multi-region data residency compliance (GDPR), and tenant schema modeling.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Master Architecture Knowledge Map -->
+      <section class="knowledge-map-card">
+        <span class="section-eyebrow">System Topology</span>
+        <h2 class="section-heading">Master Sharded Architecture Map</h2>
+        <p class="prose-block" style="margin-bottom:12px; font-size: 0.92rem; color: var(--text-muted);">
+          Complete end-to-end request flow: Application clients connect to stateless database proxies (vtgate), which coordinate with distributed consensus metadata (etcd/ZooKeeper) to route reads/writes to partition primaries and standby replicas.
+        </p>
+
+        <!-- SVG Architecture Diagram built to diagram-design spec -->
+        <div class="svg-diagram-wrapper">
+          <svg viewBox="0 0 960 400" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Database Sharding Architecture Map">
+            <title>Database Sharding Architecture & Knowledge Map</title>
+            <rect width="960" height="400" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+            <!-- Zone: Application Layer -->
+            <rect x="32" y="32" width="200" height="320" rx="6" fill="#1a202c" stroke="#38455e" stroke-width="1" stroke-dasharray="4,4"/>
+            <text x="44" y="54" fill="#8d9bb0" font-family="'Geist Mono', monospace" font-size="9" font-weight="700" letter-spacing="0.08em">APPLICATION TIER</text>
+
+            <!-- App Nodes -->
+            <g transform="translate(48, 76)">
+              <rect width="168" height="60" rx="6" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+              <rect x="8" y="8" width="28" height="12" rx="2" fill="transparent" stroke="#3b82f6" stroke-width="0.8"/>
+              <text x="22" y="17" fill="#3b82f6" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">WEB</text>
+              <text x="84" y="32" fill="#f0f4fc" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">App Server 1..N</text>
+              <text x="84" y="46" fill="#8d9bb0" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">Stateless Clients</text>
+            </g>
+
+            <g transform="translate(48, 156)">
+              <rect width="168" height="60" rx="6" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+              <rect x="8" y="8" width="28" height="12" rx="2" fill="transparent" stroke="#3b82f6" stroke-width="0.8"/>
+              <text x="22" y="17" fill="#3b82f6" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">API</text>
+              <text x="84" y="32" fill="#f0f4fc" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Microservices</text>
+              <text x="84" y="46" fill="#8d9bb0" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">Unified SQL Driver</text>
+            </g>
+
+            <g transform="translate(48, 236)">
+              <rect width="168" height="80" rx="6" fill="#12161f" stroke="#8b5cf6" stroke-width="1.2"/>
+              <rect x="8" y="8" width="34" height="12" rx="2" fill="transparent" stroke="#8b5cf6" stroke-width="0.8"/>
+              <text x="25" y="17" fill="#8b5cf6" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">COORD</text>
+              <text x="84" y="36" fill="#f0f4fc" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Topology Consensus</text>
+              <text x="84" y="52" fill="#8d9bb0" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">ZooKeeper / etcd</text>
+              <text x="84" y="66" fill="#8b5cf6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Shard Boundary Registry</text>
+            </g>
+
+            <!-- Orthogonal Connectors: Apps to Proxy -->
+            <path d="M 216 106 L 316 106 Q 324 106 324 114 L 324 160 Q 324 168 332 168 L 360 168" fill="none" stroke="#4f5d75" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 216 186 L 360 186" fill="none" stroke="#4f5d75" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 216 276 L 316 276 Q 324 276 324 268 L 324 212 Q 324 204 332 204 L 360 204" fill="none" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="4,3" stroke-linecap="round"/>
+
+            <!-- Connector Labels with Opaque Masks -->
+            <rect x="238" y="96" width="68" height="14" rx="2" fill="#12161f"/>
+            <text x="272" y="106" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.04em">SQL QUERY</text>
+
+            <rect x="238" y="266" width="68" height="14" rx="2" fill="#12161f"/>
+            <text x="272" y="276" fill="#8b5cf6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.04em">HEARTBEAT</text>
+
+            <!-- Zone: Routing Proxy Tier (Focal Node) -->
+            <g transform="translate(364, 116)">
+              <rect width="180" height="152" rx="6" fill="#201815" stroke="#eb6c36" stroke-width="1.8"/>
+              <rect x="8" y="8" width="36" height="12" rx="2" fill="transparent" stroke="#eb6c36" stroke-width="0.8"/>
+              <text x="26" y="17" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">ROUTER</text>
+              <text x="90" y="38" fill="#f0f4fc" font-size="13" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Proxy / vtgate Tier</text>
+              
+              <rect x="12" y="52" width="156" height="24" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="90" y="68" fill="#f0f4fc" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">SQL Parser & Planner</text>
+
+              <rect x="12" y="82" width="156" height="24" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="90" y="98" fill="#eb6c36" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">Hash / Range Key Matcher</text>
+
+              <rect x="12" y="112" width="156" height="24" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="90" y="128" fill="#10b981" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">Scatter-Gather & Buffer Engine</text>
+            </g>
+
+            <!-- Connectors: Proxy to Shards -->
+            <path d="M 544 140 L 620 140 Q 628 140 628 132 L 628 76 Q 628 68 636 68 L 664 68" fill="none" stroke="#eb6c36" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 544 168 L 664 168" fill="none" stroke="#4f5d75" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 544 212 L 664 212" fill="none" stroke="#4f5d75" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 544 240 L 620 240 Q 628 240 628 248 L 628 304 Q 628 312 636 312 L 664 312" fill="none" stroke="#4f5d75" stroke-width="1.5" stroke-linecap="round"/>
+
+            <!-- Arrow Labels -->
+            <rect x="560" y="130" width="56" height="12" rx="2" fill="#12161f"/>
+            <text x="588" y="139" fill="#eb6c36" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">SHARD 0</text>
+
+            <rect x="560" y="302" width="56" height="12" rx="2" fill="#12161f"/>
+            <text x="588" y="311" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">SHARD 3</text>
+
+            <!-- Shard Cluster 0 -->
+            <g transform="translate(668, 36)">
+              <rect width="256" height="68" rx="6" fill="#1a202c" stroke="#eb6c36" stroke-width="1.2"/>
+              <rect x="8" y="8" width="46" height="12" rx="2" fill="transparent" stroke="#eb6c36" stroke-width="0.8"/>
+              <text x="31" y="17" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">SHARD 0</text>
+              <text x="138" y="24" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif">Range: [0000..3FFF] / Hash</text>
+              <rect x="12" y="36" width="108" height="22" rx="4" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+              <text x="66" y="51" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Primary (Read/Write)</text>
+              <rect x="128" y="36" width="116" height="22" rx="4" fill="#3b82f6" fill-opacity="0.1" stroke="#3b82f6" stroke-width="0.8"/>
+              <text x="186" y="51" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Replica (Async / Failover)</text>
+            </g>
+
+            <!-- Shard Cluster 1 -->
+            <g transform="translate(668, 116)">
+              <rect width="256" height="68" rx="6" fill="#1a202c" stroke="#38455e" stroke-width="1"/>
+              <rect x="8" y="8" width="46" height="12" rx="2" fill="transparent" stroke="#8d9bb0" stroke-width="0.8"/>
+              <text x="31" y="17" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">SHARD 1</text>
+              <text x="138" y="24" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif">Range: [4000..7FFF] / Hash</text>
+              <rect x="12" y="36" width="108" height="22" rx="4" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+              <text x="66" y="51" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Primary (Read/Write)</text>
+              <rect x="128" y="36" width="116" height="22" rx="4" fill="#3b82f6" fill-opacity="0.1" stroke="#3b82f6" stroke-width="0.8"/>
+              <text x="186" y="51" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Replica (Async / Failover)</text>
+            </g>
+
+            <!-- Shard Cluster 2 -->
+            <g transform="translate(668, 196)">
+              <rect width="256" height="68" rx="6" fill="#1a202c" stroke="#38455e" stroke-width="1"/>
+              <rect x="8" y="8" width="46" height="12" rx="2" fill="transparent" stroke="#8d9bb0" stroke-width="0.8"/>
+              <text x="31" y="17" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">SHARD 2</text>
+              <text x="138" y="24" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif">Range: [8000..BFFF] / Hash</text>
+              <rect x="12" y="36" width="108" height="22" rx="4" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+              <text x="66" y="51" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Primary (Read/Write)</text>
+              <rect x="128" y="36" width="116" height="22" rx="4" fill="#3b82f6" fill-opacity="0.1" stroke="#3b82f6" stroke-width="0.8"/>
+              <text x="186" y="51" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Replica (Async / Failover)</text>
+            </g>
+
+            <!-- Shard Cluster 3 -->
+            <g transform="translate(668, 276)">
+              <rect width="256" height="68" rx="6" fill="#1a202c" stroke="#38455e" stroke-width="1"/>
+              <rect x="8" y="8" width="46" height="12" rx="2" fill="transparent" stroke="#8d9bb0" stroke-width="0.8"/>
+              <text x="31" y="17" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">SHARD 3</text>
+              <text x="138" y="24" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif">Range: [C000..FFFF] / Hash</text>
+              <rect x="12" y="36" width="108" height="22" rx="4" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+              <text x="66" y="51" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Primary (Read/Write)</text>
+              <rect x="128" y="36" width="116" height="22" rx="4" fill="#3b82f6" fill-opacity="0.1" stroke="#3b82f6" stroke-width="0.8"/>
+              <text x="186" y="51" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Replica (Async / Failover)</text>
+            </g>
+
+            <!-- Horizontal Legend Strip -->
+            <line x1="32" y1="368" x2="928" y2="368" stroke="#242c3d" stroke-width="1"/>
+            <text x="32" y="386" fill="#57657d" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">TOPOLOGY LEGEND:</text>
+            <circle cx="160" cy="383" r="4" fill="#eb6c36"/>
+            <text x="172" y="386" fill="#8d9bb0" font-size="8.5" font-family="'Geist', sans-serif">Routing Tier / Proxy</text>
+            <circle cx="320" cy="383" r="4" fill="#10b981"/>
+            <text x="332" y="386" fill="#8d9bb0" font-size="8.5" font-family="'Geist', sans-serif">Active Primary Shard</text>
+            <circle cx="480" cy="383" r="4" fill="#3b82f6"/>
+            <text x="492" y="386" fill="#8d9bb0" font-size="8.5" font-family="'Geist', sans-serif">Read / Failover Replica</text>
+            <circle cx="650" cy="383" r="4" fill="#8b5cf6"/>
+            <text x="662" y="386" fill="#8d9bb0" font-size="8.5" font-family="'Geist', sans-serif">Consensus Topology Registry</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           MODULE 1: Vertical Scaling vs. Sharding
+           ========================================== -->
+      <article class="module-card" id="module-1">
+        <header class="module-header">
+          <span class="module-num">Module 01</span>
+          <h2 class="module-heading">Vertical Scaling Limits & Blast Radius Isolation</h2>
+        </header>
+
+        <div class="prose-block">
+          <p>
+            When a software system experiences exponential growth, the first instinct of engineering teams is almost universally <strong>vertical scaling</strong> (scaling up). A database instance running on a modest 8-core CPU with 32 GB of RAM is upgraded to 32 cores, then 64 cores, and eventually to behemoth cloud instances with 128 virtual cores, 1 Terabyte of memory, and provisioned IOPS attached to elastic storage. For a surprisingly long period, vertical scaling is the right strategic move: it preserves ACID transactions, keeps foreign keys and joins trivial, and requires zero architectural overhaul in application code.
+          </p>
+          <p>
+            However, hardware scaling eventually encounters a hard ceiling dictated by physical and economic constraints. Beyond the immense financial cost of top-tier hardware, single-node databases face architectural bottlenecks: bus contention, lock saturation on memory allocations, network interface card (NIC) saturation under tens of thousands of simultaneous client connections, and checkpointing stalls when flushing enormous dirty page pools to disk.
+          </p>
+          <p>
+            Even more critical than throughput is the concept of <strong>failure blast radius</strong>. In a vertically scaled architecture, the database remains a monolithic Single Point of Failure (SPOF). If the primary node experiences an unrecoverable kernel panic, hardware fault, or corrupted transaction log, 100% of the user base is instantly blacked out until failover completes. In contrast, <strong>horizontal partitioning (sharding)</strong> divides the global dataset into independent, discrete subsets across multiple machines. If Shard 3 experiences an unexpected network partition or hardware outage, only the 25% of users allocated to Shard 3 experience degraded service; the remaining 75% continue operating normally.
+          </p>
+        </div>
+
+        <div class="definitions-panel">
+          <div class="definitions-header"><span>Key Architectural Definitions</span></div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term"><span>⚡</span> Vertical Scaling (Scale Up)</div>
+              <div class="def-desc">Increasing compute, memory, and I/O resources on a single monolithic database server without altering database topology.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>🧩</span> Horizontal Sharding (Scale Out)</div>
+              <div class="def-desc">Distributing distinct subsets of database rows across multiple independent physical or virtual database nodes.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>🛡️</span> Blast Radius Isolation</div>
+              <div class="def-desc">The architectural containment of a localized node failure such that only a fractional percentage of total system users are impacted.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG Diagram 1: Blast Radius Architecture -->
+        <div class="svg-diagram-wrapper">
+          <svg viewBox="0 0 900 280" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Monolith vs Sharded Failure Blast Radius">
+            <title>Diagram 01: Failure Blast Radius: Monolith vs Sharded Cluster</title>
+            <rect width="900" height="280" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+            <!-- Left: Monolithic Failure -->
+            <g transform="translate(32, 24)">
+              <rect width="400" height="232" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.2"/>
+              <text x="200" y="32" fill="#f43f5e" font-family="'Geist', sans-serif" font-size="14" font-weight="700" text-anchor="middle">Monolithic Architecture (Single Node)</text>
+              <rect x="40" y="52" width="320" height="90" rx="6" fill="#201815" stroke="#f43f5e" stroke-width="1.5"/>
+              <text x="200" y="88" fill="#f43f5e" font-size="13" font-weight="700" text-anchor="middle" font-family="'Geist', sans-serif">100% System Outage</text>
+              <text x="200" y="112" fill="#8d9bb0" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">100k Users Blocked • Primary Crash</text>
+              <rect x="40" y="156" width="320" height="50" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+              <text x="200" y="186" fill="#f0f4fc" font-size="10" font-family="'Geist', sans-serif" text-anchor="middle">Total Blast Radius = 100% of Traffic</text>
+            </g>
+
+            <!-- Right: Sharded Failure Isolation -->
+            <g transform="translate(468, 24)">
+              <rect width="400" height="232" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+              <text x="200" y="32" fill="#10b981" font-family="'Geist', sans-serif" font-size="14" font-weight="700" text-anchor="middle">Sharded Cluster (4 Partitions)</text>
+
+              <!-- Shard 1 OK -->
+              <rect x="30" y="52" width="70" height="70" rx="4" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="1"/>
+              <text x="65" y="84" fill="#10b981" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 0</text>
+              <text x="65" y="100" fill="#f0f4fc" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">25% OK</text>
+
+              <!-- Shard 2 OK -->
+              <rect x="120" y="52" width="70" height="70" rx="4" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="1"/>
+              <text x="155" y="84" fill="#10b981" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 1</text>
+              <text x="155" y="100" fill="#f0f4fc" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">25% OK</text>
+
+              <!-- Shard 3 DOWN (Isolated) -->
+              <rect x="210" y="52" width="70" height="70" rx="4" fill="#f43f5e" fill-opacity="0.2" stroke="#f43f5e" stroke-width="1.5"/>
+              <text x="245" y="84" fill="#f43f5e" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 2</text>
+              <text x="245" y="100" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Offline</text>
+
+              <!-- Shard 4 OK -->
+              <rect x="300" y="52" width="70" height="70" rx="4" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="1"/>
+              <text x="335" y="84" fill="#10b981" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 3</text>
+              <text x="335" y="100" fill="#f0f4fc" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">25% OK</text>
+
+              <rect x="30" y="156" width="340" height="50" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+              <text x="200" y="186" fill="#10b981" font-size="10" font-family="'Geist', sans-serif" text-anchor="middle">Contained Blast Radius = 25% Affected (75% Online)</text>
+            </g>
+          </svg>
+        </div>
+
+        <div class="steps-container">
+          <div class="step-node">
+            <div class="step-index-badge">1</div>
+            <div class="step-content-box">
+              <h4>Evaluate Current Vertical Bottlenecks</h4>
+              <p>Identify whether the primary constraint is CPU saturation (complex joins/sorting), IOPS bandwidth limits, storage capacity, or connection concurrency.</p>
+            </div>
+          </div>
+          <div class="step-node">
+            <div class="step-index-badge">2</div>
+            <div class="step-content-box">
+              <h4>Add Read Replicas Before Sharding</h4>
+              <p>Ensure that read traffic is offloaded to asynchronous replicas. If write QPS or dataset size remains the bottleneck, sharding is required.</p>
+            </div>
+          </div>
+          <div class="step-node">
+            <div class="step-index-badge">3</div>
+            <div class="step-content-box">
+              <h4>Establish Partition Isolation Boundaries</h4>
+              <p>Design shards such that failure of a single node or network segment only degrades queries targeted to that partition's keyspace.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">High QPS Social Feed</h4>
+            <p class="example-body">A global social platform exceeding 200,000 writes/sec splits user timelines across 64 shards so no single server handles more than ~3,100 writes/sec.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive</span>
+            <h4 class="example-title">Premature Sharding Cost</h4>
+            <p class="example-body">A startup with 50 GB of data shards into 8 nodes early on, only to suffer 5x development latency due to distributed transactions and complex migrations.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Noisy Neighbor Isolation</h4>
+            <p class="example-body">An enterprise B2B SaaS isolates massive Fortune 500 tenants onto dedicated physical shards so spikes in their analytics never degrade smaller customers.</p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+            <p class="pedagogy-text">Instead of building a single 100-story warehouse with one elevator (which stalls everyone when broken), you build ten 10-story buildings, each with its own independent elevator.</p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+            <p class="pedagogy-text">Believing that sharding eliminates the need for replication. Every single shard must still maintain its own active primary and hot read/failover replicas.</p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label"><span>📌</span> Why This Matters</div>
+            <p class="pedagogy-text">It transforms database failures from catastrophic company-wide downtime events into localized, graceful degradation incidents with rapid MTTR.</p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+            <p class="pedagogy-text">Once data is distributed across multiple partitions, you must decide how to assign specific rows to specific shards: key-range or cryptographic hashing (Module 2).</p>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span>🧠 Memory Anchor:</span> Scale up until economic or IOPS limits strike; scale out to contain blast radius and unlock infinite write horizontal headroom.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 2: Range vs. Hash Partitioning
+           ========================================== -->
+      <article class="module-card" id="module-2">
+        <header class="module-header">
+          <span class="module-num">Module 02</span>
+          <h2 class="module-heading">Partitioning Strategies: Key-Range vs. Key-Hash</h2>
+        </header>
+
+        <div class="prose-block">
+          <p>
+            The fundamental decision in sharded system design is determining the mathematical mapping between a row's primary key (the <strong>partition key</strong>) and the physical shard where it resides. The two classic approaches detailed in Chapter 6 are <strong>Key-Range Partitioning</strong> and <strong>Key-Hash Partitioning</strong>.
+          </p>
+          <p>
+            <strong>Key-Range Partitioning</strong> assigns contiguous boundaries of keys to each shard (for example, Shard 1 holds usernames <code>[A .. J]</code>, Shard 2 holds <code>[K .. T]</code>, and Shard 3 holds <code>[U .. Z]</code>). The primary advantage of range partitioning is that range scans are exceptionally fast. If an application executes <code>SELECT * FROM users WHERE username BETWEEN 'Baker' AND 'Barnes'</code>, the query router targets exactly one shard, performing a contiguous index scan. However, key-range partitioning is notoriously susceptible to <strong>hot spots</strong> and <strong>skew</strong>. In many languages, name distributions are heavily skewed toward certain letters (e.g., 'S' and 'M'), causing one shard to receive 5x the traffic of others. Even worse, if the range key is a timestamp (such as event logging), 100% of all write traffic lands on the single shard responsible for "today's" range, completely negating horizontal write scalability.
+          </p>
+          <p>
+            <strong>Key-Hash Partitioning</strong> mitigates skew by passing the partition key through a uniform cryptographic or non-cryptographic hash function (such as MD5, SHA-256, or MurmurHash3) before assigning it to a partition. Even if two keys are virtually identical (e.g., <code>user_001</code> and <code>user_002</code>), their hash values are radically disparate pseudorandom numbers scattered across the entire integer range. This guarantees an even distribution of data volume and query load across all shards.
+          </p>
+          <p>
+            The critical trade-off is that hashing destroys key order. A range scan like <code>WHERE user_id BETWEEN 1000 AND 2000</code> cannot be routed to a single node; the query must be broadcast to every shard in the cluster.
+          </p>
+        </div>
+
+        <div class="definitions-panel">
+          <div class="definitions-header"><span>Key Architectural Definitions</span></div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term"><span>🔥</span> Hot Spot & Skew</div>
+              <div class="def-desc">An uneven distribution of write/read workload where one shard receives disproportionately high traffic while others sit idle.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>#️⃣</span> Hash Partitioning</div>
+              <div class="def-desc">Applying a mathematical hash function <code>H(key) mod N</code> to uniformly disperse data across N partitions regardless of natural key clustering.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>🔀</span> Compound Partition Key</div>
+              <div class="def-desc">Using a hash prefix for partition assignment combined with a sorted secondary column (e.g., <code>(user_id, timestamp)</code>) for localized range scans.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG Diagram 2: Key-Range vs Key-Hash Mechanism -->
+        <div class="svg-diagram-wrapper">
+          <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Key-Range vs Key-Hash Mechanism">
+            <title>Diagram 02: Key-Range vs Hash-Partitioning Routing Mechanism</title>
+            <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+            <!-- Top Lane: Key-Range Partitioning (Skew & Hotspot) -->
+            <g transform="translate(24, 24)">
+              <rect width="852" height="128" rx="6" fill="#1a202c" stroke="#38455e" stroke-width="1"/>
+              <rect x="12" y="10" width="130" height="18" rx="3" fill="#eb6c36" fill-opacity="0.15" stroke="#eb6c36" stroke-width="0.8"/>
+              <text x="77" y="22" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">KEY-RANGE ROUTING</text>
+              <text x="156" y="24" fill="#8d9bb0" font-size="9" font-family="'Geist', sans-serif">Contiguous alphabetical segments • Fast range scans • High skew risk</text>
+
+              <!-- Shard Ranges -->
+              <g transform="translate(24, 38)">
+                <!-- Shard A-G (Hot Spot) -->
+                <rect x="0" y="0" width="180" height="70" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1.5"/>
+                <text x="90" y="24" fill="#eb6c36" font-size="11" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 0: [A .. G]</text>
+                <text x="90" y="44" fill="#f43f5e" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">🔥 Hot Spot: 65% of Names</text>
+                <text x="90" y="58" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Alice, Bob, Ben, Charlie...</text>
+
+                <!-- Shard H-N -->
+                <rect x="200" y="0" width="180" height="70" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+                <text x="290" y="24" fill="#f0f4fc" font-size="11" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 1: [H .. N]</text>
+                <text x="290" y="44" fill="#8d9bb0" font-size="9" font-family="'Geist', sans-serif" text-anchor="middle">Load: 15%</text>
+                <text x="290" y="58" fill="#57657d" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Harry, Jack, Mary...</text>
+
+                <!-- Shard O-T -->
+                <rect x="400" y="0" width="180" height="70" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+                <text x="490" y="24" fill="#f0f4fc" font-size="11" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 2: [O .. T]</text>
+                <text x="490" y="44" fill="#8d9bb0" font-size="9" font-family="'Geist', sans-serif" text-anchor="middle">Load: 12%</text>
+                <text x="490" y="58" fill="#57657d" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Oliver, Peter, Sam...</text>
+
+                <!-- Shard U-Z -->
+                <rect x="600" y="0" width="180" height="70" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+                <text x="690" y="24" fill="#f0f4fc" font-size="11" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 3: [U .. Z]</text>
+                <text x="690" y="44" fill="#8d9bb0" font-size="9" font-family="'Geist', sans-serif" text-anchor="middle">Load: 8%</text>
+                <text x="690" y="58" fill="#57657d" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Uma, Victor, Zoe...</text>
+              </g>
+            </g>
+
+            <!-- Bottom Lane: Key-Hash Partitioning (Uniform MurmurHash) -->
+            <g transform="translate(24, 168)">
+              <rect width="852" height="128" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1"/>
+              <rect x="12" y="10" width="130" height="18" rx="3" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+              <text x="77" y="22" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">KEY-HASH ROUTING</text>
+              <text x="156" y="24" fill="#8d9bb0" font-size="9" font-family="'Geist', sans-serif">MurmurHash3(key) mod N • Uniform pseudo-random distribution • Scatter-gather for range scans</text>
+
+              <!-- Shard Ranges -->
+              <g transform="translate(24, 38)">
+                <!-- Shard 0 -->
+                <rect x="0" y="0" width="180" height="70" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.2"/>
+                <text x="90" y="24" fill="#10b981" font-size="11" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 0: [0000..3FFF]</text>
+                <text x="90" y="44" fill="#f0f4fc" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Balanced: 25% Load</text>
+                <text x="90" y="58" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Hash(Bob) = 0x1F8A</text>
+
+                <!-- Shard 1 -->
+                <rect x="200" y="0" width="180" height="70" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.2"/>
+                <text x="290" y="24" fill="#10b981" font-size="11" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 1: [4000..7FFF]</text>
+                <text x="290" y="44" fill="#f0f4fc" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Balanced: 25% Load</text>
+                <text x="290" y="58" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Hash(Ben) = 0x54C2</text>
+
+                <!-- Shard 2 -->
+                <rect x="400" y="0" width="180" height="70" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.2"/>
+                <text x="490" y="24" fill="#10b981" font-size="11" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 2: [8000..BFFF]</text>
+                <text x="490" y="44" fill="#f0f4fc" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Balanced: 25% Load</text>
+                <text x="490" y="58" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Hash(Brian) = 0x9B11</text>
+
+                <!-- Shard 3 -->
+                <rect x="600" y="0" width="180" height="70" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.2"/>
+                <text x="690" y="24" fill="#10b981" font-size="11" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 3: [C000..FFFF]</text>
+                <text x="690" y="44" fill="#f0f4fc" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Balanced: 25% Load</text>
+                <text x="690" y="58" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Hash(Bella) = 0xE084</text>
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Interactive Simulator 1: Partition Key Hash Router -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <h3 class="interactive-title">Live Simulator: Range vs. Hash Partitioning Router</h3>
+            <span class="interactive-badge">Interactive Widget 01</span>
+          </div>
+          <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+            Type different usernames or IDs below to observe how Range Partitioning causes clustering/hotspots while Hash Partitioning uniformly distributes keys across 4 shards.
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label" for="sim-key-input">Enter Partition Key (Username / ID):</label>
+              <input type="text" id="sim-key-input" class="text-input-field" value="Ben" placeholder="e.g. Alice, Ben, Bob, Charlie, Dan...">
+            </div>
+            <button class="sim-btn primary" id="btn-calc-hash" style="align-self:flex-end;">Route Partition Key</button>
+            <button class="sim-btn" id="btn-batch-sim" style="align-self:flex-end;">Run 100 Skewed Names Batch</button>
+          </div>
+          <div class="sim-display-box" id="sim-hash-output">
+            Route result will appear here...
+          </div>
+        </div>
+
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">UUID / Hash Sharding</h4>
+            <p class="example-body">An e-commerce store assigns orders via <code>MurmurHash(order_id) % 16</code>, perfectly balancing millions of checkouts across 16 database partitions.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive</span>
+            <h4 class="example-title">Timestamp Range Partitioning Pitfall</h4>
+            <p class="example-body">Partitioning IoT sensor data by timestamp causes 100% of current writes to hammer the "current hour" shard, causing CPU exhaustion while older shards idle.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Celebrity Hot Spot (Justin Bieber Problem)</h4>
+            <p class="example-body">When a celebrity with 50M followers tweets, hashing by <code>user_id</code> routes all 50M reply writes to a single shard. Mitigation: append 2 random salt digits <code>user_id_00..99</code>.</p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+            <p class="pedagogy-text">Range partitioning is like sorting books by author last name into library rooms (Room A-E, F-M). Hash partitioning is like running a barcode scanner that distributes books evenly across rooms regardless of author.</p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+            <p class="pedagogy-text">Assuming that hash partitioning completely prevents hot keys. If millions of users simultaneously query or write to the EXACT SAME primary key, hashing sends all requests to that same single shard.</p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label"><span>📌</span> Why This Matters</div>
+            <p class="pedagogy-text">Selecting the correct partition key is often irreversible without a multi-day live migration. Choosing wrong leads to persistent hot spots and server crashes under peak load.</p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+            <p class="pedagogy-text">Whether using range or hash keys, application code shouldn't manually calculate routes. We need an intelligent proxy routing tier (Module 3).</p>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span>🧠 Memory Anchor:</span> Range keys give fast local scans but risk severe hot spots; Hash keys give rock-solid write uniformity but require scatter-gather for range scans.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 3: Routing & Proxies (Vitess / vtgate)
+           ========================================== -->
+      <article class="module-card" id="module-3">
+        <header class="module-header">
+          <span class="module-num">Module 03</span>
+          <h2 class="module-heading">Routing Tiers, Database Proxies & Topology Consensus</h2>
+        </header>
+
+        <div class="prose-block">
+          <p>
+            When a database is sharded across multiple nodes, the system faces an immediate architectural challenge known as <strong>Request Routing</strong>: how does a client know which IP address and database port to connect to for a given query?
+          </p>
+          <p>
+            In basic architectures, routing logic is embedded directly inside application code or ORM middleware. The application inspects the query, computes the hash of the partition key, looks up a configuration file, and establishes a direct socket connection to Shard 3. While straightforward initially, this pattern causes extreme coupling: every application server must maintain open connection pools to every single shard. If the cluster topology changes—such as splitting Shard 3 into two shards during rebalancing—every application server must be reconfigured and redeployed simultaneously without dropping active transactions.
+          </p>
+          <p>
+            Modern hyperscale systems (such as YouTube, GitHub, Slack, and PlanetScale) decouple routing by introducing a dedicated <strong>Database Proxy Tier</strong> (e.g., <strong>Vitess vtgate</strong>, MongoDB <code>mongos</code>, or Citus query router). Application servers connect to the proxy layer via standard database protocols (such as MySQL or PostgreSQL wire protocols) as if it were a single monolithic database.
+          </p>
+          <p>
+            The proxy tier maintains an in-memory view of the entire cluster topology, continuously synchronized with a distributed consensus store like <strong>ZooKeeper</strong> or <strong>etcd</strong>. When an incoming SQL query arrives, the proxy's AST parser inspects the WHERE clause, resolves the partition key, checks whether the target is a primary or replica, and routes the query seamlessly. Crucially, during failovers or live resharding cutovers, an intelligent proxy can <strong>buffer</strong> incoming writes in memory for a few hundred milliseconds, making the underlying shard migration completely transparent to application clients with zero 500 errors.
+          </p>
+        </div>
+
+        <div class="definitions-panel">
+          <div class="definitions-header"><span>Key Architectural Definitions</span></div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term"><span>🌐</span> Database Proxy Tier (vtgate)</div>
+              <div class="def-desc">A stateless intermediary proxy that parses incoming SQL queries, discovers cluster topology, and routes commands to appropriate shards.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>📡</span> Topology Service (etcd / ZooKeeper)</div>
+              <div class="def-desc">A highly available distributed consensus store that acts as the single source of truth for shard boundaries, primary nodes, and cluster health.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>⏸️</span> Query Buffering & Transparent Cutover</div>
+              <div class="def-desc">The ability of a proxy to hold client connections and buffer write requests during a 2-second primary failover or shard promotion.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG Diagram 3: Proxy Sequence & Buffer Architecture -->
+        <div class="svg-diagram-wrapper">
+          <svg viewBox="0 0 900 360" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Proxy Query Routing Sequence">
+            <title>Diagram 03: Sequence Diagram: Proxy Query Routing and Buffering</title>
+            <rect width="900" height="360" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+            <!-- Lifelines -->
+            <line x1="120" y1="50" x2="120" y2="320" stroke="#38455e" stroke-width="1.5" stroke-dasharray="4,4"/>
+            <rect x="60" y="24" width="120" height="32" rx="4" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+            <text x="120" y="44" fill="#3b82f6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">App Client</text>
+
+            <line x1="360" y1="50" x2="360" y2="320" stroke="#eb6c36" stroke-width="1.5" stroke-dasharray="4,4"/>
+            <rect x="290" y="24" width="140" height="32" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1.5"/>
+            <text x="360" y="44" fill="#eb6c36" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Proxy Tier (vtgate)</text>
+
+            <line x1="600" y1="50" x2="600" y2="320" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4,4"/>
+            <rect x="530" y="24" width="140" height="32" rx="4" fill="#1a202c" stroke="#8b5cf6" stroke-width="1.2"/>
+            <text x="600" y="44" fill="#8b5cf6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Consensus (etcd)</text>
+
+            <line x1="800" y1="50" x2="800" y2="320" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,4"/>
+            <rect x="740" y="24" width="120" height="32" rx="4" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+            <text x="800" y="44" fill="#10b981" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard Primary</text>
+
+            <!-- Step 1: Query from App to Proxy -->
+            <path d="M 120 90 L 352 90" stroke="#3b82f6" stroke-width="1.5"/>
+            <polygon points="352,87 360,90 352,93" fill="#3b82f6"/>
+            <rect x="180" y="78" width="120" height="14" rx="2" fill="#12161f"/>
+            <text x="240" y="88" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">1. SELECT WHERE id=42</text>
+
+            <!-- Step 2: Topology check / Cache lookup -->
+            <path d="M 360 120 L 592 120" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="4,3"/>
+            <polygon points="592,117 600,120 592,123" fill="#8b5cf6"/>
+            <rect x="420" y="108" width="120" height="14" rx="2" fill="#12161f"/>
+            <text x="480" y="118" fill="#8b5cf6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">2. Get Shard Boundary</text>
+
+            <path d="M 600 150 L 368 150" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="4,3"/>
+            <polygon points="368,147 360,150 368,153" fill="#8b5cf6"/>
+            <rect x="420" y="138" width="120" height="14" rx="2" fill="#12161f"/>
+            <text x="480" y="148" fill="#8b5cf6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">3. id=42 maps to Shard 1</text>
+
+            <!-- Step 3: Proxy Routes to Shard Primary -->
+            <path d="M 360 190 L 792 190" stroke="#eb6c36" stroke-width="1.5"/>
+            <polygon points="792,187 800,190 792,193" fill="#eb6c36"/>
+            <rect x="520" y="178" width="120" height="14" rx="2" fill="#12161f"/>
+            <text x="580" y="188" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">4. Direct SQL Exec</text>
+
+            <!-- Step 4: Shard Returns Rows -->
+            <path d="M 800 230 L 368 230" stroke="#10b981" stroke-width="1.5"/>
+            <polygon points="368,227 360,230 368,233" fill="#10b981"/>
+            <rect x="520" y="218" width="120" height="14" rx="2" fill="#12161f"/>
+            <text x="580" y="228" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">5. Row Dataset Result</text>
+
+            <!-- Step 5: Proxy to App -->
+            <path d="M 360 270 L 128 270" stroke="#3b82f6" stroke-width="1.5"/>
+            <polygon points="128,267 120,270 128,273" fill="#3b82f6"/>
+            <rect x="180" y="258" width="120" height="14" rx="2" fill="#12161f"/>
+            <text x="240" y="268" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">6. Standard Resultset</text>
+          </svg>
+        </div>
+
+        <div class="steps-container">
+          <div class="step-node">
+            <div class="step-index-badge">1</div>
+            <div class="step-content-box">
+              <h4>Query Ingestion & AST Parsing</h4>
+              <p>The proxy accepts connections over standard MySQL/Postgres wire protocols and parses the SQL Abstract Syntax Tree (AST) to identify tables, columns, and WHERE clauses.</p>
+            </div>
+          </div>
+          <div class="step-node">
+            <div class="step-index-badge">2</div>
+            <div class="step-content-box">
+              <h4>Keyspace Definition Mapping</h4>
+              <p>The proxy resolves the table's VSchema (Vitess Schema) to extract the designated partition key (e.g., <code>user_id</code>) and computes the target keyspace range.</p>
+            </div>
+          </div>
+          <div class="step-node">
+            <div class="step-index-badge">3</div>
+            <div class="step-content-box">
+              <h4>Connection Pooling & Dispatch</h4>
+              <p>The proxy utilizes warm, persistent backend connection pools to transmit the query directly to the selected shard's primary or read replica.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">Vitess at YouTube / PlanetScale</h4>
+            <p class="example-body">Massive web clusters route all queries through stateless <code>vtgate</code> proxies that manage thousands of underlying MySQL shards seamlessly.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive</span>
+            <h4 class="example-title">Transparent Failover Buffering</h4>
+            <p class="example-body">When a shard primary dies, the proxy pauses query dispatch for 1.5 seconds while etcd elects a new primary, preventing 500 server errors on the frontend.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Proxy Tier Scalability (SPOF Prevention)</h4>
+            <p class="example-body">Proxies are completely stateless. By placing 10 vtgate proxies behind a Network Load Balancer (NLB), you eliminate proxy-level single points of failure.</p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+            <p class="pedagogy-text">A database proxy is like a central postal sorting office. Customers drop off letters with a destination address; the postal system routes packages across dozens of transport hubs without the sender knowing the flight routes.</p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+            <p class="pedagogy-text">Thinking that adding a proxy introduces prohibitive latency. High-performance proxies written in Go/Rust typically add less than 0.5ms of overhead while saving tens of milliseconds in connection overhead.</p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label"><span>📌</span> Why This Matters</div>
+            <p class="pedagogy-text">It frees application developers from having to write complex, brittle multi-database connection managers, letting application code treat a 50-node cluster as one database.</p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+            <p class="pedagogy-text">When a query touches data spanning multiple shards (like a user timeline join), the proxy executes a Scatter-Gather strategy (Module 4).</p>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span>🧠 Memory Anchor:</span> Decouple routing from application code: keep apps dumb, let stateless proxies parse and route, and use consensus to track topology.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 4: Scatter-Gather & Distributed Joins
+           ========================================== -->
+      <article class="module-card" id="module-4">
+        <header class="module-header">
+          <span class="module-num">Module 04</span>
+          <h2 class="module-heading">Scatter-Gather Queries, Cross-Shard Joins & Schema Design</h2>
+        </header>
+
+        <div class="prose-block">
+          <p>
+            While sharding provides immense horizontal write throughput for single-key operations (such as <code>INSERT INTO users</code> or <code>SELECT * FROM users WHERE user_id = 42</code>), real-world applications frequently require complex analytical queries, pagination across collections, and joins between related entities.
+          </p>
+          <p>
+            When a query does not specify a partition key—or requests a cross-partition aggregation such as <code>SELECT COUNT(*) FROM orders WHERE status = 'pending'</code>—the routing tier must execute a <strong>Scatter-Gather</strong> pattern. The proxy broadcasts the query concurrently to every active shard in the cluster ("scatter"), waits for each shard to execute its local portion, receives the individual result sets, and then merges, sorts, and paginates the final output in proxy memory ("gather") before returning it to the client.
+          </p>
+          <p>
+            Scatter-gather queries are inherently expensive: their latency is bounded by the slowest responding shard (the <em>tail latency</em> or <em>straggler problem</em>). Furthermore, distributed joins across shards (e.g., joining a <code>users</code> table on Shard 1 with a <code>posts</code> table distributed across Shards 1 through 4) require significant network bandwidth and memory overhead.
+          </p>
+          <p>
+            To minimize scatter-gather penalties, schema design in sharded systems must carefully choose the <strong>Co-location Strategy</strong>. By selecting an overarching entity key (such as <code>tenant_id</code> or <code>organization_id</code>) and ensuring that all related tables (e.g., <code>repositories</code>, <code>pull_requests</code>, <code>issues</code>, <code>comments</code>) include that partition key, all joins for that organization execute locally on a single shard at lightning speed.
+          </p>
+        </div>
+
+        <div class="definitions-panel">
+          <div class="definitions-header"><span>Key Architectural Definitions</span></div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term"><span>📡</span> Scatter-Gather Pattern</div>
+              <div class="def-desc">Broadcasting a query across all cluster partitions simultaneously and consolidating the intermediate result streams at the routing proxy tier.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>🐢</span> Tail Latency (Straggler Effect)</div>
+              <div class="def-desc">The degradation where a multi-shard query's response time is governed entirely by the single slowest shard in the scatter fan-out.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>🏢</span> Entity Co-Location</div>
+              <div class="def-desc">Designing schemas so that parent and child records (e.g. Org, Repos, Issues) share the same partition key and reside on the identical physical shard.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG Diagram 4: Scatter-Gather vs Co-Located Schema -->
+        <div class="svg-diagram-wrapper">
+          <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Scatter-Gather vs Co-Located Schema Join">
+            <title>Diagram 04: Scatter-Gather Fan-out vs Co-Located Schema Join</title>
+            <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+            <!-- Left Box: Scatter-Gather Fan-Out (Slow / Tail Latency) -->
+            <g transform="translate(24, 24)">
+              <rect width="410" height="272" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.2"/>
+              <text x="205" y="28" fill="#f43f5e" font-size="12" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Scatter-Gather Fan-Out (Non-Key Query)</text>
+
+              <!-- Proxy -->
+              <rect x="135" y="44" width="140" height="36" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1.2"/>
+              <text x="205" y="66" fill="#eb6c36" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Proxy Buffer / Merge</text>
+
+              <!-- Scatter Arrows -->
+              <path d="M 155 80 L 60 136" stroke="#f43f5e" stroke-width="1.2" stroke-linecap="round"/>
+              <path d="M 185 80 L 140 136" stroke="#f43f5e" stroke-width="1.2" stroke-linecap="round"/>
+              <path d="M 225 80 L 270 136" stroke="#f43f5e" stroke-width="1.2" stroke-linecap="round"/>
+              <path d="M 255 80 L 350 136" stroke="#f43f5e" stroke-width="1.2" stroke-linecap="round"/>
+
+              <!-- 4 Shards -->
+              <rect x="20" y="140" width="80" height="50" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+              <text x="60" y="162" fill="#f0f4fc" font-size="8.5" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 0</text>
+              <text x="60" y="178" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">1.2ms</text>
+
+              <rect x="110" y="140" width="80" height="50" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+              <text x="150" y="162" fill="#f0f4fc" font-size="8.5" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 1</text>
+              <text x="150" y="178" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">1.8ms</text>
+
+              <!-- Straggler Shard 2 -->
+              <rect x="200" y="140" width="80" height="50" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.5"/>
+              <text x="240" y="162" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 2</text>
+              <text x="240" y="178" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">🐢 24ms (Tail)</text>
+
+              <rect x="290" y="140" width="80" height="50" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+              <text x="330" y="162" fill="#f0f4fc" font-size="8.5" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 3</text>
+              <text x="330" y="178" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">2.1ms</text>
+
+              <rect x="20" y="210" width="370" height="48" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="205" y="232" fill="#f43f5e" font-size="9" font-family="'Geist', sans-serif" text-anchor="middle" font-weight="600">Total Latency Bounded by Slowest Shard (24ms)</text>
+              <text x="205" y="246" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">4 Network Hops • In-Memory Proxy Aggregation</text>
+            </g>
+
+            <!-- Right Box: Co-Located Schema Join (Fast / O(1)) -->
+            <g transform="translate(466, 24)">
+              <rect width="410" height="272" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+              <text x="205" y="28" fill="#10b981" font-size="12" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Entity Co-Location (Targeted Single-Shard)</text>
+
+              <!-- Proxy -->
+              <rect x="135" y="44" width="140" height="36" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+              <text x="205" y="66" fill="#3b82f6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Proxy (Hash Match)</text>
+
+              <!-- Single Direct Arrow -->
+              <path d="M 205 80 L 205 132" stroke="#10b981" stroke-width="1.8" stroke-linecap="round"/>
+              <polygon points="201,130 205,138 209,130" fill="#10b981"/>
+
+              <!-- Shard 1 (Co-Located Tables) -->
+              <g transform="translate(45, 140)">
+                <rect width="320" height="60" rx="6" fill="#12161f" stroke="#10b981" stroke-width="1.5"/>
+                <text x="160" y="20" fill="#10b981" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 1 (Host for org_id = 14)</text>
+                
+                <rect x="16" y="28" width="86" height="22" rx="3" fill="#1a202c" stroke="#38455e" stroke-width="0.8"/>
+                <text x="59" y="42" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">orgs (14)</text>
+
+                <text x="112" y="44" fill="#10b981" font-size="11" font-weight="700" text-anchor="middle">⋈</text>
+
+                <rect x="126" y="28" width="86" height="22" rx="3" fill="#1a202c" stroke="#38455e" stroke-width="0.8"/>
+                <text x="169" y="42" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">repos (14)</text>
+
+                <text x="222" y="44" fill="#10b981" font-size="11" font-weight="700" text-anchor="middle">⋈</text>
+
+                <rect x="236" y="28" width="70" height="22" rx="3" fill="#1a202c" stroke="#38455e" stroke-width="0.8"/>
+                <text x="271" y="42" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">prs (14)</text>
+              </g>
+
+              <rect x="20" y="210" width="370" height="48" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="205" y="232" fill="#10b981" font-size="9" font-family="'Geist', sans-serif" text-anchor="middle" font-weight="600">Zero Cross-Shard Network Hops (InnoDB Local Join: 1.8ms)</text>
+              <text x="205" y="246" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Full ACID Transactional Guarantees • High Concurrency</text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Interactive Simulator 2: Scatter-Gather Query Visualizer -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <h3 class="interactive-title">Live Simulator: Scatter-Gather vs. Single-Shard Query Execution</h3>
+            <span class="interactive-badge">Interactive Widget 02</span>
+          </div>
+          <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+            Select different query archetypes to visualize whether the proxy routes to a targeted single shard (O(1) latency) or triggers a multi-shard scatter-gather fan-out (O(N) fan-out with tail latency).
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label" for="sim-query-type">Select Query Archetype:</label>
+              <select id="sim-query-type" class="text-input-field">
+                <option value="targeted">Targeted Point Lookup (SELECT * WHERE user_id = 9482)</option>
+                <option value="scatter">Global Aggregate (SELECT COUNT(*) WHERE status='active')</option>
+                <option value="colocated-join">Co-Located Join (SELECT * FROM orgs JOIN repos ON org_id=14)</option>
+                <option value="cross-join">Cross-Shard Join (SELECT * FROM users JOIN orders ON user.zip=order.zip)</option>
+              </select>
+            </div>
+            <button class="sim-btn primary" id="btn-run-query-sim" style="align-self:flex-end;">Simulate Execution</button>
+          </div>
+          <div class="sim-display-box" id="sim-query-output">
+            Select a query and click Execute to observe query dispatch, latency profiling, and network hops...
+          </div>
+        </div>
+
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">GitHub Organization Partitioning</h4>
+            <p class="example-body">GitHub co-locates all repositories, commits, and pull requests under their parent <code>org_id</code>, ensuring all complex PR review joins stay within one shard.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive</span>
+            <h4 class="example-title">Global Secondary Index Sharding</h4>
+            <p class="example-body">Secondary indexes partitioned by term (document-partitioned) require scatter-gather on every single search query, trading search speed for write locality.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Multi-Tenant User Crossing</h4>
+            <p class="example-body">A developer belonging to 5 different GitHub organizations has user profile data referenced across 5 shards; global user searches require multi-shard federation.</p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+            <p class="pedagogy-text">Targeted querying is calling a person's direct phone extension. Scatter-gather is picking up a megaphone and shouting across an entire office building, waiting for everyone to reply before you proceed.</p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+            <p class="pedagogy-text">Assuming that adding more shards speeds up every query. For scatter-gather queries, adding more shards increases tail latency because the probability of hitting a slow node increases.</p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label"><span>📌</span> Why This Matters</div>
+            <p class="pedagogy-text">Understanding query fan-out enables engineers to structure relational foreign keys around natural shard keys, avoiding expensive distributed join bottlenecks.</p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+            <p class="pedagogy-text">As data volume grows, individual shards fill up. How do we split and rebalance shards without taking the system offline? (Module 5).</p>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span>🧠 Memory Anchor:</span> Design schemas for co-location: keep parent and child records on the same partition key to avoid slow, expensive scatter-gather joins.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 5: Live Resharding & Rebalancing
+           ========================================== -->
+      <article class="module-card" id="module-5">
+        <header class="module-header">
+          <span class="module-num">Module 05</span>
+          <h2 class="module-heading">Dynamic Rebalancing, Consistent Hashing & Zero-Downtime Live Resharding</h2>
+        </header>
+
+        <div class="prose-block">
+          <p>
+            No database partitioning scheme is permanent. As application traffic grows, hardware resource limits change, or data skews evolve, the cluster must undergo <strong>rebalancing</strong> (moving data and query load from existing nodes to newly added servers).
+          </p>
+          <p>
+            Chapter 6 highlights why naive hash partitioning—such as <code>hash(key) % N</code> where N is the number of nodes—is a catastrophic anti-pattern for production systems. If you have 10 nodes and add an 11th node, almost every single key's modulo result changes (e.g., <code>hash(k) % 10 != hash(k) % 11</code>). This forces an enormous, cluster-wide data reshuffling where up to 90% of all existing records must migrate across the network simultaneously, crippling database performance.
+          </p>
+          <p>
+            Modern production systems avoid this using three primary rebalancing strategies:
+          </p>
+          <ul style="margin-left: 24px; margin-bottom: 18px; color: var(--text-muted); font-size: 0.95rem; line-height: 1.7;">
+            <li><strong>Fixed Number of Partitions (Virtual Partitions):</strong> Systems like Elasticsearch, Riak, and Cassandra allocate many more partitions than nodes (e.g., 1,000 virtual partitions across 10 physical nodes). When Node 11 is added, it simply takes a few entire virtual partitions from existing nodes without changing key-to-partition hashes.</li>
+            <li><strong>Dynamic Partitioning (HBase, MongoDB):</strong> When a partition exceeds a fixed byte size (e.g. 10 GB), it automatically splits into two halves, similar to a B-tree node split, and one half is reassigned to an underutilized node.</li>
+            <li><strong>Live Shard Splitting with VReplication (Vitess):</strong> A seamless 5-phase migration lifecycle that splits 2 shards into 4 with zero downtime.</li>
+          </ul>
+          <p>
+            The Vitess live resharding lifecycle is an engineering masterpiece: new shards are provisioned, historical data is streamed in the background, real-time binlog change-data-capture (CDC) replicates concurrent live writes, the proxy synchronizes replication lag down to milliseconds, and finally, an atomic cutover redirects client traffic in under 50ms with zero dropped connections.
+          </p>
+        </div>
+
+        <div class="definitions-panel">
+          <div class="definitions-header"><span>Key Architectural Definitions</span></div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term"><span>🔄</span> Dynamic Rebalancing</div>
+              <div class="def-desc">The process of redistributing partition ownership across cluster nodes to balance CPU, disk storage, and I/O throughput.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>📦</span> Virtual Partitions (vnodes)</div>
+              <div class="def-desc">Decoupling logical partition count from physical node count so that nodes host multiple portable chunks of data.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>⏱️</span> Atomic Cutover (Switchover)</div>
+              <div class="def-desc">The synchronized instant where the routing tier switches read/write traffic from old shard boundaries to newly populated child shards.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG Diagram 5: 5-Phase Live Resharding Architecture -->
+        <div class="svg-diagram-wrapper">
+          <svg viewBox="0 0 900 300" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="5-Phase Live Resharding Architecture">
+            <title>Diagram 05: 5-Phase Zero-Downtime Resharding & Live Cutover</title>
+            <rect width="900" height="300" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+            <!-- Phase 1: Source Shard -->
+            <g transform="translate(32, 40)">
+              <rect width="180" height="110" rx="6" fill="#1a202c" stroke="#eb6c36" stroke-width="1.5"/>
+              <rect x="8" y="8" width="56" height="12" rx="2" fill="transparent" stroke="#eb6c36" stroke-width="0.8"/>
+              <text x="36" y="17" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">SOURCE</text>
+              <text x="90" y="38" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Shard 0 [-80]</text>
+              <rect x="12" y="50" width="156" height="22" rx="4" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+              <text x="90" y="65" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Active Client Traffic</text>
+              <text x="90" y="94" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Binlog CDC Active ⚡</text>
+            </g>
+
+            <!-- VReplication CDC Stream Streamer -->
+            <g transform="translate(240, 75)">
+              <path d="M 0 20 L 72 20 Q 80 20 80 12 L 80 -10 Q 80 -18 88 -18 L 140 -18" fill="none" stroke="#eb6c36" stroke-width="1.5" stroke-dasharray="4,3"/>
+              <path d="M 0 20 L 72 20 Q 80 20 80 28 L 80 50 Q 80 58 88 58 L 140 58" fill="none" stroke="#eb6c36" stroke-width="1.5" stroke-dasharray="4,3"/>
+              <rect x="36" y="8" width="88" height="20" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1"/>
+              <text x="80" y="22" fill="#eb6c36" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">VREPLICATION</text>
+            </g>
+
+            <!-- Target Split Shard A -->
+            <g transform="translate(420, 20)">
+              <rect width="180" height="96" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+              <rect x="8" y="8" width="56" height="12" rx="2" fill="transparent" stroke="#10b981" stroke-width="0.8"/>
+              <text x="36" y="17" fill="#10b981" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">TARGET A</text>
+              <text x="90" y="38" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Shard 0-A [-40]</text>
+              <text x="90" y="60" fill="#10b981" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">Copy + Real-Time Sync</text>
+              <text x="90" y="78" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Replication Lag: &lt; 5ms</text>
+            </g>
+
+            <!-- Target Split Shard B -->
+            <g transform="translate(420, 136)">
+              <rect width="180" height="96" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+              <rect x="8" y="8" width="56" height="12" rx="2" fill="transparent" stroke="#10b981" stroke-width="0.8"/>
+              <text x="36" y="17" fill="#10b981" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">TARGET B</text>
+              <text x="90" y="38" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Shard 0-B [40-80]</text>
+              <text x="90" y="60" fill="#10b981" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">Copy + Real-Time Sync</text>
+              <text x="90" y="78" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Replication Lag: &lt; 5ms</text>
+            </g>
+
+            <!-- Proxy Switchover Tier -->
+            <g transform="translate(640, 50)">
+              <rect width="220" height="152" rx="6" fill="#201815" stroke="#3b82f6" stroke-width="1.5"/>
+              <rect x="8" y="8" width="64" height="12" rx="2" fill="transparent" stroke="#3b82f6" stroke-width="0.8"/>
+              <text x="40" y="17" fill="#3b82f6" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">CUTOVER</text>
+              <text x="110" y="38" fill="#f0f4fc" font-size="12" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Atomic Proxy Cutover</text>
+              
+              <rect x="12" y="52" width="196" height="24" rx="3" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="110" y="68" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">1. Buffer Writes (200ms)</text>
+
+              <rect x="12" y="82" width="196" height="24" rx="3" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="110" y="98" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">2. Switch Routes in etcd</text>
+
+              <rect x="12" y="112" width="196" height="24" rx="3" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="110" y="128" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">3. Drain Old Shards</text>
+            </g>
+
+            <!-- Bottom Note -->
+            <line x1="32" y1="260" x2="868" y2="260" stroke="#242c3d" stroke-width="1"/>
+            <text x="450" y="280" fill="#8d9bb0" font-size="8.5" font-family="'Geist Mono', monospace" text-anchor="middle">Zero Lost Writes • 50ms Traffic Cutover • Background CDC De-duplication</text>
+          </svg>
+        </div>
+
+        <!-- Interactive Simulator 3: Live Resharding Step-Through -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <h3 class="interactive-title">Interactive Workflow: 5-Phase Zero-Downtime Resharding</h3>
+            <span class="interactive-badge">Interactive Widget 03</span>
+          </div>
+          <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+            Step through the live operational lifecycle of splitting an overloaded 2-shard database cluster into 4 shards without stopping user read/write traffic.
+          </p>
+          <div class="control-row">
+            <button class="sim-btn primary" id="btn-prev-stage">‹ Previous Phase</button>
+            <button class="sim-btn primary" id="btn-next-stage">Next Phase ›</button>
+            <span style="font-family:var(--font-mono); font-size:0.82rem; color:var(--accent); font-weight:700;" id="stage-indicator">Phase 1 / 5</span>
+          </div>
+          <div class="sim-display-box" id="sim-reshard-box">
+            Phase details will render here...
+          </div>
+        </div>
+
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">Elasticsearch Virtual Shards</h4>
+            <p class="example-body">An index created with 20 primary shards spread across 4 nodes easily scales to 10 nodes by moving 2 virtual shards to each new server without re-indexing.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive</span>
+            <h4 class="example-title">Automatic vs Manual Rebalancing</h4>
+            <p class="example-body">Fully automated auto-rebalancing can trigger a cascading failure: if one node hiccups, an aggressive rebalancer floods the network with multi-terabyte copies.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">Decommissioning Old Shards</h4>
+            <p class="example-body">After traffic cutover to 4 new shards, old 2-shard instances are kept in read-only shadow state for 48 hours as an emergency rollback before teardown.</p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+            <p class="pedagogy-text">Live resharding is like replacing the engines on a commercial passenger airliner mid-flight: you start the new engine, sync its RPM, transfer fuel feed, and shut down the old engine without passengers spilling their coffee.</p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+            <p class="pedagogy-text">Believing that resharding requires taking a scheduled maintenance window at 2 AM on a Sunday. Modern systems achieve zero-downtime cutover in under 100ms.</p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label"><span>📌</span> Why This Matters</div>
+            <p class="pedagogy-text">Without seamless resharding, scaling an application requires painful outages and risk-heavy manual database dumps and restores.</p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+            <p class="pedagogy-text">In addition to raw throughput, sharding unlocks major operational advantages in backup throughput and legal compliance (Module 6).</p>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span>🧠 Memory Anchor:</span> Never use raw key % N; use virtual partitions or live change-data-capture stream replication to achieve zero-downtime resharding.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 6: Operational Superpowers
+           ========================================== -->
+      <article class="module-card" id="module-6">
+        <header class="module-header">
+          <span class="module-num">Module 06</span>
+          <h2 class="module-heading">Operational Velocity: Parallel Backups, Elasticity & Data Sovereignty</h2>
+        </header>
+
+        <div class="prose-block">
+          <p>
+            Beyond write scalability and query performance, database sharding provides massive operational advantages that are frequently overlooked by system architects. Two of the most profound benefits are <strong>Parallelized Backup and Recovery</strong> and <strong>Geographic Data Sovereignty</strong>.
+          </p>
+          <p>
+            Consider a large monolithic database storing 12 Terabytes of mission-critical data. If the database backup engine streams snapshots to cloud object storage (such as Amazon S3 or Google Cloud Storage) over a provisioned 1 TB/hour network pipe, a full backup requires <strong>12 continuous hours</strong> to complete. If company recovery point objectives (RPO) mandate fresh backups every 4 hours, meeting this requirement on a single monolithic node is mathematically impossible.
+          </p>
+          <p>
+            When that same 12 TB dataset is distributed across 4 independent shards (each holding 3 TB), all 4 shards can execute their snapshot and streaming operations concurrently in parallel. Each shard completes its 3 TB backup in <strong>3 hours</strong>. The entire cluster backup finishes in 3 hours, allowing the engineering team to easily execute automated backups every 4 hours with an hour of safety margin.
+          </p>
+          <p>
+            Additionally, international privacy regulations (such as the European Union's GDPR or regional financial mandates) strictly require that personal identification information (PII) of citizens must physically remain within territorial borders. Sharding allows multi-region database deployment: European tenant data is routed to physical shards hosted in Frankfurt/Dublin, while US tenant data resides on shards in Virginia/Oregon, all governed through a unified global proxy layer.
+          </p>
+        </div>
+
+        <div class="definitions-panel">
+          <div class="definitions-header"><span>Key Architectural Definitions</span></div>
+          <div class="def-grid">
+            <div class="def-item">
+              <div class="def-term"><span>⚡</span> Parallel Backup Throughput</div>
+              <div class="def-desc">The aggregate operational bandwidth achieved by streaming discrete shard backups concurrently to object storage.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>🌍</span> Data Residency (Sovereignty)</div>
+              <div class="def-desc">Legal compliance architecture ensuring that specific country citizen data resides strictly on servers physically inside national boundaries.</div>
+            </div>
+            <div class="def-item">
+              <div class="def-term"><span>⏱️</span> RPO / RTO Optimization</div>
+              <div class="def-desc">Drastically reducing Recovery Point Objective (data loss window) and Recovery Time Objective (restore speed) via smaller parallel shard volumes.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG Diagram 6: Parallel Backups & Multi-Region Data Sovereignty -->
+        <div class="svg-diagram-wrapper">
+          <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Parallel Backups and Data Sovereignty">
+            <title>Diagram 06: Parallel Backup Throughput & Geographic Data Residency</title>
+            <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+            <!-- Panel A: Parallel Backup Throughput -->
+            <g transform="translate(24, 24)">
+              <rect width="410" height="272" rx="6" fill="#1a202c" stroke="#38455e" stroke-width="1"/>
+              <text x="205" y="28" fill="#10b981" font-size="12" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Parallel Backup Throughput (4x Speedup)</text>
+
+              <!-- Monolith 12TB Bar -->
+              <rect x="20" y="52" width="370" height="42" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+              <text x="32" y="70" fill="#f43f5e" font-size="9" font-weight="700" font-family="'Geist Mono', monospace">Monolith (12 TB): 1 Stream @ 1 TB/hr</text>
+              <text x="32" y="85" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace">Duration: 12.0 Hours (Violates 4-hr RPO) ❌</text>
+
+              <!-- 4 Shards Parallel Bars -->
+              <g transform="translate(20, 108)">
+                <rect x="0" y="0" width="85" height="40" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+                <text x="42" y="18" fill="#10b981" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 0 (3TB)</text>
+                <text x="42" y="32" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">3.0 Hours</text>
+
+                <rect x="95" y="0" width="85" height="40" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+                <text x="137" y="18" fill="#10b981" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 1 (3TB)</text>
+                <text x="137" y="32" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">3.0 Hours</text>
+
+                <rect x="190" y="0" width="85" height="40" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+                <text x="232" y="18" fill="#10b981" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 2 (3TB)</text>
+                <text x="232" y="32" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">3.0 Hours</text>
+
+                <rect x="285" y="0" width="85" height="40" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+                <text x="327" y="18" fill="#10b981" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Shard 3 (3TB)</text>
+                <text x="327" y="32" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">3.0 Hours</text>
+              </g>
+
+              <!-- Target S3 Bucket -->
+              <rect x="20" y="160" width="370" height="44" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+              <text x="205" y="180" fill="#3b82f6" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Amazon S3 / GCS Backup Target (4TB / hr Aggregate)</text>
+              <text x="205" y="195" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Total Cluster Backup Time: 3.0 Hours ✓</text>
+
+              <rect x="20" y="214" width="370" height="44" rx="4" fill="#10b981" fill-opacity="0.1" stroke="#10b981" stroke-width="0.8"/>
+              <text x="205" y="234" fill="#10b981" font-size="8.5" font-family="'Geist', sans-serif" text-anchor="middle" font-weight="600">Enables Frequent 4-Hour RPO Backup Snapshots</text>
+              <text x="205" y="248" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Independent point-in-time recovery per shard volume</text>
+            </g>
+
+            <!-- Panel B: Geographic Data Sovereignty (GDPR) -->
+            <g transform="translate(466, 24)">
+              <rect width="410" height="272" rx="6" fill="#1a202c" stroke="#38455e" stroke-width="1"/>
+              <text x="205" y="28" fill="#8b5cf6" font-size="12" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Geographic Data Sovereignty & GDPR</text>
+
+              <!-- Global Router -->
+              <rect x="125" y="48" width="160" height="34" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1.2"/>
+              <text x="205" y="69" fill="#eb6c36" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Geo-Aware Proxy Tier</text>
+
+              <!-- EU Route -->
+              <path d="M 160 82 L 105 130" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round"/>
+              <rect x="20" y="134" width="170" height="84" rx="6" fill="#12161f" stroke="#8b5cf6" stroke-width="1.2"/>
+              <text x="105" y="156" fill="#8b5cf6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">EU Shards (Frankfurt)</text>
+              <text x="105" y="174" fill="#f0f4fc" font-size="8.5" font-family="'Geist', sans-serif" text-anchor="middle">GDPR Compliance Enclave</text>
+              <text x="105" y="190" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">EU Citizen Data Stored In-Border</text>
+              <text x="105" y="204" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">✓ Legal Mandate Satisfied</text>
+
+              <!-- US Route -->
+              <path d="M 250 82 L 305 130" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+              <rect x="220" y="134" width="170" height="84" rx="6" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+              <text x="305" y="156" fill="#3b82f6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">US Shards (Virginia)</text>
+              <text x="305" y="174" fill="#f0f4fc" font-size="8.5" font-family="'Geist', sans-serif" text-anchor="middle">US Domestic Keyspace</text>
+              <text x="305" y="190" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Low Latency for NA Traffic</text>
+              <text x="305" y="204" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">✓ HIPAA / SOC2 Compliant</text>
+
+              <rect x="20" y="228" width="370" height="30" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+              <text x="205" y="247" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Proxy routes by tenant jurisdiction without app code rewrite</text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Interactive Simulator 4: Parallel Backup Throughput Calculator -->
+        <div class="interactive-card">
+          <div class="interactive-header">
+            <h3 class="interactive-title">Live Simulator: Monolithic vs. Sharded Backup Window Calculator</h3>
+            <span class="interactive-badge">Interactive Widget 04</span>
+          </div>
+          <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+            Adjust total database size and shard count to calculate parallel backup duration and compare against a standard 4-hour RPO backup schedule.
+          </p>
+          <div class="control-row">
+            <div class="control-group">
+              <label class="control-label" for="sim-db-size">Total Cluster Data Size (TB): <span id="lbl-db-size" style="color:var(--accent);">12 TB</span></label>
+              <input type="range" id="sim-db-size" class="sim-range" min="2" max="48" step="2" value="12">
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="sim-shard-count">Number of Shards: <span id="lbl-shard-count" style="color:var(--accent);">4 Shards</span></label>
+              <input type="range" id="sim-shard-count" class="sim-range" min="1" max="16" step="1" value="4">
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="sim-speed">Streaming Speed Per Shard: <span id="lbl-speed" style="color:var(--accent);">1.0 TB/hr</span></label>
+              <input type="range" id="sim-speed" class="sim-range" min="0.5" max="3.0" step="0.5" value="1.0">
+            </div>
+          </div>
+          <div class="sim-display-box" id="sim-backup-output">
+            Calculated metrics will appear here...
+          </div>
+        </div>
+
+        <div class="examples-trio">
+          <div class="example-card">
+            <span class="example-tag obvious">Obvious Case</span>
+            <h4 class="example-title">PlanetScale Rapid Restore</h4>
+            <p class="example-body">Restoring a 50 TB sharded database takes 1.5 hours because 32 shards restore 1.5 TB chunks concurrently from S3 in parallel.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag counter">Counter-Intuitive</span>
+            <h4 class="example-title">Independent Shard Point-in-Time Recovery</h4>
+            <p class="example-body">If an accidental bad script corrupts Shard 2 only, engineers can restore Shard 2 to a 10-minute-old snapshot without taking down Shards 0, 1, or 3.</p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag edge">Edge Case</span>
+            <h4 class="example-title">GDPR Data Enclave Routing</h4>
+            <p class="example-body">A global fintech platform routes EU user accounts to EU AWS shards, using proxy rule filters to prevent cross-border PII replication.</p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="pedagogy-box analogy">
+            <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+            <p class="pedagogy-text">Backing up a monolith is one person scanning 1,000 pages on a flatbed scanner. Sharded parallel backup is tearing the book into 4 sections and having 4 people scan simultaneously.</p>
+          </div>
+          <div class="pedagogy-box misconception">
+            <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+            <p class="pedagogy-text">Thinking that distributed backups increase data loss risk. Because shard volumes are smaller, backups can run 4x to 6x more frequently, reducing data loss windows.</p>
+          </div>
+          <div class="pedagogy-box reality">
+            <div class="pedagogy-label"><span>📌</span> Why This Matters</div>
+            <p class="pedagogy-text">Meeting enterprise SLAs and compliance audits requires fast, reliable backups and strict geographical data containment.</p>
+          </div>
+          <div class="pedagogy-box connection">
+            <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+            <p class="pedagogy-text">Review the comprehensive architectural reference table and flashcards below to test your mastery of Chapter 6 concepts.</p>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span>🧠 Memory Anchor:</span> Sharding shrinks individual dataset size, enabling rapid parallel backups, tight RPO windows, and effortless GDPR data residency compliance.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           INTERACTIVE FLASHCARDS & CHEAT SHEET
+           ========================================== -->
+      <section class="module-card" id="cheat-sheet">
+        <header class="module-header">
+          <span class="module-num">Reference</span>
+          <h2 class="module-heading">Master Sharding & Partitioning Cheat Sheet</h2>
+        </header>
+
+        <div class="table-container">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>Strategy / Dimension</th>
+                <th>Key Range Partitioning</th>
+                <th>Key Hash Partitioning</th>
+                <th>Virtual Partitions (vnodes)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Primary Mechanism</strong></td>
+                <td>Contiguous alphabetical or numerical boundaries (e.g. <code>[A..O]</code>, <code>[P..Z]</code>)</td>
+                <td>Cryptographic hash of partition key modulo N (e.g. <code>MurmurHash(id)</code>)</td>
+                <td>Fixed number of virtual partitions (e.g. 1024) mapped dynamically to nodes</td>
+              </tr>
+              <tr>
+                <td><strong>Range Scan Efficiency</strong></td>
+                <td><span style="color:var(--teal); font-weight:700;">Optimal (Single Shard)</span></td>
+                <td><span style="color:var(--rose); font-weight:700;">Poor (Full Scatter-Gather)</span></td>
+                <td><span style="color:var(--amber); font-weight:700;">Moderate (Subset of vnodes)</span></td>
+              </tr>
+              <tr>
+                <td><strong>Hot Spot / Skew Risk</strong></td>
+                <td><span style="color:var(--rose); font-weight:700;">High (Skewed letters / timestamps)</span></td>
+                <td><span style="color:var(--teal); font-weight:700;">Very Low (Uniform Distribution)</span></td>
+                <td><span style="color:var(--teal); font-weight:700;">Very Low (Granular Rebalancing)</span></td>
+              </tr>
+              <tr>
+                <td><strong>Rebalancing Overhead</strong></td>
+                <td>Manual range boundary reassignment</td>
+                <td>Catastrophic if raw modulo; requires shadow replication</td>
+                <td><span style="color:var(--teal); font-weight:700;">Fast & Lightweight (Move chunks)</span></td>
+              </tr>
+              <tr>
+                <td><strong>Primary Example Systems</strong></td>
+                <td>Bigtable, HBase, CockroachDB (Ranges)</td>
+                <td>Vitess, Cassandra, DynamoDB, MongoDB Hash</td>
+                <td>Couchbase, Riak, Elasticsearch, Cassandra</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Interactive Flashcards (Approved Interactivity Element) -->
+        <h3 style="font-family:var(--font-serif); font-size:1.5rem; margin: 32px 0 16px 0; color:var(--text);">
+          Active Recall Flashcards (Click to Flip)
+        </h3>
+        <div class="flashcards-grid">
+          <div class="flashcard" onclick="this.classList.toggle('revealed')">
+            <div>
+              <span class="flashcard-hint">Core Concept</span>
+              <div class="flashcard-prompt">Why does raw <code>hash(key) % N</code> fail during cluster scaling?</div>
+            </div>
+            <div class="flashcard-answer">
+              Because changing N from 10 to 11 changes almost every key's destination shard, forcing up to 90% of all data to move across the network. Virtual partitions or consistent hashing solve this.
+            </div>
+          </div>
+
+          <div class="flashcard" onclick="this.classList.toggle('revealed')">
+            <div>
+              <span class="flashcard-hint">Routing Tier</span>
+              <div class="flashcard-prompt">What role does ZooKeeper / etcd play in Vitess architecture?</div>
+            </div>
+            <div class="flashcard-answer">
+              It acts as the authoritative distributed consensus metadata store (Topology Service), storing shard key ranges, active primary locations, and health status for vtgate proxies.
+            </div>
+          </div>
+
+          <div class="flashcard" onclick="this.classList.toggle('revealed')">
+            <div>
+              <span class="flashcard-hint">Performance</span>
+              <div class="flashcard-prompt">What is the "Tail Latency / Straggler" penalty of Scatter-Gather?</div>
+            </div>
+            <div class="flashcard-answer">
+              A scatter-gather query is only as fast as the single slowest shard to return its results. Fan-out queries amplify p99 latency significantly across large clusters.
+            </div>
+          </div>
+
+          <div class="flashcard" onclick="this.classList.toggle('revealed')">
+            <div>
+              <span class="flashcard-hint">High Availability</span>
+              <div class="flashcard-prompt">How does database sharding reduce failure blast radius?</div>
+            </div>
+            <div class="flashcard-answer">
+              If an individual shard experiences an unrecoverable crash or network cut, only the fractional percentage of users mapped to that shard are affected; all other shards remain fully functional.
+            </div>
+          </div>
+
+          <div class="flashcard" onclick="this.classList.toggle('revealed')">
+            <div>
+              <span class="flashcard-hint">Operations</span>
+              <div class="flashcard-prompt">How does sharding accelerate database backup operations?</div>
+            </div>
+            <div class="flashcard-answer">
+              Sharded nodes stream smaller sub-datasets (e.g. 4 × 3TB instead of 1 × 12TB) to cloud object storage concurrently in parallel, cutting total backup duration by 4x.
+            </div>
+          </div>
+
+          <div class="flashcard" onclick="this.classList.toggle('revealed')">
+            <div>
+              <span class="flashcard-hint">Hotspot Mitigation</span>
+              <div class="flashcard-prompt">How do you handle a single celebrity key receiving millions of writes?</div>
+            </div>
+            <div class="flashcard-answer">
+              Append a 2-digit random salt suffix (e.g. <code>user_id_00..user_id_99</code>) to split writes across 100 shards; read queries then scatter-gather and aggregate across the 100 salted keys.
+            </div>
+          </div>
+        </div>
+
+        <!-- Self-Check Quiz Card (Approved Interactivity Element) -->
+        <div class="quiz-card" id="quiz-container">
+          <div class="quiz-question">
+            Self-Check Quiz: An application needs to perform high-frequency single-user profile updates and also generate a chronological timeline of posts by joining across followers. What is the optimal architecture?
+          </div>
+          <div class="quiz-options">
+            <button class="quiz-opt-btn" onclick="checkQuiz(this, false, 'Range partitioning by username causes severe alphabetical skew and does not eliminate cross-user follower timeline joins.')">A) Key-Range partition everything alphabetically by username</button>
+            <button class="quiz-opt-btn" onclick="checkQuiz(this, true, 'Correct! Hashing by user_id balances write load evenly, while an intelligent proxy handles multi-shard scatter-gather timeline joins without coupling app code.')">B) Hash partition users by user_id with an intelligent proxy (Vitess) handling scatter-gather for timelines</button>
+            <button class="quiz-opt-btn" onclick="checkQuiz(this, false, 'Raw hash(id) % N causes catastrophic data movement during rebalancing and fails to support timeline joins.')">C) Use raw hash(user_id) % N directly inside application server code without a proxy</button>
+            <button class="quiz-opt-btn" onclick="checkQuiz(this, false, 'Timestamp partitioning sends 100% of all writes to the single current-time shard, creating severe hot spots.')">D) Partition all tables strictly by post created_at timestamp</button>
+          </div>
+          <div class="quiz-feedback" id="quiz-feedback"></div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           FAQ & COMMON CONFUSION POINTS
+           ========================================== -->
+      <section class="module-card" id="faq">
+        <header class="module-header">
+          <span class="module-num">Troubleshooting</span>
+          <h2 class="module-heading">Frequently Asked Questions & Pitfalls</h2>
+        </header>
+
+        <div class="faq-item open">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>Does sharding replace database replication?</span>
+            <span class="faq-toggle-icon">▼</span>
+          </div>
+          <div class="faq-answer">
+            <strong>No, absolutely not.</strong> Sharding and replication solve orthogonal problems. Sharding splits large datasets horizontally across nodes to scale write throughput and memory capacity. Replication creates redundant copies of each shard to guarantee high availability and failover resilience. In production, every single shard consists of an active primary and one or more hot standby replicas.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>What is the difference between static and dynamic partitioning?</span>
+            <span class="faq-toggle-icon">▼</span>
+          </div>
+          <div class="faq-answer">
+            Static partitioning uses pre-configured key ranges or fixed virtual partition counts configured at cluster creation time. Dynamic partitioning (used in HBase, MongoDB, and CockroachDB) automatically splits partitions when they exceed a configurable byte threshold (e.g. 10 GB to 64 GB), analogous to how B-Tree leaf pages split when full.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>How does a proxy avoid being a Single Point of Failure (SPOF)?</span>
+            <span class="faq-toggle-icon">▼</span>
+          </div>
+          <div class="faq-answer">
+            Proxies like Vitess <code>vtgate</code> or Envoy are completely <strong>stateless</strong>. You deploy a fleet of multiple proxy instances behind standard Layer 4/Layer 7 Network Load Balancers (such as AWS NLB or GCP Cloud Load Balancing) with health checks. If one proxy fails, traffic automatically fails over to remaining proxies in milliseconds.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>Can a user change their username if the database is sharded by username?</span>
+            <span class="faq-toggle-icon">▼</span>
+          </div>
+          <div class="faq-answer">
+            If you shard by username and a user changes their username, their new hash or alphabetical range maps to a completely different shard. The database must execute a distributed transaction: inserting the new row on the target shard, copying all child records (posts, likes), and deleting the old row. This is why production systems almost always shard on immutable internal identifiers (e.g., <code>user_id</code> or <code>account_uuid</code>) rather than mutable usernames.
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="lesson-footer">
+        <div>Designing Data-Intensive Applications • Chapter 6 Lesson</div>
+        <div>Interactive Engineering Education Series</div>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // Theme Toggle Functionality
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+
+    function initTheme() {
+      const savedTheme = localStorage.getItem('ddia_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      updateThemeButton(savedTheme);
+    }
+
+    function updateThemeButton(theme) {
+      if (theme === 'light') {
+        themeIcon.textContent = '🌙';
+        themeText.textContent = 'Dark Mode';
+      } else {
+        themeIcon.textContent = '☀️';
+        themeText.textContent = 'Light Mode';
+      }
+    }
+
+    themeToggleBtn.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('ddia_theme', newTheme);
+      updateThemeButton(newTheme);
+    });
+
+    initTheme();
+
+    // Scroll Reading Progress Bar & Active Nav Highlight
+    window.addEventListener('scroll', () => {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      document.getElementById('reading-progress').style.width = scrolled + '%';
+
+      // Highlight active nav item
+      const sections = document.querySelectorAll('article.module-card, section.hero-banner, section.knowledge-map-card, section.module-card');
+      const navLinks = document.querySelectorAll('.nav-item a');
+
+      let currentSectionId = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop - 120;
+        if (winScroll >= sectionTop) {
+          currentSectionId = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + currentSectionId) {
+          link.classList.add('active');
+        }
+      });
+    });
+
+    // Hash & Range Simulator
+    function pseudoHash(str) {
+      let hash = 5381;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) + hash) + str.charCodeAt(i);
+      }
+      return Math.abs(hash);
+    }
+
+    function runHashRouting() {
+      const inputVal = document.getElementById('sim-key-input').value.trim() || 'Ben';
+      const firstChar = inputVal.charAt(0).toUpperCase();
+
+      // Range assignment (A-G, H-N, O-T, U-Z)
+      let rangeShard = 0;
+      let rangeName = 'Shard 0 [A-G]';
+      if (firstChar >= 'A' && firstChar <= 'G') { rangeShard = 0; rangeName = 'Shard 0 [A-G]'; }
+      else if (firstChar >= 'H' && firstChar <= 'N') { rangeShard = 1; rangeName = 'Shard 1 [H-N]'; }
+      else if (firstChar >= 'O' && firstChar <= 'T') { rangeShard = 2; rangeName = 'Shard 2 [O-T]'; }
+      else { rangeShard = 3; rangeName = 'Shard 3 [U-Z]'; }
+
+      // Hash assignment
+      const rawHash = pseudoHash(inputVal);
+      const hashHex = rawHash.toString(16).toUpperCase().padStart(8, '0');
+      const hashShard = rawHash % 4;
+
+      const outputBox = document.getElementById('sim-hash-output');
+      outputBox.innerHTML = `
+        <div style="color:var(--accent); font-weight:700; margin-bottom:8px;">❯ Routing Key: "${inputVal}"</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+          <div style="background:var(--bg-surface); padding:12px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--amber); font-weight:700; margin-bottom:4px;">[1] Range Partitioning (Alphabetical)</div>
+            <div>First Character: <strong style="color:var(--text);">'${firstChar}'</strong></div>
+            <div>Assigned Node: <strong style="color:var(--amber);">${rangeName}</strong></div>
+            <div style="font-size:0.78rem; color:var(--text-subtle); margin-top:4px;">Prone to skew if letters 'B', 'M', 'S' dominate.</div>
+          </div>
+          <div style="background:var(--bg-surface); padding:12px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--teal); font-weight:700; margin-bottom:4px;">[2] Hash Partitioning (MurmurHash3 / MD5)</div>
+            <div>Computed Hash: <code style="color:var(--teal);">0x${hashHex}</code></div>
+            <div>Assigned Node: <strong style="color:var(--teal);">Shard ${hashShard} [Hex: ${hashShard * 4000}..${(hashShard + 1) * 4000 - 1}]</strong></div>
+            <div style="font-size:0.78rem; color:var(--text-subtle); margin-top:4px;">Pseudorandom, guaranteed uniform write distribution.</div>
+          </div>
+        </div>
+      `;
+    }
+
+    document.getElementById('btn-calc-hash').addEventListener('click', runHashRouting);
+    document.getElementById('sim-key-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') runHashRouting();
+    });
+
+    document.getElementById('btn-batch-sim').addEventListener('click', () => {
+      const names = ['Bob', 'Ben', 'Brandon', 'Brian', 'Bella', 'Blake', 'Bradley', 'Beth', 'Brooke', 'Bill'];
+      let rangeCounts = [0, 0, 0, 0];
+      let hashCounts = [0, 0, 0, 0];
+
+      names.forEach(name => {
+        rangeCounts[0]++; // All start with B -> Shard 0
+        const hShard = pseudoHash(name) % 4;
+        hashCounts[hShard]++;
+      });
+
+      const outputBox = document.getElementById('sim-hash-output');
+      outputBox.innerHTML = `
+        <div style="color:var(--accent); font-weight:700; margin-bottom:8px;">❯ Batch Test with 10 Names Starting with 'B' (Bob, Ben, Brandon...)</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+          <div style="background:var(--bg-surface); padding:12px; border-radius:6px; border:1px solid var(--rose);">
+            <div style="color:var(--rose); font-weight:700; margin-bottom:4px;">Range Shards (Severe Hot Spot!)</div>
+            <div>Shard 0 [A-G]: <strong style="color:var(--rose);">10 queries (100% Load!) 🔥</strong></div>
+            <div>Shard 1 [H-N]: 0 queries (0%)</div>
+            <div>Shard 2 [O-T]: 0 queries (0%)</div>
+            <div>Shard 3 [U-Z]: 0 queries (0%)</div>
+          </div>
+          <div style="background:var(--bg-surface); padding:12px; border-radius:6px; border:1px solid var(--teal);">
+            <div style="color:var(--teal); font-weight:700; margin-bottom:4px;">Hash Shards (Uniform Balance)</div>
+            <div>Shard 0: <strong style="color:var(--teal);">${hashCounts[0]} queries (${hashCounts[0]*10}%)</strong></div>
+            <div>Shard 1: <strong style="color:var(--teal);">${hashCounts[1]} queries (${hashCounts[1]*10}%)</strong></div>
+            <div>Shard 2: <strong style="color:var(--teal);">${hashCounts[2]} queries (${hashCounts[2]*10}%)</strong></div>
+            <div>Shard 3: <strong style="color:var(--teal);">${hashCounts[3]} queries (${hashCounts[3]*10}%)</strong></div>
+          </div>
+        </div>
+      `;
+    });
+
+    runHashRouting();
+
+    // Query Execution Simulator
+    document.getElementById('btn-run-query-sim').addEventListener('click', () => {
+      const qType = document.getElementById('sim-query-type').value;
+      const out = document.getElementById('sim-query-output');
+
+      if (qType === 'targeted') {
+        out.innerHTML = `
+          <div style="color:var(--teal); font-weight:700;">❯ Execution Plan: DIRECT SINGLE-SHARD POINT LOOKUP</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            1. Proxy AST Parser extracts WHERE clause: <code>user_id = 9482</code><br>
+            2. VSchema Hash Match: <code>MurmurHash(9482) = 0x2A9F</code> → Maps exclusively to <strong>Shard 0</strong><br>
+            3. Network Routing: Query dispatched to single Shard 0 Primary replica<br>
+            4. Execution Metrics: <strong>1 Network Round-Trip • Latency: ~1.2ms • CPU Load: 1 Shard Only</strong>
+          </div>
+        `;
+      } else if (qType === 'scatter') {
+        out.innerHTML = `
+          <div style="color:var(--amber); font-weight:700;">❯ Execution Plan: BROADCAST SCATTER-GATHER FAN-OUT</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            1. Proxy AST Parser detects no partition key in WHERE clause (<code>status = 'pending'</code>)<br>
+            2. Scatter Phase: Proxy concurrently broadcasts <code>SELECT COUNT(*)</code> to Shards 0, 1, 2, and 3<br>
+            3. Gather Phase: Proxy awaits responses from all 4 shards (Tail latency bounded by slowest shard: Shard 2 at 18ms)<br>
+            4. Merge Phase: Proxy computes SUM(Count_0 + Count_1 + Count_2 + Count_3) in memory<br>
+            5. Execution Metrics: <strong>4 Parallel Network Hops • Latency: 18.5ms (p99 tail bound) • All Shards Loaded</strong>
+          </div>
+        `;
+      } else if (qType === 'colocated-join') {
+        out.innerHTML = `
+          <div style="color:var(--teal); font-weight:700;">❯ Execution Plan: CO-LOCATED RELATIONAL JOIN (OPTIMAL)</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            1. Query joins <code>organizations</code> with <code>repositories</code> on <code>org_id = 14</code><br>
+            2. Schema Co-Location: Both tables share partition key <code>org_id</code> and reside on <strong>Shard 1</strong><br>
+            3. Direct Local Join: Entire SQL JOIN runs natively inside Shard 1 InnoDB storage engine in RAM<br>
+            4. Execution Metrics: <strong>Zero Cross-Shard Network Hops • Latency: ~2.4ms • Full ACID Integrity</strong>
+          </div>
+        `;
+      } else {
+        out.innerHTML = `
+          <div style="color:var(--rose); font-weight:700;">❯ Execution Plan: DISTRIBUTED CROSS-SHARD JOIN (EXPENSIVE)</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            1. Query joins on non-partition column (<code>user.zip = order.zip</code>)<br>
+            2. Scatter Fan-out: Proxy requests all relevant user rows from Shards 0..3 and order rows from Shards 0..3<br>
+            3. Heavy In-Memory Hash Join: Proxy buffers 120,000 rows in proxy RAM and executes nested-loop hash join<br>
+            4. Execution Metrics: <strong>High Network Bandwidth • Memory Consumption: ~140MB Proxy RAM • Latency: 84ms</strong>
+          </div>
+        `;
+      }
+    });
+
+    // 5-Phase Resharding Step-Through
+    const reshardPhases = [
+      {
+        title: "Phase 1: Target Shard Cluster Provisioning",
+        desc: "New destination shard hardware (e.g. Shards 0-A, 0-B, 1-A, 1-B) is provisioned, schemas are applied, and instances are registered with the ZooKeeper/etcd Topology Service in dormant state."
+      },
+      {
+        title: "Phase 2: Snapshot Stream & Historical Data Copy",
+        desc: "Background VReplication workers stream table snapshots from source shards to target shards. Active client read/write traffic continues uninterrupted on old shards."
+      },
+      {
+        title: "Phase 3: Real-Time Binlog Replication (Change Data Capture)",
+        desc: "Target shards tail MySQL binlogs of source shards, applying inserts, updates, and deletes in real time until replication lag between old and new shards drops below 50ms."
+      },
+      {
+        title: "Phase 4: Atomic Query Buffer & Traffic Cutover",
+        desc: "Proxies (vtgate) buffer incoming writes for ~200ms. Routing tables in etcd update atomically to point to new shards. Writes are released to new primaries with zero dropped connections."
+      },
+      {
+        title: "Phase 5: Read-Only Hold & Old Shard Decommission",
+        desc: "Old source shards are kept in read-only shadow state for 48 hours for emergency rollback safety, then safely drained and decommissioned."
+      }
+    ];
+
+    let currentPhase = 0;
+    function renderReshardPhase() {
+      const phase = reshardPhases[currentPhase];
+      document.getElementById('stage-indicator').textContent = `Phase ${currentPhase + 1} / 5`;
+      document.getElementById('sim-reshard-box').innerHTML = `
+        <div style="color:var(--accent); font-weight:700; font-size:0.95rem; margin-bottom:6px;">${phase.title}</div>
+        <p style="color:var(--text-muted); line-height:1.6; font-size:0.88rem;">${phase.desc}</p>
+        <div style="margin-top:12px; display:flex; gap:6px;">
+          ${reshardPhases.map((_, i) => `<div style="height:4px; flex:1; border-radius:2px; background:${i <= currentPhase ? 'var(--accent)' : 'var(--border)'}"></div>`).join('')}
+        </div>
+      `;
+    }
+
+    document.getElementById('btn-prev-stage').addEventListener('click', () => {
+      if (currentPhase > 0) { currentPhase--; renderReshardPhase(); }
+    });
+    document.getElementById('btn-next-stage').addEventListener('click', () => {
+      if (currentPhase < reshardPhases.length - 1) { currentPhase++; renderReshardPhase(); }
+    });
+    renderReshardPhase();
+
+    // Parallel Backup Calculator
+    function updateBackupCalc() {
+      const totalTB = parseFloat(document.getElementById('sim-db-size').value);
+      const shards = parseInt(document.getElementById('sim-shard-count').value);
+      const speed = parseFloat(document.getElementById('sim-speed').value);
+
+      document.getElementById('lbl-db-size').textContent = totalTB + ' TB';
+      document.getElementById('lbl-shard-count').textContent = shards + (shards === 1 ? ' Shard (Monolith)' : ' Shards');
+      document.getElementById('lbl-speed').textContent = speed.toFixed(1) + ' TB/hr';
+
+      const tbPerShard = totalTB / shards;
+      const hours = tbPerShard / speed;
+      const monolithHours = totalTB / speed;
+      const fits4HourRPO = hours <= 3.5;
+
+      const out = document.getElementById('sim-backup-output');
+      out.innerHTML = `
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+          <div style="background:var(--bg-surface); padding:14px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--text-subtle); font-size:0.75rem; text-transform:uppercase;">Parallel Sharded Backup Time</div>
+            <div style="font-size:1.6rem; font-weight:700; color:${fits4HourRPO ? 'var(--teal)' : 'var(--amber)'};">${hours.toFixed(1)} Hours</div>
+            <div style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">Each shard streams <strong>${tbPerShard.toFixed(1)} TB</strong> at ${speed} TB/hr in parallel.</div>
+          </div>
+          <div style="background:var(--bg-surface); padding:14px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--text-subtle); font-size:0.75rem; text-transform:uppercase;">Monolithic (1 Node) Backup Time</div>
+            <div style="font-size:1.6rem; font-weight:700; color:var(--rose);">${monolithicHours.toFixed(1)} Hours</div>
+            <div style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">Single pipe must transfer entire ${totalTB} TB sequentially.</div>
+          </div>
+        </div>
+        <div style="margin-top:12px; padding:10px; border-radius:4px; font-size:0.85rem; background:${fits4HourRPO ? 'var(--teal-subtle)' : 'var(--rose-subtle)'}; color:${fits4HourRPO ? 'var(--teal)' : 'var(--rose)'};">
+          ${fits4HourRPO ? '✓ Feasible for 4-Hour RPO Schedule: Backup completes with ' + (4 - hours).toFixed(1) + ' hours of safety margin.' : '✗ Violates 4-Hour RPO Schedule: Backup takes longer than the 4-hour window! Add more shards.'}
+        </div>
+      `;
+    }
+
+    document.getElementById('sim-db-size').addEventListener('input', updateBackupCalc);
+    document.getElementById('sim-shard-count').addEventListener('input', updateBackupCalc);
+    document.getElementById('sim-speed').addEventListener('input', updateBackupCalc);
+    updateBackupCalc();
+
+    // Self-Check Quiz Logic
+    function checkQuiz(btn, isCorrect, explanation) {
+      const parent = btn.parentElement;
+      const buttons = parent.querySelectorAll('.quiz-opt-btn');
+      buttons.forEach(b => {
+        b.classList.remove('correct', 'incorrect');
+        b.disabled = true;
+      });
+
+      const feedback = document.getElementById('quiz-feedback');
+      feedback.className = 'quiz-feedback show ' + (isCorrect ? 'correct-feedback' : 'incorrect-feedback');
+      feedback.innerHTML = `<strong>${isCorrect ? '✓ Correct!' : '✗ Incorrect.'}</strong> ${explanation}`;
+
+      if (isCorrect) {
+        btn.classList.add('correct');
+      } else {
+        btn.classList.add('incorrect');
+      }
+    }
+
+    // FAQ Accordion Toggle
+    function toggleFaq(el) {
+      const item = el.parentElement;
+      item.classList.toggle('open');
+    }
+  </script>
+</body>
+</html>

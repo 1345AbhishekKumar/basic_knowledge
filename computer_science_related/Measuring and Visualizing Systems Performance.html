@@ -1,0 +1,2278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Measuring and Visualizing Systems Performance — Systems Performance Engineering</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  /* ==========================================================================
+     THEME TOKENS: FIELD NOTES (Editorial Systems Engineering Aesthetic)
+     ========================================================================== */
+  :root {
+    --bg: #fbfaf7;
+    --paper: #ffffff;
+    --card: #f4f1ea;
+    --card-hover: #ede8df;
+    --ink: #181b20;
+    --ink-secondary: #3e4551;
+    --mut: #6c7684;
+    --line: #ded8cb;
+    --line-subtle: #ece8df;
+    --accent: #b85d19;
+    --accent-light: #fdf3ea;
+    --accent-soft: rgba(184, 93, 25, 0.12);
+    --accent-border: #d4762e;
+    --code-bg: #f0ece3;
+    --ok: #237844;
+    --ok-soft: #eaf6ee;
+    --bad: #b71c1c;
+    --bad-soft: #fdeeee;
+    --rail-w: 280px;
+    --mono: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --serif: Georgia, Cambria, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  html[data-theme="dark"] {
+    --bg: #111418;
+    --paper: #171c22;
+    --card: #1c232b;
+    --card-hover: #222b35;
+    --ink: #e8ecf1;
+    --ink-secondary: #bdc5d0;
+    --mut: #828e9c;
+    --line: #2d3642;
+    --line-subtle: #212832;
+    --accent: #d97706;
+    --accent-light: #2b1d0e;
+    --accent-soft: rgba(217, 119, 6, 0.18);
+    --accent-border: #f59e0b;
+    --code-bg: #141920;
+    --ok: #38a169;
+    --ok-soft: #122b1c;
+    --bad: #e53e3e;
+    --bad-soft: #381618;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 16px/1.7 var(--sans);
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  /* Progress Bar */
+  #top-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2.5px;
+    width: 0%;
+    background: var(--accent);
+    z-index: 1100;
+    transition: width 0.1s ease-out;
+  }
+
+  /* Dark/Light Mode Toggle */
+  #theme-toggle {
+    position: fixed;
+    top: 18px;
+    right: 22px;
+    z-index: 1050;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  #theme-toggle:hover {
+    transform: scale(1.08);
+    border-color: var(--accent);
+  }
+
+  /* Layout Frame */
+  .page-container {
+    display: flex;
+    max-width: 1400px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* Sticky Navigation Rail */
+  .nav-rail {
+    width: var(--rail-w);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 32px 20px 24px 24px;
+    border-right: 1px solid var(--line);
+    background: var(--bg);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .nav-header {
+    margin-bottom: 24px;
+  }
+  .nav-tag {
+    font: 600 11px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .nav-title {
+    font: 700 18px/1.3 var(--serif);
+    color: var(--ink);
+  }
+  .nav-subtitle {
+    font-size: 13px;
+    color: var(--mut);
+    margin-top: 4px;
+  }
+
+  /* Knowledge Map Mini */
+  .knowledge-map-box {
+    margin: 20px 0;
+    padding: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .km-title {
+    font: 600 11px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mut);
+    margin-bottom: 8px;
+  }
+
+  .nav-list {
+    list-style: none;
+    margin-top: 16px;
+  }
+  .nav-item {
+    margin-bottom: 8px;
+  }
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    font-size: 13.5px;
+    color: var(--ink-secondary);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .nav-link:hover {
+    background: var(--card);
+    color: var(--ink);
+  }
+  .nav-link.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .nav-num {
+    font: 600 11px var(--mono);
+    color: var(--mut);
+    min-width: 18px;
+  }
+  .nav-link.active .nav-num {
+    color: var(--accent);
+  }
+
+  /* Main Lesson Body */
+  .lesson-body {
+    flex: 1;
+    min-width: 0;
+    padding: 48px 48px 96px 48px;
+  }
+  .content-measure {
+    max-width: 820px;
+    margin: 0 auto;
+  }
+
+  /* Header & Metadata */
+  .lesson-header {
+    margin-bottom: 48px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 32px;
+  }
+  .meta-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    border-radius: 3px;
+    font: 600 12px var(--mono);
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+  h1 {
+    font: 700 38px/1.2 var(--serif);
+    color: var(--ink);
+    margin-bottom: 14px;
+    letter-spacing: -0.01em;
+  }
+  .lesson-lead {
+    font: 400 19px/1.6 var(--serif);
+    color: var(--ink-secondary);
+    margin-bottom: 24px;
+  }
+  .header-meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    font-size: 13px;
+    color: var(--mut);
+    padding-top: 16px;
+    border-top: 1px dashed var(--line);
+  }
+  .meta-item strong {
+    color: var(--ink);
+  }
+
+  /* What You'll Learn */
+  .learn-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 3.5px solid var(--accent);
+    border-radius: 4px;
+    padding: 24px;
+    margin: 36px 0;
+  }
+  .learn-card h3 {
+    font: 700 16px var(--serif);
+    color: var(--ink);
+    margin-bottom: 14px;
+  }
+  .learn-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+    list-style: none;
+  }
+  .learn-grid li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: var(--ink-secondary);
+  }
+  .learn-check {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* Modules */
+  .module {
+    margin-top: 64px;
+    padding-top: 36px;
+    border-top: 1px solid var(--line);
+  }
+  .module-index {
+    font: 600 12px var(--mono);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  h2 {
+    font: 700 28px/1.3 var(--serif);
+    color: var(--ink);
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+  h3 {
+    font: 700 19px/1.4 var(--serif);
+    color: var(--ink);
+    margin: 28px 0 12px 0;
+  }
+  p {
+    margin-bottom: 16px;
+    color: var(--ink-secondary);
+  }
+  p strong {
+    color: var(--ink);
+  }
+
+  /* Code / Monospace inline */
+  code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    background: var(--code-bg);
+    padding: 2px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    color: var(--ink);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 18px 0;
+    font: 400 13px/1.6 var(--mono);
+    color: var(--ink);
+  }
+
+  /* Field Note Callouts (Notebook margin style) */
+  .field-note {
+    border: 1px solid var(--line);
+    background: var(--card);
+    border-radius: 4px;
+    padding: 18px 20px;
+    margin: 24px 0;
+    position: relative;
+  }
+  .field-note.misconception {
+    border-left: 3px solid var(--bad);
+    background: var(--bad-soft);
+  }
+  .field-note.why-matters {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-light);
+  }
+  .field-note.analogy {
+    border-left: 3px solid var(--ok);
+    background: var(--ok-soft);
+  }
+  .fn-label {
+    font: 700 11px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .field-note.misconception .fn-label { color: var(--bad); }
+  .field-note.why-matters .fn-label { color: var(--accent); }
+  .field-note.analogy .fn-label { color: var(--ok); }
+  .fn-content {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--ink-secondary);
+  }
+  .fn-content strong { color: var(--ink); }
+
+  /* Steps list */
+  .step-deck {
+    margin: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .step-node {
+    display: flex;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .step-circle {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font: 700 12px/26px var(--mono);
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .step-text {
+    font-size: 14.5px;
+    color: var(--ink-secondary);
+  }
+  .step-text strong {
+    color: var(--ink);
+  }
+
+  /* Examples Table / Cards */
+  .examples-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin: 20px 0;
+  }
+  .example-box {
+    padding: 16px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  }
+  .ex-tag {
+    font: 600 10.5px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 2px;
+    margin-bottom: 8px;
+    display: inline-block;
+  }
+  .ex-obvious { background: #e0e7ff; color: #3730a3; }
+  .ex-counter { background: #fef3c7; color: #92400e; }
+  .ex-edge { background: #fce7f3; color: #9d174d; }
+  html[data-theme="dark"] .ex-obvious { background: #272e4f; color: #c7d2fe; }
+  html[data-theme="dark"] .ex-counter { background: #3d2f16; color: #fde68a; }
+  html[data-theme="dark"] .ex-edge { background: #3e1e2d; color: #fbcfe8; }
+  .ex-title {
+    font: 700 14px var(--serif);
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .ex-desc {
+    font-size: 13px;
+    color: var(--mut);
+    line-height: 1.5;
+  }
+
+  /* Visual Container & SVG Diagrams */
+  .diagram-frame {
+    margin: 28px 0;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 6px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  }
+  .df-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--line);
+  }
+  .df-title {
+    font: 600 12px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mut);
+  }
+  .df-tools {
+    display: flex;
+    gap: 8px;
+  }
+  .df-btn {
+    font: 500 11.5px var(--mono);
+    padding: 4px 8px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--ink);
+    transition: background 0.15s ease;
+  }
+  .df-btn:hover { background: var(--card-hover); }
+  .df-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .df-caption {
+    font-size: 12.5px;
+    color: var(--mut);
+    margin-top: 12px;
+    font-style: italic;
+    text-align: center;
+  }
+
+  /* Inter-module link */
+  .inter-link {
+    margin-top: 24px;
+    padding: 10px 14px;
+    background: var(--card);
+    border-left: 2.5px solid var(--accent);
+    font-size: 13.5px;
+    color: var(--mut);
+  }
+  .inter-link a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .inter-link a:hover { text-decoration: underline; }
+
+  /* Interactive Elements */
+  .interactive-pod {
+    margin: 32px 0;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 6px;
+    padding: 22px;
+  }
+  .pod-tag {
+    font: 600 11px var(--mono);
+    text-transform: uppercase;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  .pod-title {
+    font: 700 18px var(--serif);
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+
+  /* Flashcards */
+  .flashcard-deck {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .flashcard {
+    height: 180px;
+    perspective: 1000px;
+    cursor: pointer;
+  }
+  .flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.45s ease;
+    transform-style: preserve-3d;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .flashcard.flipped .flashcard-inner {
+    transform: rotateY(180deg);
+  }
+  .fc-front, .fc-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-radius: 5px;
+  }
+  .fc-front {
+    background: var(--card);
+    color: var(--ink);
+    text-align: center;
+  }
+  .fc-front .fc-title {
+    font: 700 16px var(--serif);
+    margin-bottom: 8px;
+  }
+  .fc-hint {
+    font-size: 11px;
+    color: var(--mut);
+    font-family: var(--mono);
+  }
+  .fc-back {
+    background: var(--paper);
+    color: var(--ink-secondary);
+    transform: rotateY(180deg);
+    font-size: 13px;
+    line-height: 1.5;
+    border: 1px solid var(--accent-border);
+  }
+
+  /* Drag & Drop / Match */
+  .match-arena {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .match-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .match-item {
+    padding: 10px 14px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+  }
+  .match-item:hover { border-color: var(--accent); }
+  .match-item.selected {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .match-item.matched {
+    background: var(--ok-soft);
+    border-color: var(--ok);
+    color: var(--ok);
+    cursor: default;
+  }
+
+  /* Module Quiz */
+  .quiz-pod {
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--card);
+    border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+  .quiz-q {
+    font: 600 14.5px var(--serif);
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .quiz-opts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .quiz-opt {
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 3px;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--ink-secondary);
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .quiz-opt:hover { border-color: var(--accent); }
+  .quiz-opt.correct {
+    background: var(--ok-soft);
+    border-color: var(--ok);
+    color: var(--ok);
+    font-weight: 600;
+  }
+  .quiz-opt.wrong {
+    background: var(--bad-soft);
+    border-color: var(--bad);
+    color: var(--bad);
+  }
+  .quiz-feedback {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--mut);
+    display: none;
+    line-height: 1.5;
+  }
+
+  /* Interactive Simulator Controls */
+  .sim-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--card);
+    border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+  .sim-ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .sim-slider {
+    accent-color: var(--accent);
+  }
+  .sim-val {
+    font: 600 12px var(--mono);
+    color: var(--accent);
+    min-width: 40px;
+  }
+
+  /* Three.js Container */
+  #three-canvas-container {
+    width: 100%;
+    height: 380px;
+    background: #0d1117;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .canvas-overlay-ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    background: rgba(15, 20, 25, 0.85);
+    border: 1px solid #30363d;
+    padding: 8px 12px;
+    border-radius: 4px;
+    color: #e6edf3;
+    font: 400 11.5px var(--mono);
+  }
+
+  /* Memory Pill Cards */
+  .mnemonic-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .mnemonic-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--ink-secondary);
+  }
+  .pill-badge {
+    background: var(--accent);
+    color: #fff;
+    font: 700 10px var(--mono);
+    padding: 1px 5px;
+    border-radius: 10px;
+  }
+
+  /* Tables */
+  .table-scroll {
+    overflow-x: auto;
+    margin: 24px 0;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    text-align: left;
+    background: var(--paper);
+  }
+  th {
+    background: var(--card);
+    font: 600 12px var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line-subtle);
+    color: var(--ink-secondary);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--card); }
+
+  /* FAQ Accordion */
+  .faq-deck {
+    margin: 24px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .faq-node {
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .faq-q {
+    padding: 14px 18px;
+    font: 600 15px var(--serif);
+    color: var(--ink);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+  }
+  .faq-q:hover { background: var(--card); }
+  .faq-a {
+    padding: 0 18px 16px 18px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-secondary);
+    display: none;
+    border-top: 1px dashed var(--line-subtle);
+  }
+  .faq-node.open .faq-a { display: block; }
+  .faq-node.open .faq-icon { transform: rotate(180deg); }
+  .faq-icon {
+    font-size: 12px;
+    transition: transform 0.2s ease;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .page-container { flex-direction: column; }
+    .nav-rail {
+      width: 100%;
+      height: auto;
+      position: static;
+      border-right: none;
+      border-bottom: 1px solid var(--line);
+      padding: 20px;
+    }
+    .lesson-body { padding: 32px 20px 64px 20px; }
+    .match-arena { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Scroll Progress Bar -->
+<div id="top-progress" aria-hidden="true"></div>
+
+<!-- Dark/Light Mode Switcher -->
+<button id="theme-toggle" title="Toggle color scheme" aria-label="Toggle dark/light theme">☀</button>
+
+<div class="page-container">
+
+  <!-- =========================================================================
+       NAVIGATION RAIL / KNOWLEDGE MAP
+       ========================================================================= -->
+  <aside class="nav-rail" aria-label="Lesson navigation">
+    <div class="nav-header">
+      <div class="nav-tag">Systems Performance 02</div>
+      <div class="nav-title">Measuring &amp; Visualizing Performance</div>
+      <div class="nav-subtitle">Brendan Gregg • Triage &amp; Graphics</div>
+    </div>
+
+    <!-- Minimal SVG Knowledge Map -->
+    <div class="knowledge-map-box">
+      <div class="km-title">Interactive Knowledge Map</div>
+      <svg viewBox="0 0 240 160" aria-label="Monochrome systems performance concept map" style="stroke: var(--ink); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;">
+        <title>Systems Performance Knowledge Graph</title>
+        <!-- Nodes -->
+        <rect x="10" y="10" width="80" height="28" rx="3" stroke="var(--accent)" stroke-width="1.8" />
+        <text x="50" y="28" text-anchor="middle" font-size="9.5" font-family="var(--mono)" fill="var(--ink)" font-weight="600">1. USE Flow</text>
+
+        <rect x="150" y="10" width="80" height="28" rx="3" />
+        <text x="190" y="28" text-anchor="middle" font-size="9.5" font-family="var(--mono)" fill="var(--ink)">2. U / S / E</text>
+
+        <rect x="10" y="70" width="80" height="28" rx="3" />
+        <text x="50" y="88" text-anchor="middle" font-size="9.5" font-family="var(--mono)" fill="var(--ink)">3. Agent MCP</text>
+
+        <rect x="150" y="70" width="80" height="28" rx="3" />
+        <text x="190" y="88" text-anchor="middle" font-size="9.5" font-family="var(--mono)" fill="var(--ink)">4. Bimodal</text>
+
+        <rect x="10" y="125" width="80" height="28" rx="3" />
+        <text x="50" y="143" text-anchor="middle" font-size="9.5" font-family="var(--mono)" fill="var(--ink)">5. Heatmaps</text>
+
+        <rect x="150" y="125" width="80" height="28" rx="3" />
+        <text x="190" y="143" text-anchor="middle" font-size="9.5" font-family="var(--mono)" fill="var(--ink)">6. 3D Fleet</text>
+
+        <!-- Edges -->
+        <path d="M 90 24 L 150 24" />
+        <path d="M 50 38 L 50 70" />
+        <path d="M 190 38 L 190 70" />
+        <path d="M 90 84 L 150 84" />
+        <path d="M 50 98 L 50 125" />
+        <path d="M 190 98 L 190 125" />
+        <path d="M 90 139 L 150 139" stroke-dasharray="3,3" />
+      </svg>
+    </div>
+
+    <nav>
+      <ul class="nav-list">
+        <li class="nav-item"><a href="#module-1" class="nav-link active"><span class="nav-num">01</span> The USE Method Flowchart</a></li>
+        <li class="nav-item"><a href="#module-2" class="nav-link"><span class="nav-num">02</span> Utilization, Saturation &amp; Errors</a></li>
+        <li class="nav-item"><a href="#module-3" class="nav-link"><span class="nav-num">03</span> AI Agents &amp; Safe Observability</a></li>
+        <li class="nav-item"><a href="#module-4" class="nav-link"><span class="nav-num">04</span> Latency Modality &amp; Storage Cache</a></li>
+        <li class="nav-item"><a href="#module-5" class="nav-link"><span class="nav-num">05</span> Lines, Scatter Plots &amp; Heatmaps</a></li>
+        <li class="nav-item"><a href="#module-6" class="nav-link"><span class="nav-num">06</span> 3D Wireframe Fleet Visualization</a></li>
+        <li class="nav-item"><a href="#cheat-sheet" class="nav-link"><span class="nav-num">07</span> Field Summary &amp; FAQ</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- =========================================================================
+       MAIN CONTENT CONTAINER
+       ========================================================================= -->
+  <main class="lesson-body">
+    <div class="content-measure">
+
+      <!-- Header Section -->
+      <header class="lesson-header">
+        <div class="meta-badge">SYSTEMS PERFORMANCE ENGINEERING • FIELD REFERENCE</div>
+        <h1>Measuring and Visualizing Computer Performance</h1>
+        <p class="lesson-lead">
+          A rigorous, visual guide to Brendan Gregg’s USE Methodology, latency distributions, safe AI agent observability, and the transition from flat percentile metrics to high-density quantized heatmaps and fleet wireframes.
+        </p>
+
+        <div class="header-meta-strip">
+          <div class="meta-item">Source: <strong>Systems Performance (2nd Ed) Chapter 2</strong></div>
+          <div class="meta-item">Host: <strong>Ben (PlanetScale Systems Session)</strong></div>
+          <div class="meta-item">Format: <strong>Interactive Field Manual</strong></div>
+        </div>
+      </header>
+
+      <!-- What You'll Learn -->
+      <section class="learn-card">
+        <h3>What You Will Master in This Lesson</h3>
+        <ul class="learn-grid">
+          <li><span class="learn-check">✓</span> <span>Execute the USE Method (Utilization, Saturation, Errors) across every hardware and software subsystem.</span></li>
+          <li><span class="learn-check">✓</span> <span>Differentiate between utilization and saturation at sub-second and minute-level sampling granularities.</span></li>
+          <li><span class="learn-check">✓</span> <span>Codify diagnostic runbooks into automated AI agent skills while defending live systems against blast-radius query risks.</span></li>
+          <li><span class="learn-check">✓</span> <span>Diagnose bimodal latency distributions generated by operating system buffer cache hits versus disk misses.</span></li>
+          <li><span class="learn-check">✓</span> <span>Select optimal data visualizations: when line percentiles deceive, why point clouds collapse, and how quantized heatmaps scale.</span></li>
+          <li><span class="learn-check">✓</span> <span>Inspect large fleets (hundreds of servers, thousands of CPU cores) using spatial 3D wireframe geometries.</span></li>
+        </ul>
+      </section>
+
+      <!-- =====================================================================
+           MODULE 1: THE USE METHOD
+           ===================================================================== -->
+      <article class="module" id="module-1">
+        <div class="module-index">Module 01 • Diagnostic Discipline</div>
+        <h2>The USE Method Architecture &amp; Decision Flowchart</h2>
+
+        <p>
+          When a critical system grinds to a halt or query latencies unexpectedly triple, engineers often fall victim to intuitive guessing, random trial-and-error, or symptom chasing. An engineer might jump straight into thread stack traces, rewrite application code, or blame a recent deployment without first confirming whether physical hardware resources are saturated or throwing errors.
+        </p>
+        <p>
+          The <strong>USE Method</strong>, formulated by Brendan Gregg, provides an exhaustive, methodical triage protocol. It directs you to construct a complete checklist of every physical resource in the target machine—every CPU socket, memory controller, storage device, bus interface, and network interface—and systematically evaluate three fundamental operational metrics: <strong>Utilization</strong>, <strong>Saturation</strong>, and <strong>Errors</strong>.
+        </p>
+
+        <!-- Dynamic Process Flowchart SVG -->
+        <div class="diagram-frame">
+          <div class="df-header">
+            <span class="df-title">Diagram 1.1: The USE Method Finite State Machine</span>
+            <div class="df-tools">
+              <button class="df-btn" onclick="highlightUseStep('errors')">Check Errors</button>
+              <button class="df-btn" onclick="highlightUseStep('util')">Check Utilization</button>
+              <button class="df-btn" onclick="highlightUseStep('sat')">Check Saturation</button>
+              <button class="df-btn" onclick="resetUseFlow()">Reset</button>
+            </div>
+          </div>
+          <svg id="use-flow-svg" viewBox="0 0 740 260" aria-label="USE method flowchart">
+            <title>USE Method Decision Tree</title>
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="var(--mut)" />
+              </marker>
+              <marker id="arrow-act" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="var(--accent)" />
+              </marker>
+            </defs>
+
+            <!-- State 1: Start -->
+            <rect id="node-start" x="20" y="105" width="110" height="50" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="75" y="128" text-anchor="middle" font-size="12" font-family="var(--mono)" font-weight="600" fill="var(--ink)">1. Alert Trigger</text>
+            <text x="75" y="144" text-anchor="middle" font-size="10.5" fill="var(--mut)">Latency Spike</text>
+
+            <path d="M 130 130 L 168 130" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" />
+
+            <!-- State 2: Select Resource -->
+            <rect id="node-res" x="170" y="105" width="130" height="50" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="235" y="128" text-anchor="middle" font-size="12" font-family="var(--mono)" font-weight="600" fill="var(--ink)">2. Choose Resource</text>
+            <text x="235" y="144" text-anchor="middle" font-size="10.5" fill="var(--mut)">CPU, RAM, Disk, Net</text>
+
+            <path d="M 300 130 L 338 130" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" />
+
+            <!-- State 3: Errors Check -->
+            <rect id="node-err" x="340" y="105" width="100" height="50" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="390" y="128" text-anchor="middle" font-size="12" font-family="var(--mono)" font-weight="600" fill="var(--ink)">3. Errors?</text>
+            <text x="390" y="144" text-anchor="middle" font-size="10.5" fill="var(--mut)">Dropouts, Faults</text>
+
+            <path d="M 390 105 L 390 55" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" />
+            <text x="396" y="85" font-size="10" font-family="var(--mono)" fill="var(--bad)">YES</text>
+
+            <!-- State 4: Utilization Check -->
+            <path d="M 440 130 L 478 130" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" />
+            <text x="452" y="122" font-size="10" font-family="var(--mono)" fill="var(--mut)">NO</text>
+
+            <rect id="node-util" x="480" y="105" width="100" height="50" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="530" y="128" text-anchor="middle" font-size="12" font-family="var(--mono)" font-weight="600" fill="var(--ink)">4. Utilization?</text>
+            <text x="530" y="144" text-anchor="middle" font-size="10.5" fill="var(--mut)">High Capacity %</text>
+
+            <path d="M 530 105 L 530 55" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" />
+            <text x="536" y="85" font-size="10" font-family="var(--mono)" fill="var(--accent)">YES</text>
+
+            <!-- State 5: Saturation Check -->
+            <path d="M 580 130 L 618 130" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" />
+            <text x="592" y="122" font-size="10" font-family="var(--mono)" fill="var(--mut)">NO</text>
+
+            <rect id="node-sat" x="620" y="105" width="100" height="50" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="670" y="128" text-anchor="middle" font-size="12" font-family="var(--mono)" font-weight="600" fill="var(--ink)">5. Saturation?</text>
+            <text x="670" y="144" text-anchor="middle" font-size="10.5" fill="var(--mut)">Queues, Backlog</text>
+
+            <path d="M 670 105 L 670 55" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" />
+            <text x="676" y="85" font-size="10" font-family="var(--mono)" fill="var(--accent)">YES</text>
+
+            <!-- Investigate Box -->
+            <rect id="node-inv" x="340" y="15" width="380" height="40" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="530" y="39" text-anchor="middle" font-size="12.5" font-family="var(--mono)" font-weight="700" fill="var(--ink)">DEEP INVESTIGATION &amp; RESOLUTION</text>
+
+            <!-- Loop back if all clean -->
+            <path d="M 670 155 L 670 215 L 235 215 L 235 155" stroke="var(--line)" stroke-dasharray="4,4" stroke-width="1.5" marker-end="url(#arrow)" />
+            <text x="452.5" y="235" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--mut)">NO ISSUES FOUND → CYCLE NEXT RESOURCE</text>
+          </svg>
+          <div class="df-caption">Figure 1: Complete state transition diagram for the USE triage methodology.</div>
+        </div>
+
+        <h3>Step-by-Step Triage Breakdown</h3>
+        <div class="step-deck">
+          <div class="step-node">
+            <div class="step-circle">1</div>
+            <div class="step-text">
+              <strong>Construct the Hardware Resource Inventory:</strong> Enumerate every physical component on the server: CPU cores, RAM modules, storage controllers (NVMe/SATA), network interfaces (NICs), and internal interconnect buses.
+            </div>
+          </div>
+          <div class="step-node">
+            <div class="step-circle">2</div>
+            <div class="step-text">
+              <strong>Check Errors First:</strong> Before analyzing utilization or queues, query error counters (`dmesg`, network interface frame errors, disk SMART counters, database dropped connection metrics). Non-zero error rates reveal direct physical degradation.
+            </div>
+          </div>
+          <div class="step-node">
+            <div class="step-circle">3</div>
+            <div class="step-text">
+              <strong>Measure Resource Utilization:</strong> Examine the percentage of time the resource was actively servicing work over the sampling window.
+            </div>
+          </div>
+          <div class="step-node">
+            <div class="step-circle">4</div>
+            <div class="step-text">
+              <strong>Inspect Resource Saturation:</strong> If utilization is high (or even moderate), check if work is waiting in queues (scheduler run-queue depth, I/O wait queues, memory paging pressure).
+            </div>
+          </div>
+          <div class="step-node">
+            <div class="step-circle">5</div>
+            <div class="step-text">
+              <strong>Isolate Root Cause or Iterate:</strong> If all three metrics for the chosen component are clean, rule it out completely and cycle to the next resource in your checklist.
+            </div>
+          </div>
+        </div>
+
+        <h3>Triage Case Studies</h3>
+        <div class="examples-grid">
+          <div class="example-box">
+            <span class="ex-tag ex-obvious">Obvious</span>
+            <div class="ex-title">CPU Runaway Query</div>
+            <div class="ex-desc">An analytics worker runs an unindexed query. Utilization hits 100% on all cores, run queues spike to 48 threads, and overall query latency rises linearly.</div>
+          </div>
+          <div class="example-box">
+            <span class="ex-tag ex-counter">Counter-Intuitive</span>
+            <div class="ex-title">Zero Disk I/O Bottleneck</div>
+            <div class="ex-desc">Database latencies jump 4x, but disk I/O is nearly zero. The database buffer pool cached all tables in RAM, but CPU utilization maxed out due to excessive sorting and hash-joins.</div>
+          </div>
+          <div class="example-box">
+            <span class="ex-tag ex-edge">Edge Case</span>
+            <div class="ex-title">Silent Network Packet Dropping</div>
+            <div class="ex-desc">A top-of-rack switch experiences micro-burst buffer drops. CPU and disk utilization are under 15%, but client TCP connections enter exponential backoff, making the database appear unresponsive.</div>
+          </div>
+        </div>
+
+        <div class="field-note analogy">
+          <div class="fn-label">Visual Analogy: Emergency Room Triage</div>
+          <div class="fn-content">
+            When a patient enters an emergency room with sudden distress, doctors do not immediately begin exploratory surgery. They run a fixed, non-negotiable checklist: pulse and oxygen saturation (vitals), active hemorrhaging (errors), respiratory effort (utilization), and waiting room overcrowding (saturation). The USE Method brings the exact same triage discipline to computing.
+          </div>
+        </div>
+
+        <div class="field-note misconception">
+          <div class="fn-label">❌ What People Get Wrong</div>
+          <div class="fn-content">
+            <strong>Assuming low resource utilization means the resource is healthy.</strong> A disk drive might be running at only 10% utilization because of random seeks, yet have hundreds of I/O requests queued in the kernel scheduler. Or a CPU might sit at 25% utilization across a 16-core system because a single-threaded process is pegged at 100% on one core and blocking all other requests behind a global mutex.
+          </div>
+        </div>
+
+        <div class="field-note why-matters">
+          <div class="fn-label">Why This Matters in Production</div>
+          <div class="fn-content">
+            Without a checklist like USE, incident responders waste hours examining application-layer stack traces and debating recent code merges while an underlying physical network interface is dropping 5% of all packets. USE guarantees 100% architectural coverage in minutes.
+          </div>
+        </div>
+
+        <div class="inter-link">
+          🔗 <strong>Next Connection:</strong> To apply this checklist effectively, we must define the exact mathematical distinction between Utilization and Saturation in <a href="#module-2">Module 02</a>.
+        </div>
+      </article>
+
+
+      <!-- =====================================================================
+           MODULE 2: UTILIZATION VS SATURATION VS ERRORS
+           ===================================================================== -->
+      <article class="module" id="module-2">
+        <div class="module-index">Module 02 • Core Metrics Mathematics</div>
+        <h2>Deconstructing Utilization, Saturation, and Errors</h2>
+
+        <p>
+          To troubleshoot systems with precision, an engineer must distinguish between a resource that is simply busy versus a resource that is overwhelmed with backlogged demand. These two states are often conflated under the generic term "high load", but they represent fundamentally distinct physical states.
+        </p>
+
+        <h3>The Mathematics of Potential Utilization</h3>
+        <p>
+          Consider a modern CPU operating at a baseline clock rate of <strong>4.0 GHz</strong>. In each single second, the processor executes roughly 4 billion clock cycles. Over a standard measurement window of 1 minute (60 seconds), the CPU has a total capacity of:
+        </p>
+        <pre>Potential Clock Cycles = 4,000,000,000 cycles/sec × 60 sec = 240,000,000,000 cycles</pre>
+        <p>
+          <strong>Utilization</strong> is simply the ratio of active cycles to total available cycles within that interval:
+        </p>
+        <pre>Utilization (%) = (Active Clock Cycles / Total Potential Clock Cycles) × 100</pre>
+        <p>
+          If your operating system executes instructions for 120 billion cycles and rests in the processor's idle state for the remaining 120 billion cycles, your 1-minute CPU utilization is precisely <strong>50%</strong>. However, instructions often require multiple clock cycles (due to memory stalls or pipeline flushes), meaning utilization reflects active time, not necessarily retired instruction throughput.
+        </p>
+
+        <h3>Sampling Granularity: The Spike Eraser</h3>
+        <p>
+          A critical nuance emphasized in Brendan Gregg’s work is the <strong>granularity of measurement</strong>. When a monitoring tool like CloudWatch, Datadog, or Prometheus reports an average CPU utilization of 35% over a 5-minute bucket, that average can easily disguise multiple 500-millisecond bursts where utilization hit 100% and caused severe packet drops or connection timeouts. Coarse-grained sampling acts as a low-pass filter that erases transient saturation spikes.
+        </p>
+
+        <h3>Saturation: The Queuing Phenomenon</h3>
+        <p>
+          While utilization measures active work, <strong>saturation</strong> measures deferred work. A resource is saturated when incoming demand exceeds its capacity to process work immediately, forcing excess tasks into a waiting state or queue.
+        </p>
+        <ul style="margin-left: 24px; margin-bottom: 16px; color: var(--ink-secondary);">
+          <li><strong>CPU Saturation:</strong> Measured by the OS scheduler run-queue depth (the number of threads in the `TASK_RUNNING` state that are waiting for an available CPU core).</li>
+          <li><strong>Memory Saturation:</strong> Occurs when the system runs out of physical RAM and begins page swapping to disk, causing swap-in delays and page scan thrashing.</li>
+          <li><strong>Disk Saturation:</strong> Measured by the dispatch queue depth of pending I/O requests inside the block layer (`avgqu-sz`).</li>
+        </ul>
+
+        <!-- Interactive Utilization & Saturation Simulator -->
+        <div class="interactive-pod">
+          <div class="pod-tag">Interactive Hardware Simulator</div>
+          <div class="pod-title">Workload vs. Utilization vs. Saturation</div>
+          <p style="font-size: 13.5px; color: var(--mut); margin-bottom: 14px;">
+            Drag the workload slider to adjust request volume. Observe how utilization increases linearly until hitting capacity (100%), after which saturation (queue depth) spikes exponentially.
+          </p>
+
+          <div class="sim-controls">
+            <div class="sim-ctrl-group">
+              <label for="workload-slider">Incoming Workload:</label>
+              <input type="range" id="workload-slider" class="sim-slider" min="10" max="250" value="70" oninput="updateWorkloadSim(this.value)">
+              <span id="workload-val" class="sim-val">70 req/s</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div style="background: var(--card); padding: 14px; border-radius: 4px; border: 1px solid var(--line);">
+              <div style="font: 600 11px var(--mono); color: var(--mut); margin-bottom: 6px;">CPU UTILIZATION</div>
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span id="sim-util-pct" style="font: 700 28px var(--mono); color: var(--ink);">70%</span>
+                <span id="sim-util-status" style="font-size: 12px; color: var(--ok); font-weight: 600;">Healthy</span>
+              </div>
+              <div style="width: 100%; height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 8px;">
+                <div id="sim-util-bar" style="width: 70%; height: 100%; background: var(--ok); transition: width 0.15s ease, background 0.15s ease;"></div>
+              </div>
+            </div>
+
+            <div style="background: var(--card); padding: 14px; border-radius: 4px; border: 1px solid var(--line);">
+              <div style="font: 600 11px var(--mono); color: var(--mut); margin-bottom: 6px;">SCHEDULER RUN QUEUE (SATURATION)</div>
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span id="sim-sat-val" style="font: 700 28px var(--mono); color: var(--ink);">0</span>
+                <span id="sim-sat-status" style="font-size: 12px; color: var(--ok); font-weight: 600;">Zero Queuing</span>
+              </div>
+              <div style="width: 100%; height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 8px;">
+                <div id="sim-sat-bar" style="width: 0%; height: 100%; background: var(--ok); transition: width 0.15s ease, background 0.15s ease;"></div>
+              </div>
+            </div>
+          </div>
+          <div id="sim-insight" style="margin-top: 12px; font-size: 13px; color: var(--mut); font-style: italic;">
+            Insight: At 70 req/s, the processor handles requests immediately without threads queuing in the OS scheduler.
+          </div>
+        </div>
+
+        <div class="field-note analogy">
+          <div class="fn-label">Visual Analogy: The Four-Lane Highway</div>
+          <div class="fn-content">
+            Picture a 4-lane highway bridge. <strong>Utilization</strong> is the percentage of asphalt covered by moving vehicles at any second. If cars are driving smoothly at 65 mph and occupying all lanes, utilization is 100%, but saturation is zero because traffic flows continuously. <strong>Saturation</strong> begins the instant a toll gate creates a 500-car backup waiting to get onto the bridge. High utilization is efficient; saturation is catastrophic.
+          </div>
+        </div>
+
+        <div class="field-note misconception">
+          <div class="fn-label">❌ What People Get Wrong</div>
+          <div class="fn-content">
+            <strong>Thinking 95% RAM utilization indicates a memory leak or imminent crash.</strong> Modern operating systems intentionally use idle RAM as a filesystem page cache (Buffer Cache). High memory utilization with zero disk swap activity and zero page scan rate is the optimal operational state for an enterprise server.
+          </div>
+        </div>
+
+        <div class="field-note why-matters">
+          <div class="fn-label">Why This Matters in Production</div>
+          <div class="fn-content">
+            Distinguishing between utilization and saturation determines your remediation strategy. If CPU utilization is 100% with no queue, tuning application algorithm efficiency solves the issue. If run queues are 40 threads deep on an 8-core host, scaling out CPU cores or adding worker nodes is the only path to stability.
+          </div>
+        </div>
+
+        <div class="inter-link">
+          🔗 <strong>Next Connection:</strong> Now that we know how to measure these core metrics, how do we equip autonomous AI agents with these principles safely? See <a href="#module-3">Module 03</a>.
+        </div>
+      </article>
+
+
+      <!-- =====================================================================
+           MODULE 3: AI AGENTS & SAFE OBSERVABILITY
+           ===================================================================== -->
+      <article class="module" id="module-3">
+        <div class="module-index">Module 03 • Autonomous Triage &amp; Guardrails</div>
+        <h2>AI Agents, Model Context Protocol &amp; Production Safety</h2>
+
+        <p>
+          One of the stream's central themes was the practical translation of traditional systems engineering into modern AI engineering. Decades of systems performance knowledge, documented by pioneers like Brendan Gregg, can be codified directly into declarative AI agent specifications (such as `skill.md` rules and automated incident runbooks).
+        </p>
+        <p>
+          Instead of manually opening SSH sessions across 20 cluster nodes during a 3:00 AM incident, an automated agent can be invoked with a `/use-method` skill. The agent systematically interrogates system telemetry, checks error registers, evaluates utilization thresholds, and inspects run-queue depths. However, granting autonomous agents direct production access introduces severe operational hazards.
+        </p>
+
+        <h3>The Model Context Protocol (MCP) as a Secure Bridge</h3>
+        <p>
+          The <strong>Model Context Protocol (MCP)</strong> establishes a standardized, bidirectional interface between Large Language Models and external infrastructure primitives (such as PlanetScale, Prometheus, Grafana, or AWS APIs). Rather than passing unstructured text or granting unfettered bash execution, an MCP server publishes structured tool schemas with explicit parameter constraints.
+        </p>
+
+        <!-- Pure SVG Architecture Diagram: Safe MCP Pattern -->
+        <div class="diagram-frame">
+          <div class="df-header">
+            <span class="df-title">Diagram 3.1: Autonomous Agent Observability Architecture</span>
+          </div>
+          <svg viewBox="0 0 740 220" aria-label="Agent MCP architecture diagram" style="stroke-linecap: round; stroke-linejoin: round;">
+            <title>Agent MCP Architecture</title>
+            <!-- AI Agent Box -->
+            <rect x="20" y="70" width="130" height="80" rx="4" fill="var(--card)" stroke="var(--accent)" stroke-width="1.8" />
+            <text x="85" y="105" text-anchor="middle" font-size="13" font-family="var(--serif)" font-weight="700" fill="var(--ink)">AI Agent</text>
+            <text x="85" y="125" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--mut)">Skill: USE Method</text>
+
+            <!-- MCP Protocol Bridge -->
+            <path d="M 150 110 L 228 110" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#arrow)" />
+            <text x="189" y="100" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--mut)">JSON-RPC</text>
+
+            <!-- MCP Server Box -->
+            <rect x="230" y="50" width="170" height="120" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="315" y="80" text-anchor="middle" font-size="13" font-family="var(--serif)" font-weight="700" fill="var(--ink)">MCP Gateway</text>
+            <rect x="245" y="95" width="140" height="24" rx="3" fill="var(--paper)" stroke="var(--line)" />
+            <text x="315" y="111" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--ink-secondary)">get_query_latency()</text>
+            <rect x="245" y="125" width="140" height="24" rx="3" fill="var(--paper)" stroke="var(--line)" />
+            <text x="315" y="141" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--ink-secondary)">get_resource_metrics()</text>
+
+            <!-- Guardrail Filter -->
+            <path d="M 400 110 L 478 110" stroke="var(--ok)" stroke-width="1.8" marker-end="url(#arrow)" />
+            <text x="439" y="100" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--ok)">Read-Only RBAC</text>
+
+            <!-- Target Production Infrastructure -->
+            <rect x="480" y="40" width="230" height="140" rx="4" fill="var(--card)" stroke="var(--line)" stroke-width="1.5" />
+            <text x="595" y="68" text-anchor="middle" font-size="13" font-family="var(--serif)" font-weight="700" fill="var(--ink)">Production Infrastructure</text>
+            <rect x="500" y="85" width="190" height="36" rx="3" fill="var(--paper)" stroke="var(--line)" />
+            <text x="595" y="107" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink)">Primary Database (OLTP)</text>
+            <rect x="500" y="130" width="190" height="36" rx="3" fill="var(--paper)" stroke="var(--line)" />
+            <text x="595" y="152" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink)">Prometheus / Metrics Store</text>
+          </svg>
+          <div class="df-caption">Figure 2: Least-privilege architectural boundary isolating autonomous agents from mutating production state.</div>
+        </div>
+
+        <h3>The "Read-Only" Query Trap &amp; Context Economy</h3>
+        <p>
+          Engineers often believe that restricting an agent to read-only credentials eliminates production risk. <strong>This is a dangerous misconception.</strong>
+        </p>
+        <p>
+          Imagine an autonomous agent diagnosing a reported slowdown on an e-commerce platform. The agent forms a hypothesis about user sessions and executes an unindexed query:
+        </p>
+        <pre>SELECT * FROM audit_logs WHERE metadata LIKE '%timeout%' ORDER BY created_at DESC;</pre>
+        <p>
+          If `audit_logs` contains 50 gigabytes of data across 80 million rows, this single "read-only" query forces the database engine to perform a sequential full-table scan. The database will:
+        </p>
+        <ol style="margin-left: 24px; margin-bottom: 16px; color: var(--ink-secondary);">
+          <li>Spike CPU utilization to 100% across multiple worker threads to evaluate the unindexed regex pattern.</li>
+          <li>Evict hot, critical application tables from the in-memory Buffer Pool to read cold disk blocks into memory (cache thrashing).</li>
+          <li>Cascade query wait times across thousands of active customer checkout transactions, precipitating a full outage.</li>
+        </ol>
+        <p>
+          Furthermore, dumping raw logs (e.g., 50,000 lines of debug output) directly into an agent's prompt creates severe <strong>context rot</strong>. The LLM's finite attention window becomes diluted with noise, degrading reasoning quality and incurring massive token latency. Safe observability requires exposing pre-aggregated statistical summaries, quantized histograms, and strict query timeout limits.
+        </p>
+
+        <div class="field-note analogy">
+          <div class="fn-label">Visual Analogy: The Medical Resident</div>
+          <div class="fn-content">
+            Allowing an unconstrained agent to run arbitrary queries in production is like letting a brilliant junior medical resident write prescriptions and administer intravenous medications without an attending physician's countersignature. You want the resident's diagnostic reasoning and chart analysis, but execution authority must remain locked behind strict guardrails.
+          </div>
+        </div>
+
+        <div class="field-note misconception">
+          <div class="fn-label">❌ What People Get Wrong</div>
+          <div class="fn-content">
+            <strong>Assuming read-only credentials guarantee safety.</strong> Read queries consume CPU, allocate memory buffers, lock metadata locks, and can flush crucial cache lines. A rogue `SELECT` can be just as catastrophic to uptime as a rogue `DELETE`.
+          </div>
+        </div>
+
+        <div class="field-note why-matters">
+          <div class="fn-label">Why This Matters in Production</div>
+          <div class="fn-content">
+            Codifying the USE Method into agents scales engineering response times from 30 minutes to 30 seconds. Enforcing query timeouts, read-replica routing, and structured MCP tools ensures automation accelerates triage without threatening system durability.
+          </div>
+        </div>
+
+        <div class="inter-link">
+          🔗 <strong>Next Connection:</strong> When agents or humans query latency metrics, what shape does that data actually take? Let us examine Latency Modality in <a href="#module-4">Module 04</a>.
+        </div>
+      </article>
+
+
+      <!-- =====================================================================
+           MODULE 4: LATENCY MODALITY & STORAGE CACHE
+           ===================================================================== -->
+      <article class="module" id="module-4">
+        <div class="module-index">Module 04 • Distribution Shapes</div>
+        <h2>Latency Distributions: Unimodal vs. Bimodal &amp; Storage Caches</h2>
+
+        <p>
+          In engineering dashboards, system health is frequently summarized using simple scalar metrics: the arithmetic mean (average) and standard percentiles like <strong>P50</strong> (the median), <strong>P90</strong>, and <strong>P99</strong>. While percentiles are vastly superior to arithmetic averages (which are easily skewed by a single extreme outlier), they still summarize an entire multidimensional distribution into three or four isolated numbers.
+        </p>
+        <p>
+          Relying exclusively on scalar percentiles blinds engineers to the <strong>modality</strong> of their data—the actual underlying geometric shape of the probability density function.
+        </p>
+
+        <h3>The Anatomy of Bimodal Storage Latency</h3>
+        <p>
+          A unimodal distribution features a single central peak (the classic Gaussian bell curve). However, computer systems frequently exhibit <strong>bimodal or multimodal distributions</strong>—curves characterized by two or more distinct peaks separated by a wide trough.
+        </p>
+        <p>
+          The most prevalent cause of bimodal latency in software engineering is the <strong>hardware storage hierarchy</strong> (RAM Buffer Pool vs. Physical Disk):
+        </p>
+        <ul style="margin-left: 24px; margin-bottom: 16px; color: var(--ink-secondary);">
+          <li><strong>Mode 1 (The Cache Hit Peak):</strong> When a database executes a read query whose requested page already resides in the Linux page cache or database buffer pool, the request completes in memory. Latency is sub-millisecond (e.g., <strong>0.1 to 0.5 ms</strong>).</li>
+          <li><strong>Mode 2 (The Cache Miss Peak):</strong> When the requested block is not in RAM, the storage subsystem must initiate an I/O request to physical storage. On an NVMe solid-state drive, this requires 1 to 5 ms; on legacy spinning rust, head seek and rotational latency require <strong>10 to 25 ms</strong>.</li>
+        </ul>
+
+        <!-- Interactive Latency Distribution Canvas -->
+        <div class="interactive-pod">
+          <div class="pod-tag">Interactive Modality Visualizer</div>
+          <div class="pod-title">Explore Unimodal vs. Bimodal Latency Curves</div>
+          <p style="font-size: 13.5px; color: var(--mut); margin-bottom: 14px;">
+            Adjust the <strong>Buffer Pool Cache Hit Ratio</strong>. Watch the probability density curve shift between unimodal and bimodal states, and observe how P50 and P99 behave.
+          </p>
+
+          <div class="sim-controls">
+            <div class="sim-ctrl-group">
+              <label for="cache-slider">Cache Hit Ratio:</label>
+              <input type="range" id="cache-slider" class="sim-slider" min="10" max="95" value="65" oninput="renderModalityCurve(this.value)">
+              <span id="cache-val" class="sim-val">65%</span>
+            </div>
+            <div class="sim-ctrl-group">
+              <button class="df-btn active" id="btn-curve-bimodal" onclick="setCurveMode('bimodal')">Storage Bimodal</button>
+              <button class="df-btn" id="btn-curve-unimodal" onclick="setCurveMode('unimodal')">Standard Unimodal</button>
+            </div>
+          </div>
+
+          <div style="background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 16px;">
+            <canvas id="modalityCanvas" width="720" height="240" style="width: 100%; height: 240px; display: block;"></canvas>
+            <div style="display: flex; justify-content: space-around; margin-top: 14px; font-family: var(--mono); font-size: 12px;">
+              <div><span style="color: var(--ok);">■</span> Mode 1 (RAM Hit): <strong>~0.3 ms</strong></div>
+              <div><span style="color: var(--accent);">■</span> P50 (Median): <strong id="metric-p50">0.8 ms</strong></div>
+              <div><span style="color: var(--bad);">■</span> Mode 2 (Disk Miss): <strong>~12 ms</strong></div>
+              <div><span style="color: #9333ea;">■</span> P99: <strong id="metric-p99">18.5 ms</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-note analogy">
+          <div class="fn-label">Visual Analogy: The Dual-Lane Toll Plaza</div>
+          <div class="fn-content">
+            Imagine an express highway toll plaza. 70% of cars have automated electronic transponders and glide through at 60 mph in 0.5 seconds (Mode 1). The remaining 30% of drivers must stop, pull out cash, and wait for exact change, taking 45 seconds (Mode 2). If you calculate the "average" transit time across all cars, you get 14 seconds—a latency figure that virtually no driver ever experienced.
+          </div>
+        </div>
+
+        <div class="field-note misconception">
+          <div class="fn-label">❌ What People Get Wrong</div>
+          <div class="fn-content">
+            <strong>Assuming a low P50 means nearly all users are having a fast experience.</strong> In a bimodal distribution with a 55% cache hit rate, P50 will sit happily at 0.4 ms inside the fast peak. Yet nearly 45% of your customer queries are suffering high disk latencies in the slow peak. Scalar percentiles completely obscure this reality.
+          </div>
+        </div>
+
+        <div class="field-note why-matters">
+          <div class="fn-label">Why This Matters in Production</div>
+          <div class="fn-content">
+            Detecting bimodal latency immediately diagnoses the physical domain of your bottleneck. If latency shows two distinct peaks, you are almost certainly looking at a caching boundary (memory vs. disk, L1/L2 CPU cache vs. DRAM, or local RAM vs. remote network RPC).
+          </div>
+        </div>
+
+        <div class="inter-link">
+          🔗 <strong>Next Connection:</strong> How do we visualize these complex distributions over hours or days without losing detail? See <a href="#module-5">Module 05</a>.
+        </div>
+      </article>
+
+
+      <!-- =====================================================================
+           MODULE 5: VISUALIZING PERFORMANCE: LINES VS SCATTER VS HEATMAPS
+           ===================================================================== -->
+      <article class="module" id="module-5">
+        <div class="module-index">Module 05 • Graphic Visualization Paradigms</div>
+        <h2>Lines, Scatter Plots, and Quantized 2D Heatmaps</h2>
+
+        <p>
+          The choice of visual representation directly dictates how quickly an engineer can diagnose an operational failure. In his lectures and writings, Brendan Gregg charts the evolutionary progression across three distinct graphical representations of query latency over time:
+        </p>
+
+        <h3>Paradigm 1: The Percentile Time-Series Line Chart</h3>
+        <p>
+          This is the ubiquitous industry standard: an X-axis representing elapsed time (hours or days) and a Y-axis showing latency, with three plotted lines for P50, P90, and P99. While excellent for spotting overarching trends, it collapses the rich topography of millions of events into synthetic summary lines. It cannot reveal bimodal distributions or isolate low-frequency outlier clusters.
+        </p>
+
+        <h3>Paradigm 2: The Point Cloud / Scatter Plot</h3>
+        <p>
+          To reveal every event, one can plot every individual transaction as a small dot or cross on the coordinate plane. If you have 500 requests, a scatter plot reveals everything: outliers at 200 ms, tight clusters at 4 ms, and sudden vertical bursts.
+        </p>
+        <p>
+          <strong>The breakdown at production scale:</strong> Modern high-throughput databases process millions or billions of queries every hour. Rendering millions of SVG or HTML elements causes extreme browser lag. More critically, the dots overlap into opaque solid black bands (<strong>overplotting</strong>), rendering it impossible to determine whether a black stripe represents 50 queries or 50,000,000 queries.
+        </p>
+
+        <h3>Paradigm 3: The Quantized 2D Heatmap</h3>
+        <p>
+          The <strong>quantized heatmap</strong> solves every limitation of line charts and scatter plots simultaneously. It divides the 2D plane into a grid of uniform discrete buckets:
+        </p>
+        <ul style="margin-left: 24px; margin-bottom: 16px; color: var(--ink-secondary);">
+          <li><strong>Horizontal Axis (Time):</strong> Divided into fixed time slices (e.g., 10 seconds or 1 minute).</li>
+          <li><strong>Vertical Axis (Latency):</strong> Divided into logarithmic or linear latency buckets (e.g., 1–2 ms, 2–4 ms, 4–8 ms).</li>
+          <li><strong>Cell Color / Luminance (Density):</strong> Represents the exact count of queries that fell within that coordinate bucket. A pale tint represents a solitary outlier; an intense, saturated amber represents 100,000 queries.</li>
+        </ul>
+
+        <!-- Interactive Visual Paradigm Comparison Demo -->
+        <div class="interactive-pod">
+          <div class="pod-tag">Interactive Visualization Shootout</div>
+          <div class="pod-title">Toggle Visual Paradigms Across Identical Data</div>
+          <p style="font-size: 13.5px; color: var(--mut); margin-bottom: 14px;">
+            Switch between the three graphic paradigms below to see how each displays an identical synthetic dataset containing a bimodal distribution and anomalous outlier bursts.
+          </p>
+
+          <div class="sim-controls">
+            <button class="df-btn active" id="btn-view-lines" onclick="switchVisualView('lines')">1. Percentile Lines</button>
+            <button class="df-btn" id="btn-view-scatter" onclick="switchVisualView('scatter')">2. Scatter Point Cloud</button>
+            <button class="df-btn" id="btn-view-heatmap" onclick="switchVisualView('heatmap')">3. Quantized Heatmap</button>
+          </div>
+
+          <div style="background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 18px; min-height: 280px;">
+            <!-- Canvas for graphic comparison -->
+            <canvas id="viewCanvas" width="720" height="260" style="width: 100%; height: 260px; display: block;"></canvas>
+            <div id="view-caption" style="margin-top: 12px; font-size: 13px; color: var(--mut); text-align: center; font-style: italic;">
+              Percentile Lines: P50 (blue), P90 (orange), and P99 (red) smooth out individual events.
+            </div>
+          </div>
+        </div>
+
+        <div class="field-note analogy">
+          <div class="fn-label">Visual Analogy: Satellite Map vs. Demographic Heatmap</div>
+          <div class="fn-content">
+            A scatter plot is like placing an individual pin on a physical map for every resident in Tokyo. At scale, the pins pile up into a useless mountain of metal. A quantized heatmap is like a population density map: geographic grid squares colored by resident density, revealing sprawling suburban densities and hyper-dense downtown skyscraper clusters with complete clarity.
+          </div>
+        </div>
+
+        <div class="field-note misconception">
+          <div class="fn-label">❌ What People Get Wrong</div>
+          <div class="fn-content">
+            <strong>Believing heatmaps are only useful for large data science teams.</strong> Every modern production monitoring platform (including Linux eBPF tools, Grafana, and PlanetScale Insights) utilizes latency heatmaps because they are the only visualization that simultaneously displays volume, distribution shape, and individual high-latency outliers.
+          </div>
+        </div>
+
+        <div class="field-note why-matters">
+          <div class="fn-label">Why This Matters in Production</div>
+          <div class="fn-content">
+            Quantized heatmaps allow you to spot intermittent phenomena (like garbage collection pauses, cron job contention, or distributed lock timeouts) in seconds, whereas line percentiles completely average away those brief 50ms spikes.
+          </div>
+        </div>
+
+        <div class="inter-link">
+          🔗 <strong>Next Connection:</strong> What happens when you need to monitor thousands of CPUs across hundreds of servers simultaneously? Explore 3D Wireframes in <a href="#module-6">Module 06</a>.
+        </div>
+      </article>
+
+
+      <!-- =====================================================================
+           MODULE 6: 3D WIREFRAME FLEET VISUALIZATION
+           ===================================================================== -->
+      <article class="module" id="module-6">
+        <div class="module-index">Module 06 • Multi-Node Spatial Geometry</div>
+        <h2>Fleet-Scale 3D Wireframes &amp; Multi-Server Topology</h2>
+
+        <p>
+          A classic operational challenge discussed by Brendan Gregg occurs when an infrastructure team must monitor a massive fleet: for instance, <strong>300 servers containing over 5,000 total CPU cores</strong>.
+        </p>
+        <p>
+          Displaying 300 individual time-series charts on a single dashboard creates cognitive overload. Tiling 300 graphs across a wall monitor makes it impossible to compare relative patterns across nodes. Conversely, aggregating the entire fleet into a single "average fleet CPU" line masks individual rogue nodes that are melting down under localized traffic.
+        </p>
+
+        <h3>Extending into the Third Dimension (Z-Axis Topology)</h3>
+        <p>
+          Brendan Gregg pioneered the use of <strong>3D wireframe surfaces</strong> (originally featured on the cover of the first edition of <em>Systems Performance</em>). By introducing a spatial Z-axis:
+        </p>
+        <ul style="margin-left: 24px; margin-bottom: 16px; color: var(--ink-secondary);">
+          <li><strong>X-Axis (Time):</strong> Elapsed time over a 24-hour business cycle.</li>
+          <li><strong>Y-Axis (Utilization / Latency):</strong> Metric magnitude (0% to 100% CPU utilization).</li>
+          <li><strong>Z-Axis (Server Index / Core ID):</strong> Stacked sequence of server hosts across the cluster.</li>
+        </ul>
+        <p>
+          In a 3D wireframe topology, healthy diurnal traffic patterns appear as smooth rolling hills across the entire fleet landscape. When a single host experiences an algorithmic lockup, misconfigured cron job, or noisy-neighbor runaway process, it rises out of the landscape as an unmistakable, towering knife-edge ridge.
+        </p>
+
+        <!-- Interactive Three.js 3D Wireframe Scene -->
+        <div class="interactive-pod">
+          <div class="pod-tag">Interactive 3D Spatial Geometry</div>
+          <div class="pod-title">Fleet Topology Wireframe Explorer</div>
+          <p style="font-size: 13.5px; color: var(--mut); margin-bottom: 14px;">
+            Inspect synthetic CPU utilization across a fleet of 32 clustered server nodes over a 24-hour window. Click and drag to orbit and rotate in 3D space; scroll to zoom. Notice the single rogue server spiking along Node 24.
+          </p>
+
+          <div id="three-canvas-container">
+            <div class="canvas-overlay-ui">
+              Fleet: 32 Hosts • 24 Hours • Drag: Orbit • Scroll: Zoom
+            </div>
+          </div>
+          <div style="margin-top: 10px; font-size: 12.5px; color: var(--mut); text-align: center; font-style: italic;">
+            Interactive Three.js Wireframe Surface: Visualizing diurnal fleet waves and isolating isolated server spikes.
+          </div>
+        </div>
+
+        <div class="field-note analogy">
+          <div class="fn-label">Visual Analogy: Topographical Mountain Ridge</div>
+          <div class="fn-content">
+            Looking at a fleet-wide average metric is like asking for the "average elevation of Switzerland"—a single useless number that fails to describe both the valleys and the Matterhorn. A 3D wireframe is an interactive topographical contour map, allowing an engineer to visually survey every peak and depression in a single glance.
+          </div>
+        </div>
+
+        <div class="field-note misconception">
+          <div class="fn-label">❌ What People Get Wrong</div>
+          <div class="fn-content">
+            <strong>Assuming 3D graphics in monitoring are always frivolous "eye candy".</strong> While 3D pie charts or 3D bar charts are misleading and poor data visualization, a 3D wireframe mesh solves a genuine dimensional scaling problem: correlating hundreds of independent time-series signals without loss of spatial node identity.
+          </div>
+        </div>
+
+        <div class="field-note why-matters">
+          <div class="fn-label">Why This Matters in Production</div>
+          <div class="fn-content">
+            Fleet wireframes enable instant visual classification. You can immediately distinguish between a global systemic incident (every server rising in unison due to a traffic spike) versus an isolated node failure (a single server spiking while the rest remain calm).
+          </div>
+        </div>
+      </article>
+
+
+      <!-- =====================================================================
+           INTERACTIVE LAB: FLASHCARDS, MATCHING & MINI-QUIZ
+           ===================================================================== -->
+      <section class="interactive-pod" style="margin-top: 64px;">
+        <div class="pod-tag">Interactive Verification Lab</div>
+        <div class="pod-title">Active Recall &amp; Concept Consolidation</div>
+
+        <!-- Mnemonic Strip -->
+        <div class="mnemonic-strip">
+          <div class="mnemonic-pill"><span class="pill-badge">U-S-E</span> Vitals Checklist: Utilization, Saturation, Errors</div>
+          <div class="mnemonic-pill"><span class="pill-badge">B-M-O</span> Modality Rule: Buffer Hits (Fast) vs. Misses (Slow)</div>
+          <div class="mnemonic-pill"><span class="pill-badge">Q-2D</span> Graphic Rule: Quantize Time &amp; Latency to Kill Overplotting</div>
+        </div>
+
+        <!-- Interactive Flashcards -->
+        <h4 style="font: 700 15px var(--serif); margin: 24px 0 12px 0;">Interactive Flashcards (Click to Flip)</h4>
+        <div class="flashcard-deck">
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="fc-front">
+                <div class="fc-title">Utilization vs. Saturation</div>
+                <div class="fc-hint">Click to reveal definition</div>
+              </div>
+              <div class="fc-back">
+                <strong>Utilization</strong> = percentage of time or capacity a resource is actively servicing work.<br><br>
+                <strong>Saturation</strong> = excess work queuing or waiting for the resource (e.g. CPU run queue depth, disk backlog).
+              </div>
+            </div>
+          </div>
+
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="fc-front">
+                <div class="fc-title">The Read-Only Query Hazard</div>
+                <div class="fc-hint">Click to reveal definition</div>
+              </div>
+              <div class="fc-back">
+                An unindexed `SELECT` query running against a 50GB table can spike CPU to 100%, flush the database buffer cache, evict hot application data, and cause a cascading outage—even with read-only permissions.
+              </div>
+            </div>
+          </div>
+
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="fc-front">
+                <div class="fc-title">Quantized 2D Heatmap</div>
+                <div class="fc-hint">Click to reveal definition</div>
+              </div>
+              <div class="fc-back">
+                A graphic dividing the plane into discrete time buckets (X) and latency buckets (Y), with cell color intensity showing request volume. Solves the overplotting failure of scatter plots at billions of queries.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Drag-and-Drop Term Matching -->
+        <h4 style="font: 700 15px var(--serif); margin: 32px 0 12px 0;">Term &amp; Definition Matching Challenge</h4>
+        <p style="font-size: 13px; color: var(--mut); margin-bottom: 12px;">Click a concept on the left, then click its corresponding definition on the right.</p>
+
+        <div class="match-arena">
+          <div class="match-col" id="match-left">
+            <div class="match-item" data-id="1" onclick="selectMatchItem(this, 'left')">CPU Scheduler Run Queue</div>
+            <div class="match-item" data-id="2" onclick="selectMatchItem(this, 'left')">Bimodal Latency</div>
+            <div class="match-item" data-id="3" onclick="selectMatchItem(this, 'left')">Coarse Sampling Granularity</div>
+            <div class="match-item" data-id="4" onclick="selectMatchItem(this, 'left')">Model Context Protocol (MCP)</div>
+          </div>
+          <div class="match-col" id="match-right">
+            <div class="match-item" data-id="3" onclick="selectMatchItem(this, 'right')">A 5-minute averaging window that masks transient sub-second saturation bursts.</div>
+            <div class="match-item" data-id="1" onclick="selectMatchItem(this, 'right')">Primary metric for processor saturation (threads waiting to execute).</div>
+            <div class="match-item" data-id="4" onclick="selectMatchItem(this, 'right')">Standardized JSON-RPC interface letting agents query metrics safely.</div>
+            <div class="match-item" data-id="2" onclick="selectMatchItem(this, 'right')">Two distinct peaks caused by storage buffer cache hits vs. disk misses.</div>
+          </div>
+        </div>
+        <div id="match-feedback" style="margin-top: 10px; font-size: 13px; font-family: var(--mono); color: var(--ok); display: none;">All concepts correctly matched!</div>
+
+        <!-- Module Quizzes -->
+        <h4 style="font: 700 15px var(--serif); margin: 32px 0 12px 0;">Knowledge Check: Module Quizzes</h4>
+
+        <div class="quiz-pod" id="quiz-1">
+          <div class="quiz-q">1. Why does the USE method recommend checking for Errors before Utilization or Saturation?</div>
+          <div class="quiz-opts">
+            <button class="quiz-opt" onclick="handleQuizAnswer(this, false, 'Utilization is always higher than error rates.')">A. Utilization takes longer to compute than error logs.</button>
+            <button class="quiz-opt" onclick="handleQuizAnswer(this, true, 'Correct! Hardware faults, dropped packets, or disk errors give direct failure root causes and trigger client retry storms that artificially inflate latency.')">B. Errors provide immediate diagnostic clues and can directly cause perceived high latency via client retries.</button>
+            <button class="quiz-opt" onclick="handleQuizAnswer(this, false, 'Saturation cannot exist without errors.')">C. A system cannot experience saturation if there are no errors.</button>
+          </div>
+          <div class="quiz-feedback"></div>
+        </div>
+
+        <div class="quiz-pod" id="quiz-2" style="margin-top: 16px;">
+          <div class="quiz-q">2. What causes scatter plots to break down when visualizing production database query latencies?</div>
+          <div class="quiz-opts">
+            <button class="quiz-opt" onclick="handleQuizAnswer(this, true, 'Correct! Millions of points cause extreme browser DOM slowdown and overlap into solid blobs where volume density cannot be discerned.')">A. Overplotting causes millions of points to merge into opaque blobs, masking relative request density.</button>
+            <button class="quiz-opt" onclick="handleQuizAnswer(this, false, 'Scatter plots can show any time interval.')">B. Scatter plots can only represent time windows shorter than five minutes.</button>
+            <button class="quiz-opt" onclick="handleQuizAnswer(this, false, 'Outliers are prominently displayed on scatter plots.')">C. Scatter plots mathematically discard high-latency outlier points.</button>
+          </div>
+          <div class="quiz-feedback"></div>
+        </div>
+      </section>
+
+
+      <!-- =====================================================================
+           MODULE 7: SUMMARY & CHEAT SHEET & FAQ
+           ===================================================================== -->
+      <section class="module" id="cheat-sheet">
+        <div class="module-index">Reference Appendix</div>
+        <h2>Summary, Cheat Sheet &amp; Frequently Asked Questions</h2>
+
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Resource</th>
+                <th>Utilization Metric</th>
+                <th>Saturation Metric</th>
+                <th>Error Metric</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>CPU</strong></td>
+                <td>% time cores are non-idle (`mpstat %usr+%sys`)</td>
+                <td>Scheduler run queue depth (`vmstat r`, load average)</td>
+                <td>Machine Check Exceptions (MCE), hardware core faults</td>
+              </tr>
+              <tr>
+                <td><strong>Memory</strong></td>
+                <td>Physical RAM used vs free (excluding buffer cache)</td>
+                <td>Paging / swapping rate (`vmstat si/so`), page scan rate</td>
+                <td>Out Of Memory (OOM) killer events, allocation failures</td>
+              </tr>
+              <tr>
+                <td><strong>Storage</strong></td>
+                <td>Active device time % (`iostat %util`)</td>
+                <td>Block driver queue depth (`iostat avgqu-sz`)</td>
+                <td>Device I/O errors, SMART reallocated sector counts</td>
+              </tr>
+              <tr>
+                <td><strong>Network</strong></td>
+                <td>Current throughput vs interface link bandwidth</td>
+                <td>Interface backlog drops, TCP retransmission queues</td>
+                <td>CRC errors, dropped packets (`netstat -s`, `ifconfig`)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- FAQ Accordion -->
+        <h3 style="margin-top: 36px;">Frequently Asked Questions</h3>
+        <div class="faq-deck">
+          <div class="faq-node">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+              Can a server experience high saturation when CPU utilization is under 30%?
+              <span class="faq-icon">▼</span>
+            </div>
+            <div class="faq-a">
+              Yes. In multi-core architectures (e.g., a 64-core host), an application bound by a single-threaded event loop or a global mutex lock will completely peg one core at 100% while the remaining 63 cores sit idle. Overall system utilization will register at only ~1.5%, yet dozens of worker threads will sit saturated in the run queue waiting for that single core.
+            </div>
+          </div>
+
+          <div class="faq-node">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+              Why not simply use high-resolution scatter plots instead of heatmaps?
+              <span class="faq-icon">▼</span>
+            </div>
+            <div class="faq-a">
+              At web scale (millions of queries per minute), scatter plots suffer from severe overplotting. Ten thousand points overlapping at 2ms look identical to ten points overlapping at 2ms. A quantized heatmap buckets events into uniform time-latency cells and uses luminance or color saturation to convey request volume density accurately.
+            </div>
+          </div>
+
+          <div class="faq-node">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+              How can granting an AI agent read-only database credentials cause a production crash?
+              <span class="faq-icon">▼</span>
+            </div>
+            <div class="faq-a">
+              An agent attempting to analyze a problem might issue an exploratory query without an index (e.g., `SELECT * FROM table WHERE json_col LIKE '%err%'`). On a multi-gigabyte table, this triggers a full-table sequential scan that consumes 100% CPU across database workers and evicts critical customer data from the buffer cache, precipitating a cascading outage.
+            </div>
+          </div>
+
+          <div class="faq-node">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+              What creates a bimodal latency distribution in modern storage?
+              <span class="faq-icon">▼</span>
+            </div>
+            <div class="faq-a">
+              The memory hierarchy. When data is served from the operating system page cache or database buffer pool (RAM), queries complete in sub-millisecond times (0.1–0.5ms). When data is not in RAM, requests must execute physical disk I/O, jumping to 2–20ms. This physical split creates two distinct modal peaks.
+            </div>
+          </div>
+        </div>
+
+        <h3 style="margin-top: 36px;">Next Steps for Systems Engineers</h3>
+        <ol style="margin-left: 24px; margin-bottom: 24px; color: var(--ink-secondary);">
+          <li style="margin-bottom: 8px;"><strong>Audit Your Alerts:</strong> Verify that your monitoring system alerts on <em>saturation</em> (run queues, I/O wait queues) and <em>errors</em>, rather than solely on high utilization thresholds.</li>
+          <li style="margin-bottom: 8px;"><strong>Deploy Quantized Latency Heatmaps:</strong> Replace or supplement single-line percentile charts in your operational dashboards with 2D latency heatmaps (via Prometheus histogram quantiles or eBPF tools).</li>
+          <li style="margin-bottom: 8px;"><strong>Harden Agent Observability:</strong> If connecting AI agents via MCP to production systems, enforce strict query statement timeouts, read-replica routing, and pre-computed telemetry summaries.</li>
+        </ol>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- =========================================================================
+     VANILLA JAVASCRIPT: LOGIC, SIMULATORS & THREE.JS
+     ========================================================================= -->
+<script>
+  /* --- 1. Top Progress Bar & Scroll Tracking --- */
+  window.addEventListener('scroll', () => {
+    const doc = document.documentElement;
+    const top = doc.scrollTop || document.body.scrollTop;
+    const height = doc.scrollHeight - doc.clientHeight;
+    const progress = (top / height) * 100;
+    document.getElementById('top-progress').style.width = progress + '%';
+
+    // Active nav link highlight
+    const modules = document.querySelectorAll('.module');
+    let currentId = 'module-1';
+    modules.forEach(mod => {
+      const rect = mod.getBoundingClientRect();
+      if (rect.top <= 160) {
+        currentId = mod.getAttribute('id');
+      }
+    });
+    document.querySelectorAll('.nav-link').forEach(link => {
+      if (link.getAttribute('href') === '#' + currentId) {
+        link.classList.add('active');
+      } else {
+        link.classList.remove('active');
+      }
+    });
+  });
+
+  /* --- 2. Dark/Light Mode Switcher --- */
+  const themeBtn = document.getElementById('theme-toggle');
+  themeBtn.addEventListener('click', () => {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+      html.removeAttribute('data-theme');
+      themeBtn.textContent = '☀';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      themeBtn.textContent = '🌙';
+    }
+    // Re-render canvases if needed
+    renderModalityCurve(document.getElementById('cache-slider').value);
+    switchVisualView(currentVisualView);
+  });
+
+  /* --- 3. Diagram 1.1 USE Flow Highlight --- */
+  function highlightUseStep(step) {
+    resetUseFlow();
+    const map = {
+      'errors': 'node-err',
+      'util': 'node-util',
+      'sat': 'node-sat'
+    };
+    const el = document.getElementById(map[step]);
+    if (el) {
+      el.setAttribute('stroke', 'var(--accent)');
+      el.setAttribute('stroke-width', '2.5');
+      el.setAttribute('fill', 'var(--accent-soft)');
+    }
+  }
+  function resetUseFlow() {
+    ['node-err', 'node-util', 'node-sat', 'node-start', 'node-res'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.setAttribute('stroke', 'var(--line)');
+        el.setAttribute('stroke-width', '1.5');
+        el.setAttribute('fill', 'var(--card)');
+      }
+    });
+  }
+
+  /* --- 4. Workload Simulator --- */
+  function updateWorkloadSim(val) {
+    document.getElementById('workload-val').textContent = val + ' req/s';
+    const num = parseInt(val, 10);
+    const maxCapacity = 100;
+    let util = Math.min(100, Math.round((num / maxCapacity) * 100));
+    let queue = 0;
+    if (num > maxCapacity) {
+      queue = Math.round(Math.pow((num - maxCapacity) / 15, 2.1));
+    }
+
+    const utilBar = document.getElementById('sim-util-bar');
+    const utilPct = document.getElementById('sim-util-pct');
+    const utilStatus = document.getElementById('sim-util-status');
+    utilPct.textContent = util + '%';
+    utilBar.style.width = util + '%';
+
+    const satBar = document.getElementById('sim-sat-bar');
+    const satVal = document.getElementById('sim-sat-val');
+    const satStatus = document.getElementById('sim-sat-status');
+    satVal.textContent = queue;
+
+    const insight = document.getElementById('sim-insight');
+
+    if (util < 85) {
+      utilBar.style.background = 'var(--ok)';
+      utilStatus.textContent = 'Healthy';
+      utilStatus.style.color = 'var(--ok)';
+    } else if (util < 100) {
+      utilBar.style.background = 'var(--accent)';
+      utilStatus.textContent = 'High Load';
+      utilStatus.style.color = 'var(--accent)';
+    } else {
+      utilBar.style.background = 'var(--bad)';
+      utilStatus.textContent = 'Maxed (100%)';
+      utilStatus.style.color = 'var(--bad)';
+    }
+
+    if (queue === 0) {
+      satBar.style.width = '0%';
+      satBar.style.background = 'var(--ok)';
+      satStatus.textContent = 'Zero Queuing';
+      satStatus.style.color = 'var(--ok)';
+      insight.textContent = `At ${num} req/s, the processor handles requests without threads queuing in the OS scheduler.`;
+    } else {
+      const qWidth = Math.min(100, queue * 2.5);
+      satBar.style.width = qWidth + '%';
+      satBar.style.background = 'var(--bad)';
+      satStatus.textContent = 'Severe Backlog';
+      satStatus.style.color = 'var(--bad)';
+      insight.textContent = `Alert: Workload exceeds 100 req/s capacity. ${queue} threads are backed up in the run queue, driving exponential latency!`;
+    }
+  }
+
+  /* --- 5. Modality Canvas Simulator --- */
+  let currentModalityMode = 'bimodal';
+  function setCurveMode(mode) {
+    currentModalityMode = mode;
+    document.getElementById('btn-curve-bimodal').classList.toggle('active', mode === 'bimodal');
+    document.getElementById('btn-curve-unimodal').classList.toggle('active', mode === 'unimodal');
+    renderModalityCurve(document.getElementById('cache-slider').value);
+  }
+
+  function renderModalityCurve(cacheHitPct) {
+    document.getElementById('cache-val').textContent = cacheHitPct + '%';
+    const canvas = document.getElementById('modalityCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const gridColor = isDark ? '#262d38' : '#e5e1d8';
+    const textColor = isDark ? '#8b949e' : '#6c7684';
+
+    // Draw coordinate axes
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(50, 20);
+    ctx.lineTo(50, 200);
+    ctx.lineTo(680, 200);
+    ctx.stroke();
+
+    // Axis Labels
+    ctx.fillStyle = textColor;
+    ctx.font = '11px sans-serif';
+    ctx.fillText('0.1ms', 50, 218);
+    ctx.fillText('1ms', 200, 218);
+    ctx.fillText('10ms', 420, 218);
+    ctx.fillText('100ms', 640, 218);
+    ctx.fillText('Request Count (Density)', 55, 35);
+
+    const hitWeight = cacheHitPct / 100;
+    const missWeight = 1 - hitWeight;
+
+    // Draw curve
+    ctx.beginPath();
+    ctx.moveTo(50, 200);
+
+    for (let x = 50; x <= 680; x++) {
+      let yVal = 0;
+      if (currentModalityMode === 'bimodal') {
+        // Peak 1 at x = 120 (RAM hit ~0.3ms), Peak 2 at x = 450 (Disk miss ~12ms)
+        const g1 = Math.exp(-Math.pow(x - 120, 2) / (2 * Math.pow(30, 2))) * (160 * hitWeight);
+        const g2 = Math.exp(-Math.pow(x - 450, 2) / (2 * Math.pow(55, 2))) * (130 * missWeight);
+        yVal = g1 + g2;
+      } else {
+        // Single unimodal bell peak around 260
+        yVal = Math.exp(-Math.pow(x - 260, 2) / (2 * Math.pow(65, 2))) * 150;
+      }
+      ctx.lineTo(x, 200 - yVal);
+    }
+
+    ctx.strokeStyle = isDark ? '#d97706' : '#b85d19';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Fill under curve
+    ctx.lineTo(680, 200);
+    ctx.closePath();
+    ctx.fillStyle = isDark ? 'rgba(217, 119, 6, 0.15)' : 'rgba(184, 93, 25, 0.1)';
+    ctx.fill();
+
+    // Calculate simulated P50 and P99
+    if (currentModalityMode === 'bimodal') {
+      let p50 = hitWeight >= 0.5 ? (0.2 + (1 - hitWeight) * 1.4).toFixed(2) : (6.5 + (0.5 - hitWeight) * 10).toFixed(1);
+      let p99 = (15 + (missWeight * 8)).toFixed(1);
+      document.getElementById('metric-p50').textContent = p50 + ' ms';
+      document.getElementById('metric-p99').textContent = p99 + ' ms';
+    } else {
+      document.getElementById('metric-p50').textContent = '2.4 ms';
+      document.getElementById('metric-p99').textContent = '9.8 ms';
+    }
+  }
+
+  /* --- 6. Visual Paradigm Shootout (Lines vs Scatter vs Heatmap) --- */
+  let currentVisualView = 'lines';
+  function switchVisualView(view) {
+    currentVisualView = view;
+    document.getElementById('btn-view-lines').classList.toggle('active', view === 'lines');
+    document.getElementById('btn-view-scatter').classList.toggle('active', view === 'scatter');
+    document.getElementById('btn-view-heatmap').classList.toggle('active', view === 'heatmap');
+
+    const canvas = document.getElementById('viewCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const gridColor = isDark ? '#262d38' : '#e5e1d8';
+    const textColor = isDark ? '#8b949e' : '#6c7684';
+
+    // Draw baseline axes
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(40, 20);
+    ctx.lineTo(40, 220);
+    ctx.lineTo(700, 220);
+    ctx.stroke();
+
+    ctx.fillStyle = textColor;
+    ctx.font = '10.5px monospace';
+    ctx.fillText('12:00 PM', 40, 238);
+    ctx.fillText('01:00 PM', 200, 238);
+    ctx.fillText('02:00 PM', 360, 238);
+    ctx.fillText('03:00 PM', 520, 238);
+    ctx.fillText('04:00 PM', 660, 238);
+
+    ctx.fillText('100ms', 5, 35);
+    ctx.fillText('10ms', 10, 110);
+    ctx.fillText('1ms', 15, 185);
+
+    const caption = document.getElementById('view-caption');
+
+    if (view === 'lines') {
+      caption.textContent = '1. Percentile Lines: P50 (blue), P90 (amber), P99 (crimson). Smooths trends but hides the bimodal split entirely.';
+      // P50 line
+      ctx.strokeStyle = '#2563eb';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(40, 180);
+      for (let x = 40; x <= 700; x += 30) {
+        let bump = (x > 320 && x < 400) ? 25 : 0;
+        ctx.lineTo(x, 180 - bump + Math.sin(x/20)*3);
+      }
+      ctx.stroke();
+
+      // P90 line
+      ctx.strokeStyle = '#d97706';
+      ctx.beginPath();
+      ctx.moveTo(40, 120);
+      for (let x = 40; x <= 700; x += 30) {
+        let bump = (x > 320 && x < 420) ? 35 : 0;
+        ctx.lineTo(x, 120 - bump + Math.cos(x/18)*4);
+      }
+      ctx.stroke();
+
+      // P99 line
+      ctx.strokeStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.moveTo(40, 55);
+      for (let x = 40; x <= 700; x += 30) {
+        let bump = (x > 310 && x < 450) ? 25 : 0;
+        ctx.lineTo(x, 55 - bump + Math.sin(x/15)*5);
+      }
+      ctx.stroke();
+
+    } else if (view === 'scatter') {
+      caption.textContent = '2. Scatter Plot: Individual query markers. Shows outlier bursts at 2:00 PM, but dense clusters merge into overplotted black ink.';
+      ctx.fillStyle = isDark ? '#93c5fd' : '#1e3a8a';
+      // Dense band at 2-4ms
+      for (let i = 0; i < 400; i++) {
+        let rx = 40 + Math.random() * 660;
+        let ry = 175 + (Math.random() - 0.5) * 16;
+        ctx.fillRect(rx, ry, 2, 2);
+      }
+      // Second band at 12ms (bimodal disk misses)
+      for (let i = 0; i < 180; i++) {
+        let rx = 40 + Math.random() * 660;
+        let ry = 115 + (Math.random() - 0.5) * 20;
+        ctx.fillRect(rx, ry, 2, 2);
+      }
+      // Outlier cluster at 2 PM (x ~ 360)
+      ctx.fillStyle = '#dc2626';
+      for (let i = 0; i < 75; i++) {
+        let rx = 340 + Math.random() * 60;
+        let ry = 40 + Math.random() * 65;
+        ctx.fillRect(rx, ry, 2.5, 2.5);
+      }
+
+    } else if (view === 'heatmap') {
+      caption.textContent = '3. Quantized Heatmap: Discrete time/latency grid. Color intensity shows volume density, clearly exposing the bimodal bands and the 2:00 PM outlier cluster.';
+      const cols = 44;
+      const rows = 18;
+      const cellW = 660 / cols;
+      const cellH = 200 / rows;
+
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+          let count = 0;
+          // Mode 1: row 14-16 (fast in-memory)
+          if (r >= 14 && r <= 16) count += 60 + Math.random() * 40;
+          // Mode 2: row 8-10 (disk seeks)
+          if (r >= 8 && r <= 10) count += 25 + Math.random() * 20;
+          // Outlier incident at col 21-25, row 2-5
+          if (c >= 21 && c <= 25 && r >= 2 && r <= 5) count += 50 + Math.random() * 40;
+
+          if (count > 0) {
+            let alpha = Math.min(1, count / 90);
+            ctx.fillStyle = `rgba(217, 119, 6, ${alpha})`;
+            ctx.fillRect(40 + c * cellW, 20 + r * cellH, cellW - 0.8, cellH - 0.8);
+          }
+        }
+      }
+    }
+  }
+
+  /* --- 7. Three.js Fleet Wireframe Scene --- */
+  let scene, camera, renderer, wireframeMesh;
+  function initThreeScene() {
+    const container = document.getElementById('three-canvas-container');
+    if (!container || typeof THREE === 'undefined') return;
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d1117);
+
+    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    camera.position.set(40, 35, 55);
+    camera.lookAt(0, 0, 0);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    container.appendChild(renderer.domElement);
+
+    // Fleet Grid Surface: 32 nodes along Z, 48 time slices along X
+    const xSegments = 48;
+    const zSegments = 32;
+    const geom = new THREE.PlaneGeometry(50, 35, xSegments, zSegments);
+    geom.rotateX(-Math.PI / 2);
+
+    const pos = geom.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      let x = pos.getX(i);
+      let z = pos.getZ(i);
+
+      // Baseline diurnal wave across time
+      let y = Math.sin(x * 0.15) * 2.5 + Math.cos(z * 0.1) * 1.5;
+
+      // Rogue server spike at Node 24 (z ~ 10)
+      if (Math.abs(z - 8) < 1.8 && Math.abs(x - 5) < 8) {
+        y += 12 * Math.exp(-Math.pow(x - 5, 2) / 10);
+      }
+      pos.setY(i, y);
+    }
+    geom.computeVertexNormals();
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xd97706,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.85
+    });
+
+    wireframeMesh = new THREE.Mesh(geom, mat);
+    scene.add(wireframeMesh);
+
+    // Grid Floor
+    const gridHelper = new THREE.GridHelper(60, 20, 0x30363d, 0x161b22);
+    gridHelper.position.y = -4;
+    scene.add(gridHelper);
+
+    // Orbit Dragging Logic (Vanilla)
+    let isDragging = false;
+    let prevMousePos = { x: 0, y: 0 };
+
+    container.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      prevMousePos = { x: e.clientX, y: e.clientY };
+    });
+    window.addEventListener('mouseup', () => isDragging = false);
+    container.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevMousePos.x;
+      const dy = e.clientY - prevMousePos.y;
+      wireframeMesh.rotation.y += dx * 0.008;
+      wireframeMesh.rotation.x += dy * 0.005;
+      prevMousePos = { x: e.clientX, y: e.clientY };
+    });
+
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      camera.position.z += e.deltaY * 0.05;
+      camera.position.z = Math.max(20, Math.min(100, camera.position.z));
+    }, { passive: false });
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      wireframeMesh.rotation.y += 0.0012; // slow idle rotation
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      if (!container) return;
+      const nw = container.clientWidth;
+      const nh = container.clientHeight;
+      camera.aspect = nw / nh;
+      camera.updateProjectionMatrix();
+      renderer.setSize(nw, nh);
+    });
+  }
+
+  /* --- 8. Concept Matching Challenge --- */
+  let selectedMatchLeft = null;
+  let selectedMatchRight = null;
+  let matchesFound = 0;
+
+  function selectMatchItem(el, side) {
+    if (el.classList.contains('matched')) return;
+
+    if (side === 'left') {
+      document.querySelectorAll('#match-left .match-item').forEach(i => i.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedMatchLeft = el;
+    } else {
+      document.querySelectorAll('#match-right .match-item').forEach(i => i.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedMatchRight = el;
+    }
+
+    if (selectedMatchLeft && selectedMatchRight) {
+      if (selectedMatchLeft.getAttribute('data-id') === selectedMatchRight.getAttribute('data-id')) {
+        selectedMatchLeft.classList.remove('selected');
+        selectedMatchRight.classList.remove('selected');
+        selectedMatchLeft.classList.add('matched');
+        selectedMatchRight.classList.add('matched');
+        matchesFound++;
+        if (matchesFound === 4) {
+          document.getElementById('match-feedback').style.display = 'block';
+        }
+      } else {
+        selectedMatchLeft.classList.add('wrong');
+        selectedMatchRight.classList.add('wrong');
+        setTimeout(() => {
+          if (selectedMatchLeft) selectedMatchLeft.classList.remove('wrong', 'selected');
+          if (selectedMatchRight) selectedMatchRight.classList.remove('wrong', 'selected');
+          selectedMatchLeft = null;
+          selectedMatchRight = null;
+        }, 500);
+        return;
+      }
+      selectedMatchLeft = null;
+      selectedMatchRight = null;
+    }
+  }
+
+  /* --- 9. Module Quiz Handler --- */
+  function handleQuizAnswer(btn, isCorrect, explanation) {
+    const parent = btn.parentElement;
+    const feedback = parent.nextElementSibling;
+    parent.querySelectorAll('.quiz-opt').forEach(opt => {
+      opt.disabled = true;
+      opt.style.cursor = 'default';
+    });
+    if (isCorrect) {
+      btn.classList.add('correct');
+      feedback.style.color = 'var(--ok)';
+    } else {
+      btn.classList.add('wrong');
+      feedback.style.color = 'var(--bad)';
+    }
+    feedback.textContent = explanation;
+    feedback.style.display = 'block';
+  }
+
+  // Initialize interactive components on load
+  window.addEventListener('DOMContentLoaded', () => {
+    renderModalityCurve(65);
+    switchVisualView('lines');
+    initThreeScene();
+  });
+</script>
+
+</body>
+</html>

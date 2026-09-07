@@ -1,0 +1,2618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designing Data-Intensive Applications — Chapter 8: The Trouble with Distributed Systems</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg-surface: #12161f;
+      --bg-surface-elevated: #1a202c;
+      --bg-surface-glass: rgba(18, 22, 31, 0.85);
+      --border: #242c3d;
+      --border-accent: #38455e;
+      --text: #f0f4fc;
+      --text-muted: #8d9bb0;
+      --text-subtle: #57657d;
+      --accent: #eb6c36;
+      --accent-glow: rgba(235, 108, 54, 0.2);
+      --accent-subtle: rgba(235, 108, 54, 0.09);
+      --teal: #10b981;
+      --teal-subtle: rgba(16, 185, 129, 0.1);
+      --blue: #3b82f6;
+      --blue-subtle: rgba(59, 130, 246, 0.1);
+      --purple: #8b5cf6;
+      --purple-subtle: rgba(139, 92, 246, 0.1);
+      --amber: #f59e0b;
+      --amber-subtle: rgba(245, 158, 11, 0.1);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.1);
+      --font-serif: "Instrument Serif", Georgia, serif;
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-surface-glass: rgba(255, 255, 255, 0.9);
+      --border: #e2e8f0;
+      --border-accent: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+      --accent: #d9531e;
+      --accent-glow: rgba(217, 83, 30, 0.15);
+      --accent-subtle: rgba(217, 83, 30, 0.08);
+      --teal: #059669;
+      --teal-subtle: rgba(5, 150, 105, 0.08);
+      --blue: #2563eb;
+      --blue-subtle: rgba(37, 99, 235, 0.08);
+      --purple: #7c3aed;
+      --purple-subtle: rgba(124, 58, 237, 0.08);
+      --amber: #d97706;
+      --amber-subtle: rgba(217, 119, 6, 0.08);
+      --rose: #e11d48;
+      --rose-subtle: rgba(225, 29, 72, 0.08);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    #reading-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #f97316);
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.1s ease-out;
+    }
+
+    .top-nav {
+      position: sticky;
+      top: 0;
+      background: var(--bg-surface-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 900;
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .nav-badge {
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent);
+    }
+
+    .theme-toggle-btn {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .page-container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 6rem;
+    }
+
+    /* Hero Section */
+    .hero-section {
+      margin-bottom: 3.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .meta-tag {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: var(--accent-subtle);
+      padding: 0.25rem 0.6rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(235, 108, 54, 0.3);
+      font-weight: 600;
+    }
+
+    .hero-title {
+      font-family: var(--font-sans);
+      font-size: 3rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.25rem;
+      background: linear-gradient(135deg, var(--text) 30%, var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      max-width: 960px;
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    .hero-takeaways {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .takeaway-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .takeaway-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-accent);
+    }
+
+    .takeaway-icon {
+      font-size: 1.3rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .takeaway-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.35rem;
+    }
+
+    .takeaway-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Knowledge Map Card */
+    .knowledge-map-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      margin-bottom: 3.5rem;
+      box-shadow: var(--shadow-md);
+    }
+
+    .section-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      display: block;
+      font-weight: 700;
+    }
+
+    .section-heading {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.5rem;
+      color: var(--text);
+    }
+
+    /* Modules */
+    .module-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2.25rem;
+      margin-bottom: 3rem;
+      box-shadow: var(--shadow-sm);
+      scroll-margin-top: 5rem;
+    }
+
+    .module-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .module-num {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.25rem 0.6rem;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+    }
+
+    .module-heading {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .prose-block {
+      font-size: 1rem;
+      color: var(--text);
+      line-height: 1.75;
+      margin-bottom: 1.5rem;
+    }
+
+    .prose-block p {
+      margin-bottom: 1rem;
+    }
+
+    .prose-block strong {
+      color: #ffffff;
+    }
+
+    [data-theme="light"] .prose-block strong {
+      color: #0f172a;
+    }
+
+    .prose-block code {
+      font-family: var(--font-mono);
+      font-size: 0.88em;
+      background: var(--bg-surface-elevated);
+      color: var(--accent);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    /* Definitions Panel */
+    .definitions-panel {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .definitions-header {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .def-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .def-item {
+      border-left: 2px solid var(--accent);
+      padding-left: 0.75rem;
+    }
+
+    .def-term {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .def-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* SVG Diagram Containers */
+    .svg-diagram-wrapper {
+      background: #0e121a;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 1.75rem 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: auto;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    [data-theme="light"] .svg-diagram-wrapper {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .svg-diagram-wrapper svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Step Breakdown */
+    .steps-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 1.5rem 0;
+    }
+
+    .step-node {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+    }
+
+    .step-index-badge {
+      background: var(--accent);
+      color: #ffffff;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 0.15rem;
+    }
+
+    .step-content-box h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+    }
+
+    .step-content-box p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Examples Trio */
+    .examples-trio {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin: 1.75rem 0;
+    }
+
+    .example-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .example-tag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      display: inline-block;
+    }
+
+    .example-tag.obvious { color: var(--teal); }
+    .example-tag.counter { color: var(--amber); }
+    .example-tag.edge { color: var(--rose); }
+
+    .example-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+
+    .example-body {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Pedagogy Grid */
+    .pedagogy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+      margin: 1.75rem 0;
+    }
+
+    .pedagogy-box {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+    }
+
+    .pedagogy-box.analogy { border-top: 3px solid var(--blue); }
+    .pedagogy-box.misconception { border-top: 3px solid var(--rose); }
+    .pedagogy-box.reality { border-top: 3px solid var(--teal); }
+    .pedagogy-box.connection { border-top: 3px solid var(--purple); }
+
+    .pedagogy-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .pedagogy-box.analogy .pedagogy-label { color: var(--blue); }
+    .pedagogy-box.misconception .pedagogy-label { color: var(--rose); }
+    .pedagogy-box.reality .pedagogy-label { color: var(--teal); }
+    .pedagogy-box.connection .pedagogy-label { color: var(--purple); }
+
+    .pedagogy-text {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .memory-pill {
+      background: var(--accent-subtle);
+      border: 1px dashed var(--accent);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1.25rem;
+      margin-top: 1.5rem;
+      font-size: 0.88rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .memory-pill span {
+      font-weight: 700;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+
+    /* Interactive Widgets */
+    .interactive-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 2rem 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .interactive-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .interactive-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .interactive-badge {
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .control-group {
+      flex: 1;
+      min-width: 220px;
+    }
+
+    .control-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+      display: block;
+      font-weight: 600;
+    }
+
+    .text-input-field {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 0.8rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .text-input-field:focus {
+      border-color: var(--accent);
+    }
+
+    .sim-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 1.2rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .sim-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .sim-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .sim-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    .sim-display-box {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.84rem;
+      color: #e6edf3;
+      min-height: 120px;
+      overflow-x: auto;
+    }
+
+    [data-theme="light"] .sim-display-box {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      color: #0f172a;
+    }
+
+    /* Active Recall Flashcards */
+    .flashcards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin: 2rem 0;
+    }
+
+    .flashcard {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      min-height: 180px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      user-select: none;
+    }
+
+    .flashcard:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .flashcard-q {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .flashcard-a {
+      font-size: 0.85rem;
+      color: var(--teal);
+      line-height: 1.5;
+      margin-top: 1rem;
+      display: none;
+      border-top: 1px dashed var(--border);
+      padding-top: 0.75rem;
+    }
+
+    .flashcard.flipped .flashcard-a {
+      display: block;
+    }
+
+    .flashcard-hint {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-subtle);
+      margin-top: 0.5rem;
+    }
+
+    /* Self Check Quiz */
+    .quiz-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .quiz-question {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .quiz-opt-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      text-align: left;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .quiz-opt-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .quiz-opt-btn.correct {
+      background: var(--teal-subtle);
+      border-color: var(--teal);
+      color: var(--teal);
+    }
+
+    .quiz-opt-btn.incorrect {
+      background: var(--rose-subtle);
+      border-color: var(--rose);
+      color: var(--rose);
+    }
+
+    .quiz-feedback {
+      margin-top: 1rem;
+      padding: 0.9rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      line-height: 1.5;
+      display: none;
+    }
+
+    .quiz-feedback.show {
+      display: block;
+    }
+
+    .quiz-feedback.correct-feedback {
+      background: var(--teal-subtle);
+      border: 1px solid var(--teal);
+      color: var(--teal);
+    }
+
+    .quiz-feedback.incorrect-feedback {
+      background: var(--rose-subtle);
+      border: 1px solid var(--rose);
+      color: var(--rose);
+    }
+
+    /* Cheat Sheet Table */
+    .cheat-sheet-table-wrapper {
+      overflow-x: auto;
+      margin: 1.75rem 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .cheat-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    .cheat-table th {
+      background: var(--bg-surface-elevated);
+      padding: 0.9rem 1.2rem;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cheat-table td {
+      padding: 0.9rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .cheat-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .cheat-table tr:hover td {
+      background: var(--bg-surface-elevated);
+    }
+
+    /* FAQ Accordion */
+    .faq-accordion {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 2rem 0;
+    }
+
+    .faq-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .faq-question {
+      padding: 1.2rem 1.5rem;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background-color 0.2s ease;
+    }
+
+    .faq-question:hover {
+      background: var(--bg-surface-elevated);
+    }
+
+    .faq-icon {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      color: var(--accent);
+      transition: transform 0.2s ease;
+    }
+
+    .faq-item.open .faq-icon {
+      transform: rotate(45deg);
+    }
+
+    .faq-answer {
+      padding: 0 1.5rem 1.2rem;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      display: none;
+      border-top: 1px solid var(--border);
+      padding-top: 1rem;
+    }
+
+    .faq-item.open .faq-answer {
+      display: block;
+    }
+
+    /* Footer */
+    .lesson-footer {
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-subtle);
+    }
+
+    @media (max-width: 768px) {
+      .hero-title { font-size: 2.2rem; }
+      .top-nav { padding: 0.75rem 1rem; }
+      .nav-links { display: none; }
+      .module-card { padding: 1.5rem; }
+      .page-container { padding: 1.5rem 1rem 4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="reading-progress"></div>
+
+  <!-- Sticky Top Navigation -->
+  <nav class="top-nav">
+    <a href="#" class="nav-brand">
+      <span>Designing Data-Intensive Applications</span>
+      <span class="nav-badge">Chapter 08</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#module-1">Partial Failures</a></li>
+      <li><a href="#module-2">Two Generals</a></li>
+      <li><a href="#module-3">Clock Drift & LWW</a></li>
+      <li><a href="#module-4">TrueTime & Spanner</a></li>
+      <li><a href="#module-5">GC Pauses & Fencing</a></li>
+      <li><a href="#module-6">System Models</a></li>
+      <li><a href="#cheat-sheet">Cheat Sheet</a></li>
+      <li><a href="#quiz">Quiz</a></li>
+    </ul>
+    <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Dark/Light Mode">
+      <span id="theme-icon">☀️</span> <span id="theme-text">Light</span>
+    </button>
+  </nav>
+
+  <div class="page-container">
+    <!-- Hero Section -->
+    <header class="hero-section">
+      <div class="hero-meta">
+        <span class="meta-tag">MARTIN KLEPPMANN • CHAPTER 08</span>
+        <span class="meta-tag">FAULT TOLERANCE & NETWORK PARTITIONS</span>
+        <span class="meta-tag">TIME, CLOCKS & FENCING TOKENS</span>
+      </div>
+      <h1 class="hero-title">The Trouble with Distributed Systems</h1>
+      <p class="hero-subtitle">
+        On a single computer, operations are fundamentally deterministic: if hardware functions, instructions execute faithfully; if hardware fails, the entire machine crashes cleanly. In distributed systems, computing enters the realm of <strong>partial failures</strong>: networks delay, drop, or duplicate packets, quartz clocks drift unpredictably, and garbage collection pauses turn healthy leaders into phantom split-brain nodes.
+      </p>
+
+      <div class="hero-takeaways">
+        <div class="takeaway-card">
+          <div class="takeaway-icon">💥</div>
+          <div class="takeaway-title">The Scale Failure Paradox</div>
+          <div class="takeaway-desc">If a single server fails once a year, a 1,000-node cluster experiences catastrophic hardware or network failures every single day. Fault tolerance must be software-native.</div>
+        </div>
+        <div class="takeaway-card">
+          <div class="takeaway-icon">⚔️</div>
+          <div class="takeaway-title">The Two Generals Impossibility</div>
+          <div class="takeaway-desc">Two nodes communicating over an asynchronous, unreliable network cannot achieve 100% mutual consensus with a finite number of message exchanges.</div>
+        </div>
+        <div class="takeaway-card">
+          <div class="takeaway-icon">⏳</div>
+          <div class="takeaway-title">Unreliable Quartz Clocks</div>
+          <div class="takeaway-desc">Wall clocks drift with temperature and jump during NTP steps. Last-Write-Wins (LWW) timestamp ordering silently discards valid updates unless bounded by TrueTime ($2\epsilon$).</div>
+        </div>
+        <div class="takeaway-card">
+          <div class="takeaway-icon">🛡️</div>
+          <div class="takeaway-title">GC Pauses & Fencing Tokens</div>
+          <div class="takeaway-desc">Stop-The-World (STW) garbage collection pauses cause healthy leaders to lose leases without knowing it. Storage nodes must enforce monotonic fencing tokens to reject stale writes.</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Master Architecture Knowledge Map -->
+    <section class="knowledge-map-card">
+      <span class="section-eyebrow">System Topology</span>
+      <h2 class="section-heading">Distributed System Failure Surface Map</h2>
+      <p class="prose-block" style="margin-bottom:12px; font-size: 0.92rem; color: var(--text-muted);">
+        A complete architectural overview of distributed failure vectors: packet loss across network partitions, quartz clock skew between physical nodes, JVM Stop-The-World pauses creating zombie leaders, and monotonic fencing tokens defending storage integrity.
+      </p>
+
+      <!-- SVG Diagram 1: Master Failure Surface Map -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 960 420" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Distributed System Failure Surface Map">
+          <title>Distributed Systems Failure Modes & Defense Architecture</title>
+          <rect width="960" height="420" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Zone 1: Network Chaos Tier -->
+          <g transform="translate(24, 24)">
+            <rect width="270" height="372" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.2"/>
+            <rect x="14" y="12" width="160" height="18" rx="3" fill="#f43f5e" fill-opacity="0.15" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="94" y="24" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">UNRELIABLE NETWORK TIER</text>
+
+            <rect x="16" y="44" width="238" height="56" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+            <text x="135" y="66" fill="#f0f4fc" font-size="10" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Packet Loss & Buffer Drops</text>
+            <text x="135" y="82" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Switches drop frames silently</text>
+
+            <rect x="16" y="112" width="238" height="66" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+            <text x="135" y="134" fill="#f43f5e" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Network Partition (Split-Brain)</text>
+            <text x="135" y="150" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Switch fails; cuts cluster into 2 halves</text>
+            <text x="135" y="164" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Two Generals Impossibility</text>
+
+            <rect x="16" y="190" width="238" height="64" rx="4" fill="#12161f" stroke="#eb6c36" stroke-width="1"/>
+            <text x="135" y="212" fill="#eb6c36" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Unbounded Latency Spikes</text>
+            <text x="135" y="228" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">TCP retransmission delays (RTO)</text>
+            <text x="135" y="242" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Queueing latency in top-of-rack switches</text>
+
+            <rect x="16" y="266" width="238" height="114" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+            <text x="135" y="286" fill="#8d9bb0" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Detection Reality</text>
+            <text x="26" y="306" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace">❌ Cannot distinguish dead node from</text>
+            <text x="26" y="320" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace">&nbsp;&nbsp;&nbsp;slow network or delayed packet.</text>
+            <text x="26" y="340" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace">✓ Use Phi Accrual Failure Detectors &</text>
+            <text x="26" y="354" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace">&nbsp;&nbsp;&nbsp;majority quorums (N/2 + 1).</text>
+          </g>
+
+          <!-- Zone 2: Time & Clocks Tier -->
+          <g transform="translate(318, 24)">
+            <rect width="290" height="372" rx="6" fill="#1a202c" stroke="#eb6c36" stroke-width="1.2"/>
+            <rect x="14" y="12" width="160" height="18" rx="3" fill="#eb6c36" fill-opacity="0.15" stroke="#eb6c36" stroke-width="0.8"/>
+            <text x="94" y="24" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">TIME & CLOCK DRIFT TIER</text>
+
+            <rect x="16" y="44" width="258" height="82" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+            <text x="145" y="66" fill="#3b82f6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Time-of-Day vs. Monotonic Clocks</text>
+            <text x="26" y="86" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">CLOCK_REALTIME: NTP can step backward</text>
+            <text x="26" y="102" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace">CLOCK_MONOTONIC: Strictly moves forward</text>
+            <text x="26" y="116" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Quartz oscillators drift ~17s/day with heat</text>
+
+            <rect x="16" y="138" width="258" height="82" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+            <text x="145" y="160" fill="#f43f5e" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Last-Write-Wins (LWW) Disaster</text>
+            <text x="26" y="180" fill="#f0f4fc" font-size="7.5" font-family="'Geist Mono', monospace">Node B clock is 50ms fast</text>
+            <text x="26" y="194" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace">Node A writes later, but gets smaller TS</text>
+            <text x="26" y="208" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace">💥 Node A valid write is silently dropped!</text>
+
+            <rect x="16" y="232" width="258" height="148" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.2"/>
+            <text x="145" y="254" fill="#10b981" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Google Spanner TrueTime API</text>
+            <text x="26" y="274" fill="#f0f4fc" font-size="7.5" font-family="'Geist Mono', monospace">TT.now() -> [earliest, latest] with bound &epsilon;</text>
+            <text x="26" y="290" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">Hardware: GPS receivers + Atomic clocks</text>
+            <rect x="24" y="302" width="242" height="66" rx="3" fill="#1a202c" stroke="#10b981" stroke-width="0.8"/>
+            <text x="145" y="322" fill="#10b981" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Commit-Wait Rule: Wait 2&epsilon; (~14ms)</text>
+            <text x="145" y="338" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Guarantees non-overlapping intervals</text>
+            <text x="145" y="352" fill="#10b981" font-size="7" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">✓ True Linearizability across Globe</text>
+          </g>
+
+          <!-- Zone 3: Process Pauses & Fencing Tier -->
+          <g transform="translate(632, 24)">
+            <rect width="304" height="372" rx="6" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+            <rect x="14" y="12" width="180" height="18" rx="3" fill="#3b82f6" fill-opacity="0.15" stroke="#3b82f6" stroke-width="0.8"/>
+            <text x="104" y="24" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">PROCESS PAUSES & FENCING</text>
+
+            <rect x="16" y="44" width="272" height="96" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+            <text x="152" y="66" fill="#f43f5e" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">The Stop-The-World (GC) Zombie</text>
+            <text x="26" y="86" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">1. Leader acquires 10s lease from lock service</text>
+            <text x="26" y="100" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace">2. JVM triggers 12s GC pause / VM suspend</text>
+            <text x="26" y="114" fill="#eb6c36" font-size="7.5" font-family="'Geist Mono', monospace">3. Cluster declares leader dead & elects Node B</text>
+            <text x="26" y="128" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace">4. Node A wakes up & writes as zombie leader!</text>
+
+            <rect x="16" y="152" width="272" height="228" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.5"/>
+            <text x="152" y="174" fill="#10b981" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Defense: Monotonic Fencing Tokens</text>
+            
+            <rect x="24" y="186" width="256" height="54" rx="3" fill="#1a202c" stroke="#38455e" stroke-width="0.8"/>
+            <text x="152" y="204" fill="#3b82f6" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">ZooKeeper / etcd Lock Manager</text>
+            <text x="152" y="220" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Issues strictly incrementing token with lease</text>
+            <text x="152" y="232" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Node A: Token 33 | Node B: Token 34</text>
+
+            <rect x="24" y="250" width="256" height="118" rx="3" fill="#1a202c" stroke="#10b981" stroke-width="1"/>
+            <text x="152" y="270" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Storage Node Enforcement</text>
+            <text x="34" y="290" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace">• Node B (Token 34) writes: Accepted ✓</text>
+            <text x="34" y="306" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">&nbsp;&nbsp;Storage records max_token = 34</text>
+            <text x="34" y="324" fill="#f43f5e" font-size="7.5" font-weight="700" font-family="'Geist Mono', monospace">• Zombie Node A (Token 33) arrives:</text>
+            <text x="34" y="340" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace">&nbsp;&nbsp;REJECTED: 33 < 34 (Stale Fencing Token!)</text>
+            <text x="152" y="358" fill="#10b981" font-size="7" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">✓ Storage Invariant Preserved</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         MODULE 1: Partial Failures & Scale Paradox
+         ========================================== -->
+    <article class="module-card" id="module-1">
+      <header class="module-header">
+        <span class="module-num">Module 01</span>
+        <h2 class="module-heading">Faults, Partial Failures & The Scale Paradox</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          Writing software for a single computer is fundamentally deterministic. When code executes on a single operating system, instructions run predictably according to CPU architecture. If a physical hardware fault occurs—such as a power failure or a fried memory controller—the entire system halts completely (a <em>total failure</em>).
+        </p>
+        <p>
+          In distributed systems, computing enters an entirely different paradigm governed by <strong>Partial Failures</strong>. A partial failure is a condition where some components of the distributed system are operating perfectly, while other components are failing, delayed, or partitioned in unpredictable ways. Because the working parts of the cluster cannot reliably know whether a remote machine has crashed or is simply experiencing network congestion, the system behaves nondeterministically.
+        </p>
+        <p>
+          This leads directly to <strong>The Scale Paradox</strong>: When managing a single database server with a mean time between failures (MTBF) of 3 years, hardware crashes appear as rare anomalies. However, when an enterprise scales horizontally to a cluster of 10,000 servers, hardware faults cease to be exceptional events. With 10,000 machines, on average <strong>9 to 10 servers fail, reboot, or lose connectivity every single day</strong>.
+        </p>
+        <p>
+          Therefore, building distributed systems requires a philosophical shift: <em>Fault tolerance is not an operational afterthought; it must be an inherent mathematical property of the software architecture.</em> Systems cannot assume that remote machines or network cables are reliable.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Core Reliability Definitions</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>⚡</span> Partial Failure</div>
+            <div class="def-desc">A non-deterministic state in distributed computing where some nodes fail while others continue executing without knowing the state of the failed nodes.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>📈</span> The Scale Paradox</div>
+            <div class="def-desc">The statistical certainty that as cluster node count increases, rare single-node hardware failures become constant, daily production realities.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🛡️</span> Fault Tolerance</div>
+            <div class="def-desc">Designing software protocols that automatically mask partial failures and maintain system invariants without human intervention.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 2: Single-Node Total Crash vs Distributed Partial Failure -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 280" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Single Node vs Distributed Partial Failure">
+          <title>Diagram 01: Single-Node Total Failure vs. Distributed Partial Failure</title>
+          <rect width="900" height="280" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Left Box: Single Node Total Failure (Deterministic) -->
+          <g transform="translate(24, 20)">
+            <rect width="410" height="240" rx="6" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#3b82f6" fill-opacity="0.15" stroke="#3b82f6" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">SINGLE-NODE COMPUTING</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Deterministic Total Crash (All-or-Nothing)</text>
+
+            <rect x="20" y="60" width="370" height="60" rx="4" fill="#12161f" stroke="#38455e" stroke-width="1"/>
+            <text x="35" y="82" fill="#f0f4fc" font-size="9" font-family="'Geist Mono', monospace">CPU • Shared RAM Bus • Local Disk Controller</text>
+            <text x="35" y="100" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace">Operations succeed or fail deterministically in lockstep</text>
+
+            <rect x="20" y="132" width="370" height="60" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+            <text x="35" y="154" fill="#f43f5e" font-size="9" font-weight="700" font-family="'Geist Mono', monospace">💥 Hardware Fault: Entire Machine Halts</text>
+            <text x="35" y="172" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">No surviving component makes wrong assumptions about state</text>
+
+            <rect x="12" y="202" width="386" height="26" rx="3" fill="#12161f" stroke="#3b82f6" stroke-width="0.8"/>
+            <text x="205" y="218" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">✓ Shared State • Atomic Crash • Clean Failure Horizon</text>
+          </g>
+
+          <!-- Right Box: Distributed Partial Failure (Nondeterministic) -->
+          <g transform="translate(466, 20)">
+            <rect width="410" height="240" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#f43f5e" fill-opacity="0.15" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">DISTRIBUTED CLUSTER</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Nondeterministic Partial Failure</text>
+
+            <!-- 3 Cluster Nodes -->
+            <g transform="translate(20, 60)">
+              <rect x="0" y="0" width="115" height="54" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+              <text x="57" y="22" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Node 1 (Leader)</text>
+              <text x="57" y="38" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Healthy & Active</text>
+
+              <rect x="127" y="0" width="115" height="54" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.5"/>
+              <text x="184" y="22" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Node 2 (Follower)</text>
+              <text x="184" y="38" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">💥 Partitioned / GC</text>
+
+              <rect x="254" y="0" width="115" height="54" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+              <text x="311" y="22" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Node 3 (Follower)</text>
+              <text x="311" y="38" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Healthy & Active</text>
+            </g>
+
+            <rect x="20" y="126" width="370" height="66" rx="4" fill="#12161f" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="35" y="146" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">The Distributed Dilemma:</text>
+            <text x="35" y="162" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Node 1 doesn't know if Node 2 is dead, slow, or packet was lost</text>
+            <text x="35" y="176" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Surviving nodes must elect and commit without 100% certainty</text>
+
+            <rect x="12" y="202" width="386" height="26" rx="3" fill="#12161f" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="205" y="218" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">❌ Unbounded Delay • Unknown Node State • Software-Driven Consensus Required</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="steps-container">
+        <div class="step-node">
+          <div class="step-index-badge">1</div>
+          <div class="step-content-box">
+            <h4>Component Scale & MTBF Multiplication</h4>
+            <p>Calculate cluster failure frequency by multiplying individual component failure rates by the total node and switch count in the datacenter.</p>
+          </div>
+        </div>
+        <div class="step-node">
+          <div class="step-index-badge">2</div>
+          <div class="step-content-box">
+            <h4>Nondeterministic State Isolation</h4>
+            <p>When a remote node stops responding, the cluster cannot determine if the node died, the network dropped the packet, or the remote process is in a temporary garbage collection pause.</p>
+          </div>
+        </div>
+        <div class="step-node">
+          <div class="step-index-badge">3</div>
+          <div class="step-content-box">
+            <h4>Software-Defined Fault Tolerance</h4>
+            <p>Construct consensus and quorum algorithms that assume nodes will fail without warning, ensuring cluster operations continue as long as a majority quorum survives.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">Top-of-Rack Switch Power Failure</h4>
+          <p class="example-body">A power supply failure in a top-of-rack (ToR) switch instantly disconnects 40 servers simultaneously, creating an immediate network partition in the database cluster.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">Hardware Redundancy Does Not Prevent Software Bugs</h4>
+          <p class="example-body">Deploying dual power supplies and bonded network cards protects against physical wire cuts, but does not prevent kernel panics, firmware lockups, or JVM stop-the-world pauses.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">Asymmetric Network Partitions</h4>
+          <p class="example-body">A degraded network card on Node A can transmit packets to Node B, but cannot receive incoming packets from Node B (one-way black hole), breaking traditional symmetric heartbeat assumptions.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">Single-node programming is like a solitary chess game where every piece moves predictably; distributed systems are like a military campaign where radio communications fail and messengers get captured.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Assuming that "reliable" hardware and cloud providers eliminate distributed system bugs. Cloud virtualization adds hypervisor pauses, dynamic IP churn, and unpredictable noisy-neighbor latencies.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">At PlanetScale and Google scale, failure is continuous. Systems are deliberately designed to run continuously while nodes reboot, crash, and reshard in the background.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">Because partial failures stem primarily from network communication breakdowns, we must analyze the fundamental limits of unreliable networks (Module 2).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> Single-node = deterministic total crash; Distributed = non-deterministic partial failure. Scale turns rare single-node failures into daily cluster constants.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 2: Unreliable Networks & Two Generals
+         ========================================== -->
+    <article class="module-card" id="module-2">
+      <header class="module-header">
+        <span class="module-num">Module 02</span>
+        <h2 class="module-heading">Unreliable Networks & The Two Generals Impossibility</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          The internet and datacenter networks are <strong>asynchronous packet networks</strong>. In an asynchronous network, when a node sends a packet to another node, the network provides no guarantees regarding when the packet will arrive—or whether it will arrive at all.
+        </p>
+        <p>
+          When Node 1 sends a request to Node 2 and does not receive a response within a given timeframe, Node 1 cannot distinguish between five fundamentally different failure scenarios:
+        </p>
+        <ul style="margin-left:1.5rem; margin-bottom:1rem; color:var(--text-muted); line-height:1.7;">
+          <li>1. The request was lost in the network (e.g., dropped by a congested router buffer).</li>
+          <li>2. The request is waiting in a queue and will be delivered after a severe delay.</li>
+          <li>3. Node 2 crashed or powered down before processing the request.</li>
+          <li>4. Node 2 processed the request successfully, but its response was lost on the return path.</li>
+          <li>5. Node 2 processed the request, but its response was delayed and will arrive later.</li>
+        </ul>
+        <p>
+          This uncertainty is formalized by <strong>The Two Generals Problem</strong>: Two allied generals (General 1 and General 2) have surrounded an enemy city. They can only win if they attack at the exact same time. The only way to communicate is by sending foot messengers through enemy territory, where messengers risk capture.
+        </p>
+        <p>
+          If General 1 sends a message: <em>"Attack tomorrow at 8:00 AM"</em>, General 1 cannot attack unless he knows General 2 received it. General 2 sends an acknowledgment: <em>"Received, 8:00 AM confirmed"</em>. But General 2 cannot attack unless he is certain General 1 received the confirmation (otherwise General 1 will stay behind). General 1 must send an acknowledgment of the acknowledgment... ad infinitum. 
+        </p>
+        <p>
+          Computer science proofs establish that <strong>it is mathematically impossible to guarantee mutual certainty over an unreliable communication channel with a finite number of messages</strong>. Distributed databases circumvent this impossibility not through infinite acknowledgments, but through <strong>Quorums and Majority Voting</strong> (accepting that absolute unanimity is unachievable).
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Network Communication Primitives</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>⚔️</span> Two Generals Problem</div>
+            <div class="def-desc">The theoretical proof that two nodes communicating over an unreliable channel cannot achieve 100% agreement with finite messages.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🔀</span> Asynchronous Network</div>
+            <div class="def-desc">A network model where packet delivery times and queueing latencies are completely unbounded and unpredictable.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>⏱️</span> Dynamic Timeout (Phi Accrual)</div>
+            <div class="def-desc">Adaptive failure detection algorithms that measure historical heartbeat round-trip times rather than using static arbitrary thresholds.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 3: Two Generals Infinite Loop & Packet Loss -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Two Generals Problem Infinite Confirmation Loop">
+          <title>Diagram 02: The Two Generals Problem & Infinite Acknowledgment Trap</title>
+          <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- General 1 (Node A) -->
+          <line x1="160" y1="50" x2="160" y2="280" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <rect x="90" y="24" width="140" height="32" rx="4" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+          <text x="160" y="44" fill="#3b82f6" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">General 1 (Node A)</text>
+
+          <!-- Enemy Territory (Unreliable Network) -->
+          <rect x="360" y="24" width="180" height="256" rx="6" fill="#12161f" stroke="#f43f5e" stroke-width="1" stroke-dasharray="4,4"/>
+          <text x="450" y="44" fill="#f43f5e" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">UNRELIABLE NETWORK</text>
+          <text x="450" y="60" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Packets may drop / delay</text>
+
+          <!-- General 2 (Node B) -->
+          <line x1="740" y1="50" x2="740" y2="280" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <rect x="670" y="24" width="140" height="32" rx="4" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+          <text x="740" y="44" fill="#10b981" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">General 2 (Node B)</text>
+
+          <!-- Msg 1: Attack at 8am -->
+          <path d="M 160 85 L 732 85" stroke="#3b82f6" stroke-width="1.5"/>
+          <polygon points="732,82 740,85 732,88" fill="#3b82f6"/>
+          <rect x="380" y="75" width="140" height="18" rx="2" fill="#12161f"/>
+          <text x="450" y="87" fill="#f0f4fc" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">1. "Attack at 8:00 AM"</text>
+
+          <!-- Msg 2: Ack 1 -->
+          <path d="M 740 120 L 168 120" stroke="#10b981" stroke-width="1.5"/>
+          <polygon points="168,117 160,120 168,123" fill="#10b981"/>
+          <rect x="380" y="110" width="140" height="18" rx="2" fill="#12161f"/>
+          <text x="450" y="122" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">2. "Ack: 8:00 AM received"</text>
+
+          <!-- Msg 3: Ack of Ack (DROPPED in network!) -->
+          <path d="M 160 160 L 450 160" stroke="#eb6c36" stroke-width="1.5"/>
+          <text x="470" y="164" fill="#f43f5e" font-size="14" font-weight="700">💥 DROPPED</text>
+          <rect x="220" y="150" width="170" height="18" rx="2" fill="#12161f"/>
+          <text x="305" y="162" fill="#eb6c36" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">3. "Ack of Ack: Proceed"</text>
+
+          <!-- Uncertainty State -->
+          <rect x="650" y="185" width="180" height="48" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+          <text x="740" y="204" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">General 2 Frozen</text>
+          <text x="740" y="218" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">"Did Gen 1 get my Ack? If I attack</text>
+          <text x="740" y="228" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">alone, my army is destroyed!"</text>
+
+          <!-- Conclusion Box -->
+          <rect x="90" y="245" width="720" height="30" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+          <text x="450" y="264" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Theorem: 100% mutual certainty over an unreliable link requires infinite messages. Solution: Majority Quorums.</text>
+        </svg>
+      </div>
+
+      <!-- Interactive Widget 01: Two Generals Simulator -->
+      <div class="interactive-card">
+        <div class="interactive-header">
+          <h3 class="interactive-title">Live Simulator: Two Generals & Network Timeout Protocol</h3>
+          <span class="interactive-badge">Interactive Widget 01</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+          Simulate message transmission between two nodes across a network with configurable packet loss probability to witness the infinite acknowledgment trap.
+        </p>
+        <div class="control-row">
+          <div class="control-group">
+            <label class="control-label" for="sim-packet-loss">Packet Loss Probability: <span id="lbl-packet-loss" style="color:var(--accent);">25%</span></label>
+            <input type="range" id="sim-packet-loss" min="0" max="80" step="5" value="25" style="width:100%;">
+          </div>
+          <button class="sim-btn primary" id="btn-run-two-generals" style="align-self:flex-end;">Attempt Agreement Exchange</button>
+        </div>
+        <div class="sim-display-box" id="sim-generals-output">
+          Click Attempt Agreement to simulate packet delivery across the unreliable network...
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">TCP 3-Way Handshake</h4>
+          <p class="example-body">SYN -> SYN-ACK -> ACK. TCP acknowledges connection setup, but if the final ACK is dropped, the server allocates socket buffers while the client remains in an ambiguous state.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">Static Timeouts Cause Cascading Outages</h4>
+          <p class="example-body">Setting a static 2-second timeout on a database during a traffic spike causes healthy but busy nodes to be declared dead, triggering massive unnecessary failovers that overwhelm the cluster.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">Garbage Collection Mimicking Node Death</h4>
+          <p class="example-body">A 10-second JVM garbage collection pause prevents a server from sending heartbeats. The cluster declares the node dead, even though the process and network hardware are 100% healthy.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">The Two Generals problem is like trying to confirm a meeting time via SMS when both phones have spotty cell service: "Did you get my text?" -> "Yes, did you get mine?" -> "Yes, did you get my confirmation?"</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Assuming that TCP guarantees message delivery. TCP guarantees in-order retransmission <em>if</em> the network connection holds, but cannot deliver packets if the physical cable is cut or the receiver crashes.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">Modern consensus algorithms (Raft, Paxos) avoid the Two Generals trap by operating on odd-numbered majority quorums (e.g. 3 of 5 nodes) where unacknowledged stragglers are safely ignored.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">If we cannot rely on networks for instantaneous synchronization, can we rely on local hardware clocks to order distributed events? (Module 3).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> Networks are asynchronous and unbounded. You can never distinguish between a dead node, a dropped packet, and a slow response without quorum consensus.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 3: Clock Drift & LWW Hazards
+         ========================================== -->
+    <article class="module-card" id="module-3">
+      <header class="module-header">
+        <span class="module-num">Module 03</span>
+        <h2 class="module-heading">Unreliable Clocks: Time-of-Day vs. Monotonic Clocks & Clock Drift</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          In distributed systems, ordering events is fundamental. If Client A updates a user profile and Client B subsequently updates the same profile, the database must know which update occurred later. In our daily lives, we rely on clocks to order events. In distributed computing, <strong>physical clocks are fundamentally unreliable</strong>.
+        </p>
+        <p>
+          Every computer server possesses two fundamentally different types of hardware clocks:
+        </p>
+        <p>
+          <strong>1. Time-of-Day Clocks (Wall Clocks):</strong> In POSIX systems, <code>clock_gettime(CLOCK_REALTIME)</code> returns the number of seconds since the Unix epoch (January 1, 1970). Time-of-day clocks are periodically synchronized across networks using the <strong>Network Time Protocol (NTP)</strong>. However, because network latency to NTP servers is variable, NTP can jump backward or forward (a "step") by tens or hundreds of milliseconds. A time-of-day clock can literally report that 12:00:01 occurred <em>before</em> 12:00:00!
+        </p>
+        <p>
+          <strong>2. Monotonic Clocks:</strong> <code>clock_gettime(CLOCK_MONOTONIC)</code> returns elapsed time from an arbitrary reference point (such as server boot time). Monotonic clocks are guaranteed to never jump backward and strictly move forward at a steady rate. They are ideal for measuring intervals (e.g. request timeouts), but have zero meaning across multiple servers (Node A's monotonic clock cannot be compared with Node B's monotonic clock).
+        </p>
+        <p>
+          <strong>The Last-Write-Wins (LWW) Catastrophe:</strong> Many multi-leader and leaderless databases (such as Apache Cassandra and Riak) use wall-clock timestamps to resolve write conflicts under the <strong>Last-Write-Wins (LWW)</strong> strategy. If two writes conflict, the engine keeps the write with the higher timestamp and discards the other.
+        </p>
+        <p>
+          If Node 1's quartz clock drifts just 50ms ahead of Node 2's clock due to ambient server heat:
+        </p>
+        <ul style="margin-left:1.5rem; margin-bottom:1rem; color:var(--text-muted); line-height:1.7;">
+          <li>Client 1 writes value $X = 1$ to Node 1 at real time $t_1$. Node 1 timestamps it as $t_1 + 50\text{ms}$.</li>
+          <li>Client 2 writes value $X = 2$ to Node 2 at real time $t_2$ (where $t_2 > t_1$, a causally later write). Node 2 timestamps it as $t_2$.</li>
+          <li>Because $(t_1 + 50\text{ms}) > t_2$, the database concludes that Client 1 wrote <em>after</em> Client 2.</li>
+          <li><strong>Disaster:</strong> The older write permanently clobbers the newer write! Causality is inverted, and valid user data is silently destroyed.</li>
+        </ul>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Clock & Timestamp Primitives</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>⏰</span> Time-of-Day Clock</div>
+            <div class="def-desc">Measures calendar time against Unix epoch (CLOCK_REALTIME); subject to non-monotonic NTP step corrections and leap seconds.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>📈</span> Monotonic Clock</div>
+            <div class="def-desc">Guaranteed to strictly move forward (CLOCK_MONOTONIC); perfect for measuring timeouts on a single node, but incomparable across nodes.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>💥</span> Last-Write-Wins (LWW)</div>
+            <div class="def-desc">A conflict resolution heuristic that keeps the write with the highest wall-clock timestamp, prone to silent data destruction from clock skew.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 4: Last-Write-Wins Clock Skew Anomaly -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Last-Write-Wins Clock Skew Data Loss">
+          <title>Diagram 03: Last-Write-Wins (LWW) Clock Skew Silent Data Destruction</title>
+          <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- True Physical Time Axis at Top -->
+          <g transform="translate(24, 20)">
+            <rect width="852" height="36" rx="4" fill="#1a202c" stroke="#38455e" stroke-width="1"/>
+            <text x="426" y="22" fill="#f0f4fc" font-size="10" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">TRUE PHYSICAL TIMELINE (Actual Real-World Sequence)</text>
+          </g>
+
+          <!-- Node 1 (Fast Clock by +50ms) -->
+          <g transform="translate(24, 70)">
+            <rect width="410" height="180" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#f43f5e" fill-opacity="0.15" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">NODE 1 (CLOCK DRIFT: +50ms FAST)</text>
+
+            <rect x="20" y="40" width="370" height="50" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1"/>
+            <text x="35" y="60" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">Write 1: SET title = 'Draft' (Real Time: 100ms)</text>
+            <text x="35" y="76" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace">Skewed Local Clock Timestamp: <strong>150ms</strong></text>
+
+            <rect x="20" y="100" width="370" height="66" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+            <text x="35" y="120" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Client 1 saves draft title</text>
+            <text x="35" y="134" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace">• Erroneous inflated timestamp (150ms) stored in LWW metadata</text>
+            <text x="35" y="148" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Broadcasts to replica cluster</text>
+          </g>
+
+          <!-- Node 2 (Accurate Clock) -->
+          <g transform="translate(466, 70)">
+            <rect width="410" height="180" rx="6" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#3b82f6" fill-opacity="0.15" stroke="#3b82f6" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#3b82f6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">NODE 2 (ACCURATE CLOCK: +0ms)</text>
+
+            <rect x="20" y="40" width="370" height="50" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1"/>
+            <text x="35" y="60" fill="#3b82f6" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace">Write 2: SET title = 'Published' (Real Time: 120ms)</text>
+            <text x="35" y="76" fill="#f0f4fc" font-size="8" font-family="'Geist Mono', monospace">True Local Clock Timestamp: <strong>120ms</strong></text>
+
+            <rect x="20" y="100" width="370" height="66" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+            <text x="35" y="120" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace">• Client 2 clicks "Publish" 20ms AFTER Client 1</text>
+            <text x="35" y="134" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace">• Causally later operation in physical reality</text>
+            <text x="35" y="148" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Timestamp: 120ms</text>
+          </g>
+
+          <!-- Disaster Banner at Bottom -->
+          <rect x="24" y="260" width="852" height="46" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.5"/>
+          <text x="450" y="278" fill="#f43f5e" font-size="9.5" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">💥 LWW CONFLICT RESOLUTION: 150ms > 120ms -> 'Draft' WINS, 'Published' OVERWRITTEN!</text>
+          <text x="450" y="294" fill="#8d9bb0" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Clock skew inverted causality. The earlier edit erased the later edit. Cassandra/Riak LWW hazard.</text>
+        </svg>
+      </div>
+
+      <!-- Interactive Widget 02: Clock Drift & LWW Simulator -->
+      <div class="interactive-card">
+        <div class="interactive-header">
+          <h3 class="interactive-title">Live Simulator: Clock Drift & Last-Write-Wins (LWW) Data Loss</h3>
+          <span class="interactive-badge">Interactive Widget 02</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+          Adjust Node 1 clock offset and the delay between two successive writes to observe how clock drift causes the database to silently clobber newer writes.
+        </p>
+        <div class="control-row">
+          <div class="control-group">
+            <label class="control-label" for="sim-node1-skew">Node 1 Clock Drift (ms): <span id="lbl-skew" style="color:var(--accent);">+40ms</span></label>
+            <input type="range" id="sim-node1-skew" min="-100" max="100" step="5" value="40" style="width:100%;">
+          </div>
+          <div class="control-group">
+            <label class="control-label" for="sim-real-delay">Real Time Elapsed Between Writes (ms): <span id="lbl-delay" style="color:var(--accent);">20ms</span></label>
+            <input type="range" id="sim-real-delay" min="5" max="80" step="5" value="20" style="width:100%;">
+          </div>
+        </div>
+        <div class="sim-display-box" id="sim-lww-output">
+          Evaluating Last-Write-Wins resolution across skewed clocks...
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">NTP Step Jump on Cloud VM</h4>
+          <p class="example-body">An NTP sync detects a VM clock lagging by 250ms and instantly steps the clock forward, causing multi-threaded timer libraries using wall time to wake up instantly.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">Leap Seconds Crashing Cloud Infrastructures</h4>
+          <p class="example-body">In 2012, an unannounced leap second (a 61st second added to UTC) caused Linux kernel livelocks, knocking Reddit, Yelp, and Qantas airlines offline for hours.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">Cassandra Tombstone Resurrection</h4>
+          <p class="example-body">Deleting a record writes a tombstone with timestamp $T$. If an older write had an erroneously inflated clock timestamp $T + 100\text{ms}$, the deleted record resurrects itself!</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">Using wall-clock timestamps for distributed writes is like two photographers timestamping photos of a 100m sprint using uncalibrated wristwatches to determine who won the race.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Assuming that NTP maintains microsecond accuracy everywhere. In practice, public internet NTP synchronization can easily drift by 50ms to 200ms during network congestion.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">Production systems should never use wall-clock timestamps for logical ordering. Use logical clocks (Lamport timestamps, Vector clocks) or TrueTime (Module 4).</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">How did Google solve physical clock synchronization to enable globally distributed ACID transactions? (Module 4: Google Spanner TrueTime).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> Monotonic clocks for local intervals; never use Time-of-Day clocks for distributed ordering. Last-Write-Wins (LWW) silently destroys data under clock skew.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 4: Google Spanner & TrueTime
+         ========================================== -->
+    <article class="module-card" id="module-4">
+      <header class="module-header">
+        <span class="module-num">Module 04</span>
+        <h2 class="module-heading">Synchronized Clocks & Google Spanner TrueTime</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          Given the severe hazards of clock skew, can physical clocks ever be trusted to order distributed transactions? In 2012, Google published their landmark paper on <strong>Google Cloud Spanner</strong>, introducing a breakthrough API known as <strong>TrueTime</strong>.
+        </p>
+        <p>
+          Instead of pretending that all servers have identical clock times, TrueTime explicitly exposes clock uncertainty. When an application queries TrueTime via <code>TT.now()</code>, it does not return a single scalar timestamp. Instead, it returns a <strong>confidence interval</strong>:
+        </p>
+        <div style="background:var(--bg-surface-elevated); padding:0.75rem 1rem; border-radius:6px; font-family:var(--font-mono); font-size:0.9rem; color:var(--teal); margin-bottom:1rem; border:1px solid var(--border);">
+          TT.now() → [ t<sub>earliest</sub>, t<sub>latest</sub> ] &nbsp;where&nbsp; t<sub>latest</sub> - t<sub>earliest</sub> = 2&epsilon;
+        </div>
+        <p>
+          Here, $\epsilon$ represents the <strong>maximum clock error bound</strong>. To keep $\epsilon$ exceptionally small ($\le 7\text{ms}$ in Google datacenters), Google equips every datacenter with dedicated hardware: <strong>GPS satellite receivers</strong> paired with independent <strong>Atomic Rubidium Clocks</strong>.
+        </p>
+        <p>
+          <strong>The Commit-Wait Rule:</strong> How does Spanner achieve global serializable transactions without distributed lock contention across continents? Spanner uses the <strong>Commit-Wait Rule</strong>:
+        </p>
+        <ul style="margin-left:1.5rem; margin-bottom:1rem; color:var(--text-muted); line-height:1.7;">
+          <li>1. Transaction $T_1$ executes and requests commit timestamp $s = \text{TT.now().latest}$.</li>
+          <li>2. The transaction engine deliberately <strong>pauses and waits for $2\epsilon$ (e.g. 14ms)</strong> before releasing its locks and exposing the write to clients.</li>
+          <li>3. Because $T_1$ waited $2\epsilon$, by the time any subsequent transaction $T_2$ begins, $T_2$'s earliest possible timestamp is guaranteed to be strictly greater than $s$ ($t_{2,\text{earliest}} > s$).</li>
+        </ul>
+        <p>
+          By waiting out the clock uncertainty interval, Spanner mathematically guarantees that <strong>causality matches timestamp order globally</strong> without requiring cross-region consensus on every read.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>TrueTime Primitives</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>🛰️</span> TrueTime API (TT.now)</div>
+            <div class="def-desc">An API returning time as a bounded range [t_earliest, t_latest] based on GPS and atomic rubidium clocks.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>⏳</span> Clock Uncertainty Bound (&epsilon;)</div>
+            <div class="def-desc">The maximum possible deviation between any two clocks in the infrastructure (typically &plusmn;7ms in Google Spanner).</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🛑</span> Commit-Wait Rule</div>
+            <div class="def-desc">Intentionally pausing a write transaction for 2&epsilon; before commit to ensure subsequent transactions receive strictly higher timestamps.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 5: Google Spanner TrueTime Commit-Wait Rule -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Google Spanner TrueTime Commit-Wait Mechanism">
+          <title>Diagram 04: Google Spanner TrueTime Uncertainty Intervals & Commit-Wait Rule</title>
+          <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Top: Without Commit-Wait (Overlapping Uncertainty Intervals) -->
+          <g transform="translate(24, 20)">
+            <rect width="852" height="120" rx="6" fill="#1a202c" stroke="#f43f5e" stroke-width="1"/>
+            <rect x="12" y="8" width="160" height="16" rx="2" fill="#f43f5e" fill-opacity="0.15" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="92" y="19" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">WITHOUT COMMIT-WAIT (AMBIGUOUS)</text>
+            <text x="180" y="20" fill="#8d9bb0" font-size="8" font-family="'Geist', sans-serif">Uncertainty ranges overlap -> Cannot prove causality without locks</text>
+
+            <!-- Tx 1 Interval -->
+            <g transform="translate(100, 42)">
+              <rect x="0" y="0" width="180" height="36" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+              <text x="90" y="18" fill="#3b82f6" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 1 Range: [100ms .. 114ms]</text>
+              <text x="90" y="30" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Timestamp s1 = 114ms (&plusmn;7ms)</text>
+            </g>
+
+            <!-- Tx 2 Interval (Overlaps!) -->
+            <g transform="translate(220, 42)">
+              <rect x="0" y="0" width="180" height="36" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.5"/>
+              <text x="90" y="18" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 2 Range: [108ms .. 122ms]</text>
+              <text x="90" y="30" fill="#f43f5e" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">💥 Overlap: s1 vs s2 is ambiguous!</text>
+            </g>
+
+            <rect x="420" y="42" width="410" height="54" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+            <text x="625" y="62" fill="#f43f5e" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Causality Violation Risk</text>
+            <text x="625" y="78" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">If Tx 2 causally depends on Tx 1, s2 might be assigned < s1!</text>
+          </g>
+
+          <!-- Bottom: With Commit-Wait (Disjoint Uncertainty Intervals) -->
+          <g transform="translate(24, 156)">
+            <rect width="852" height="144" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+            <rect x="12" y="8" width="160" height="16" rx="2" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+            <text x="92" y="19" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">SPANNER COMMIT-WAIT (DISJOINT)</text>
+            <text x="180" y="20" fill="#8d9bb0" font-size="8" font-family="'Geist', sans-serif">Wait 2&epsilon; before commit -> Guarantees t_earliest(T2) > s1</text>
+
+            <!-- Tx 1 Execution -->
+            <g transform="translate(40, 42)">
+              <rect x="0" y="0" width="160" height="42" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1"/>
+              <text x="80" y="18" fill="#3b82f6" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 1 Picks s1 = 114ms</text>
+              <text x="80" y="32" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">s1 = TT.now().latest</text>
+            </g>
+
+            <!-- Commit-Wait Pause (2epsilon = 14ms) -->
+            <g transform="translate(210, 42)">
+              <rect x="0" y="0" width="130" height="42" rx="4" fill="#201815" stroke="#eb6c36" stroke-width="1.5"/>
+              <text x="65" y="18" fill="#eb6c36" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">⏳ Wait 2&epsilon; (14ms)</text>
+              <text x="65" y="32" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">Engine delays release</text>
+            </g>
+
+            <!-- Tx 2 Starts Guaranteed After -->
+            <g transform="translate(350, 42)">
+              <rect x="0" y="0" width="180" height="42" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.2"/>
+              <text x="90" y="18" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Tx 2 Begins (earliest >= 115ms)</text>
+              <text x="90" y="32" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">s2 guaranteed > s1 !</text>
+            </g>
+
+            <rect x="545" y="38" width="285" height="90" rx="4" fill="#12161f" stroke="#10b981" stroke-width="0.8"/>
+            <text x="687" y="58" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Why This Powers Global Scale</text>
+            <text x="560" y="76" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Reads across read replicas require ZERO locks</text>
+            <text x="560" y="90" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Consistent snapshots across Tokyo & Virginia</text>
+            <text x="560" y="104" fill="#10b981" font-size="7.5" font-weight="600" font-family="'Geist Mono', monospace">• Linearizable Multi-Region ACID without 2PC reads</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Interactive Widget 03: TrueTime Commit-Wait Calculator -->
+      <div class="interactive-card">
+        <div class="interactive-header">
+          <h3 class="interactive-title">Live Simulator: Google Spanner TrueTime Commit-Wait Engine</h3>
+          <span class="interactive-badge">Interactive Widget 03</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+          Adjust the clock uncertainty bound ($\epsilon$) to calculate the required commit-wait penalty and observe how TrueTime guarantees non-overlapping transaction intervals.
+        </p>
+        <div class="control-row">
+          <div class="control-group">
+            <label class="control-label" for="sim-epsilon-bound">Clock Uncertainty &epsilon; (ms): <span id="lbl-epsilon" style="color:var(--accent);">7ms</span></label>
+            <input type="range" id="sim-epsilon-bound" min="1" max="50" step="1" value="7" style="width:100%;">
+          </div>
+        </div>
+        <div class="sim-display-box" id="sim-truetime-output">
+          Calculating TrueTime confidence intervals and commit-wait duration...
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">Atomic Rubidium Clocks in Datacenters</h4>
+          <p class="example-body">Google places atomic rubidium clocks alongside GPS antennas in every datacenter. If a GPS antenna fails or loses satellite lock, atomic clocks drift less than 1&mu;s per day.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">Deliberately Delaying Transactions for Speed</h4>
+          <p class="example-body">Waiting 14ms on writes sounds slow, but it allows 99.9% of read queries across the world to execute instantly at local read replicas with zero cross-region locking.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">CockroachDB Hybrid Logical Clocks (HLC)</h4>
+          <p class="example-body">CockroachDB runs on commodity cloud infrastructure without Google’s specialized atomic clocks, using Hybrid Logical Clocks (HLC) that combine physical NTP time with Lamport causality counters.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">TrueTime is like a court judge giving witnesses a 15-minute recess between testimonies to ensure no testimony can possibly be accused of influencing the other.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Assuming Spanner doesn't need consensus. Spanner still uses Paxos groups for replication within each shard; TrueTime is used specifically for ordering multi-shard read-write transactions.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">TrueTime revolutionized cloud databases by proving that with custom hardware and tight uncertainty bounds, physical time can be safely harnessed for distributed serializability.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">Even with perfect clocks and networks, what happens if a database process freezes for 15 seconds due to garbage collection? (Module 5).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> TrueTime exposes uncertainty intervals [earliest, latest]. Spanner pauses writes for 2&epsilon; so subsequent transactions are mathematically guaranteed to receive higher timestamps.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 5: GC Pauses & Fencing Tokens
+         ========================================== -->
+    <article class="module-card" id="module-5">
+      <header class="module-header">
+        <span class="module-num">Module 05</span>
+        <h2 class="module-heading">Process Pauses, Garbage Collection & The Fencing Token Defense</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          Assume a distributed database where networks are fast and clocks are calibrated. A catastrophic distributed failure mode can still occur due to <strong>Process Pauses</strong>.
+        </p>
+        <p>
+          In modern operating systems and managed runtimes, a running thread or database process can be completely suspended for seconds or minutes without its knowledge due to:
+        </p>
+        <ul style="margin-left:1.5rem; margin-bottom:1rem; color:var(--text-muted); line-height:1.7;">
+          <li><strong>Garbage Collection (GC) Stop-The-World Pauses:</strong> Java/Go runtimes pausing all execution threads to sweep heaps.</li>
+          <li><strong>Virtual Machine Live Migration:</strong> Hypervisors (AWS EC2, VMware) suspending a VM to copy memory pages to another physical host.</li>
+          <li><strong>Operating System Page Swapping:</strong> Thrashing memory pages to SSD or spinning disk.</li>
+          <li><strong>Unix Signals:</strong> An admin issuing <code>SIGSTOP</code> or thread context switching delays.</li>
+        </ul>
+        <p>
+          <strong>The Zombie Leader Hazard:</strong> Consider a leader lease pattern using ZooKeeper or etcd. Node 1 acquires a 10-second leader lock lease to write to shared cloud storage (e.g. S3 or an HBase file). 
+        </p>
+        <p>
+          Immediately after checking that its lease is valid, Node 1 encounters a <strong>15-second GC Stop-The-World pause</strong>. While Node 1 is frozen:
+        </p>
+        <ol style="margin-left:1.5rem; margin-bottom:1rem; color:var(--text-muted); line-height:1.7;">
+          <li>Its 10-second lease in ZooKeeper expires.</li>
+          <li>The cluster declares Node 1 dead and elects Node 2 as the new leader.</li>
+          <li>Node 2 acquires a new lease and writes updated data to storage.</li>
+          <li>Node 1 finishes its GC pause, wakes up, and resumes execution at the very next line of code: <em>"Write to storage"</em>!</li>
+          <li>Node 1 still believes it is the valid leader and writes stale data, silently corrupting the file written by Node 2!</li>
+        </ol>
+        <p>
+          <strong>The Solution: Monotonic Fencing Tokens:</strong> Software cannot assume a process knows how much time passed while it was asleep. To protect storage against zombie leaders, the lock service must issue a <strong>monotonically increasing fencing token</strong> (a number that strictly increments with every lease, e.g. 33, 34, 35).
+        </p>
+        <p>
+          Every write request to the storage service must include the client’s fencing token. The storage node maintains a record of the highest token it has processed so far:
+        </p>
+        <div style="background:var(--bg-surface-elevated); padding:0.75rem 1rem; border-radius:6px; font-family:var(--font-mono); font-size:0.88rem; color:var(--teal); margin-bottom:1rem; border:1px solid var(--border);">
+          Storage Rule: If incoming_token &lt; max_token_seen → REJECT WRITE (Stale Zombie Leader!)
+        </div>
+        <p>
+          When Node 2 writes with token 34, storage updates its threshold to 34. When Node 1 wakes up and attempts to write with token 33, the storage service rejects the write ($33 < 34$). Storage integrity is preserved.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>Process Pause & Fencing Primitives</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>⏸️</span> Stop-The-World (STW) Pause</div>
+            <div class="def-desc">A runtime condition where all application execution threads are suspended by the garbage collector or hypervisor.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🧟</span> Zombie / Split-Brain Leader</div>
+            <div class="def-desc">A node whose lease expired during a pause, but resumes execution incorrectly believing it is still the authoritative leader.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🛡️</span> Fencing Token</div>
+            <div class="def-desc">A monotonically increasing integer attached to write requests that storage nodes use to reject writes from superseded leaders.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 6: GC Pause & Fencing Token Defense -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 360" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="GC Pause and Fencing Token Defense Mechanism">
+          <title>Diagram 05: GC Stop-The-World Pause, Zombie Leader & Fencing Token Defense</title>
+          <rect width="900" height="360" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Node 1 Lifeline (Zombie Leader) -->
+          <line x1="120" y1="50" x2="120" y2="320" stroke="#f43f5e" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <rect x="50" y="24" width="140" height="32" rx="4" fill="#1a202c" stroke="#f43f5e" stroke-width="1.2"/>
+          <text x="120" y="44" fill="#f43f5e" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Node 1 (Client 1)</text>
+
+          <!-- Lock Service (ZooKeeper/etcd) Lifeline -->
+          <line x1="380" y1="50" x2="380" y2="320" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <rect x="300" y="24" width="160" height="32" rx="4" fill="#1a202c" stroke="#3b82f6" stroke-width="1.2"/>
+          <text x="380" y="44" fill="#3b82f6" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Lock Service (etcd/ZK)</text>
+
+          <!-- Node 2 Lifeline (New Leader) -->
+          <line x1="620" y1="50" x2="620" y2="320" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <rect x="550" y="24" width="140" height="32" rx="4" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+          <text x="620" y="44" fill="#10b981" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Node 2 (Client 2)</text>
+
+          <!-- Storage Service Lifeline -->
+          <line x1="820" y1="50" x2="820" y2="320" stroke="#eb6c36" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <rect x="760" y="24" width="120" height="32" rx="4" fill="#1a202c" stroke="#eb6c36" stroke-width="1.2"/>
+          <text x="820" y="44" fill="#eb6c36" font-size="9.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Storage Service</text>
+
+          <!-- Step 1: Node 1 acquires lease (Token 33) -->
+          <path d="M 120 80 L 372 80" stroke="#3b82f6" stroke-width="1.2"/>
+          <polygon points="372,77 380,80 372,83" fill="#3b82f6"/>
+          <path d="M 380 96 L 128 96" stroke="#3b82f6" stroke-width="1.2"/>
+          <polygon points="128,93 120,96 128,99" fill="#3b82f6"/>
+          <rect x="170" y="86" width="160" height="16" rx="2" fill="#12161f"/>
+          <text x="250" y="98" fill="#3b82f6" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">1. Acquire Lock -> Token = 33</text>
+
+          <!-- Step 2: GC Pause on Node 1 -->
+          <rect x="95" y="116" width="50" height="110" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.5"/>
+          <text x="120" y="150" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">15s GC</text>
+          <text x="120" y="164" fill="#f43f5e" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">PAUSE</text>
+          <text x="120" y="180" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">(Frozen)</text>
+
+          <!-- Lease Expires in ZK & Node 2 gets Token 34 -->
+          <path d="M 620 135 L 388 135" stroke="#10b981" stroke-width="1.2"/>
+          <polygon points="388,132 380,135 388,138" fill="#10b981"/>
+          <path d="M 380 150 L 612 150" stroke="#10b981" stroke-width="1.2"/>
+          <polygon points="612,147 620,150 612,153" fill="#10b981"/>
+          <rect x="420" y="140" width="160" height="16" rx="2" fill="#12161f"/>
+          <text x="500" y="152" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">2. Lease Expired -> Token = 34</text>
+
+          <!-- Step 3: Node 2 writes to storage with Token 34 -->
+          <path d="M 620 180 L 812 180" stroke="#10b981" stroke-width="1.5"/>
+          <polygon points="812,177 820,180 812,183" fill="#10b981"/>
+          <rect x="650" y="170" width="140" height="16" rx="2" fill="#12161f"/>
+          <text x="720" y="182" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">3. Write (Token = 34) ✓ OK</text>
+          <rect x="760" y="196" width="120" height="24" rx="2" fill="#12161f" stroke="#10b981" stroke-width="1"/>
+          <text x="820" y="212" fill="#10b981" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">max_token = 34</text>
+
+          <!-- Step 4: Node 1 wakes up and attempts write with Token 33 -->
+          <path d="M 120 250 L 812 250" stroke="#f43f5e" stroke-width="1.5"/>
+          <polygon points="812,247 820,250 812,253" fill="#f43f5e"/>
+          <rect x="360" y="240" width="220" height="18" rx="2" fill="#201815" stroke="#f43f5e" stroke-width="0.8"/>
+          <text x="470" y="252" fill="#f43f5e" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">4. Zombie Write (Token = 33) ❌ REJECTED!</text>
+
+          <!-- Rejection Status -->
+          <rect x="680" y="275" width="200" height="34" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+          <text x="780" y="292" fill="#f43f5e" font-size="8" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Storage Defense Triggered</text>
+          <text x="780" y="304" fill="#8d9bb0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">33 < 34 -> Stale Fencing Token Error</text>
+        </svg>
+      </div>
+
+      <!-- Interactive Widget 04: GC Pause & Fencing Simulator -->
+      <div class="interactive-card">
+        <div class="interactive-header">
+          <h3 class="interactive-title">Live Simulator: GC Pause Zombie Leader & Fencing Token Defense</h3>
+          <span class="interactive-badge">Interactive Widget 04</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+          Simulate a GC Stop-The-World pause on Node 1, elect Node 2 with an incremented fencing token, and see how storage rejects stale writes upon Node 1's resurrection.
+        </p>
+        <div class="control-row">
+          <div class="control-group">
+            <label class="control-label" for="sim-gc-duration">Node 1 GC Pause Duration (s):</label>
+            <select id="sim-gc-duration" class="text-input-field">
+              <option value="short">2 Seconds (Shorter than 10s lease - Safe)</option>
+              <option value="long" selected>15 Seconds (Exceeds 10s lease - Split-Brain Risk)</option>
+            </select>
+          </div>
+          <button class="sim-btn primary" id="btn-run-fencing-sim" style="align-self:flex-end;">Simulate Execution</button>
+        </div>
+        <div class="sim-display-box" id="sim-fencing-output">
+          Click Simulate to step through the GC pause and fencing token validation lifecycle...
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">HBase RegionServer GC Pauses</h4>
+          <p class="example-body">HBase RegionServers frequently pause for 20+ seconds during major CMS garbage collections, causing ZooKeeper session timeouts and region failovers.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">The Client Cannot Check Its Own Lease</h4>
+          <p class="example-body">Writing <code>if (lease.isValid()) { writeToDisk(); }</code> is broken: a GC pause can occur between the <code>if</code> condition and the <code>writeToDisk()</code> call.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">VM Live Migration Storage Corruption</h4>
+          <p class="example-body">When AWS or Azure live-migrates a database VM across hosts, the OS kernel is suspended for hundreds of milliseconds, enough to expire aggressively tuned Raft heartbeats.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">Fencing tokens are like numbered claim tickets at a dry cleaner: if customer #34 already picked up the coat, customer #33 cannot claim it with an expired ticket.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Believing that a node can check its own time to see if its lease expired. A process that was asleep cannot measure its own sleep duration.</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">Fencing must be enforced on the <em>storage server</em>, not the client. The storage server is the single source of truth for the highest token seen so far.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">How do distributed system researchers formalize network models and consensus algorithms to prove correctness? (Module 6: System Models & Quorums).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> GC pauses turn healthy leaders into zombies without their knowledge. Storage nodes must enforce monotonically increasing Fencing Tokens to reject stale writes.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         MODULE 6: System Models & Truth
+         ========================================== -->
+    <article class="module-card" id="module-6">
+      <header class="module-header">
+        <span class="module-num">Module 06</span>
+        <h2 class="module-heading">System Models, Quorum Truth & Byzantine Realities</h2>
+      </header>
+
+      <div class="prose-block">
+        <p>
+          To formally reason about distributed systems and prove that an algorithm (such as Raft, Paxos, or Two-Phase Commit) will never corrupt data, computer scientists define formal <strong>System Models</strong>.
+        </p>
+        <p>
+          System models categorize timing assumptions and node failure behaviors into precise mathematical constraints:
+        </p>
+        <p>
+          <strong>Timing Models:</strong>
+        </p>
+        <ul style="margin-left:1.5rem; margin-bottom:1rem; color:var(--text-muted); line-height:1.7;">
+          <li><strong>Synchronous Model:</strong> Network delays, message transmission times, and process execution pauses have known, strictly bounded upper limits. (Unrealistic for general internet/datacenter computing).</li>
+          <li><strong>Partially Synchronous Model:</strong> The system behaves synchronously most of the time, but occasionally experiences unbounded network delays, GC pauses, or clock drift (the realistic model for modern cloud engineering).</li>
+          <li><strong>Asynchronous Model:</strong> An algorithm can make zero timing assumptions (no clocks, no timeouts). Algorithms like FLP impossibility prove consensus is impossible in pure asynchronous networks with even 1 faulty node.</li>
+        </ul>
+        <p>
+          <strong>Node Failure Models:</strong>
+        </p>
+        <ul style="margin-left:1.5rem; margin-bottom:1rem; color:var(--text-muted); line-height:1.7;">
+          <li><strong>Crash-Stop:</strong> A node fails only by crashing completely. Once a node crashes, it never recovers or speaks again.</li>
+          <li><strong>Crash-Recovery:</strong> Nodes can crash at any time and resume execution later. Non-volatile storage (WAL) persists state across reboots, but in-memory state is lost (the standard model for databases).</li>
+          <li><strong>Byzantine Faults:</strong> Nodes may lie, forge messages, collude maliciously, or suffer silent hardware bit flips. Defending against Byzantine faults requires cryptographic signatures and $3f + 1$ node quorums (Blockchains, aerospace fly-by-wire).</li>
+        </ul>
+        <p>
+          <strong>The Definition of Truth in Distributed Systems:</strong> In a distributed system, truth is not determined by any single node. Truth is defined strictly by <strong>Quorums (Majority Voting)</strong>. A decision is valid if and only if a strict majority of nodes ($\lfloor N/2 \rfloor + 1$) agree. Because any two majorities must share at least one overlapping node, a split cluster can never make two contradictory decisions.
+        </p>
+      </div>
+
+      <div class="definitions-panel">
+        <div class="definitions-header"><span>System Model Primitives</span></div>
+        <div class="def-grid">
+          <div class="def-item">
+            <div class="def-term"><span>🌐</span> Partially Synchronous Model</div>
+            <div class="def-desc">The standard cloud model: operates synchronously with predictable latency under normal conditions, but allows temporary unbounded delays.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🗳️</span> Majority Quorum (N/2 + 1)</div>
+            <div class="def-desc">A quorum threshold ensuring that any two surviving voting groups must overlap by at least one node, preventing split-brain consensus.</div>
+          </div>
+          <div class="def-item">
+            <div class="def-term"><span>🎭</span> Byzantine Fault</div>
+            <div class="def-desc">Arbitrary failure behavior where nodes send conflicting, corrupted, or malicious messages to different peers.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG Diagram 7: System Models & Quorum Majority Overlap -->
+      <div class="svg-diagram-wrapper">
+        <svg viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="System Models and Quorum Majority Overlap">
+          <title>Diagram 06: System Models & Majority Quorum Overlap Principle</title>
+          <rect width="900" height="320" rx="8" fill="#12161f" stroke="#242c3d" stroke-width="1"/>
+
+          <!-- Left: 5-Node Quorum Majority Overlap -->
+          <g transform="translate(24, 20)">
+            <rect width="410" height="280" rx="6" fill="#1a202c" stroke="#10b981" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#10b981" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">MAJORITY QUORUM (N=5)</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Strict Majority Overlap Principle</text>
+
+            <!-- 5 Nodes Visual -->
+            <g transform="translate(30, 64)">
+              <!-- Quorum A (Nodes 1, 2, 3) -->
+              <rect x="0" y="0" width="210" height="42" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+              <text x="105" y="24" fill="#3b82f6" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Quorum 1: [Node 1, Node 2, Node 3]</text>
+
+              <!-- Quorum B (Nodes 3, 4, 5) -->
+              <rect x="140" y="54" width="210" height="42" rx="4" fill="#12161f" stroke="#eb6c36" stroke-width="1.2"/>
+              <text x="245" y="78" fill="#eb6c36" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Quorum 2: [Node 3, Node 4, Node 5]</text>
+
+              <!-- Overlap Highlight (Node 3) -->
+              <rect x="140" y="0" width="70" height="96" rx="4" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="1.5" stroke-dasharray="3,3"/>
+              <text x="175" y="52" fill="#10b981" font-size="9.5" font-weight="800" font-family="'Geist Mono', monospace" text-anchor="middle">Node 3</text>
+              <text x="175" y="66" fill="#10b981" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">OVERLAP</text>
+            </g>
+
+            <rect x="18" y="176" width="374" height="90" rx="4" fill="#12161f" stroke="#10b981" stroke-width="0.8"/>
+            <text x="187" y="196" fill="#10b981" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Pigeonhole Principle in Quorums</text>
+            <text x="28" y="214" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• Any 2 majorities (3 of 5) share at least 1 common node</text>
+            <text x="28" y="228" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace">• The overlapping node rejects conflicting older proposals</text>
+            <text x="28" y="244" fill="#10b981" font-size="7.5" font-weight="700" font-family="'Geist Mono', monospace">• Guarantees safety against split-brain partitions</text>
+          </g>
+
+          <!-- Right: System Model Taxonomy -->
+          <g transform="translate(466, 20)">
+            <rect width="410" height="280" rx="6" fill="#1a202c" stroke="#8b5cf6" stroke-width="1.2"/>
+            <rect x="12" y="10" width="160" height="18" rx="3" fill="#8b5cf6" fill-opacity="0.15" stroke="#8b5cf6" stroke-width="0.8"/>
+            <text x="92" y="22" fill="#8b5cf6" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="700">SYSTEM MODEL TAXONOMY</text>
+            <text x="205" y="44" fill="#f0f4fc" font-size="11" font-weight="700" font-family="'Geist', sans-serif" text-anchor="middle">Timing Assumptions vs. Failure Modes</text>
+
+            <g transform="translate(20, 60)">
+              <!-- Partially Synchronous -->
+              <rect x="0" y="0" width="370" height="42" rx="4" fill="#12161f" stroke="#10b981" stroke-width="1.2"/>
+              <text x="185" y="18" fill="#10b981" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Partially Synchronous Model (Cloud Standard)</text>
+              <text x="185" y="32" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Bound &Delta; exists, but network latency can spike temporarily</text>
+
+              <!-- Crash-Recovery -->
+              <rect x="0" y="50" width="370" height="42" rx="4" fill="#12161f" stroke="#3b82f6" stroke-width="1.2"/>
+              <text x="185" y="68" fill="#3b82f6" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Crash-Recovery Model (Database Standard)</text>
+              <text x="185" y="82" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Nodes reboot and recover state from disk WAL log</text>
+
+              <!-- Byzantine -->
+              <rect x="0" y="100" width="370" height="42" rx="4" fill="#201815" stroke="#f43f5e" stroke-width="1.2"/>
+              <text x="185" y="118" fill="#f43f5e" font-size="9" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Byzantine Faults (Malicious / Untrusted Peers)</text>
+              <text x="185" y="132" fill="#f43f5e" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Nodes forge messages; requires 3f+1 cryptographic quorums</text>
+            </g>
+
+            <rect x="18" y="214" width="374" height="52" rx="4" fill="#12161f" stroke="#38455e" stroke-width="0.8"/>
+            <text x="187" y="234" fill="#eb6c36" font-size="8.5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">Pragmatic Cloud Database Baseline</text>
+            <text x="187" y="250" fill="#8d9bb0" font-size="7.5" font-family="'Geist Mono', monospace" text-anchor="middle">Partially Synchronous + Crash-Recovery + Non-Byzantine</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="steps-container">
+        <div class="step-node">
+          <div class="step-index-badge">1</div>
+          <div class="step-content-box">
+            <h4>Select Realistic System Models</h4>
+            <p>Acknowledge that cloud databases operate under the Partially Synchronous, Crash-Recovery model without assuming synchronous network upper bounds.</p>
+          </div>
+        </div>
+        <div class="step-node">
+          <div class="step-index-badge">2</div>
+          <div class="step-content-box">
+            <h4>Enforce Majority Quorum Elections</h4>
+            <p>Require strictly $\lfloor N/2 \rfloor + 1$ votes for leader election and write commitments. If a network partition isolates 2 nodes from a 5-node cluster, the 2 nodes must refuse writes.</p>
+          </div>
+        </div>
+        <div class="step-node">
+          <div class="step-index-badge">3</div>
+          <div class="step-content-box">
+            <h4>Persist State across Crash Reboots</h4>
+            <p>Flush election terms, votes, and log commitments to non-volatile disk using WAL logs so recovering nodes do not vote twice in the same term.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="examples-trio">
+        <div class="example-card">
+          <span class="example-tag obvious">Obvious Case</span>
+          <h4 class="example-title">Raft 3-of-5 Quorum Commit</h4>
+          <p class="example-body">In an etcd cluster of 5 nodes, a client write is committed as soon as 3 nodes append it to their WAL logs. The 2 slower or partitioned nodes catch up later.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag counter">Counter-Intuitive</span>
+          <h4 class="example-title">Why Byzantine Fault Tolerance Is Unused in Datacenters</h4>
+          <p class="example-body">BFT protocols add massive compute and message complexity. Inside a private company VPC, all machines run authorized binaries, making non-Byzantine Crash-Recovery models optimal.</p>
+        </div>
+        <div class="example-card">
+          <span class="example-tag edge">Edge Case</span>
+          <h4 class="example-title">Silent Memory Bit Flips (Cosmic Rays)</h4>
+          <p class="example-body">While non-Byzantine models assume honest software, hardware bit flips in non-ECC RAM can alter memory values. Storage engines use CRC32/SHA256 checksums to detect corruption.</p>
+        </div>
+      </div>
+
+      <div class="pedagogy-grid">
+        <div class="pedagogy-box analogy">
+          <div class="pedagogy-label"><span>💡</span> Real-World Analogy</div>
+          <p class="pedagogy-text">Quorum truth is like a democratic parliament: no single member can declare a law alone; a bill only passes if a strict majority votes in favor.</p>
+        </div>
+        <div class="pedagogy-box misconception">
+          <div class="pedagogy-label"><span>❌</span> What People Get Wrong</div>
+          <p class="pedagogy-text">Believing an even number of nodes (e.g. 4 nodes) is better than an odd number (3 nodes). A 4-node cluster requires 3 votes for a majority and can still only tolerate 1 node failure—the exact same tolerance as a 3-node cluster!</p>
+        </div>
+        <div class="pedagogy-box reality">
+          <div class="pedagogy-label"><span>📌</span> Production Reality</div>
+          <p class="pedagogy-text">Production consensus clusters (etcd, ZooKeeper, Consul) are always deployed with 3, 5, or 7 nodes to maximize fault tolerance while avoiding split-vote ties.</p>
+        </div>
+        <div class="pedagogy-box connection">
+          <div class="pedagogy-label"><span>🔗</span> Inter-Module Link</div>
+          <p class="pedagogy-text">Now that we understand all the ways distributed systems fail, how do we build provably correct consensus algorithms? (Chapter 9: Consistency & Consensus).</p>
+        </div>
+      </div>
+
+      <div class="memory-pill">
+        <span>🧠 Memory Anchor:</span> Truth in distributed systems is defined strictly by majority quorums (N/2 + 1). Any two majorities overlap by at least one node, preventing split-brain consensus.
+      </div>
+    </article>
+
+    <!-- ==========================================
+         COMPREHENSIVE KNOWLEDGE CHEAT SHEET
+         ========================================== -->
+    <section class="module-card" id="cheat-sheet">
+      <header class="module-header">
+        <span class="module-num">Reference</span>
+        <h2 class="module-heading">Master Distributed System Failure Modes Cheat Sheet</h2>
+      </header>
+
+      <p class="prose-block">
+        A definitive reference matrix summarizing distributed failure modes, their architectural risks, and battle-tested mitigation strategies.
+      </p>
+
+      <div class="cheat-sheet-table-wrapper">
+        <table class="cheat-table">
+          <thead>
+            <tr>
+              <th>Failure Mode</th>
+              <th>Root Cause</th>
+              <th>Catastrophic Risk</th>
+              <th>Architectural Solution</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Unreliable Networks</strong></td>
+              <td>Packet loss, buffer overflow, switch failure, cable cuts.</td>
+              <td>Split-brain, dropped writes, infinite timeout delays.</td>
+              <td>Majority Quorums ($N/2 + 1$), adaptive Phi Accrual failure detectors, retry idempotency.</td>
+            </tr>
+            <tr>
+              <td><strong>Clock Drift & Skew</strong></td>
+              <td>Quartz crystal thermal drift (~17s/day), NTP step adjustments.</td>
+              <td>Last-Write-Wins (LWW) silently overwrites newer causal data.</td>
+              <td>Use monotonic clocks for timeouts; Lamport/Vector logical clocks; Google TrueTime ($2\epsilon$).</td>
+            </tr>
+            <tr>
+              <td><strong>Process / GC Pauses</strong></td>
+              <td>JVM Stop-The-World GC, VM live migration, OS page swapping.</td>
+              <td>Zombie leader awakens and clobbers storage after lease expired.</td>
+              <td>Monotonically increasing Fencing Tokens enforced on the storage server.</td>
+            </tr>
+            <tr>
+              <td><strong>Asymmetric Network</strong></td>
+              <td>Degraded NIC sending packets but unable to receive return packets.</td>
+              <td>Node believes peers are dead while peers believe node is active.</td>
+              <td>Two-way heartbeats and leader election voting protocols requiring quorum confirmation.</td>
+            </tr>
+            <tr>
+              <td><strong>Silent Bit Flips</strong></td>
+              <td>Cosmic rays, faulty memory controllers, non-ECC RAM.</td>
+              <td>Corrupted database page committed as valid state.</td>
+              <td>End-to-end CRC32 / SHA-256 block checksums on all disk and network payloads.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         ACTIVE RECALL FLASHCARDS
+         ========================================== -->
+    <section class="module-card">
+      <header class="module-header">
+        <span class="module-num">Memory Gym</span>
+        <h2 class="module-heading">Active Recall Flashcards</h2>
+      </header>
+      <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">Click any flashcard to flip and test your understanding of Chapter 8 concepts.</p>
+
+      <div class="flashcards-grid">
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">What is the Scale Paradox in distributed systems?</div>
+          <div class="flashcard-a">Even if a single server fails only once every few years, a 10,000-node cluster statistically experiences multiple hardware/network failures every single day. Fault tolerance must be software-native.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">Why is Last-Write-Wins (LWW) dangerous under physical clock skew?</div>
+          <div class="flashcard-a">Because if Node 1's clock is 50ms ahead, an earlier write on Node 1 will receive a higher timestamp than a causally later write on Node 2, silently clobbering the newer data.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">What is Google Spanner's Commit-Wait Rule?</div>
+          <div class="flashcard-a">A write transaction waits for $2\epsilon$ (twice the maximum clock uncertainty, ~14ms) before releasing locks, guaranteeing that subsequent transactions receive strictly higher timestamps.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">How do Fencing Tokens prevent Zombie Leader data corruption?</div>
+          <div class="flashcard-a">The lock service attaches an incrementing token to each lease. The storage node remembers the highest token seen and rejects any write from an old leader whose token is lower.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">Why can't a process check its own lease validity in code?</div>
+          <div class="flashcard-a">Because a Stop-The-World GC pause can occur immediately after the check <code>if (lease.isValid())</code> and before the write executes, during which the lease expires.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+
+        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+          <div class="flashcard-q">Why are consensus clusters always configured with odd numbers of nodes (3, 5, 7)?</div>
+          <div class="flashcard-a">Because an even-numbered cluster (4 nodes) requires 3 votes for a majority and tolerates only 1 failure—the exact same failure tolerance as a 3-node cluster, but with higher cost and risk of split ties.</div>
+          <div class="flashcard-hint">Click to flip ↺</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         INTERACTIVE SELF-CHECK QUIZ
+         ========================================== -->
+    <section class="module-card" id="quiz">
+      <header class="module-header">
+        <span class="module-num">Knowledge Check</span>
+        <h2 class="module-heading">Interactive Self-Check Assessment</h2>
+      </header>
+
+      <div class="quiz-card">
+        <div class="quiz-question">1. A Java-based primary database node acquires a 10-second lock lease from ZooKeeper, checks that its lease is valid, and is immediately paused for 15 seconds by a JVM Stop-The-World garbage collection cycle. What happens when the node wakes up?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt-btn" onclick="checkQuiz(this, false, 'Incorrect. The JVM process was completely frozen and cannot know that time passed.')">
+            <span>A</span> The node notices that 15 seconds passed and automatically aborts its write.
+          </button>
+          <button class="quiz-opt-btn" onclick="checkQuiz(this, true, 'Correct! The node does not realize it was paused, assumes its lease check is still valid, and sends a write. Without fencing tokens on the storage server, this zombie leader corrupts state written by the newly elected leader.')">
+            <span>B</span> The node wakes up believing it is still the authoritative leader and attempts to execute its write as a zombie leader.
+          </button>
+          <button class="quiz-opt-btn" onclick="checkQuiz(this, false, 'Incorrect. ZooKeeper cannot forcefully kill a frozen OS process on a remote machine.')">
+            <span>C</span> ZooKeeper issues a remote SIGKILL to terminate the paused node.
+          </button>
+          <button class="quiz-opt-btn" onclick="checkQuiz(this, false, 'Incorrect. Monotonic clocks only measure durations on a single node and cannot detect external lease expiry.')">
+            <span>D</span> The OS monotonic clock steps backward to preserve lease validity.
+          </button>
+        </div>
+        <div class="quiz-feedback" id="quiz-feedback"></div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         FREQUENTLY ASKED QUESTIONS
+         ========================================== -->
+    <section class="module-card">
+      <header class="module-header">
+        <span class="module-num">Deep Dive</span>
+        <h2 class="module-heading">Frequently Asked Questions</h2>
+      </header>
+
+      <div class="faq-accordion">
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>Why is calling an external API inside a database transaction dangerous?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Calling an external HTTP API (such as Stripe or OpenAI) inside an open database transaction holds row locks and connection pool slots open during external network delays. If the external service slows down or suffers a network partition, transaction queues build up, database connections exhaust, and the entire primary database collapses.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>What is the difference between CLOCK_REALTIME and CLOCK_MONOTONIC?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            <code>CLOCK_REALTIME</code> measures calendar time against the Unix epoch and can jump backward or forward when synchronized via NTP. <code>CLOCK_MONOTONIC</code> measures time elapsed since server boot and is guaranteed to strictly move forward, making it the only safe clock for calculating timeouts and request latencies.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>Why can't we use Lamport timestamps instead of TrueTime in all databases?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Lamport timestamps provide a total causal ordering, but they cannot enforce real-time physical ordering without communication. If Client A writes to Shard 1, tells Client B over the phone, and Client B writes to Shard 2, Lamport timestamps cannot prove Client B's write occurred after Client A's write without cross-shard messaging. TrueTime solves this using physical time bounds.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>How does a Phi Accrual Failure Detector improve upon static timeouts?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            Instead of using an arbitrary binary threshold (e.g. "declare dead after 5 seconds"), a Phi Accrual Failure Detector measures historical heartbeat inter-arrival times. It outputs a continuous scale of suspicion ($\Phi$). If the network is experiencing temporary congestion, $\Phi$ rises gracefully, allowing systems to wait longer before triggering disruptive failovers.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>What happens during an asymmetric network partition?</span>
+            <span class="faq-icon">+</span>
+          </div>
+          <div class="faq-answer">
+            In an asymmetric partition, Node A can transmit packets to Node B, but Node B's replies are blocked. Node B believes Node A is dead, while Node A believes Node B is refusing to respond. To prevent split-brain chaos, consensus protocols require two-way quorum voting where only nodes with bidirectional communication can participate in elections.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="lesson-footer">
+      <p>Designing Data-Intensive Applications — Interactive Lesson Series • Chapter 08: The Trouble with Distributed Systems</p>
+      <p style="margin-top:4px;">Crafted for senior backend engineers, database architects, and distributed systems specialists.</p>
+    </footer>
+  </div>
+
+  <!-- Interactive Simulator Logic -->
+  <script>
+    // Reading Progress Bar
+    window.addEventListener('scroll', () => {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      document.getElementById('reading-progress').style.width = scrolled + '%';
+    });
+
+    // Theme Toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    let isLight = false;
+
+    themeBtn.addEventListener('click', () => {
+      isLight = !isLight;
+      if (isLight) {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeIcon.textContent = '🌙';
+        themeText.textContent = 'Dark';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent = '☀️';
+        themeText.textContent = 'Light';
+      }
+    });
+
+    // Simulator 1: Two Generals Packet Loss
+    document.getElementById('sim-packet-loss').addEventListener('input', (e) => {
+      document.getElementById('lbl-packet-loss').textContent = e.target.value + '%';
+    });
+
+    document.getElementById('btn-run-two-generals').addEventListener('click', () => {
+      const loss = parseInt(document.getElementById('sim-packet-loss').value) / 100;
+      const out = document.getElementById('sim-generals-output');
+
+      let log = `<div style="color:var(--accent); font-weight:700;">❯ SIMULATING TWO GENERALS EXCHANGE (Loss Rate: ${loss * 100}%)</div>`;
+      
+      // Step 1
+      const m1Delivered = Math.random() > loss;
+      log += `<div style="margin-top:6px;">1. General 1 -> General 2: "Attack at 8:00 AM" ... ${m1Delivered ? '<span style="color:var(--teal)">✓ DELIVERED</span>' : '<span style="color:var(--rose)">💥 DROPPED (Ambiguity: Gen 1 waits forever)</span>'}</div>`;
+      
+      if (!m1Delivered) {
+        log += `<div style="color:var(--rose); margin-top:8px; font-weight:700;">Result: Protocol Halted. General 1 cannot attack without knowing Gen 2 received proposal.</div>`;
+        out.innerHTML = log;
+        return;
+      }
+
+      // Step 2
+      const m2Delivered = Math.random() > loss;
+      log += `<div>2. General 2 -> General 1: "Ack: 8:00 AM Confirmed" ... ${m2Delivered ? '<span style="color:var(--teal)">✓ DELIVERED</span>' : '<span style="color:var(--rose)">💥 DROPPED (Gen 2 waits for Ack of Ack)</span>'}</div>`;
+
+      if (!m2Delivered) {
+        log += `<div style="color:var(--rose); margin-top:8px; font-weight:700;">Result: Protocol Halted. General 2 received plan but doesn't know if General 1 received the Ack. Gen 2 dares not attack alone!</div>`;
+        out.innerHTML = log;
+        return;
+      }
+
+      // Step 3
+      const m3Delivered = Math.random() > loss;
+      log += `<div>3. General 1 -> General 2: "Ack of Ack: Proceed" ... ${m3Delivered ? '<span style="color:var(--teal)">✓ DELIVERED</span>' : '<span style="color:var(--rose)">💥 DROPPED (Infinite Ack Trap!)</span>'}</div>`;
+
+      if (!m3Delivered) {
+        log += `<div style="color:var(--amber); margin-top:8px; font-weight:700;">Result: General 2 did not get Ack-of-Ack. General 2 stays in camp; General 1 attacks alone and is destroyed!</div>`;
+      } else {
+        log += `<div style="color:var(--teal); margin-top:8px; font-weight:700;">Theoretical Paradox: Even with 3 delivered messages, General 2 still needs confirmation that General 1 got General 2's confirmation of the Ack! Mutual 100% certainty is unprovable.</div>`;
+      }
+      out.innerHTML = log;
+    });
+
+    // Simulator 2: LWW Clock Drift Evaluator
+    function updateLwwCalc() {
+      const skew = parseInt(document.getElementById('sim-node1-skew').value);
+      const delay = parseInt(document.getElementById('sim-real-delay').value);
+
+      document.getElementById('lbl-skew').textContent = (skew >= 0 ? '+' : '') + skew + 'ms';
+      document.getElementById('lbl-delay').textContent = delay + 'ms';
+
+      const t1_real = 100;
+      const t1_ts = t1_real + skew;
+
+      const t2_real = 100 + delay;
+      const t2_ts = t2_real; // Node 2 clock is 0ms accurate
+
+      const t1_wins = t1_ts >= t2_ts;
+
+      const out = document.getElementById('sim-lww-output');
+      out.innerHTML = `
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+          <div style="background:var(--bg-surface); padding:12px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--text-subtle); font-size:0.75rem; text-transform:uppercase;">Write 1 (Node 1)</div>
+            <div style="font-size:1.1rem; font-weight:700; color:var(--text);">SET title = 'Draft'</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Physical Time: 100ms • Assigned Timestamp: <strong style="color:var(--accent);">${t1_ts}ms</strong></div>
+          </div>
+          <div style="background:var(--bg-surface); padding:12px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--text-subtle); font-size:0.75rem; text-transform:uppercase;">Write 2 (Node 2 - Causally Later)</div>
+            <div style="font-size:1.1rem; font-weight:700; color:var(--text);">SET title = 'Published'</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Physical Time: ${t2_real}ms (+${delay}ms later) • Assigned Timestamp: <strong style="color:var(--teal);">${t2_ts}ms</strong></div>
+          </div>
+        </div>
+        <div style="margin-top:12px; padding:10px; border-radius:4px; font-size:0.85rem; background:${t1_wins ? 'var(--rose-subtle)' : 'var(--teal-subtle)'}; color:${t1_wins ? 'var(--rose)' : 'var(--teal)'}; border:1px solid ${t1_wins ? 'var(--rose)' : 'var(--teal)'};">
+          ${t1_wins 
+            ? `💥 CATASTROPHIC DATA LOSS: Write 1 timestamp (${t1_ts}ms) > Write 2 timestamp (${t2_ts}ms). Cassandra/Riak LWW keeps 'Draft' and SILENTLY OVERWRITES the later 'Published' edit!`
+            : `✓ CORRECT ORDERING: Write 2 timestamp (${t2_ts}ms) > Write 1 timestamp (${t1_ts}ms). 'Published' is correctly preserved.`
+          }
+        </div>
+      `;
+    }
+
+    document.getElementById('sim-node1-skew').addEventListener('input', updateLwwCalc);
+    document.getElementById('sim-real-delay').addEventListener('input', updateLwwCalc);
+    updateLwwCalc();
+
+    // Simulator 3: TrueTime Commit-Wait Engine
+    function updateTrueTimeCalc() {
+      const epsilon = parseInt(document.getElementById('sim-epsilon-bound').value);
+      document.getElementById('lbl-epsilon').textContent = epsilon + 'ms';
+
+      const commitWait = 2 * epsilon;
+      const isGoogleScale = epsilon <= 7;
+
+      const out = document.getElementById('sim-truetime-output');
+      out.innerHTML = `
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+          <div style="background:var(--bg-surface); padding:14px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--text-subtle); font-size:0.75rem; text-transform:uppercase;">TrueTime Uncertainty Bound (&plusmn;&epsilon;)</div>
+            <div style="font-size:1.6rem; font-weight:700; color:${isGoogleScale ? 'var(--teal)' : 'var(--amber)'};">&plusmn;${epsilon} ms</div>
+            <div style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">Confidence Interval Range: <strong>${2 * epsilon}ms</strong> [t<sub>earliest</sub> .. t<sub>latest</sub>]</div>
+          </div>
+          <div style="background:var(--bg-surface); padding:14px; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--text-subtle); font-size:0.75rem; text-transform:uppercase;">Mandatory Commit-Wait Penalty (2&epsilon;)</div>
+            <div style="font-size:1.6rem; font-weight:700; color:var(--accent);">${commitWait} ms</div>
+            <div style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">Engine pauses write commit for exactly ${commitWait}ms before release.</div>
+          </div>
+        </div>
+        <div style="margin-top:12px; font-size:0.85rem; color:var(--text-muted);">
+          <strong>Architectural Guarantee:</strong> Because $T_1$ waited ${commitWait}ms, any subsequent transaction $T_2$ is guaranteed to have $t_{2,\text{earliest}} > t_{1,\text{commit}}$, enabling global linearizable ACID reads across the entire globe without cross-region read locks!
+        </div>
+      `;
+    }
+
+    document.getElementById('sim-epsilon-bound').addEventListener('input', updateTrueTimeCalc);
+    updateTrueTimeCalc();
+
+    // Simulator 4: GC Pause & Fencing Simulator
+    document.getElementById('btn-run-fencing-sim').addEventListener('click', () => {
+      const dur = document.getElementById('sim-gc-duration').value;
+      const out = document.getElementById('sim-fencing-output');
+
+      if (dur === 'short') {
+        out.innerHTML = `
+          <div style="color:var(--teal); font-weight:700;">✓ SIMULATION RESULT: SAFE EXECUTION WITHIN LEASE WINDOW</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            1. Node 1 acquires 10s lease from ZooKeeper -> Assigned <strong>Fencing Token = 33</strong><br>
+            2. Node 1 enters brief 2-second GC pause (well within 10s lease window).<br>
+            3. Node 1 wakes up at second 3, sends write with <code>Token = 33</code> to Storage Service.<br>
+            4. Storage Server checks: <code>33 >= max_token (33)</code> -> <strong>Write ACCEPTED ✓</strong><br>
+            5. No split-brain election occurred.
+          </div>
+        `;
+      } else {
+        out.innerHTML = `
+          <div style="color:var(--teal); font-weight:700;">✓ SIMULATION RESULT: FENCING TOKEN DEFENSE SUCCESSFUL (CORRUPTION PREVENTED)</div>
+          <div style="margin-top:6px; line-height:1.6;">
+            1. Node 1 acquires 10s lease from ZooKeeper -> Assigned <strong>Fencing Token = 33</strong><br>
+            2. Node 1 freezes in a <strong>15-second Stop-The-World GC Pause</strong>.<br>
+            3. At second 10, ZooKeeper expires Node 1's lease. Cluster elects Node 2 with <strong>Token = 34</strong>.<br>
+            4. Node 2 writes to storage with <code>Token = 34</code>. Storage records <code>max_token = 34</code>.<br>
+            5. At second 16, Node 1 awakens from GC pause, unaware 15s elapsed, and attempts to write with <code>Token = 33</code>.<br>
+            6. <strong>Storage Enforcement:</strong> Storage rejects Node 1's write (<code>Token 33 < 34</code>)! Zombie leader write blocked. Zero data corruption.
+          </div>
+        `;
+      }
+    });
+
+    // Self-Check Quiz Logic
+    function checkQuiz(btn, isCorrect, explanation) {
+      const parent = btn.parentElement;
+      const buttons = parent.querySelectorAll('.quiz-opt-btn');
+      buttons.forEach(b => {
+        b.classList.remove('correct', 'incorrect');
+        b.disabled = true;
+      });
+
+      const feedback = document.getElementById('quiz-feedback');
+      feedback.className = 'quiz-feedback show ' + (isCorrect ? 'correct-feedback' : 'incorrect-feedback');
+      feedback.innerHTML = `<strong>${isCorrect ? '✓ Correct!' : '✗ Incorrect.'}</strong> ${explanation}`;
+
+      if (isCorrect) {
+        btn.classList.add('correct');
+      } else {
+        btn.classList.add('incorrect');
+      }
+    }
+
+    // FAQ Accordion Toggle
+    function toggleFaq(el) {
+      const item = el.parentElement;
+      item.classList.toggle('open');
+    }
+  </script>
+</body>
+</html>

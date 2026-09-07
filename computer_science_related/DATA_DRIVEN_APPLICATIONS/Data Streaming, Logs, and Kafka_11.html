@@ -1,0 +1,2880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Streaming, Logs, and Kafka — Designing Data-Intensive Applications</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f5f5f5;
+      --paper-2: #ececec;
+      --card-bg: #ffffff;
+      --ink: #2d3142;
+      --ink-secondary: #4f5d75;
+      --muted: #4f5d75;
+      --soft: #7a8399;
+      --rule: rgba(45, 49, 66, 0.12);
+      --rule-solid: #d4d7df;
+      --accent: #eb6c36;
+      --accent-tint: rgba(235, 108, 54, 0.08);
+      --accent-soft: rgba(235, 108, 54, 0.15);
+      --link: #2e5aa8;
+      --success: #2d7a4f;
+      --success-tint: rgba(45, 122, 79, 0.1);
+      --danger: #b33927;
+      --danger-tint: rgba(179, 57, 39, 0.08);
+      --font-serif: "Instrument Serif", Georgia, serif;
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", monospace;
+    }
+
+    [data-theme="dark"] {
+      --paper: #16181d;
+      --paper-2: #1e2229;
+      --card-bg: #1f232b;
+      --ink: #e8ecf2;
+      --ink-secondary: #a3acba;
+      --muted: #949eb0;
+      --soft: #6d788d;
+      --rule: rgba(232, 236, 242, 0.12);
+      --rule-solid: #2e3543;
+      --accent: #f07f4f;
+      --accent-tint: rgba(240, 127, 79, 0.12);
+      --accent-soft: rgba(240, 127, 79, 0.22);
+      --link: #5c8ae6;
+      --success: #49a371;
+      --success-tint: rgba(73, 163, 113, 0.14);
+      --danger: #d95847;
+      --danger-tint: rgba(217, 88, 71, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      transition: background-color 0.25s ease, color 0.25s ease;
+      overflow-x: hidden;
+    }
+
+    /* Reading Progress Bar */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0%;
+      height: 3px;
+      background: var(--accent);
+      z-index: 1000;
+      transition: width 0.1s ease-out;
+    }
+
+    /* Header Nav */
+    header.site-header {
+      position: sticky;
+      top: 0;
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
+      z-index: 900;
+      backdrop-filter: blur(10px);
+      transition: background-color 0.25s ease;
+    }
+
+    .header-inner {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border: 1px solid var(--rule-solid);
+      border-radius: 4px;
+      color: var(--muted);
+    }
+
+    .badge-accent {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--accent-tint);
+    }
+
+    .title-nav {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .theme-toggle-btn {
+      background: none;
+      border: 1px solid var(--rule-solid);
+      border-radius: 6px;
+      color: var(--ink);
+      padding: 6px 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--accent-tint);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Layout: Editorial 2-Col Split */
+    .layout-container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 40px 24px 100px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 56px;
+      align-items: start;
+    }
+
+    @media (max-width: 1024px) {
+      .layout-container {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+      .sidebar {
+        position: static !important;
+        max-height: none !important;
+      }
+    }
+
+    /* Sidebar Navigation & Live Lab */
+    .sidebar {
+      position: sticky;
+      top: 65px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: var(--rule-solid);
+      border-radius: 4px;
+    }
+
+    .sidebar-card {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .sidebar-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--soft);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sidebar-nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sidebar-nav-item a {
+      display: block;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--ink-secondary);
+      text-decoration: none;
+      border-radius: 6px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s ease;
+      line-height: 1.35;
+    }
+
+    .sidebar-nav-item a:hover {
+      color: var(--ink);
+      background: var(--paper-2);
+    }
+
+    .sidebar-nav-item a.active {
+      color: var(--accent);
+      background: var(--accent-tint);
+      border-left: 2px solid var(--accent);
+      font-weight: 500;
+    }
+
+    .sidebar-nav-number {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      margin-right: 6px;
+      color: var(--soft);
+    }
+
+    /* Hero Section */
+    .hero {
+      margin-bottom: 48px;
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 40px;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    h1.hero-title {
+      font-family: var(--font-serif);
+      font-size: clamp(34px, 4.5vw, 54px);
+      line-height: 1.1;
+      color: var(--ink);
+      font-weight: 400;
+      margin-bottom: 20px;
+    }
+
+    .hero-lead {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-secondary);
+      max-width: 72ch;
+      margin-bottom: 24px;
+    }
+
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--soft);
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Overview Box: What You'll Learn */
+    .overview-card {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 24px 28px;
+      margin-bottom: 48px;
+    }
+
+    .overview-card h3 {
+      font-family: var(--font-serif);
+      font-size: 24px;
+      color: var(--ink);
+      margin-bottom: 16px;
+      font-weight: 400;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .overview-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--ink-secondary);
+      line-height: 1.5;
+    }
+
+    .overview-bullet {
+      color: var(--accent);
+      font-size: 16px;
+      line-height: 1;
+      margin-top: 2px;
+    }
+
+    /* Knowledge Map SVG Container */
+    .knowledge-map-wrap {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 56px;
+    }
+
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 16px;
+    }
+
+    .section-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--soft);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* Content Modules */
+    .module-section {
+      margin-bottom: 80px;
+      scroll-margin-top: 80px;
+    }
+
+    .module-header {
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .module-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .module-title {
+      font-family: var(--font-serif);
+      font-size: clamp(26px, 3.2vw, 38px);
+      line-height: 1.18;
+      color: var(--ink);
+      font-weight: 400;
+    }
+
+    .core-prose {
+      font-size: 16px;
+      line-height: 1.75;
+      color: var(--ink);
+      margin-bottom: 28px;
+      max-width: 70ch;
+    }
+
+    .core-prose p {
+      margin-bottom: 16px;
+    }
+
+    .core-prose strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    /* Diagram Design Component Frame */
+    .diagram-frame {
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      padding: 20px;
+      margin: 28px 0 36px;
+      overflow-x: auto;
+    }
+
+    .diagram-caption {
+      margin-top: 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--soft);
+      text-align: right;
+      letter-spacing: 0.04em;
+    }
+
+    /* Step by Step Breakdown */
+    .steps-container {
+      margin: 28px 0 36px;
+      border: 1px solid var(--rule);
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 24px 28px;
+    }
+
+    .steps-container h4 {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .step-item {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .step-index {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      background: var(--paper-2);
+      border: 1px solid var(--rule-solid);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .step-content h5 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .step-content p {
+      font-size: 14px;
+      color: var(--ink-secondary);
+      line-height: 1.55;
+    }
+
+    /* Tri-Example Cards Pattern */
+    .examples-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 0.9fr;
+      gap: 16px;
+      margin: 28px 0 36px;
+    }
+
+    @media (max-width: 860px) {
+      .examples-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .example-card {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      padding: 20px;
+    }
+
+    .example-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .example-tag.obvious { color: var(--link); }
+    .example-tag.counter { color: var(--accent); }
+    .example-tag.edge { color: var(--danger); }
+
+    .example-card h5 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+
+    .example-card p {
+      font-size: 13px;
+      color: var(--ink-secondary);
+      line-height: 1.5;
+    }
+
+    /* Analogy & Misconception Cards */
+    .callout-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 28px 0 36px;
+    }
+
+    @media (max-width: 768px) {
+      .callout-split {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .analogy-card {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      padding: 22px;
+      border-left: 3px solid var(--link);
+    }
+
+    .analogy-header {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--link);
+      margin-bottom: 8px;
+    }
+
+    .analogy-text {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 16px;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+
+    .misconception-card {
+      background: var(--danger-tint);
+      border: 1px solid var(--danger);
+      border-radius: 8px;
+      padding: 22px;
+    }
+
+    .misconception-header {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--danger);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .misconception-text {
+      font-size: 14px;
+      color: var(--ink);
+      line-height: 1.55;
+    }
+
+    /* Why This Matters & Inter-link */
+    .module-footer-meta {
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .why-matters {
+      color: var(--ink);
+      line-height: 1.5;
+    }
+
+    .why-matters strong {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-right: 6px;
+    }
+
+    .interlink {
+      font-size: 13px;
+      color: var(--ink-secondary);
+      border-top: 1px dashed var(--rule-solid);
+      padding-top: 10px;
+    }
+
+    .interlink a {
+      color: var(--link);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .interlink a:hover {
+      text-decoration: underline;
+    }
+
+    /* Interactive Elements Styling */
+    .interactive-block {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      padding: 24px;
+      margin: 32px 0 40px;
+    }
+
+    .interactive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 12px;
+    }
+
+    .interactive-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .interactive-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sim-btn {
+      background: var(--paper);
+      border: 1px solid var(--rule-solid);
+      color: var(--ink);
+      padding: 5px 12px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .sim-btn:hover {
+      background: var(--accent-tint);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .sim-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* Slider / Interactive throughput control */
+    .slider-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      height: 6px;
+      background: var(--rule-solid);
+      border-radius: 3px;
+      outline: none;
+      accent-color: var(--accent);
+    }
+
+    .slider-metric-box {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      min-width: 140px;
+      text-align: right;
+    }
+
+    /* Animation Step Visualizer */
+    .anim-stage-box {
+      padding: 16px;
+      background: var(--paper);
+      border-radius: 6px;
+      border: 1px solid var(--rule);
+      margin-top: 14px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* Flashcard Widget */
+    .flashcard-deck {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .flashcard {
+      height: 180px;
+      perspective: 1000px;
+      cursor: pointer;
+    }
+
+    .flashcard-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      text-align: center;
+      transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+      transform-style: preserve-3d;
+      border-radius: 6px;
+      border: 1px solid var(--rule-solid);
+    }
+
+    .flashcard.flipped .flashcard-inner {
+      transform: rotateY(180deg);
+    }
+
+    .flashcard-front, .flashcard-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 18px;
+      border-radius: 6px;
+    }
+
+    .flashcard-front {
+      background: var(--card-bg);
+      color: var(--ink);
+    }
+
+    .flashcard-back {
+      background: var(--paper-2);
+      color: var(--ink);
+      transform: rotateY(180deg);
+    }
+
+    .flashcard-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--soft);
+      margin-bottom: 8px;
+    }
+
+    .flashcard-term {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .flashcard-def {
+      font-size: 13px;
+      color: var(--ink-secondary);
+      line-height: 1.45;
+    }
+
+    .flashcard-hint {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent);
+      margin-top: 10px;
+    }
+
+    /* Drag and Drop Matching Widget */
+    .dnd-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .dnd-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .dnd-column {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .dnd-card {
+      padding: 12px 16px;
+      background: var(--paper);
+      border: 1px solid var(--rule-solid);
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: grab;
+      user-select: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .dnd-card:active {
+      cursor: grabbing;
+    }
+
+    .dnd-slot {
+      padding: 14px 16px;
+      background: var(--card-bg);
+      border: 1px dashed var(--rule-solid);
+      border-radius: 6px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .dnd-slot.matched {
+      border: 1px solid var(--success);
+      background: var(--success-tint);
+    }
+
+    /* Quiz Widget */
+    .quiz-card {
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      padding: 18px;
+      margin: 16px 0;
+    }
+
+    .quiz-q {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 12px;
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .quiz-btn {
+      text-align: left;
+      background: var(--card-bg);
+      border: 1px solid var(--rule-solid);
+      border-radius: 4px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--ink);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--font-sans);
+    }
+
+    .quiz-btn:hover {
+      background: var(--paper-2);
+      border-color: var(--ink);
+    }
+
+    .quiz-btn.correct {
+      background: var(--success-tint);
+      border-color: var(--success);
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    .quiz-btn.incorrect {
+      background: var(--danger-tint);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .quiz-feedback {
+      font-size: 12px;
+      margin-top: 10px;
+      display: none;
+      line-height: 1.45;
+    }
+
+    /* Summary & Cheat Sheet Table */
+    .summary-section {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      padding: 32px;
+      margin: 64px 0 40px;
+    }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+
+    .summary-table th, .summary-table td {
+      padding: 12px 16px;
+      border: 1px solid var(--rule);
+      text-align: left;
+    }
+
+    .summary-table th {
+      background: var(--paper);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .summary-table td code {
+      font-family: var(--font-mono);
+      background: var(--paper-2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    /* FAQ Section */
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .faq-item {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      padding: 18px 22px;
+    }
+
+    .faq-question {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .faq-answer {
+      font-size: 14px;
+      color: var(--ink-secondary);
+      line-height: 1.6;
+    }
+
+    /* Next Steps */
+    .next-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .next-step-card {
+      background: var(--card-bg);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      padding: 20px;
+    }
+
+    .next-step-card h4 {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .next-step-card p {
+      font-size: 13px;
+      color: var(--ink-secondary);
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    footer.site-footer {
+      border-top: 1px solid var(--rule);
+      padding: 40px 24px;
+      margin-top: 60px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--soft);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1240px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* SVG Utilities adhering to Diagram Design Skill */
+    svg.editorial-diagram {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="progress-bar"></div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-meta">
+        <span class="badge badge-accent">DDIA • CHAPTER 11</span>
+        <span class="title-nav">Data Streaming, Logs, and Kafka</span>
+      </div>
+      <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle dark/light mode">
+        <span id="theme-icon">◐</span>
+        <span id="theme-label">Theme</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="layout-container">
+    
+    <!-- Sticky Editorial Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-card">
+        <div class="sidebar-title">Lesson Chapters</div>
+        <ul class="sidebar-nav-list" id="sidebar-nav">
+          <li class="sidebar-nav-item"><a href="#overview"><span class="sidebar-nav-number">00</span>Overview & Map</a></li>
+          <li class="sidebar-nav-item"><a href="#module-1"><span class="sidebar-nav-number">01</span>Write-Ahead Logs</a></li>
+          <li class="sidebar-nav-item"><a href="#module-2"><span class="sidebar-nav-number">02</span>The Backpressure Trap</a></li>
+          <li class="sidebar-nav-item"><a href="#module-3"><span class="sidebar-nav-number">03</span>Kafka Broker Topology</a></li>
+          <li class="sidebar-nav-item"><a href="#module-4"><span class="sidebar-nav-number">04</span>Decoupled Consumers</a></li>
+          <li class="sidebar-nav-item"><a href="#module-5"><span class="sidebar-nav-number">05</span>Ordering & Failures</a></li>
+          <li class="sidebar-nav-item"><a href="#module-6"><span class="sidebar-nav-number">06</span>Architectural Trade-offs</a></li>
+          <li class="sidebar-nav-item"><a href="#summary"><span class="sidebar-nav-number">07</span>Cheat Sheet & FAQ</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-card">
+        <div class="sidebar-title">Live Lab Status</div>
+        <div style="font-size: 12px; color: var(--ink-secondary); line-height: 1.5;">
+          <p style="margin-bottom: 8px;"><strong>Simulated Ingestion:</strong> <span id="sidebar-rate" style="color: var(--accent); font-family: var(--font-mono);">10,000 / sec</span></p>
+          <p style="margin-bottom: 8px;"><strong>Kafka Buffer:</strong> <span id="sidebar-buffer" style="color: var(--link); font-family: var(--font-mono);">Safe (Ring Buffer)</span></p>
+          <p><strong>Downstream Delay:</strong> <span id="sidebar-lag" style="font-family: var(--font-mono);">0.04 ms</span></p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="content-main">
+      
+      <!-- Hero Header -->
+      <section class="hero" id="overview">
+        <div class="eyebrow">Designing Data-Intensive Applications Study Guide</div>
+        <h1 class="hero-title">Data Streaming, Logs, and Kafka</h1>
+        <p class="hero-lead">
+          Why append-only sequential logs govern modern database performance, how direct analytics writes create catastrophic backpressure during traffic spikes, and how Kafka's partitioned log architecture decouples producers from consumers.
+        </p>
+        <div class="meta-bar">
+          <span class="meta-item">⏱ 45 min deep study</span>
+          <span class="meta-item">📖 DDIA Chapter 11</span>
+          <span class="meta-item">🛠 6 Custom System Diagrams</span>
+          <span class="meta-item">⚡ 8 Interactive Drills</span>
+        </div>
+      </section>
+
+      <!-- What You'll Learn -->
+      <div class="overview-card">
+        <h3>What You’ll Master</h3>
+        <div class="overview-grid">
+          <div class="overview-item">
+            <span class="overview-bullet">✦</span>
+            <div><strong>Write-Ahead Logs (WAL):</strong> How databases convert expensive random I/O updates into blistering sequential append operations.</div>
+          </div>
+          <div class="overview-item">
+            <span class="overview-bullet">✦</span>
+            <div><strong>The Backpressure Trap:</strong> Why directly writing user events to an analytical warehouse crashes application servers on Black Friday.</div>
+          </div>
+          <div class="overview-item">
+            <span class="overview-bullet">✦</span>
+            <div><strong>Kafka Architecture:</strong> Producers, brokers, topics, and how partition ring-buffers enable high-scale horizontal sharding.</div>
+          </div>
+          <div class="overview-item">
+            <span class="overview-bullet">✦</span>
+            <div><strong>Decoupled Ingestion:</strong> Allowing multiple heterogeneous consumers (ClickHouse, MapReduce) to read at their own speed.</div>
+          </div>
+          <div class="overview-item">
+            <span class="overview-bullet">✦</span>
+            <div><strong>The Message Ordering Anomaly:</strong> How consumer node crashes and message re-routing cause out-of-sequence event processing.</div>
+          </div>
+          <div class="overview-item">
+            <span class="overview-bullet">✦</span>
+            <div><strong>Foundational Trade-Offs:</strong> Relaxing strict ACID isolation and zero-loss guarantees to unlock order-of-magnitude streaming throughput.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Knowledge Map (Monochrome line art per Diagram Design system) -->
+      <div class="knowledge-map-wrap">
+        <div class="section-header-row">
+          <span class="section-tag">Interactive Architecture Map</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--accent);">Click any node to navigate</span>
+        </div>
+        <div class="diagram-frame" style="margin: 0; background: var(--paper);">
+          <svg class="editorial-diagram" viewBox="0 0 840 220" role="img" aria-labelledby="kmap-title kmap-desc">
+            <title id="kmap-title">Interactive Stream Processing Knowledge Map</title>
+            <desc id="kmap-desc">Sequential architectural flow from application writes to write-ahead logs, Kafka buffering, partitioned sharding, and decoupled analytical consumers.</desc>
+            <defs>
+              <marker id="kmap-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+              </marker>
+              <marker id="kmap-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- Orthogonal Connectors (Rounded Right Angles, r=8) -->
+            <!-- Path 1: WAL to Buffer -->
+            <path d="M 144 80 L 192 80" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#kmap-arrow)"/>
+            <path d="M 312 80 L 360 80" stroke="#eb6c36" stroke-width="1.2" fill="none" marker-end="url(#kmap-arrow-accent)"/>
+            <path d="M 480 80 L 528 80" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#kmap-arrow)"/>
+            <path d="M 648 80 L 696 80" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#kmap-arrow)"/>
+
+            <!-- Node 1: WAL & Storage -->
+            <a href="#module-1">
+              <g class="kmap-node" cursor="pointer">
+                <rect x="24" y="48" width="120" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+                <rect x="32" y="56" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+                <text x="50" y="65" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">MODULE 01</text>
+                <text x="84" y="86" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Write-Ahead Log</text>
+                <text x="84" y="100" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Sequential I/O</text>
+              </g>
+            </a>
+
+            <!-- Node 2: Backpressure Trap -->
+            <a href="#module-2">
+              <g class="kmap-node" cursor="pointer">
+                <rect x="192" y="48" width="120" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+                <rect x="200" y="56" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+                <text x="218" y="65" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">MODULE 02</text>
+                <text x="252" y="86" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Backpressure</text>
+                <text x="252" y="100" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Buffer Overflows</text>
+              </g>
+            </a>
+
+            <!-- Node 3: Kafka Broker (Focal Accent) -->
+            <a href="#module-3">
+              <g class="kmap-node" cursor="pointer">
+                <rect x="360" y="44" width="120" height="72" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.5"/>
+                <rect x="368" y="52" width="36" height="12" rx="2" fill="transparent" stroke="#eb6c36" stroke-width="0.8"/>
+                <text x="386" y="61" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">FOCAL 03</text>
+                <text x="420" y="82" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Kafka Partitioning</text>
+                <text x="420" y="96" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Append-Only Ring</text>
+              </g>
+            </a>
+
+            <!-- Node 4: Decoupled Consumers -->
+            <a href="#module-4">
+              <g class="kmap-node" cursor="pointer">
+                <rect x="528" y="48" width="120" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+                <rect x="536" y="56" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+                <text x="554" y="65" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">MODULE 04</text>
+                <text x="588" y="86" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Decoupled Pull</text>
+                <text x="588" y="100" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Paced Consumption</text>
+              </g>
+            </a>
+
+            <!-- Node 5: Failures & Ordering -->
+            <a href="#module-5">
+              <g class="kmap-node" cursor="pointer">
+                <rect x="696" y="48" width="120" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+                <rect x="704" y="56" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+                <text x="722" y="65" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">MODULE 05</text>
+                <text x="756" y="86" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Order Inversion</text>
+                <text x="756" y="100" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Ack Timeouts</text>
+              </g>
+            </a>
+
+            <!-- Legend Strip (Bottom) adhering to Diagram Design Skill -->
+            <line x1="24" y1="168" x2="816" y2="168" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+            <text x="24" y="184" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+            <rect x="100" y="176" width="10" height="10" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <text x="116" y="184" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Standard Module</text>
+            <rect x="240" y="176" width="10" height="10" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+            <text x="256" y="184" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Core Ingestion Hub</text>
+            <line x1="400" y1="181" x2="428" y2="181" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#kmap-arrow)"/>
+            <text x="436" y="184" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Flow Relationship</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- MODULE 1 -->
+      <section class="module-section" id="module-1">
+        <div class="module-header">
+          <div class="module-eyebrow">Module 01 • Storage Engine Mechanics</div>
+          <h2 class="module-title">The Heartbeat of Databases: Write-Ahead Logs (WAL)</h2>
+        </div>
+
+        <div class="core-prose">
+          <p>
+            When engineers talk about databases like PostgreSQL or MySQL, they often picture relational tables, foreign key constraints, or B-tree index lookups. But beneath every transaction lies a fundamental disk performance truth: <strong>random disk I/O is profoundly expensive</strong>, even on modern NVMe solid-state drives.
+          </p>
+          <p>
+            If a database forced a disk write to every modified table page and every secondary index tree immediately whenever you executed an <code>INSERT</code> or <code>UPDATE</code>, your throughput would plummet to a crawl. The database would have to write 8KB pages to disparate, non-contiguous sectors of the storage drive.
+          </p>
+          <p>
+            Instead, databases solve this durability and latency bottleneck with an <strong>append-only log</strong>. In PostgreSQL, this is the <em>Write-Ahead Log (WAL)</em>; in MySQL, it is known as the <em>binary log (binlog)</em>. When an insert occurs, the database first records the mutation in high-speed RAM (marking the cached memory page as "dirty"). Before acknowledging the client, it writes a compact, sequential change descriptor to the append-only WAL file and flushes it sequentially to disk.
+          </p>
+          <p>
+            Because sequential writes require no disk arm movement on spinning disks and trigger sequential block allocation on SSDs, this write finishes in microseconds. If the server loses power a millisecond later, the dirty RAM pages vanish, but upon restart, the database replays the sequential log to reconstruct the exact state. Modifying the underlying tables and rebalancing B-trees on disk is deferred safely to background checkpoints.
+          </p>
+        </div>
+
+        <!-- Diagram 1: PostgreSQL WAL Architecture (Diagram Design Skill compliant) -->
+        <div class="diagram-frame">
+          <svg class="editorial-diagram" viewBox="0 0 760 280" role="img" aria-labelledby="d1-title d1-desc">
+            <title id="d1-title">PostgreSQL Write Path and Write-Ahead Log Architecture</title>
+            <desc id="d1-desc">System diagram showing how writes are cached in memory as dirty pages, committed sequentially to the WAL file on disk, acknowledged to client, and lazily flushed to heap pages.</desc>
+            <defs>
+              <marker id="d1-arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+              </marker>
+              <marker id="d1-arr-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+              <marker id="d1-arr-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+              </marker>
+            </defs>
+
+            <!-- Orthogonal Connectors (Drawn first so z-order puts them behind boxes) -->
+            <!-- 1. Client App to RAM Buffer -->
+            <path d="M 120 72 L 180 72" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#d1-arr)"/>
+            <!-- Label 1 with 8px margin above connector -->
+            <rect x="132" y="52" width="36" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="150" y="61" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">INSERT</text>
+
+            <!-- 2. RAM Buffer to WAL on Disk (Focal Accent) -->
+            <path d="M 252 104 L 252 152 A 8 8 0 0 0 260 160 L 320 160" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d1-arr-accent)"/>
+            <!-- Label 2 with margin -->
+            <rect x="256" y="124" width="48" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="280" y="133" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">FLUSH WAL</text>
+
+            <!-- 3. WAL to Client Ack -->
+            <path d="M 440 160 L 504 160 A 8 8 0 0 0 512 152 L 512 88" stroke="#2e5aa8" stroke-width="1.2" stroke-dasharray="4,3" fill="none" marker-end="url(#d1-arr-link)"/>
+            <!-- Label 3 with margin -->
+            <rect x="456" y="140" width="44" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="478" y="149" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ACK COMMIT</text>
+
+            <!-- 4. RAM Dirty Pages Deferred Flush to Disk Table/B-tree -->
+            <path d="M 324 72 L 560 72" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3" fill="none" marker-end="url(#d1-arr)"/>
+            <!-- Label 4 with margin -->
+            <rect x="384" y="52" width="80" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="424" y="61" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">DEFERRED FLUSH</text>
+
+            <!-- Node 1: Client Application -->
+            <rect x="24" y="44" width="96" height="56" rx="6" fill="#f5f5f5"/>
+            <rect x="24" y="44" width="96" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <rect x="32" y="50" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+            <text x="46" y="59" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">CLIENT</text>
+            <text x="72" y="78" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">App Server</text>
+
+            <!-- Node 2: RAM Shared Buffers (Dirty Pages) -->
+            <rect x="180" y="40" width="144" height="64" rx="6" fill="#f5f5f5"/>
+            <rect x="180" y="40" width="144" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <rect x="188" y="46" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+            <text x="204" y="55" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">MEMORY</text>
+            <text x="252" y="74" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Shared Buffers</text>
+            <text x="252" y="90" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Marks Page "Dirty"</text>
+
+            <!-- Node 3: WAL On Disk (Focal Element) -->
+            <rect x="320" y="132" width="120" height="56" rx="6" fill="#f5f5f5"/>
+            <rect x="320" y="132" width="120" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.5"/>
+            <rect x="328" y="138" width="28" height="12" rx="2" fill="transparent" stroke="#eb6c36" stroke-width="0.8"/>
+            <text x="342" y="147" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">DISK</text>
+            <text x="380" y="164" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">pg_wal Append</text>
+            <text x="380" y="178" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Fast Sequential I/O</text>
+
+            <!-- Node 4: Table & B-tree Files On Disk -->
+            <rect x="560" y="40" width="160" height="64" rx="6" fill="#f5f5f5"/>
+            <rect x="560" y="40" width="160" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+            <rect x="568" y="46" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+            <text x="586" y="55" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">STORAGE</text>
+            <text x="640" y="74" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Data Pages & B-Trees</text>
+            <text x="640" y="90" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Random Writes (Lazy)</text>
+
+            <!-- Legend Strip -->
+            <line x1="24" y1="236" x2="736" y2="236" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+            <text x="24" y="252" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+            <line x1="96" y1="249" x2="128" y2="249" stroke="#eb6c36" stroke-width="1.5"/>
+            <text x="136" y="252" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Synchronous Fast WAL Path</text>
+            <line x1="300" y1="249" x2="332" y2="249" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3"/>
+            <text x="340" y="252" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Asynchronous / Checkpoint Deferred</text>
+            <line x1="560" y1="249" x2="592" y2="249" stroke="#2e5aa8" stroke-width="1.2" stroke-dasharray="4,3"/>
+            <text x="600" y="252" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Client Confirmation Ack</text>
+          </svg>
+          <div class="diagram-caption">FIG 1.1 — PostgreSQL Write-Ahead Log commit path vs deferred background checkpointing.</div>
+        </div>
+
+        <!-- Step-by-Step Breakdown -->
+        <div class="steps-container">
+          <h4>Lifecycle of an Insert Statement</h4>
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-index">01</div>
+              <div class="step-content">
+                <h5>RAM Cache Write</h5>
+                <p>PostgreSQL locates or loads the target table page into RAM shared memory, applies the new row, and marks the page as <em>dirty</em>.</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-index">02</div>
+              <div class="step-content">
+                <h5>Sequential Append to WAL</h5>
+                <p>A binary record detailing the exact delta is appended to the tail of the Write-Ahead Log file on disk. Because the disk head only appends, write throughput is maxed out.</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-index">03</div>
+              <div class="step-content">
+                <h5>Client Acknowledgment</h5>
+                <p>Once the WAL block is safely synced (via <code>fsync</code>), the database replies to the client with a successful commit.</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-index">04</div>
+              <div class="step-content">
+                <h5>Deferred Checkpoint Flush</h5>
+                <p>Minutes later, the checkpoint process slowly writes dirty pages back to the primary heap and B-tree files on disk without blocking active write requests.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3 Distinct Examples -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-tag obvious">Obvious Real-World Case</div>
+            <h5>PostgreSQL Financial Transfer</h5>
+            <p>A bank deducts $100 from Account A. The transaction is instantly recorded sequentially in WAL. Even if the server instantly loses power, recovery replays the WAL to guarantee the balance does not vanish.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag counter">Counter-Intuitive Case</div>
+            <h5>Fast Writes on Slow Spinning Disks</h5>
+            <p>A single 7,200 RPM hard drive can only perform ~100 random writes per second due to physical seek times. Yet with an append-only log, it easily handles over 10,000 writes per second because sequential writing requires zero mechanical head re-positioning.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag edge">Edge-Case Scenario</div>
+            <h5>Uncontrolled WAL Growth & Disk Full</h5>
+            <p>If an archival replica stalls or a replication slot is left orphaned, PostgreSQL cannot prune old WAL segments. The WAL directory consumes 100% of disk space, abruptly halting the primary database.</p>
+          </div>
+        </div>
+
+        <!-- Analogy & Misconception -->
+        <div class="callout-split">
+          <div class="analogy-card">
+            <div class="analogy-header">Visual Analogy</div>
+            <div class="analogy-text">
+              "The WAL is like a court stenographer's shorthand pad. The reporter scribbles every spoken word sequentially at lightning speed. Later that night, someone carefully types and indexes the final book. If the courtroom catches fire, the shorthand notes prove every single ruling."
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="misconception-header">❌ What People Get Wrong</div>
+            <div class="misconception-text">
+              Many developers assume an <code>INSERT</code> modifies the database table file on disk immediately. In reality, the physical table file on disk may not be touched for several minutes; only the append-only log guarantees safety.
+            </div>
+          </div>
+        </div>
+
+        <div class="module-footer-meta">
+          <div class="why-matters">
+            <strong>Why This Matters:</strong> Understanding that the log is the true source of truth explains why modern distributed architectures treat logs as first-class citizens rather than internal database plumbing.
+          </div>
+          <div class="interlink">
+            🔗 <em>Next up in Module 02:</em> See what happens when application servers attempt to send millions of analytical events directly to a database without an intermediary buffer.
+          </div>
+        </div>
+
+        <!-- Interactive Element 1: Interactive WAL Commit Simulator -->
+        <div class="interactive-block">
+          <div class="interactive-header">
+            <span class="interactive-title">Interactive Simulation • The WAL Flush vs Checkpoint Delay</span>
+            <div class="interactive-controls">
+              <button class="sim-btn" id="btn-step-wal">Trigger Insert Step</button>
+              <button class="sim-btn" id="btn-reset-wal">Reset Simulation</button>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+            <div style="background: var(--paper); padding: 12px; border-radius: 6px; border: 1px solid var(--rule);">
+              <div style="font-family: var(--font-mono); font-size: 11px; color: var(--soft);">RAM BUFFER POOL</div>
+              <div id="sim-ram-status" style="font-size: 14px; font-weight: 600; margin-top: 4px; color: var(--ink);">Clean (0 dirty pages)</div>
+            </div>
+            <div style="background: var(--paper); padding: 12px; border-radius: 6px; border: 1px solid var(--rule);">
+              <div style="font-family: var(--font-mono); font-size: 11px; color: var(--soft);">WAL APPEND DISK</div>
+              <div id="sim-wal-status" style="font-size: 14px; font-weight: 600; margin-top: 4px; color: var(--accent);">Offset: 0 bytes</div>
+            </div>
+            <div style="background: var(--paper); padding: 12px; border-radius: 6px; border: 1px solid var(--rule);">
+              <div style="font-family: var(--font-mono); font-size: 11px; color: var(--soft);">DATA PAGE FILE (CHECKPOINT)</div>
+              <div id="sim-disk-status" style="font-size: 14px; font-weight: 600; margin-top: 4px; color: var(--ink-secondary);">Idle (0 disk syncs)</div>
+            </div>
+          </div>
+          <div class="anim-stage-box" id="sim-wal-expl">
+            Click <strong>"Trigger Insert Step"</strong> to walk through how the database handles writes without blocking for slow table page updates.
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 2 -->
+      <section class="module-section" id="module-2">
+        <div class="module-header">
+          <div class="module-eyebrow">Module 02 • High-Velocity Streaming Pitfalls</div>
+          <h2 class="module-title">The Naive Streaming Pipeline & The Backpressure Trap</h2>
+        </div>
+
+        <div class="core-prose">
+          <p>
+            Modern applications generate massive volumes of continuous event data: button clicks, hover tracking, search queries, page view analytics, and server metrics. Unlike transactional data (such as updating a user's password or billing profile), event streams are high-velocity, high-volume, and time-ordered.
+          </p>
+          <p>
+            A common architectural temptation for engineering teams is to connect application servers directly to a fast analytical database, such as ClickHouse or an LSM-tree store. Under typical load, this works deceptively well: each app server handles a few hundred requests a second, streams the telemetry directly over TCP to ClickHouse, and internal dashboards render graphs seamlessly.
+          </p>
+          <p>
+            However, this naive architecture harbors a deadly systemic fragility: <strong>impedance mismatch under burst traffic</strong>. Imagine Black Friday arrives. User visits explode 5x to 10x. Auto-scaling groups spin up dozens of additional application servers to handle the ingress. Now, instead of 10,000 inserts per second, the cluster attempts to push 60,000 inserts per second into ClickHouse.
+          </p>
+          <p>
+            Simultaneously, business analysts and executives are heavily querying ClickHouse for real-time sales dashboards. ClickHouse reaches its hard ingestion threshold. Connections queue up. Latencies spike from 2 milliseconds to 5 seconds. The analytical database pushes <em>backpressure</em> upstream.
+          </p>
+          <p>
+            Application servers are forced to buffer incoming events in their local memory while waiting for the database to drain connections. But RAM is finite. In minutes, heap space exhausts, garbage collectors thrash, and application servers begin crashing with Out-Of-Memory (OOM) errors. Because analytical writes were coupled to user-facing app servers, the entire user-facing checkout system collapses.
+          </p>
+        </div>
+
+        <!-- Diagram 2: Direct Push Failure vs Decoupled Buffer (Diagram Design Skill compliant) -->
+        <div class="diagram-frame">
+          <svg class="editorial-diagram" viewBox="0 0 760 300" role="img" aria-labelledby="d2-title d2-desc">
+            <title id="d2-title">The Backpressure Trap and Application Memory Exhaustion</title>
+            <desc id="d2-desc">Architectural diagram illustrating how surge traffic from multiple app servers overwhelms a direct analytical database, triggering upstream backpressure and memory crashes.</desc>
+            <defs>
+              <marker id="d2-arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+              </marker>
+              <marker id="d2-arr-danger" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#b33927"/>
+              </marker>
+            </defs>
+
+            <!-- Orthogonal Connectors with Fanned Attach Points (Rule 4 & Rule 1) -->
+            <!-- App Server 1 to ClickHouse -->
+            <path d="M 160 64 L 340 64 A 8 8 0 0 1 348 72 L 348 112 A 8 8 0 0 0 356 120 L 400 120" stroke="#b33927" stroke-width="1.2" fill="none" marker-end="url(#d2-arr-danger)"/>
+            <!-- App Server 2 to ClickHouse -->
+            <path d="M 160 144 L 400 144" stroke="#b33927" stroke-width="1.5" fill="none" marker-end="url(#d2-arr-danger)"/>
+            <!-- App Server 3 to ClickHouse -->
+            <path d="M 160 224 L 340 224 A 8 8 0 0 0 348 216 L 348 176 A 8 8 0 0 1 356 168 L 400 168" stroke="#b33927" stroke-width="1.2" fill="none" marker-end="url(#d2-arr-danger)"/>
+
+            <!-- Upstream Backpressure arrow (Dashed red) -->
+            <path d="M 400 132 L 240 132 A 8 8 0 0 0 232 140 L 232 180" stroke="#b33927" stroke-width="1.2" stroke-dasharray="4,4" fill="none" marker-end="url(#d2-arr-danger)"/>
+            <rect x="244" y="112" width="104" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="296" y="121" fill="#b33927" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">BACKPRESSURE REJECTION</text>
+
+            <!-- ClickHouse to Dashboard -->
+            <path d="M 544 144 L 620 144" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#d2-arr)"/>
+            <rect x="552" y="124" width="56" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="580" y="133" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">SLOW QUERIES</text>
+
+            <!-- Node: App Server 1 -->
+            <rect x="24" y="40" width="136" height="48" rx="6" fill="#f5f5f5"/>
+            <rect x="24" y="40" width="136" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <text x="92" y="62" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">App Server 1</text>
+            <text x="92" y="76" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">20,000 req/s</text>
+
+            <!-- Node: App Server 2 (Crashing OOM) -->
+            <rect x="24" y="120" width="136" height="48" rx="6" fill="#f5f5f5"/>
+            <rect x="24" y="120" width="136" height="48" rx="6" fill="rgba(179,57,39,0.08)" stroke="#b33927" stroke-width="1.5"/>
+            <text x="92" y="142" fill="#b33927" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">App Server 2 (OOM)</text>
+            <text x="92" y="156" fill="#b33927" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">RAM Buffer Full • Crash</text>
+
+            <!-- Node: App Server 3 -->
+            <rect x="24" y="200" width="136" height="48" rx="6" fill="#f5f5f5"/>
+            <rect x="24" y="200" width="136" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <text x="92" y="222" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">App Server 3</text>
+            <text x="92" y="236" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">20,000 req/s</text>
+
+            <!-- Node: ClickHouse Bottleneck -->
+            <rect x="400" y="108" width="144" height="72" rx="6" fill="#f5f5f5"/>
+            <rect x="400" y="108" width="144" height="72" rx="6" fill="rgba(179,57,39,0.08)" stroke="#b33927" stroke-width="1.5"/>
+            <rect x="408" y="114" width="44" height="12" rx="2" fill="transparent" stroke="#b33927" stroke-width="0.8"/>
+            <text x="430" y="123" fill="#b33927" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">BOTTLENECK</text>
+            <text x="472" y="146" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">ClickHouse Cluster</text>
+            <text x="472" y="162" fill="#b33927" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Max 10k/s Inserts Exceeded</text>
+
+            <!-- Node: Dashboard -->
+            <rect x="620" y="116" width="116" height="56" rx="6" fill="#f5f5f5"/>
+            <rect x="620" y="116" width="116" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <text x="678" y="142" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Analytics UI</text>
+            <text x="678" y="156" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">HTTP 504 Timeout</text>
+
+            <!-- Legend Strip -->
+            <line x1="24" y1="268" x2="736" y2="268" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+            <text x="24" y="284" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+            <line x1="96" y1="281" x2="128" y2="281" stroke="#b33927" stroke-width="1.5"/>
+            <text x="136" y="284" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Overloaded Direct Traffic Path</text>
+            <line x1="320" y1="281" x2="352" y2="281" stroke="#b33927" stroke-width="1.2" stroke-dasharray="4,4"/>
+            <text x="360" y="284" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Backpressure Signal / Conn Drops</text>
+          </svg>
+          <div class="diagram-caption">FIG 2.1 — Cascading failure: direct writes saturate analytical storage and cause app node OOM crashes.</div>
+        </div>
+
+        <!-- 3 Examples -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-tag obvious">Obvious Real-World Case</div>
+            <h5>E-Commerce Cyber Monday Rush</h5>
+            <p>A retail website scales from 5 to 50 web servers for Cyber Monday. Every click is sent directly to an internal Elasticsearch cluster. Elasticsearch begins throttling, web servers hold thousands of pending HTTP sockets, and the entire shopping portal dies.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag counter">Counter-Intuitive Case</div>
+            <h5>Why Faster App Servers Make Things Worse</h5>
+            <p>When engineers scale up web servers to absorb traffic spikes, they inadvertently multiply the concurrent connection pressure on the analytical database. Adding more CPU to the app tier accelerates the database's collapse.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag edge">Edge-Case Scenario</div>
+            <h5>Network Partition & Silent Buffer Bloat</h5>
+            <p>A brief 30-second network glitch between the web tier and data warehouse causes retry queues to stack up in memory. Once the network recovers, the sudden deluge of re-transmissions instantly triggers a distributed denial of service on the warehouse.</p>
+          </div>
+        </div>
+
+        <div class="callout-split">
+          <div class="analogy-card">
+            <div class="analogy-header">Visual Analogy</div>
+            <div class="analogy-text">
+              "Connecting app servers directly to an analytics database is like having 100 delivery trucks dump packages directly onto the post office checkout counter at the exact same second. The counter is crushed, packages spill onto the street, and customers cannot even mail letters."
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="misconception-header">❌ What People Get Wrong</div>
+            <div class="misconception-text">
+              Engineers frequently assume "it's just asynchronous logging, so it won't affect the user." But async threads still consume memory. When sockets block on backpressure, buffered messages quickly consume all available RAM, killing the entire process.
+            </div>
+          </div>
+        </div>
+
+        <div class="module-footer-meta">
+          <div class="why-matters">
+            <strong>Why This Matters:</strong> Decoupling data production from data consumption is the central axiom of robust system design. Producers must never rely on consumers being fast.
+          </div>
+          <div class="interlink">
+            🔗 <em>Next up in Module 03:</em> Discover how LinkedIn engineers designed Kafka's append-only partitioned log to act as a resilient shock absorber.
+          </div>
+        </div>
+
+        <!-- Interactive Element 2: Ingestion Surge & Backpressure Simulator -->
+        <div class="interactive-block">
+          <div class="interactive-header">
+            <span class="interactive-title">Live Simulator • Traffic Spike & Backpressure Dynamics</span>
+            <div class="interactive-controls">
+              <button class="sim-btn active" id="btn-traffic-normal">Normal Load (5k/s)</button>
+              <button class="sim-btn" id="btn-traffic-surge">Black Friday Surge (35k/s)</button>
+            </div>
+          </div>
+          <div class="slider-container">
+            <label style="font-size: 13px; font-weight: 500;">Ingress Traffic Rate:</label>
+            <div class="slider-row">
+              <input type="range" id="traffic-slider" min="5000" max="50000" step="2500" value="10000">
+              <div class="slider-metric-box" id="slider-val-display">10,000 req/sec</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0;">
+            <div style="background: var(--paper); padding: 12px; border-radius: 6px; border: 1px solid var(--rule);">
+              <div style="font-family: var(--font-mono); font-size: 11px; color: var(--soft);">CLICKHOUSE CAPACITY</div>
+              <div style="font-size: 14px; font-weight: 600; margin-top: 4px; color: var(--ink);">12,000 req/sec Max</div>
+            </div>
+            <div style="background: var(--paper); padding: 12px; border-radius: 6px; border: 1px solid var(--rule);">
+              <div style="font-family: var(--font-mono); font-size: 11px; color: var(--soft);">APP SERVER MEMORY</div>
+              <div id="sim-app-mem" style="font-size: 14px; font-weight: 600; margin-top: 4px; color: var(--success);">Normal (18% RAM)</div>
+            </div>
+            <div style="background: var(--paper); padding: 12px; border-radius: 6px; border: 1px solid var(--rule);">
+              <div style="font-family: var(--font-mono); font-size: 11px; color: var(--soft);">PIPELINE HEALTH</div>
+              <div id="sim-pipeline-status" style="font-size: 14px; font-weight: 600; margin-top: 4px; color: var(--success);">Healthy • Zero Drops</div>
+            </div>
+          </div>
+          <div class="anim-stage-box" id="sim-backpressure-note">
+            Slide the traffic rate above 12,000 req/sec to observe how direct-push architecture causes memory buffering and server collapse.
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 3 -->
+      <section class="module-section" id="module-3">
+        <div class="module-header">
+          <div class="module-eyebrow">Module 03 • The Kafka Blueprint</div>
+          <h2 class="module-title">Kafka Architecture: Producers, Topics, and Partitions</h2>
+        </div>
+
+        <div class="core-prose">
+          <p>
+            To resolve the backpressure crisis, engineers at LinkedIn created <strong>Apache Kafka</strong>. Rather than functioning like a traditional relational database or an in-memory queue that deletes messages upon consumption (like ActiveMQ or RabbitMQ), Kafka is built entirely around an <strong>append-only commit log on disk</strong>.
+          </p>
+          <p>
+            In Kafka's world, applications producing data are called <em>Producers</em>. A Producer sends events to a named category called a <em>Topic</em> (such as <code>page_views</code>, <code>button_clicks</code>, or <code>user_metrics</code>). But a single topic on a single server could not scale to millions of events per second.
+          </p>
+          <p>
+            Kafka achieves horizontal scalability by splitting each Topic into multiple <strong>Partitions</strong>. Each partition is an independent, ordered, append-only sequence of records stored on disk as a ring buffer. When a producer emits an event, it assigns a partition key (such as <code>user_id</code>), ensuring all events for that specific user land on the exact same partition in strict chronological order.
+          </p>
+          <p>
+            Crucially, Kafka writes these partitions directly to fast filesystem page caches and sequential disk segments. It does not maintain complicated B-tree indexes or execute SQL. By utilizing standard Linux OS page caches and the <code>sendfile</code> zero-copy system call, Kafka delivers astonishing throughput while retaining events on disk for hours, days, or weeks. It prunes old segments automatically only when time retention or storage size limits expire.
+          </p>
+        </div>
+
+        <!-- Diagram 3: Kafka Partitioned Broker Topology (Diagram Design Skill compliant) -->
+        <div class="diagram-frame">
+          <svg class="editorial-diagram" viewBox="0 0 780 320" role="img" aria-labelledby="d3-title d3-desc">
+            <title id="d3-title">Kafka Cluster Architecture with Partitioned Topics</title>
+            <desc id="d3-desc">System diagram showing producers publishing to a topic divided into three independent append-only disk partitions across Kafka brokers, feeding independent consumer groups.</desc>
+            <defs>
+              <marker id="d3-arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+              </marker>
+              <marker id="d3-arr-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- Orthogonal Connectors (Rule 1 & Rule 4) -->
+            <!-- Producers to Partitions -->
+            <path d="M 128 100 L 220 100 A 8 8 0 0 0 228 92 L 228 68 A 8 8 0 0 1 236 60 L 300 60" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#d3-arr)"/>
+            <path d="M 128 144 L 300 144" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d3-arr-accent)"/>
+            <path d="M 128 188 L 220 188 A 8 8 0 0 1 228 196 L 228 220 A 8 8 0 0 0 236 228 L 300 228" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#d3-arr)"/>
+
+            <!-- Partitions to Consumers -->
+            <path d="M 480 60 L 560 60 A 8 8 0 0 1 568 68 L 568 92 A 8 8 0 0 0 576 100 L 640 100" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#d3-arr)"/>
+            <path d="M 480 144 L 640 144" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d3-arr-accent)"/>
+            <path d="M 480 228 L 560 228 A 8 8 0 0 0 568 220 L 568 196 A 8 8 0 0 1 576 188 L 640 188" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#d3-arr)"/>
+
+            <!-- Masked Labels on Connectors (Rule 2) -->
+            <rect x="160" y="80" width="48" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="184" y="89" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">HASH KEY</text>
+
+            <rect x="520" y="124" width="48" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="544" y="133" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">POLL LOG</text>
+
+            <!-- Container Zone: Kafka Cluster Broker -->
+            <rect x="280" y="24" width="220" height="236" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.15)" stroke-dasharray="4,4"/>
+            <text x="390" y="42" fill="#4f5d75" font-size="10" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">KAFKA CLUSTER • TOPIC: "PAGE_VIEWS"</text>
+
+            <!-- Producers Node -->
+            <rect x="24" y="80" width="104" height="128" rx="6" fill="#f5f5f5"/>
+            <rect x="24" y="80" width="104" height="128" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <rect x="32" y="88" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+            <text x="52" y="97" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">PRODUCERS</text>
+            <text x="76" y="130" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Web Apps</text>
+            <text x="76" y="150" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">App Instances</text>
+            <text x="76" y="174" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">High Velocity</text>
+
+            <!-- Partition 0 -->
+            <rect x="300" y="44" width="180" height="40" rx="4" fill="#ffffff" stroke="#4f5d75" stroke-width="1"/>
+            <text x="390" y="62" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Partition 0 [Segments on Disk]</text>
+            <text x="390" y="74" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Offsets: 0..482,910</text>
+
+            <!-- Partition 1 (Focal Accent) -->
+            <rect x="300" y="124" width="180" height="48" rx="4" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.5"/>
+            <text x="390" y="146" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Partition 1 [Ring Buffer]</text>
+            <text x="390" y="160" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Offsets: 0..491,204 (Active Tail)</text>
+
+            <!-- Partition 2 -->
+            <rect x="300" y="208" width="180" height="40" rx="4" fill="#ffffff" stroke="#4f5d75" stroke-width="1"/>
+            <text x="390" y="226" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Partition 2 [Segments on Disk]</text>
+            <text x="390" y="238" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Offsets: 0..488,119</text>
+
+            <!-- Consumers Node -->
+            <rect x="640" y="80" width="116" height="128" rx="6" fill="#f5f5f5"/>
+            <rect x="640" y="80" width="116" height="128" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <rect x="648" y="88" width="48" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+            <text x="672" y="97" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">CONSUMERS</text>
+            <text x="698" y="130" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Consumer Group</text>
+            <text x="698" y="150" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Worker Nodes</text>
+            <text x="698" y="174" fill="#2e5aa8" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">1:1 Partition Map</text>
+
+            <!-- Legend Strip -->
+            <line x1="24" y1="284" x2="756" y2="284" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+            <text x="24" y="300" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+            <rect x="96" y="292" width="10" height="10" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+            <text x="112" y="300" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Active Partition Shard</text>
+            <rect x="260" y="292" width="10" height="10" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.2)" stroke-dasharray="2,2"/>
+            <text x="276" y="300" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Topic Boundary</text>
+          </svg>
+          <div class="diagram-caption">FIG 3.1 — Horizontal partition sharding: independent logs parallelize writes and consumer processing.</div>
+        </div>
+
+        <div class="steps-container">
+          <h4>How Partitioning Enables Infinite Scale</h4>
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-index">01</div>
+              <div class="step-content">
+                <h5>Keyed Partition Assignment</h5>
+                <p>When an event is published, Kafka hashes its partition key: <code>partition = hash(key) % total_partitions</code>. All records with the same key strictly preserve order.</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-index">02</div>
+              <div class="step-content">
+                <h5>Append-Only Log Segments</h5>
+                <p>Each partition appends records to local disk segment files (typically 1GB chunks). Modern SSDs write this data at multi-gigabyte/sec speeds without random seek penalties.</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-index">03</div>
+              <div class="step-content">
+                <h5>Independent Parallel Readers</h5>
+                <p>Inside a consumer group, each worker node is assigned exclusively to read from a single partition, allowing throughput to scale linearly by simply adding partitions.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3 Examples -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-tag obvious">Obvious Real-World Case</div>
+            <h5>LinkedIn Member Updates</h5>
+            <p>Every time a LinkedIn user updates their experience or connections, an event is keyed by <code>member_id</code>. Partitioning ensures all profile changes for Alice arrive sequentially at downstream search indexes.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag counter">Counter-Intuitive Case</div>
+            <h5>Kafka Disks Outperforming RAM</h5>
+            <p>Because Kafka uses sequential I/O and relies on the OS kernel's page cache, writing to disk in Kafka is frequently faster than managing random memory objects in high-overhead Java garbage collectors.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag edge">Edge-Case Scenario</div>
+            <h5>The Celebrity Key Hotspot</h5>
+            <p>If events are keyed by account handle, and an influencer with 50 million followers tweets, 90% of traffic routes to Partition 4. That single partition saturates its broker while other nodes sit idle.</p>
+          </div>
+        </div>
+
+        <div class="callout-split">
+          <div class="analogy-card">
+            <div class="analogy-header">Visual Analogy</div>
+            <div class="analogy-text">
+              "Partitions are like lanes at a highway toll plaza. A single toll booth causes a 5-mile traffic backup. By dividing the highway into 12 distinct lanes, 12 cars pass through simultaneously without getting in each other's way."
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="misconception-header">❌ What People Get Wrong</div>
+            <div class="misconception-text">
+              Many believe Kafka provides total global ordering across an entire topic. It does not! Kafka guarantees strict ordering <strong>only within a single partition</strong>. Events in Partition 1 have no guaranteed ordering relative to Partition 2.
+            </div>
+          </div>
+        </div>
+
+        <div class="module-footer-meta">
+          <div class="why-matters">
+            <strong>Why This Matters:</strong> Knowing that partition count limits maximum consumer concurrency allows architects to design scalable data fabrics before deploying production clusters.
+          </div>
+          <div class="interlink">
+            🔗 <em>Next up in Module 04:</em> Explore how decoupled consumers pull messages independently at their own natural rhythm.
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 4 -->
+      <section class="module-section" id="module-4">
+        <div class="module-header">
+          <div class="module-eyebrow">Module 04 • Decoupled Consumer Architecture</div>
+          <h2 class="module-title">Decoupled Consumers & Asynchronous Speed Balancing</h2>
+        </div>
+
+        <div class="core-prose">
+          <p>
+            In traditional message queue architectures (like JMS or RabbitMQ), the queue actively pushes messages down to consumers and purges each item as soon as a worker acknowledges receipt. This model works well for task distribution, but it fails in data engineering where <strong>multiple independent systems need to process the exact same stream</strong>.
+          </p>
+          <p>
+            Kafka flips this paradigm from <em>push</em> to <em>pull</em>. Kafka is fundamentally a durable, multi-subscriber log. Instead of the broker keeping track of what every client has received, each Consumer simply maintains an integer counter called an <strong>offset</strong> pointing to its current position in the partition log.
+          </p>
+          <p>
+            This pull-based decoupling grants immense operational freedom. You can attach a real-time ClickHouse consumer that reads every event within 20 milliseconds to drive live ops dashboards. Simultaneously, you can run an Apache Spark or MapReduce batch consumer that wakes up once every 4 hours, reads the exact same log from the disk cache, and trains machine learning models.
+          </p>
+          <p>
+            Neither consumer affects the other. If the MapReduce job runs slowly or pauses for garbage collection, Kafka simply stores the unread messages in its disk buffer. The app servers remain completely isolated, continuing to ingest traffic at full speed without fear of downstream saturation.
+          </p>
+        </div>
+
+        <!-- Interactive Animated SVG Diagram: Decoupled Consumers Process (Diagram Design Skill + SVG Animation) -->
+        <div class="diagram-frame">
+          <div class="section-header-row" style="margin-bottom: 8px;">
+            <span style="font-family: var(--font-mono); font-size: 11px; color: var(--accent); text-transform: uppercase;">FIG 4.1 • Dynamic Process Animation</span>
+            <div class="interactive-controls">
+              <button class="sim-btn" id="btn-anim-play">Play Stream</button>
+              <button class="sim-btn" id="btn-anim-pause">Pause</button>
+              <button class="sim-btn" id="btn-anim-reset">Reset</button>
+            </div>
+          </div>
+          <svg class="editorial-diagram" id="anim-stream-svg" viewBox="0 0 780 260" role="img" aria-labelledby="d4-title d4-desc">
+            <title id="d4-title">Asynchronous Stream Decoupling Between Fast and Slow Consumers</title>
+            <desc id="d4-desc">Interactive animated diagram demonstrating how Kafka buffers high-speed producer spikes while fast analytics consumers and slow batch consumers read at independent speeds.</desc>
+            <defs>
+              <marker id="d4-arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+              </marker>
+              <marker id="d4-arr-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- Orthogonal Connectors -->
+            <path d="M 120 120 L 220 120" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d4-arr-accent)"/>
+            <path d="M 440 90 L 520 90 A 8 8 0 0 1 528 82 L 528 68 A 8 8 0 0 1 536 60 L 580 60" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#d4-arr)"/>
+            <path d="M 440 150 L 520 150 A 8 8 0 0 0 528 158 L 528 172 A 8 8 0 0 0 536 180 L 580 180" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3" fill="none" marker-end="url(#d4-arr)"/>
+
+            <rect x="144" y="100" width="56" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="172" y="109" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">50K MSG/S</text>
+
+            <rect x="472" y="44" width="72" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="508" y="53" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">REALTIME PULL</text>
+
+            <rect x="472" y="188" width="72" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="508" y="197" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">BATCH PULL (SLOW)</text>
+
+            <!-- Producer Node -->
+            <rect x="24" y="88" width="96" height="64" rx="6" fill="#f5f5f5"/>
+            <rect x="24" y="88" width="96" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <text x="72" y="118" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">App Servers</text>
+            <text x="72" y="134" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Burst Ingress</text>
+
+            <!-- Kafka Buffer Core (Focal Box) -->
+            <rect x="220" y="50" width="220" height="140" rx="8" fill="#f5f5f5"/>
+            <rect x="220" y="50" width="220" height="140" rx="8" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.5"/>
+            <rect x="232" y="60" width="48" height="12" rx="2" fill="transparent" stroke="#eb6c36" stroke-width="0.8"/>
+            <text x="256" y="69" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">BUFFER</text>
+            <text x="330" y="86" fill="#2d3142" font-size="13" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Kafka Disk Log Buffer</text>
+            <text x="330" y="104" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Multi-Day Retention (SSD)</text>
+
+            <!-- Simulated Ring Segments -->
+            <g id="anim-ring-segments">
+              <rect x="240" y="124" width="28" height="32" rx="2" fill="#ffffff" stroke="#eb6c36" stroke-width="1"/>
+              <text x="254" y="144" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">#101</text>
+
+              <rect x="276" y="124" width="28" height="32" rx="2" fill="#ffffff" stroke="#eb6c36" stroke-width="1"/>
+              <text x="290" y="144" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">#102</text>
+
+              <rect x="312" y="124" width="28" height="32" rx="2" fill="#ffffff" stroke="#eb6c36" stroke-width="1"/>
+              <text x="326" y="144" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">#103</text>
+
+              <rect x="348" y="124" width="28" height="32" rx="2" fill="#ffffff" stroke="#eb6c36" stroke-width="1"/>
+              <text x="362" y="144" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">#104</text>
+
+              <rect x="384" y="124" width="28" height="32" rx="2" fill="rgba(235,108,54,0.3)" stroke="#eb6c36" stroke-width="1"/>
+              <text x="398" y="144" fill="#2d3142" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="600">HEAD</text>
+            </g>
+
+            <!-- Fast Consumer: ClickHouse -->
+            <rect x="580" y="32" width="160" height="56" rx="6" fill="#f5f5f5"/>
+            <rect x="580" y="32" width="160" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <text x="660" y="54" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">ClickHouse Consumer</text>
+            <text x="660" y="70" fill="#2e5aa8" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Offset: #104 (Lag: 0 ms)</text>
+
+            <!-- Slow Consumer: MapReduce / Batch -->
+            <rect x="580" y="152" width="160" height="56" rx="6" fill="#f5f5f5"/>
+            <rect x="580" y="152" width="160" height="56" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+            <text x="660" y="174" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">MapReduce Batch Job</text>
+            <text x="660" y="190" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Offset: #082 (Lag: 22 chunks)</text>
+
+            <!-- Animated traveling pulse dot -->
+            <circle id="anim-pulse-dot" cx="170" cy="120" r="4" fill="#eb6c36" opacity="0"/>
+
+            <!-- Legend Strip -->
+            <line x1="24" y1="228" x2="756" y2="228" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+            <text x="24" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+            <line x1="96" y1="241" x2="128" y2="241" stroke="#eb6c36" stroke-width="1.5"/>
+            <text x="136" y="244" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">High-Speed Ingestion Stream</text>
+            <line x1="320" y1="241" x2="352" y2="241" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3"/>
+            <text x="360" y="244" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Independent Asynchronous Pull</text>
+          </svg>
+          <div class="diagram-caption">FIG 4.1 — Fast consumer runs at head of log; batch job reads hours behind without impacting upstream producers.</div>
+        </div>
+
+        <!-- 3 Examples -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-tag obvious">Obvious Real-World Case</div>
+            <h5>Real-Time Dashboard vs Daily Reports</h5>
+            <p>A banking app sends all credit card authorizations into a Kafka topic. Fraud detection reads events in 5 milliseconds to block stolen cards, while the nightly statement generation job reads the same log 12 hours later.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag counter">Counter-Intuitive Case</div>
+            <h5>Replaying Historical Bugs from 3 Days Ago</h5>
+            <p>A bug in a consumer service corrupts database entries. With traditional queues, those messages are gone forever. With Kafka, engineers fix the code, rewind the consumer's offset to 3 days prior, and replay the stream cleanly.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag edge">Edge-Case Scenario</div>
+            <h5>The Poison Pill Offset Stall</h5>
+            <p>A malformed message causes a consumer process to crash with an unhandled exception every time it reads Offset #4910. The consumer enters an infinite crash-restart loop, halting progression for that entire partition.</p>
+          </div>
+        </div>
+
+        <div class="callout-split">
+          <div class="analogy-card">
+            <div class="analogy-header">Visual Analogy</div>
+            <div class="analogy-text">
+              "Kafka is like an audio podcast recording on a server. The live radio producer speaks once. A commuter listens in real time, while a student pauses, rewinds 10 minutes, or listens at 2x speed. The host never repeats themselves."
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="misconception-header">❌ What People Get Wrong</div>
+            <div class="misconception-text">
+              Developers accustomed to RabbitMQ assume reading an event removes it from the broker. In Kafka, consumption is completely non-destructive; reading a message does not modify or delete the log segment.
+            </div>
+          </div>
+        </div>
+
+        <div class="module-footer-meta">
+          <div class="why-matters">
+            <strong>Why This Matters:</strong> Decoupled consumer offsets enable seamless evolutionary architecture: new microservices can be deployed and fed historical data streams without re-architecting existing pipelines.
+          </div>
+          <div class="interlink">
+            🔗 <em>Next up in Module 05:</em> Learn how multi-consumer scaling introduces the critical danger of message order inversion during node failures.
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 5 -->
+      <section class="module-section" id="module-5">
+        <div class="module-header">
+          <div class="module-eyebrow">Module 05 • Distributed Failure Modes</div>
+          <h2 class="module-title">The Ordering Dilemma: Retries, Crashes, and Inversions</h2>
+        </div>
+
+        <div class="core-prose">
+          <p>
+            One of the most profound chapters of <em>Designing Data-Intensive Applications</em> covers how distributed messaging systems fail. It is seductive to believe that once messages enter a message broker in order (M1, M2, M3, M4), downstream systems will process them in that exact same order. In distributed architectures, this assumption is dangerous.
+          </p>
+          <p>
+            To achieve high processing throughput, developers frequently distribute messages across a pool of parallel consumer workers. For instance, Broker dispatches Message 1 to Consumer A, and Message 2 to Consumer B. But what happens if Consumer B experiences a sudden JVM pause, a network partition, or a kernel crash?
+          </p>
+          <p>
+            As illustrated in Chapter 11, imagine Producer 1 sends M1, then Producer 2 sends M2. The broker receives them cleanly in sequence. Next, M3 is dispatched to Consumer 2, and M4 is dispatched to Consumer 1. Before Consumer 2 can process M3 and send an acknowledgment (ACK) back to the broker, Consumer 2 crashes.
+          </p>
+          <p>
+            Meanwhile, Consumer 1 happily processes M4 and acknowledges it. Seeing that Consumer 2 has died without ACKing M3, the broker's timeout fires. The broker re-delivers M3 to Consumer 1.
+          </p>
+          <p>
+            Look at the resulting timeline recorded in the downstream database: <strong>M1, M2, M4, M3</strong>! The sequence has been corrupted. If M3 was an account creation and M4 was an account deletion, the system now attempts to delete an account before it is created, leaving a zombie active record forever.
+          </p>
+        </div>
+
+        <!-- Diagram 5: Message Ordering Anomaly Failure Flow (Diagram Design Skill compliant) -->
+        <div class="diagram-frame">
+          <svg class="editorial-diagram" viewBox="0 0 780 340" role="img" aria-labelledby="d5-title d5-desc">
+            <title id="d5-title">Distributed Message Ordering Inversion During Consumer Crash</title>
+            <desc id="d5-desc">Sequence diagram illustrating how a crash of Consumer 2 causes message 3 to be redelivered after message 4, producing out-of-order execution.</desc>
+            <defs>
+              <marker id="d5-arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+              </marker>
+              <marker id="d5-arr-danger" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#b33927"/>
+              </marker>
+              <marker id="d5-arr-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- Orthogonal Connectors (Rule 1: No diagonal lines!) -->
+            <!-- Step 1: M3 sent to Consumer 2 -->
+            <path d="M 280 120 L 400 120 A 8 8 0 0 1 408 128 L 408 180 A 8 8 0 0 1 416 188 L 480 188" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#d5-arr)"/>
+            <rect x="330" y="100" width="48" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="354" y="109" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">DISPATCH M3</text>
+
+            <!-- Step 2: M4 sent to Consumer 1 -->
+            <path d="M 280 80 L 480 80" stroke="#4f5d75" stroke-width="1.2" fill="none" marker-end="url(#d5-arr)"/>
+            <rect x="330" y="60" width="48" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="354" y="69" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">DISPATCH M4</text>
+
+            <!-- Step 3: Consumer 2 Crash (Cross marker) -->
+            <line x1="536" y1="172" x2="552" y2="188" stroke="#b33927" stroke-width="2"/>
+            <line x1="552" y1="172" x2="536" y2="188" stroke="#b33927" stroke-width="2"/>
+
+            <!-- Step 4: Redelivery of M3 to Consumer 1 (Focal Accent) -->
+            <path d="M 280 144 L 340 144 A 8 8 0 0 0 348 136 L 348 96 A 8 8 0 0 1 356 88 L 480 88" stroke="#eb6c36" stroke-width="1.5" stroke-dasharray="4,3" fill="none" marker-end="url(#d5-arr-accent)"/>
+            <rect x="336" y="148" width="76" height="12" rx="2" fill="#f5f5f5"/>
+            <text x="374" y="157" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">REDELIVER M3 (LATE)</text>
+
+            <!-- Connect Consumer 1 to Database Timeline -->
+            <path d="M 600 80 L 660 80" stroke="#2e5aa8" stroke-width="1.2" fill="none" marker-end="url(#d5-arr)"/>
+
+            <!-- Node: Broker Queue -->
+            <rect x="140" y="48" width="140" height="128" rx="6" fill="#f5f5f5"/>
+            <rect x="140" y="48" width="140" height="128" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <rect x="148" y="56" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+            <text x="166" y="65" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">BROKER</text>
+            <text x="210" y="88" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Kafka / Broker</text>
+            <text x="210" y="108" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Order: M1,M2,M3,M4</text>
+            <text x="210" y="128" fill="#b33927" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Un-acked: M3</text>
+
+            <!-- Node: Consumer 1 -->
+            <rect x="480" y="56" width="120" height="56" rx="6" fill="#f5f5f5"/>
+            <rect x="480" y="56" width="120" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <text x="540" y="80" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Consumer 1</text>
+            <text x="540" y="96" fill="#2e5aa8" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Processes M4, then M3</text>
+
+            <!-- Node: Consumer 2 (Crashed) -->
+            <rect x="480" y="160" width="120" height="56" rx="6" fill="#f5f5f5"/>
+            <rect x="480" y="160" width="120" height="56" rx="6" fill="rgba(179,57,39,0.08)" stroke="#b33927" stroke-width="1.5"/>
+            <text x="540" y="184" fill="#b33927" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Consumer 2 (Crashed)</text>
+            <text x="540" y="200" fill="#b33927" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">No ACK Sent for M3</text>
+
+            <!-- Node: Downstream Timeline (Inverted order result) -->
+            <rect x="660" y="48" width="104" height="168" rx="6" fill="#f5f5f5"/>
+            <rect x="660" y="48" width="104" height="168" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+            <rect x="668" y="56" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.4)" stroke-width="0.8"/>
+            <text x="686" y="65" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle">RESULT</text>
+            <text x="712" y="88" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Event Store</text>
+            <text x="712" y="112" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">1. M1 ✓</text>
+            <text x="712" y="132" fill="#4f5d75" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle">2. M2 ✓</text>
+            <text x="712" y="152" fill="#2e5aa8" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="600">3. M4 (Early!)</text>
+            <text x="712" y="172" fill="#b33927" font-size="10" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="600">4. M3 (Late!)</text>
+
+            <!-- Legend Strip -->
+            <line x1="24" y1="300" x2="756" y2="300" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+            <text x="24" y="316" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+            <line x1="96" y1="313" x2="128" y2="313" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="136" y="316" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Original Message Dispatch</text>
+            <line x1="320" y1="313" x2="352" y2="313" stroke="#eb6c36" stroke-width="1.5" stroke-dasharray="4,3"/>
+            <text x="360" y="316" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">Timeout Triggered Redelivery Path</text>
+          </svg>
+          <div class="diagram-caption">FIG 5.1 — DDIA Chapter 11 failure scenario: Consumer 2 crash forces re-delivery of M3 behind M4.</div>
+        </div>
+
+        <div class="steps-container">
+          <h4>How to Prevent Message Inversion</h4>
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-index">01</div>
+              <div class="step-content">
+                <h5>Single Consumer per Partition</h5>
+                <p>Kafka solves this by strictly forbidding multiple consumers from reading the same partition. Parallelism happens across partitions, never within a partition.</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-index">02</div>
+              <div class="step-content">
+                <h5>Idempotent Producer Keys</h5>
+                <p>Producers attach unique sequence IDs. Even if a network retry resends M3, the storage engine detects duplicate sequences and ignores it.</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-index">03</div>
+              <div class="step-content">
+                <h5>Idempotent State Operations</h5>
+                <p>Designing operations as upserts rather than increments (e.g. <code>SET balance = 100</code> rather than <code>ADD balance, 100</code>) renders out-of-order redeliveries harmless.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3 Examples -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-tag obvious">Obvious Real-World Case</div>
+            <h5>Chat App Out-of-Order Replies</h5>
+            <p>User Alice sends "Want lunch?" followed by "Nevermind, busy." Because of a mobile connection retry, the recipient receives the cancellation first, then the invitation, leading to total social confusion.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag counter">Counter-Intuitive Case</div>
+            <h5>Why Two-Phase Commit (2PC) Destroys Throughput</h5>
+            <p>You can guarantee strict global ordering with distributed consensus protocols like 2PC or Raft, but network round-trip coordination caps throughput to a few hundred transactions per second.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag edge">Edge-Case Scenario</div>
+            <h5>Split-Brain Consumer Group Rebalance</h5>
+            <p>A long garbage collection pause makes the Kafka coordinator believe Consumer A is dead. It reassigns the partition to Consumer B. When Consumer A wakes up, both consumers briefly process the same partition concurrently.</p>
+          </div>
+        </div>
+
+        <div class="callout-split">
+          <div class="analogy-card">
+            <div class="analogy-header">Visual Analogy</div>
+            <div class="analogy-text">
+              "Ordering anomalies are like two cooks in a burger diner. Cook 1 gets the order for the patty; Cook 2 gets the bun. Cook 1 slips and drops the patty. Cook 2 serves the dry bun first, and five minutes later Cook 1 slaps a burger on the table by itself."
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="misconception-header">❌ What People Get Wrong</div>
+            <div class="misconception-text">
+              Engineers frequently assume that if a broker's internal queue is strictly FIFO (First-In, First-Out), the end-to-end pipeline is guaranteed to be FIFO. But as soon as concurrent workers or retries exist, FIFO guarantees evaporate.
+            </div>
+          </div>
+        </div>
+
+        <div class="module-footer-meta">
+          <div class="why-matters">
+            <strong>Why This Matters:</strong> Designing for eventual consistency requires embracing the reality that events will occasionally arrive out of order, demanding idempotent application logic.
+          </div>
+          <div class="interlink">
+            🔗 <em>Next up in Module 06:</em> Synthesize the grand architectural trade-offs: why relaxed guarantees make modern internet scale possible.
+          </div>
+        </div>
+
+        <!-- Interactive Element 3: Interactive Ordering Stepper -->
+        <div class="interactive-block">
+          <div class="interactive-header">
+            <span class="interactive-title">Interactive Failure Walkthrough • Watch The Inversion Occur</span>
+            <div class="interactive-controls">
+              <button class="sim-btn" id="btn-step-order">Advance Step</button>
+              <button class="sim-btn" id="btn-reset-order">Reset</button>
+            </div>
+          </div>
+          <div style="font-size: 13px; font-family: var(--font-mono); color: var(--accent); margin-bottom: 8px;" id="order-step-num">
+            STAGE 0 / 4: Initial Steady State
+          </div>
+          <div class="anim-stage-box" id="order-step-desc">
+            Click <strong>"Advance Step"</strong> to walk through the exact failure sequence where message 3 gets processed after message 4.
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 14px; font-family: var(--font-mono); font-size: 12px;">
+            <div style="padding: 6px 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px;" id="box-m1">M1: Produced</div>
+            <div style="padding: 6px 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px;" id="box-m2">M2: Produced</div>
+            <div style="padding: 6px 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px;" id="box-m3">M3: In Flight</div>
+            <div style="padding: 6px 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px;" id="box-m4">M4: In Flight</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 6 -->
+      <section class="module-section" id="module-6">
+        <div class="module-header">
+          <div class="module-eyebrow">Module 06 • Architectural Philosophy & Mindset</div>
+          <h2 class="module-title">Trade-Offs, Postgres Extensions, and The Engineer's Mindset</h2>
+        </div>
+
+        <div class="core-prose">
+          <p>
+            When LinkedIn engineers designed Kafka, they made a deliberate, conscious compromise: <strong>they were willing to tolerate occasional data loss in exchange for extraordinary performance</strong>. For user click streams, telemetry, and social activity feeds, losing 0.001% of records during a hardware crash is completely acceptable; grinding the entire site to a halt because of two-phase commit overhead is not.
+          </p>
+          <p>
+            A common question from engineers is: <em>"Why not just install TimescaleDB, pg_analytics, or custom extensions in PostgreSQL to handle our event streams?"</em>
+          </p>
+          <p>
+            PostgreSQL has a magnificent extension ecosystem, and for early-stage or moderate-load systems, keeping everything inside Postgres is often a brilliant simplicity win. However, as systems grow, stuffing high-velocity streams into Postgres creates an acute scaling bottleneck: <strong>you cannot scale components independently</strong>.
+          </p>
+          <p>
+            When a Black Friday traffic surge occurs, your analytical streaming queries compete directly for CPU, memory, and disk I/O with mission-critical user login transactions and credit card checkouts. If the analytics indexing locks up the database, user transactions fail. A dedicated streaming tier (like Kafka) establishes a clean separation of concerns.
+          </p>
+          <p>
+            Finally, the transcript touches on an essential meta-lesson for modern software engineers in the era of AI and low-code tools. Drag-and-drop platforms and automated AI generators can scaffold initial applications quickly. But when massive scale arrives, or when subtle distributed concurrency bugs surface, generic AI tools cannot save you. True engineering excellence requires understanding the underlying data structures: the difference between B-Trees, LSM-Trees, and sequential append logs.
+          </p>
+        </div>
+
+        <!-- 3 Examples -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-tag obvious">Obvious Real-World Case</div>
+            <h5>Separating Financial OLTP from Analytics</h5>
+            <p>Stripe processes payments on a strictly audited, ACID-compliant relational cluster. But page telemetry, checkout drop-off rates, and API latency metrics are streamed through Kafka into analytical warehouses.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag counter">Counter-Intuitive Case</div>
+            <h5>When Postgres Extensions are Actually the Right Choice</h5>
+            <p>If your startup processes 500 events per second, running a 3-node Kafka cluster and a ClickHouse cluster introduces massive operational overhead. A simple Postgres table with partitioning is 10x easier to maintain.</p>
+          </div>
+          <div class="example-card">
+            <div class="example-tag edge">Edge-Case Scenario</div>
+            <h5>The "Vibe-Coded" Architecture Trap</h5>
+            <p>An AI coding tool scaffolds an application storing time-series sensor telemetry in a default PostgreSQL table with 6 B-Tree indexes. At 20,000 writes/sec, index maintenance locks the CPU at 100%, taking down the startup's entire platform.</p>
+          </div>
+        </div>
+
+        <div class="callout-split">
+          <div class="analogy-card">
+            <div class="analogy-header">Visual Analogy</div>
+            <div class="analogy-text">
+              "A Swiss Army knife has scissors, a screwdriver, and a toothpick. It's great when camping. But you wouldn't use a Swiss Army knife to fell an oak tree in an industrial timber yard. Specialized high-volume jobs require industrial chainsaws."
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="misconception-header">❌ What People Get Wrong</div>
+            <div class="misconception-text">
+              Junior engineers often ask "Which database is objectively the best?" Senior engineers know the answer is always "It depends on the trade-offs." Every architectural strength in one dimension is bought with weaknesses in another.
+            </div>
+          </div>
+        </div>
+
+        <div class="module-footer-meta">
+          <div class="why-matters">
+            <strong>Why This Matters:</strong> Choosing technology based on its foundational data structure rather than hype prevents costly, multi-month migration rewrites down the road.
+          </div>
+          <div class="interlink">
+            🔗 <em>Wrapping up:</em> Check the complete Summary Cheat Sheet, Interactive Flashcards, Drag-and-Drop Drill, and FAQ below!
+          </div>
+        </div>
+      </section>
+
+      <!-- INTERACTIVE SECTION: FLASHCARDS (Interactive Element 4) -->
+      <section class="interactive-block" id="interactive-flashcards">
+        <div class="interactive-header">
+          <span class="interactive-title">Memory Drill • Core Concept Flashcards (Click to Flip)</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--soft);">6 Cards • Active Recall</span>
+        </div>
+        <div class="flashcard-deck">
+          <!-- Card 1 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="flashcard-front">
+                <span class="flashcard-tag">STORAGE ENGINE</span>
+                <div class="flashcard-term">Write-Ahead Log (WAL)</div>
+                <div class="flashcard-hint">Click to reveal definition</div>
+              </div>
+              <div class="flashcard-back">
+                <div class="flashcard-def">An append-only sequential disk log where database changes are recorded before applying them to in-memory pages or B-tree files, guaranteeing durability at high speed.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="flashcard-front">
+                <span class="flashcard-tag">FAILURE MODE</span>
+                <div class="flashcard-term">Backpressure</div>
+                <div class="flashcard-hint">Click to reveal definition</div>
+              </div>
+              <div class="flashcard-back">
+                <div class="flashcard-def">Resistance pushed upstream when a downstream consumer cannot handle data at the producer's ingress rate, causing memory buffers to fill and crash.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="flashcard-front">
+                <span class="flashcard-tag">DISTRIBUTED SCALING</span>
+                <div class="flashcard-term">Topic Partition</div>
+                <div class="flashcard-hint">Click to reveal definition</div>
+              </div>
+              <div class="flashcard-back">
+                <div class="flashcard-def">An independent, append-only commit log slice within a Kafka topic that acts as the unit of horizontal parallelism and strict ordering.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 4 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="flashcard-front">
+                <span class="flashcard-tag">CONSUMPTION MODEL</span>
+                <div class="flashcard-term">Consumer Offset</div>
+                <div class="flashcard-hint">Click to reveal definition</div>
+              </div>
+              <div class="flashcard-back">
+                <div class="flashcard-def">A sequential integer maintained by the consumer tracking its exact read position in a partition, enabling non-destructive reads and stream replay.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 5 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="flashcard-front">
+                <span class="flashcard-tag">ORDERING</span>
+                <div class="flashcard-term">Message Inversion</div>
+                <div class="flashcard-hint">Click to reveal definition</div>
+              </div>
+              <div class="flashcard-back">
+                <div class="flashcard-def">When message M3 fails or times out on one consumer while M4 succeeds on another, causing M3's subsequent retry to be processed out-of-order after M4.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 6 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-inner">
+              <div class="flashcard-front">
+                <span class="flashcard-tag">HARDWARE REALITY</span>
+                <div class="flashcard-term">Sequential vs Random I/O</div>
+                <div class="flashcard-hint">Click to reveal definition</div>
+              </div>
+              <div class="flashcard-back">
+                <div class="flashcard-def">Sequential writes stream continuous blocks with zero disk head movement, outperforming random page mutations by orders of magnitude on both SSDs and HDDs.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- INTERACTIVE SECTION: DRAG AND DROP MATCHING (Interactive Element 5) -->
+      <section class="interactive-block" id="interactive-dnd">
+        <div class="interactive-header">
+          <span class="interactive-title">Architectural Matching Drill • Components & Roles</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--soft);">Drag each component to its role</span>
+        </div>
+        <p style="font-size: 13px; color: var(--ink-secondary); margin-bottom: 16px;">
+          Match the architectural component on the left with its core operational responsibility on the right:
+        </p>
+
+        <div class="dnd-container">
+          <div class="dnd-column" id="dnd-source-col">
+            <div class="dnd-card" draggable="true" data-match="wal">Write-Ahead Log (WAL)</div>
+            <div class="dnd-card" draggable="true" data-match="partition">Kafka Partition</div>
+            <div class="dnd-card" draggable="true" data-match="offset">Consumer Offset</div>
+            <div class="dnd-card" draggable="true" data-match="clickhouse">ClickHouse OLAP</div>
+          </div>
+
+          <div class="dnd-column">
+            <div class="dnd-slot" data-slot="wal">
+              <span class="slot-text">Guarantees durability via sequential append before RAM flush</span>
+            </div>
+            <div class="dnd-slot" data-slot="partition">
+              <span class="slot-text">The unit of sharding and parallelism in an event broker</span>
+            </div>
+            <div class="dnd-slot" data-slot="offset">
+              <span class="slot-text">Non-destructive pointer tracking reader progress</span>
+            </div>
+            <div class="dnd-slot" data-slot="clickhouse">
+              <span class="slot-text">Column-oriented database optimized for real-time dashboards</span>
+            </div>
+          </div>
+        </div>
+        <div id="dnd-feedback" style="margin-top: 14px; font-size: 13px; font-weight: 500; display: none;"></div>
+      </section>
+
+      <!-- INTERACTIVE CHECKPOINT QUIZZES (Interactive Element 6) -->
+      <section class="interactive-block" id="interactive-quiz">
+        <div class="interactive-header">
+          <span class="interactive-title">Knowledge Checkpoints • Chapter 11 Verification</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--soft);">Instant Feedback</span>
+        </div>
+
+        <div class="quiz-card" id="q1">
+          <div class="quiz-q">1. Why is writing to a Write-Ahead Log (WAL) dramatically faster than directly updating table pages on disk?</div>
+          <div class="quiz-options">
+            <button class="quiz-btn" onclick="checkQuiz(1, 0, false)">A. The WAL compresses data using zip algorithms before writing.</button>
+            <button class="quiz-btn" onclick="checkQuiz(1, 1, true)">B. WAL writes are strictly sequential appends, avoiding expensive random block writes and B-tree rebalances.</button>
+            <button class="quiz-btn" onclick="checkQuiz(1, 2, false)">C. The WAL exists only in RAM and is never written to disk.</button>
+          </div>
+          <div class="quiz-feedback" id="q1-fb"></div>
+        </div>
+
+        <div class="quiz-card" id="q2">
+          <div class="quiz-q">2. What primarily causes app servers to crash with Out-of-Memory (OOM) errors during traffic surges when directly connected to analytical databases?</div>
+          <div class="quiz-options">
+            <button class="quiz-btn" onclick="checkQuiz(2, 0, false)">A. The app servers run out of hard drive space.</button>
+            <button class="quiz-btn" onclick="checkQuiz(2, 1, true)">B. The database throttles connections (backpressure), forcing app servers to buffer millions of events in finite RAM.</button>
+            <button class="quiz-btn" onclick="checkQuiz(2, 2, false)">C. The analytical database sends too many query results back to the app server.</button>
+          </div>
+          <div class="quiz-feedback" id="q2-fb"></div>
+        </div>
+
+        <div class="quiz-card" id="q3">
+          <div class="quiz-q">3. Under what scope does Kafka guarantee strict message ordering?</div>
+          <div class="quiz-options">
+            <button class="quiz-btn" onclick="checkQuiz(3, 0, false)">A. Globally across all topics in the entire cluster.</button>
+            <button class="quiz-btn" onclick="checkQuiz(3, 1, false)">B. Across all partitions within a single topic.</button>
+            <button class="quiz-btn" onclick="checkQuiz(3, 2, true)">C. Strictly within a single partition of a topic.</button>
+          </div>
+          <div class="quiz-feedback" id="q3-fb"></div>
+        </div>
+      </section>
+
+      <!-- SUMMARY & CHEAT SHEET -->
+      <section class="summary-section" id="summary">
+        <div class="module-eyebrow">Reference Guide</div>
+        <h2 class="module-title" style="margin-bottom: 20px;">Summary & Architectural Cheat Sheet</h2>
+        <p style="font-size: 15px; color: var(--ink-secondary); margin-bottom: 24px;">
+          Keep these foundational principles and component comparisons close when designing production data pipelines:
+        </p>
+
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th>System / Pattern</th>
+              <th>Primary Role</th>
+              <th>Key Data Structure</th>
+              <th>Ordering Guarantee</th>
+              <th>Core Trade-off</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>PostgreSQL WAL</strong></td>
+              <td>OLTP Transaction Durability</td>
+              <td>Append-only sequential log (<code>pg_wal</code>)</td>
+              <td>Strict serial commit per session</td>
+              <td>High write speed; requires periodic checkpoint flush</td>
+            </tr>
+            <tr>
+              <td><strong>Direct Analytical Push</strong></td>
+              <td>Simple early-stage telemetry</td>
+              <td>Direct TCP / HTTP sockets to warehouse</td>
+              <td>None guaranteed under retries</td>
+              <td>Simple setup; highly vulnerable to backpressure OOM crashes</td>
+            </tr>
+            <tr>
+              <td><strong>Kafka Topic Partition</strong></td>
+              <td>Decoupled high-velocity streaming buffer</td>
+              <td>Append-only disk ring buffer segments</td>
+              <td>Strict ordering <em>per partition</em> only</td>
+              <td>Relaxes global order & strict 2PC for massive throughput</td>
+            </tr>
+            <tr>
+              <td><strong>ClickHouse OLAP</strong></td>
+              <td>Real-time analytical dashboards</td>
+              <td>Column-oriented MergeTree / LSM</td>
+              <td>Batch-ordered on disk merge</td>
+              <td>Fast aggregations; poor for individual row updates</td>
+            </tr>
+            <tr>
+              <td><strong>MapReduce / Spark Batch</strong></td>
+              <td>Deep historical analysis & ML</td>
+              <td>Distributed chunked file scans (HDFS/S3)</td>
+              <td>Deterministic batch sorting</td>
+              <td>Processes petabytes cheaply; high query latency</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- FAQ Section -->
+        <h3 style="font-family: var(--font-serif); font-size: 26px; margin: 40px 0 16px; font-weight: 400;">
+          Frequently Asked Questions
+        </h3>
+        <div class="faq-list">
+          <div class="faq-item">
+            <div class="faq-question">Q: Why doesn't Kafka delete messages after a consumer reads them like RabbitMQ does?</div>
+            <div class="faq-answer">
+              Because Kafka is an immutable distributed commit log, not a transient message queue. Retaining messages on disk allows multiple distinct consumers (e.g. real-time fraud alerts and a 4-hour batch job) to read the same stream independently, and permits rewinding consumer offsets to replay data after bug fixes.
+            </div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-question">Q: Can I just use PostgreSQL extensions (like TimescaleDB or Citus) instead of installing Kafka?</div>
+            <div class="faq-answer">
+              For modest throughput (under a few thousand events/sec), yes. But at scale, coupling analytical event ingestion to your primary relational database creates CPU and disk contention that threatens critical user transactions. A separate streaming buffer provides critical isolation.
+            </div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-question">Q: What is the recommended strategy when messages arrive out of order due to network retries?</div>
+            <div class="faq-answer">
+              Design downstream event handlers to be <strong>idempotent</strong>. Use unique transaction identifiers and state-based assignments (e.g. <code>SET status = 'APPROVED'</code>) rather than delta increments, or attach logical version numbers to reject stale older events.
+            </div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-question">Q: Is reading <em>Designing Data-Intensive Applications</em> mandatory for learning AWS or DevOps?</div>
+            <div class="faq-answer">
+              As discussed in the stream, no book is strictly mandatory, and DDIA will not teach you AWS CLI commands or how to configure EC2 instances. What it teaches is the permanent, timeless architecture of distributed systems, storage engines, and consensus, enabling you to make sound decisions on any cloud provider.
+            </div>
+          </div>
+        </div>
+
+        <!-- Next Steps -->
+        <h3 style="font-family: var(--font-serif); font-size: 24px; margin: 40px 0 16px; font-weight: 400;">
+          Recommended Next Steps
+        </h3>
+        <div class="next-steps-grid">
+          <div class="next-step-card">
+            <h4>1. Read the Original Kafka Paper</h4>
+            <p>Read <em>"Kafka: a Distributed Messaging System for Log Processing"</em> by Jay Kreps et al. (LinkedIn, 2011). It is concise, practical, and outlines the original performance benchmarks against ActiveMQ and RabbitMQ.</p>
+          </div>
+          <div class="next-step-card">
+            <h4>2. Inspect PostgreSQL WAL Internals</h4>
+            <p>Run <code>pg_waldump</code> on a local PostgreSQL installation to inspect the physical binary records generated when executing basic <code>INSERT</code> and <code>UPDATE</code> statements.</p>
+          </div>
+          <div class="next-step-card">
+            <h4>3. Prepare for DDIA Chapter 12</h4>
+            <p>Chapter 12 ("The Future of Data Systems") synthesizes batch processing, stream processing, and unbundled databases into a unified vision of data architecture.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <div>Designing Data-Intensive Applications Study Series • Chapter 11 Lesson</div>
+    <div>Static Editorial System • Zero External Frameworks • Pure SVG</div>
+  </footer>
+
+  <!-- Script: Interactivity, Dark Mode, Animations, Simulators -->
+  <script>
+    // 1. Reading Progress Bar & Sidebar Scrollspy
+    window.addEventListener('scroll', () => {
+      const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      document.getElementById('progress-bar').style.width = scrolled + '%';
+
+      // Scrollspy active link
+      const sections = document.querySelectorAll('.module-section, .hero, .summary-section');
+      let currentId = '';
+      sections.forEach(sec => {
+        const top = sec.offsetTop - 120;
+        if (winScroll >= top) {
+          currentId = sec.getAttribute('id');
+        }
+      });
+      document.querySelectorAll('.sidebar-nav-item a').forEach(a => {
+        a.classList.remove('active');
+        if (a.getAttribute('href') === '#' + currentId) {
+          a.classList.add('active');
+        }
+      });
+    });
+
+    // 2. Dark/Light Mode Toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    let isDark = false;
+
+    // Check system preference
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.body.setAttribute('data-theme', 'dark');
+      isDark = true;
+      themeIcon.textContent = '☼';
+    }
+
+    themeBtn.addEventListener('click', () => {
+      isDark = !isDark;
+      if (isDark) {
+        document.body.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '☼';
+      } else {
+        document.body.removeAttribute('data-theme');
+        themeIcon.textContent = '◐';
+      }
+    });
+
+    // 3. Module 1: Interactive WAL Commit Simulator
+    let walStep = 0;
+    const btnStepWal = document.getElementById('btn-step-wal');
+    const btnResetWal = document.getElementById('btn-reset-wal');
+    const ramStatus = document.getElementById('sim-ram-status');
+    const walStatus = document.getElementById('sim-wal-status');
+    const diskStatus = document.getElementById('sim-disk-status');
+    const walExpl = document.getElementById('sim-wal-expl');
+
+    const walStages = [
+      {
+        ram: "Dirty page cached in RAM (offset 0x884)",
+        wal: "Pending sequential write buffer...",
+        disk: "Idle",
+        text: "<strong>Step 1 (RAM Write):</strong> Postgres modifies the page in RAM and marks it 'dirty'. Total latency: <0.01 ms. The user has not yet received confirmation."
+      },
+      {
+        ram: "Dirty page cached in RAM",
+        wal: "Appended & Synced (+128 bytes, fsync)",
+        disk: "Idle",
+        text: "<strong>Step 2 (WAL Disk Append):</strong> A compact delta is appended to <code>pg_wal</code> sequentially. The client receives commit acknowledgment. Safety is guaranteed."
+      },
+      {
+        ram: "Page cleaned in buffer pool",
+        wal: "Retained for recovery/replication",
+        disk: "Flushed 8KB page to heap table file",
+        text: "<strong>Step 3 (Checkpoint Flush):</strong> Minutes later, background checkpoint process lazily writes the dirty page to the main table data file on disk."
+      }
+    ];
+
+    btnStepWal.addEventListener('click', () => {
+      if (walStep < walStages.length) {
+        const s = walStages[walStep];
+        ramStatus.innerHTML = s.ram;
+        walStatus.innerHTML = s.wal;
+        diskStatus.innerHTML = s.disk;
+        walExpl.innerHTML = s.text;
+        walStep++;
+      } else {
+        walExpl.innerHTML = "<em>Cycle complete. Click Reset to run the insert simulation again.</em>";
+      }
+    });
+
+    btnResetWal.addEventListener('click', () => {
+      walStep = 0;
+      ramStatus.textContent = "Clean (0 dirty pages)";
+      walStatus.textContent = "Offset: 0 bytes";
+      diskStatus.textContent = "Idle (0 disk syncs)";
+      walExpl.innerHTML = "Click <strong>'Trigger Insert Step'</strong> to walk through how the database handles writes without blocking for slow table page updates.";
+    });
+
+    // 4. Module 2: Traffic Surge & Backpressure Simulator
+    const slider = document.getElementById('traffic-slider');
+    const sliderVal = document.getElementById('slider-val-display');
+    const simAppMem = document.getElementById('sim-app-mem');
+    const simPipeStatus = document.getElementById('sim-pipeline-status');
+    const simNote = document.getElementById('sim-backpressure-note');
+    const sidebarRate = document.getElementById('sidebar-rate');
+    const sidebarBuffer = document.getElementById('sidebar-buffer');
+    const sidebarLag = document.getElementById('sidebar-lag');
+
+    function updateTraffic(val) {
+      slider.value = val;
+      sliderVal.textContent = Number(val).toLocaleString() + " req/sec";
+      sidebarRate.textContent = Number(val).toLocaleString() + " / sec";
+
+      if (val <= 12000) {
+        simAppMem.textContent = "Normal (18% RAM)";
+        simAppMem.style.color = "var(--success)";
+        simPipeStatus.textContent = "Healthy • Zero Drops";
+        simPipeStatus.style.color = "var(--success)";
+        sidebarBuffer.textContent = "Safe (Ring Buffer)";
+        sidebarBuffer.style.color = "var(--link)";
+        sidebarLag.textContent = "0.04 ms";
+        simNote.innerHTML = "Within capacity. ClickHouse absorbs writes seamlessly, app server buffers remain empty.";
+      } else if (val <= 25000) {
+        simAppMem.textContent = "Elevated (58% RAM)";
+        simAppMem.style.color = "var(--accent)";
+        simPipeStatus.textContent = "Throttling • Queuing";
+        simPipeStatus.style.color = "var(--accent)";
+        sidebarBuffer.textContent = "Buffering Surge";
+        sidebarBuffer.style.color = "var(--accent)";
+        sidebarLag.textContent = "380 ms";
+        simNote.innerHTML = "<strong>Warning:</strong> Traffic exceeds 12,000 max inserts/s. App servers are actively buffering events into memory sockets.";
+      } else {
+        simAppMem.textContent = "CRITICAL (96% RAM - OOM)";
+        simAppMem.style.color = "var(--danger)";
+        simPipeStatus.textContent = "SERVER CRASHING (503)";
+        simPipeStatus.style.color = "var(--danger)";
+        sidebarBuffer.textContent = "OVERFLOW DANGER";
+        sidebarBuffer.style.color = "var(--danger)";
+        sidebarLag.textContent = "5,400 ms (Timeout)";
+        simNote.innerHTML = "<strong>CRITICAL FAILURE:</strong> Backpressure from ClickHouse has overwhelmed app servers. Garbage collection pauses spike and nodes crash with Out-Of-Memory errors.";
+      }
+    }
+
+    slider.addEventListener('input', (e) => updateTraffic(e.target.value));
+    document.getElementById('btn-traffic-normal').addEventListener('click', () => {
+      document.getElementById('btn-traffic-normal').classList.add('active');
+      document.getElementById('btn-traffic-surge').classList.remove('active');
+      updateTraffic(5000);
+    });
+    document.getElementById('btn-traffic-surge').addEventListener('click', () => {
+      document.getElementById('btn-traffic-surge').classList.add('active');
+      document.getElementById('btn-traffic-normal').classList.remove('active');
+      updateTraffic(35000);
+    });
+
+    // 5. Module 4: SVG Stream Animation Controller
+    let animRunning = false;
+    let animPulseX = 140;
+    const pulseDot = document.getElementById('anim-pulse-dot');
+    let animId = null;
+
+    function stepStreamAnimation() {
+      if (!animRunning) return;
+      animPulseX += 4;
+      if (animPulseX > 440) {
+        animPulseX = 140;
+      }
+      pulseDot.setAttribute('cx', animPulseX);
+      pulseDot.setAttribute('opacity', '1');
+      animId = requestAnimationFrame(stepStreamAnimation);
+    }
+
+    document.getElementById('btn-anim-play').addEventListener('click', () => {
+      animRunning = true;
+      stepStreamAnimation();
+    });
+    document.getElementById('btn-anim-pause').addEventListener('click', () => {
+      animRunning = false;
+      cancelAnimationFrame(animId);
+    });
+    document.getElementById('btn-anim-reset').addEventListener('click', () => {
+      animRunning = false;
+      cancelAnimationFrame(animId);
+      animPulseX = 140;
+      pulseDot.setAttribute('cx', 140);
+      pulseDot.setAttribute('opacity', '0');
+    });
+
+    // 6. Module 5: Ordering Inversion Step-by-Step Walkthrough
+    let orderStep = 0;
+    const btnStepOrder = document.getElementById('btn-step-order');
+    const btnResetOrder = document.getElementById('btn-reset-order');
+    const orderNum = document.getElementById('order-step-num');
+    const orderDesc = document.getElementById('order-step-desc');
+    const b1 = document.getElementById('box-m1');
+    const b2 = document.getElementById('box-m2');
+    const b3 = document.getElementById('box-m3');
+    const b4 = document.getElementById('box-m4');
+
+    const orderStages = [
+      {
+        num: "STAGE 1 / 4: M1 and M2 Processed Successfully",
+        desc: "Producer 1 sends M1, Producer 2 sends M2. Both are committed and processed in exact sequence.",
+        state: () => {
+          b1.style.background = "var(--success-tint)";
+          b1.style.borderColor = "var(--success)";
+          b2.style.background = "var(--success-tint)";
+          b2.style.borderColor = "var(--success)";
+        }
+      },
+      {
+        num: "STAGE 2 / 4: M3 Sent to Consumer 2, M4 to Consumer 1",
+        desc: "The broker dispatches M3 to Consumer 2 and M4 to Consumer 1 concurrently.",
+        state: () => {
+          b3.style.background = "var(--accent-tint)";
+          b3.style.borderColor = "var(--accent)";
+          b4.style.background = "var(--accent-tint)";
+          b4.style.borderColor = "var(--accent)";
+        }
+      },
+      {
+        num: "STAGE 3 / 4: Consumer 2 Crashes, Consumer 1 Finishes M4",
+        desc: "Consumer 2 dies before acknowledging M3. But Consumer 1 completes M4 immediately! M4 is written to the database.",
+        state: () => {
+          b4.style.background = "var(--success-tint)";
+          b4.style.borderColor = "var(--success)";
+          b4.textContent = "M4: COMMITTED (Early!)";
+          b3.style.background = "var(--danger-tint)";
+          b3.style.borderColor = "var(--danger)";
+          b3.textContent = "M3: CRASH (Un-acked)";
+        }
+      },
+      {
+        num: "STAGE 4 / 4: Broker Timeout & Re-delivery of M3 Behind M4",
+        desc: "The broker times out M3 and resends it to Consumer 1. Final recorded timeline: M1, M2, M4, M3! Ordering has inverted.",
+        state: () => {
+          b3.style.background = "var(--danger-tint)";
+          b3.textContent = "M3: COMMITTED (Late!)";
+        }
+      }
+    ];
+
+    btnStepOrder.addEventListener('click', () => {
+      if (orderStep < orderStages.length) {
+        const s = orderStages[orderStep];
+        orderNum.textContent = s.num;
+        orderDesc.innerHTML = s.desc;
+        s.state();
+        orderStep++;
+      } else {
+        orderDesc.innerHTML = "<em>Sequence complete. Click Reset to replay the ordering anomaly.</em>";
+      }
+    });
+
+    btnResetOrder.addEventListener('click', () => {
+      orderStep = 0;
+      orderNum.textContent = "STAGE 0 / 4: Initial Steady State";
+      orderDesc.innerHTML = "Click <strong>'Advance Step'</strong> to walk through the exact failure sequence where message 3 gets processed after message 4.";
+      [b1, b2, b3, b4].forEach((b, idx) => {
+        b.style.background = "var(--paper)";
+        b.style.borderColor = "var(--rule)";
+        b.textContent = `M${idx+1}: Queued`;
+      });
+    });
+
+    // 7. Drag and Drop Matching Script
+    const cards = document.querySelectorAll('.dnd-card');
+    const slots = document.querySelectorAll('.dnd-slot');
+    let matchesCount = 0;
+
+    cards.forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', card.getAttribute('data-match'));
+      });
+    });
+
+    slots.forEach(slot => {
+      slot.addEventListener('dragover', (e) => e.preventDefault());
+      slot.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const cardMatch = e.dataTransfer.getData('text/plain');
+        const slotMatch = slot.getAttribute('data-slot');
+
+        if (cardMatch === slotMatch) {
+          slot.classList.add('matched');
+          const draggedElem = document.querySelector(`.dnd-card[data-match="${cardMatch}"]`);
+          draggedElem.style.opacity = '0.4';
+          draggedElem.setAttribute('draggable', 'false');
+          slot.innerHTML = `<strong>✓ Matched:</strong> ${draggedElem.textContent}`;
+          matchesCount++;
+
+          if (matchesCount === 4) {
+            const fb = document.getElementById('dnd-feedback');
+            fb.style.display = 'block';
+            fb.style.color = 'var(--success)';
+            fb.textContent = "🎉 Excellent! All components correctly matched to their architectural roles.";
+          }
+        }
+      });
+    });
+
+    // 8. Checkpoint Quizzes Script
+    const quizExplanations = {
+      1: {
+        correct: "✓ Correct! Because WAL writes append sequentially to the end of a single file, they avoid expensive random disk head seeks and page re-writes.",
+        wrong: "✗ Incorrect. The speed gain is due to sequential append operations versus random page I/O."
+      },
+      2: {
+        correct: "✓ Correct! When ClickHouse throttles ingress, asynchronous network buffers in application servers fill with pending event objects, exhausting available heap memory.",
+        wrong: "✗ Incorrect. Application servers crash because upstream connections back up and local RAM buffers overflow with pending messages."
+      },
+      3: {
+        correct: "✓ Correct! Kafka strictly guarantees ordering only within a single partition. Ordering across different partitions is non-deterministic.",
+        wrong: "✗ Incorrect. Kafka topics do NOT provide global order; order is preserved strictly within each individual partition."
+      }
+    };
+
+    function checkQuiz(qNum, optIndex, isCorrect) {
+      const qCard = document.getElementById(`q${qNum}`);
+      const btns = qCard.querySelectorAll('.quiz-btn');
+      const fb = document.getElementById(`q${qNum}-fb`);
+
+      btns.forEach((btn, idx) => {
+        btn.disabled = true;
+        if (idx === optIndex) {
+          btn.classList.add(isCorrect ? 'correct' : 'incorrect');
+        }
+      });
+
+      fb.style.display = 'block';
+      fb.style.color = isCorrect ? 'var(--success)' : 'var(--danger)';
+      fb.innerHTML = isCorrect ? quizExplanations[qNum].correct : quizExplanations[qNum].wrong;
+    }
+  </script>
+</body>
+</html>

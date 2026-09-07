@@ -1,0 +1,2798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designing Data-Intensive Applications — Chapter 9: Consistency and Consensus (Distributed Transactions)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg-surface: #12161f;
+      --bg-surface-elevated: #1a202c;
+      --bg-surface-glass: rgba(18, 22, 31, 0.85);
+      --border: #242c3d;
+      --border-accent: #38455e;
+      --text: #f0f4fc;
+      --text-muted: #8d9bb0;
+      --text-subtle: #57657d;
+      --accent: #eb6c36;
+      --accent-glow: rgba(235, 108, 54, 0.2);
+      --accent-subtle: rgba(235, 108, 54, 0.09);
+      --teal: #10b981;
+      --teal-subtle: rgba(16, 185, 129, 0.1);
+      --blue: #3b82f6;
+      --blue-subtle: rgba(59, 130, 246, 0.1);
+      --purple: #8b5cf6;
+      --purple-subtle: rgba(139, 92, 246, 0.1);
+      --amber: #f59e0b;
+      --amber-subtle: rgba(245, 158, 11, 0.1);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.1);
+      --font-serif: "Instrument Serif", Georgia, serif;
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-surface-glass: rgba(255, 255, 255, 0.9);
+      --border: #e2e8f0;
+      --border-accent: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+      --accent: #d9531e;
+      --accent-glow: rgba(217, 83, 30, 0.15);
+      --accent-subtle: rgba(217, 83, 30, 0.08);
+      --teal: #059669;
+      --teal-subtle: rgba(5, 150, 105, 0.08);
+      --blue: #2563eb;
+      --blue-subtle: rgba(37, 99, 235, 0.08);
+      --purple: #7c3aed;
+      --purple-subtle: rgba(124, 58, 237, 0.08);
+      --amber: #d97706;
+      --amber-subtle: rgba(217, 119, 6, 0.08);
+      --rose: #e11d48;
+      --rose-subtle: rgba(225, 29, 72, 0.08);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    #reading-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #f97316);
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.1s ease-out;
+    }
+
+    .top-nav {
+      position: sticky;
+      top: 0;
+      background: var(--bg-surface-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 900;
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .nav-badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .nav-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .theme-toggle-btn {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 3rem;
+      position: relative;
+    }
+
+    @media (max-width: 1024px) {
+      .container {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+        gap: 2rem;
+      }
+      .sidebar {
+        display: none;
+      }
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 5rem;
+      height: calc(100vh - 6rem);
+      overflow-y: auto;
+      padding-right: 1rem;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    .sidebar-heading {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-subtle);
+      margin-bottom: 1rem;
+    }
+
+    .nav-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .nav-links a {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0.75rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s ease;
+      border-left: 2px solid transparent;
+    }
+
+    .nav-links a:hover,
+    .nav-links a.active {
+      color: var(--text);
+      background: var(--bg-surface-elevated);
+      border-left-color: var(--accent);
+    }
+
+    .nav-links a .mod-num {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Main Content */
+    .main-content {
+      min-width: 0;
+    }
+
+    .hero-section {
+      padding: 2.5rem 0 3.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 3.5rem;
+    }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .hero-eyebrow::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+    }
+
+    .hero-title {
+      font-family: var(--font-serif);
+      font-size: clamp(2.4rem, 5vw, 3.8rem);
+      line-height: 1.1;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.25rem;
+      color: var(--text);
+    }
+
+    .hero-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 75ch;
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    .learning-goals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .goal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .goal-icon {
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1;
+      padding-top: 0.15rem;
+    }
+
+    .goal-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .goal-text strong {
+      color: var(--text);
+      display: block;
+      margin-bottom: 0.2rem;
+    }
+
+    /* Knowledge Map */
+    .knowledge-map-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      margin: 2.5rem 0 4rem;
+    }
+
+    .map-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 1.5rem;
+    }
+
+    .map-header h3 {
+      font-family: var(--font-serif);
+      font-size: 1.5rem;
+      font-weight: 400;
+    }
+
+    .map-legend {
+      display: flex;
+      gap: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .map-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .map-legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Lesson Modules */
+    .lesson-module {
+      margin-bottom: 5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .module-badge {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .module-title {
+      font-family: var(--font-serif);
+      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      font-weight: 400;
+      letter-spacing: -0.015em;
+      line-height: 1.15;
+      margin-bottom: 1.5rem;
+      color: var(--text);
+    }
+
+    .prose-block {
+      font-size: 1.05rem;
+      line-height: 1.75;
+      color: var(--text);
+      margin-bottom: 2rem;
+      max-width: 85ch;
+    }
+
+    .prose-block p {
+      margin-bottom: 1.25rem;
+    }
+
+    .prose-block strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .highlight-term {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Definition Pill */
+    .def-callout {
+      background: var(--bg-surface-elevated);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0 2rem;
+    }
+
+    .def-title {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 0.4rem;
+      font-weight: 600;
+    }
+
+    .def-content {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Steps Layout */
+    .steps-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .step-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-subtle);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .step-content h4 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+      color: var(--text);
+    }
+
+    .step-content p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Diagram Wrappers */
+    .diagram-figure {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      margin: 2.5rem 0;
+      overflow-x: auto;
+    }
+
+    .diagram-caption {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-subtle);
+      text-align: center;
+      margin-top: 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .diagram-caption strong {
+      color: var(--text-muted);
+    }
+
+    /* Examples Trio */
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      margin: 2.5rem 0;
+    }
+
+    @media (max-width: 960px) {
+      .examples-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .example-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .example-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
+      align-self: flex-start;
+      margin-bottom: 0.75rem;
+    }
+
+    .tag-obvious {
+      background: var(--blue-subtle);
+      color: var(--blue);
+      border: 1px solid var(--blue);
+    }
+
+    .tag-counter {
+      background: var(--purple-subtle);
+      color: var(--purple);
+      border: 1px solid var(--purple);
+    }
+
+    .tag-edge {
+      background: var(--amber-subtle);
+      color: var(--amber);
+      border: 1px solid var(--amber);
+    }
+
+    .example-card h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .example-card p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Analogy & Misconception Cards */
+    .pedagogy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin: 2.5rem 0;
+    }
+
+    @media (max-width: 800px) {
+      .pedagogy-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .analogy-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--blue);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+    }
+
+    .misconception-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--rose);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+    }
+
+    .why-matters-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--teal);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 1.5rem 0 2.5rem;
+    }
+
+    .card-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .label-analogy { color: var(--blue); }
+    .label-wrong { color: var(--rose); }
+    .label-matters { color: var(--teal); }
+
+    .card-body-text {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .inter-link-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      margin-top: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .inter-link-text {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .inter-link-btn {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      white-space: nowrap;
+    }
+
+    .inter-link-btn:hover {
+      text-decoration: underline;
+    }
+
+    /* Memory Pill */
+    .memory-pill {
+      background: var(--accent-subtle);
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      padding: 0.6rem 1.25rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1.5rem 0 2rem;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .memory-pill-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+    }
+
+    /* Interactive Simulators */
+    .interactive-container {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      margin: 2.5rem 0;
+    }
+
+    .interactive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .interactive-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .interactive-badge {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.15rem 0.45rem;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+    }
+
+    .control-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      background: var(--bg-surface);
+      padding: 1rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      align-items: center;
+    }
+
+    .btn-action {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-action:hover {
+      opacity: 0.9;
+    }
+
+    .btn-secondary {
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent);
+    }
+
+    .sim-output-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      min-height: 120px;
+      line-height: 1.6;
+    }
+
+    /* Active Recall Flashcards */
+    .flashcards-section {
+      margin: 4rem 0;
+      padding: 2.5rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+    }
+
+    .flashcards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .flashcard {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      cursor: pointer;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s, border-color 0.2s;
+      position: relative;
+    }
+
+    .flashcard:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+
+    .flashcard-front, .flashcard-back {
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .flashcard-back {
+      display: none;
+      color: var(--text-muted);
+    }
+
+    .flashcard.flipped .flashcard-front {
+      display: none;
+    }
+
+    .flashcard.flipped .flashcard-back {
+      display: block;
+    }
+
+    .card-flip-prompt {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+      margin-top: 1rem;
+      align-self: flex-end;
+    }
+
+    /* Module Quiz */
+    .module-quiz {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .quiz-question {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .quiz-option {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+
+    .quiz-option:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .quiz-option.correct {
+      background: var(--teal-subtle);
+      border-color: var(--teal);
+      color: var(--teal);
+    }
+
+    .quiz-option.incorrect {
+      background: var(--rose-subtle);
+      border-color: var(--rose);
+      color: var(--rose);
+    }
+
+    .quiz-feedback {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      padding: 0.75rem;
+      border-radius: var(--radius-sm);
+      display: none;
+    }
+
+    /* Summary & Cheat Sheet */
+    .cheat-sheet-section {
+      margin: 5rem 0 3rem;
+      padding-top: 2rem;
+      border-top: 2px solid var(--border);
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .cheat-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    .cheat-table th, .cheat-table td {
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cheat-table th {
+      background: var(--bg-surface-elevated);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .cheat-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* FAQ Section */
+    .faq-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .faq-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+    }
+
+    .faq-item h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    .faq-item p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* SVG Diagram Classes adhering to diagram-design skill */
+    .diag-box-bg { fill: var(--bg-surface); }
+    .diag-card-bg { fill: var(--bg-surface-elevated); stroke: var(--border); stroke-width: 1; }
+    .diag-focal { fill: var(--accent-subtle); stroke: var(--accent); stroke-width: 1.5; }
+    .diag-focal-text { fill: var(--accent); font-weight: 600; font-family: var(--font-sans); }
+    .diag-text { fill: var(--text); font-family: var(--font-sans); font-size: 12px; font-weight: 600; }
+    .diag-subtext { fill: var(--text-muted); font-family: var(--font-mono); font-size: 9px; }
+    .diag-tag-text { fill: var(--text-subtle); font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .diag-line { stroke: var(--border-accent); stroke-width: 1.2; fill: none; }
+    .diag-line-dashed { stroke: var(--text-subtle); stroke-width: 1; stroke-dasharray: 4,4; fill: none; }
+    .diag-line-accent { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+    .diag-line-teal { stroke: var(--teal); stroke-width: 1.5; fill: none; }
+    .diag-line-rose { stroke: var(--rose); stroke-width: 1.5; fill: none; }
+    .diag-mask { fill: var(--bg-surface); }
+    .diag-mask-elevated { fill: var(--bg-surface-elevated); }
+    .diag-label { fill: var(--text-muted); font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.05em; text-anchor: middle; }
+    .diag-label-accent { fill: var(--accent); font-family: var(--font-mono); font-size: 8px; font-weight: 600; text-anchor: middle; }
+  </style>
+</head>
+<body data-theme="dark">
+  <div id="reading-progress"></div>
+
+  <header class="top-nav">
+    <a href="#" class="nav-brand">
+      <span class="nav-badge">DDIA · Ch 9</span>
+      <span class="nav-title">Consistency & Consensus (Distributed Transactions)</span>
+    </a>
+    <div class="nav-controls">
+      <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()">
+        <span id="theme-icon">☀️</span> <span id="theme-text">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Sticky Navigation Rail -->
+    <aside class="sidebar">
+      <p class="sidebar-heading">Curriculum Modules</p>
+      <ul class="nav-links">
+        <li><a href="#overview"><span class="mod-num">00</span> Overview & Map</a></li>
+        <li><a href="#module-1"><span class="mod-num">01</span> Linearizability</a></li>
+        <li><a href="#module-2"><span class="mod-num">02</span> The Cost of Linearizability</a></li>
+        <li><a href="#module-3"><span class="mod-num">03</span> Total Order Broadcast</a></li>
+        <li><a href="#module-4"><span class="mod-num">04</span> Two-Phase Commit (2PC)</a></li>
+        <li><a href="#module-5"><span class="mod-num">05</span> Sharded Distributed Txns</a></li>
+        <li><a href="#module-6"><span class="mod-num">06</span> Fault-Tolerant Consensus</a></li>
+        <li><a href="#summary-cheatsheet"><span class="mod-num">07</span> Cheat Sheet & FAQ</a></li>
+      </ul>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Hero Section -->
+      <section id="overview" class="hero-section">
+        <div class="hero-eyebrow">Distributed Systems Masterclass</div>
+        <h1 class="hero-title">Distributed Transactions, Consistency & Consensus</h1>
+        <p class="hero-subtitle">
+          How distributed databases create the illusion of a single, unified machine—and why the physics of networks, partial failures, and coordinator crashes make absolute coordination one of computing's greatest engineering challenges.
+        </p>
+
+        <div class="learning-goals-grid">
+          <div class="goal-card">
+            <span class="goal-icon">01</span>
+            <div class="goal-text">
+              <strong>Linearizability vs Serializability</strong>
+              Master the recency guarantee on single objects and debunk the myth that ACID isolation implies freshness.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">02</span>
+            <div class="goal-text">
+              <strong>The Cost of Coordination</strong>
+              Analyze the CAP/PACELC trade-off and understand why network delays explode when enforcing strong consistency.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">03</span>
+            <div class="goal-text">
+              <strong>Total Order Broadcast</strong>
+              Discover the equivalence between totally ordered logs and linearizable storage using state machine replication.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">04</span>
+            <div class="goal-text">
+              <strong>Two-Phase Commit (2PC)</strong>
+              Trace the Prepare/Commit phases, WAL logging, and the catastrophic "In-Doubt" lock freeze on coordinator failure.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">05</span>
+            <div class="goal-text">
+              <strong>Cross-Shard Transactions</strong>
+              Examine why systems like Vitess and PlanetScale discourage 2PC and employ ledger patterns or sagas instead.
+            </div>
+          </div>
+          <div class="goal-card">
+            <span class="goal-icon">06</span>
+            <div class="goal-text">
+              <strong>Fault-Tolerant Consensus</strong>
+              Understand how Paxos and Raft use majority quorums ($N/2 + 1$) and epoch numbers to eliminate single points of failure.
+            </div>
+          </div>
+        </div>
+
+        <!-- Master Interactive Knowledge Map -->
+        <div class="knowledge-map-card">
+          <div class="map-header">
+            <h3>Knowledge Architecture & Dependency Topology</h3>
+            <div class="map-legend">
+              <span class="map-legend-item"><span class="map-legend-dot" style="background: var(--accent);"></span> Core Protocol</span>
+              <span class="map-legend-item"><span class="map-legend-dot" style="background: var(--blue);"></span> Guarantee</span>
+              <span class="map-legend-item"><span class="map-legend-dot" style="background: var(--teal);"></span> Consensus</span>
+            </div>
+          </div>
+
+          <svg viewBox="0 0 840 220" role="img" aria-labelledby="map-title map-desc" style="width: 100%; height: auto; display: block;">
+            <title id="map-title">Chapter 9 Conceptual Knowledge Map</title>
+            <desc id="map-desc">Interactive topology connecting Linearizability, Total Order Broadcast, Two-Phase Commit, and Quorum Consensus.</desc>
+            
+            <defs>
+              <marker id="map-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="map-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- Orthogonal Connectors (4px grid, r=8) -->
+            <!-- Path 1: M1 to M2 -->
+            <path d="M 140 60 L 200 60" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#map-arrow)"/>
+            <!-- Path 2: M2 to M3 -->
+            <path d="M 340 60 L 400 60" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#map-arrow)"/>
+            <!-- Path 3: M3 to M4 (Elbow down-right) -->
+            <path d="M 470 84 L 470 144 Q 470 152 478 152 L 536 152" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#map-arrow-accent)"/>
+            <!-- Path 4: M3 to M6 (Elbow up-right) -->
+            <path d="M 540 60 L 670 60" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#map-arrow)"/>
+            <!-- Path 5: M4 to M5 -->
+            <path d="M 280 152 L 200 152" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#map-arrow)"/>
+            <!-- Path 6: M6 to M4 -->
+            <path d="M 740 84 L 740 144 Q 740 152 732 152 L 684 152" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#map-arrow)"/>
+
+            <!-- Node 1: Linearizability -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-1').scrollIntoView({behavior: 'smooth'})">
+              <rect x="20" y="36" width="120" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="28" y="42" width="24" height="12" rx="2" fill="none" stroke="var(--blue)" stroke-width="0.8"/>
+              <text x="40" y="51" class="diag-tag-text" fill="var(--blue)" text-anchor="middle">M1</text>
+              <text x="80" y="62" class="diag-text" text-anchor="middle">Linearizability</text>
+              <text x="80" y="74" class="diag-subtext" text-anchor="middle">Recency Guarantee</text>
+            </g>
+
+            <!-- Node 2: CAP & Costs -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-2').scrollIntoView({behavior: 'smooth'})">
+              <rect x="200" y="36" width="140" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="208" y="42" width="24" height="12" rx="2" fill="none" stroke="var(--amber)" stroke-width="0.8"/>
+              <text x="220" y="51" class="diag-tag-text" fill="var(--amber)" text-anchor="middle">M2</text>
+              <text x="270" y="62" class="diag-text" text-anchor="middle">CAP & Latency</text>
+              <text x="270" y="74" class="diag-subtext" text-anchor="middle">Sync vs Async Tradeoffs</text>
+            </g>
+
+            <!-- Node 3: Total Order Broadcast -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-3').scrollIntoView({behavior: 'smooth'})">
+              <rect x="400" y="36" width="140" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="408" y="42" width="24" height="12" rx="2" fill="none" stroke="var(--purple)" stroke-width="0.8"/>
+              <text x="420" y="51" class="diag-tag-text" fill="var(--purple)" text-anchor="middle">M3</text>
+              <text x="470" y="62" class="diag-text" text-anchor="middle">Total Order Log</text>
+              <text x="470" y="74" class="diag-subtext" text-anchor="middle">State Machine Rep</text>
+            </g>
+
+            <!-- Node 4: Two-Phase Commit -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-4').scrollIntoView({behavior: 'smooth'})">
+              <rect x="540" y="128" width="140" height="48" rx="6" class="diag-focal"/>
+              <rect x="548" y="134" width="24" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+              <text x="560" y="143" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">M4</text>
+              <text x="610" y="154" class="diag-focal-text" font-size="12" text-anchor="middle">Two-Phase Commit</text>
+              <text x="610" y="166" class="diag-subtext" text-anchor="middle">Atomic Commit Protocol</text>
+            </g>
+
+            <!-- Node 5: Sharded Vitess Txns -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-5').scrollIntoView({behavior: 'smooth'})">
+              <rect x="60" y="128" width="140" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="68" y="134" width="24" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+              <text x="80" y="143" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">M5</text>
+              <text x="130" y="154" class="diag-text" text-anchor="middle">Sharded Systems</text>
+              <text x="130" y="166" class="diag-subtext" text-anchor="middle">Vitess & Sagas</text>
+            </g>
+
+            <!-- Node 6: Quorum Consensus -->
+            <g style="cursor: pointer;" onclick="document.getElementById('module-6').scrollIntoView({behavior: 'smooth'})">
+              <rect x="670" y="36" width="140" height="48" rx="6" class="diag-card-bg"/>
+              <rect x="678" y="42" width="24" height="12" rx="2" fill="none" stroke="var(--teal)" stroke-width="0.8"/>
+              <text x="690" y="51" class="diag-tag-text" fill="var(--teal)" text-anchor="middle">M6</text>
+              <text x="740" y="62" class="diag-text" text-anchor="middle">Quorum Consensus</text>
+              <text x="740" y="74" class="diag-subtext" text-anchor="middle">Paxos & Raft Quorums</text>
+            </g>
+          </svg>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 1 -->
+      <!-- ========================================================================= -->
+      <section id="module-1" class="lesson-module">
+        <span class="module-badge">Module 01</span>
+        <h2 class="module-title">Linearizability: The Illusion of a Single System Image</h2>
+
+        <div class="prose-block">
+          <p>
+            When building applications atop distributed databases, software engineers naturally desire the system to behave as if it were a single, instantaneous computer. In distributed systems literature, this ultimate guarantee is formalized as <strong class="highlight-term">Linearizability</strong> (also known as <em>atomic consistency</em>, <em>strong consistency</em>, or <em>immediate consistency</em>). Under linearizability, the system provides a strict <strong>recency guarantee</strong>: as soon as any client finishes a write or reads a new value, all subsequent reads by any client across any node in the cluster must return that value or an even newer one.
+          </p>
+          <p>
+            It is paramount to distinguish <strong>Linearizability</strong> from <strong>Serializability</strong>. Serializability is an <em>isolation property</em> of multi-operation transactions (ACID), ensuring that transactions execute equivalent to some serial schedule, even if that schedule operates over stale snapshots. Linearizability is a <em>freshness and timing guarantee</em> on individual objects (registers). A system can be Serializable but not Linearizable (e.g., Snapshot Isolation reading from an hour-old replica), or Linearizable but not Serializable (e.g., single-key atomic compare-and-set operations without multi-row transactional atomicity). When a system satisfies both, it achieves <strong>Strict Serializability</strong> (External Consistency), as implemented in Google Spanner.
+          </p>
+          <p>
+            The canonical violation of linearizability is the <strong>Alice and Bob World Cup Score Anomaly</strong>. Imagine Alice and Bob sitting on a sofa watching the World Cup final. The referee blows the final whistle: Germany wins. The score updates on the leader database. Alice refreshes her phone app; her query hits <em>Follower 1</em>, which has already received the replication stream. Alice shouts, "Germany won!" Bob, sitting right next to her, immediately taps refresh on his phone. Bob's query hits <em>Follower 2</em>, which is experiencing 50 milliseconds of network lag. Bob stares at his screen and sees "Game in progress: 0–0." To Bob, time has traveled backwards. This causal inversion violates the human intuition of absolute time and is the fundamental bug linearizability eliminates.
+          </p>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">Core Definition: Linearizability</div>
+          <div class="def-content">
+            A system is linearizable if all concurrent operations appear to take effect atomically at a specific point in time between their invocation and response on a global timeline, ensuring no client ever observes a stale value once a newer value has been acknowledged or read.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 1: Alice & Bob World Cup Anomaly -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 340" role="img" aria-labelledby="diag1-title diag1-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag1-title">Non-Linearizable Read Anomaly (Alice and Bob World Cup)</title>
+            <desc id="diag1-desc">Sequence diagram showing how asynchronous replication lag causes a time-travel read skew anomaly between Alice and Bob.</desc>
+
+            <defs>
+              <marker id="d1-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d1-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+              <marker id="d1-arrow-rose" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#f43f5e"/>
+              </marker>
+            </defs>
+
+            <!-- Background Lifelines (Orthogonal 4px grid) -->
+            <!-- Ref / Writer Lifeline -->
+            <line x1="80" y1="60" x2="80" y2="300" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+            <!-- Leader DB Lifeline -->
+            <line x1="240" y1="60" x2="240" y2="300" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+            <!-- Follower 1 (Fast) Lifeline -->
+            <line x1="400" y1="60" x2="400" y2="300" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+            <!-- Follower 2 (Lagged) Lifeline -->
+            <line x1="560" y1="60" x2="560" y2="300" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+            <!-- Alice Lifeline -->
+            <line x1="720" y1="60" x2="720" y2="300" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+            <!-- Bob Lifeline -->
+            <line x1="820" y1="60" x2="820" y2="300" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+
+            <!-- Actor Header Boxes -->
+            <rect x="30" y="20" width="100" height="36" rx="6" class="diag-card-bg"/>
+            <text x="80" y="42" class="diag-text" text-anchor="middle">Referee (Writer)</text>
+
+            <rect x="190" y="20" width="100" height="36" rx="6" class="diag-focal"/>
+            <text x="240" y="42" class="diag-focal-text" font-size="12" text-anchor="middle">Leader DB</text>
+
+            <rect x="350" y="20" width="100" height="36" rx="6" class="diag-card-bg"/>
+            <text x="400" y="42" class="diag-text" text-anchor="middle">Follower 1</text>
+
+            <rect x="510" y="20" width="100" height="36" rx="6" class="diag-card-bg"/>
+            <text x="560" y="42" class="diag-text" text-anchor="middle">Follower 2 (Lag)</text>
+
+            <rect x="680" y="20" width="80" height="36" rx="6" class="diag-card-bg"/>
+            <text x="720" y="42" class="diag-text" text-anchor="middle">Alice</text>
+
+            <rect x="780" y="20" width="80" height="36" rx="6" class="diag-card-bg"/>
+            <text x="820" y="42" class="diag-text" text-anchor="middle">Bob</text>
+
+            <!-- Step 1: Writer sends final score to Leader -->
+            <path d="M 80 80 L 232 80" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d1-arrow-accent)"/>
+            <rect x="110" y="66" width="90" height="14" rx="2" class="diag-mask-elevated"/>
+            <text x="155" y="76" class="diag-label-accent">WRITE: Score=2-1</text>
+
+            <!-- Leader acks commit -->
+            <path d="M 240 100 L 88 100" stroke="#8d9bb0" stroke-width="1.2" stroke-dasharray="4,3" fill="none" marker-end="url(#d1-arrow)"/>
+            <rect x="120" y="88" width="70" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="155" y="97" class="diag-label">ACK: Committed</text>
+
+            <!-- Step 2: Replication stream to Follower 1 (Fast) -->
+            <path d="M 240 120 L 392 120" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d1-arrow)"/>
+            <rect x="275" y="108" width="80" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="315" y="117" class="diag-label">REPLICATE (Fast)</text>
+
+            <!-- Step 3: Alice reads from Follower 1 -->
+            <path d="M 720 144 L 408 144" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d1-arrow)"/>
+            <rect x="520" y="132" width="80" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="560" y="141" class="diag-label">GET /score</text>
+
+            <path d="M 400 164 L 712 164" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d1-arrow)"/>
+            <rect x="510" y="152" width="100" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="560" y="161" class="diag-label" fill="#10b981" font-weight="600">Score=2-1 (Germany)</text>
+
+            <!-- Real-world Causal Channel: Alice tells Bob -->
+            <path d="M 720 188 Q 770 176 812 188" stroke="#eb6c36" stroke-width="1.5" stroke-dasharray="3,3" fill="none" marker-end="url(#d1-arrow-accent)"/>
+            <rect x="730" y="176" width="80" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="770" y="185" class="diag-label-accent">"Germany won!"</text>
+
+            <!-- Step 4: Bob refreshes immediately, query hits Follower 2 (Lagged) -->
+            <path d="M 820 216 L 568 216" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d1-arrow)"/>
+            <rect x="650" y="204" width="80" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="690" y="213" class="diag-label">GET /score</text>
+
+            <path d="M 560 236 L 812 236" stroke="#f43f5e" stroke-width="1.5" fill="none" marker-end="url(#d1-arrow-rose)"/>
+            <rect x="630" y="224" width="120" height="14" rx="2" class="diag-mask-elevated"/>
+            <text x="690" y="234" class="diag-label" fill="#f43f5e" font-weight="600">Score=0-0 (Lagged!)</text>
+
+            <!-- Annotation callout box -->
+            <rect x="520" y="264" width="340" height="32" rx="4" fill="rgba(244,63,94,0.1)" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="690" y="284" class="diag-label" fill="#f43f5e" font-weight="600">❌ NON-LINEARIZABLE: Bob reads stale state AFTER Alice saw newer state!</text>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 9.1:</strong> The Alice & Bob read skew anomaly. When cross-channel communication exists (Alice speaking to Bob), replication lag violates linearizability.
+          </div>
+        </div>
+
+        <!-- Step-by-Step Breakdown -->
+        <div class="steps-container">
+          <div class="step-item">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h4>Global Real-Time Register Invariant</h4>
+              <p>
+                In a linearizable datastore, there exists a single logical time continuum. As soon as write operation $W(x=v)$ returns SUCCESS to the calling client, all subsequent read operations $R(x)$ invoked anywhere in the universe must return $v$ or a subsequent write's value.
+              </p>
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h4>Causal Channels Outside the Database</h4>
+              <p>
+                If Alice and Bob never interacted, Bob seeing stale data might be classified as simple eventual consistency. But because Alice communicated with Bob via an external side-channel (voice, instant messenger), Bob has causal knowledge of the future state. The database fails linearizability because its read path ignores real-world causal ordering.
+              </p>
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h4>Compare-and-Set (CAS) and Lock Pre-requisite</h4>
+              <p>
+                Linearizability is strictly required whenever a system needs atomic <strong>Compare-and-Set</strong> primitives (e.g., leader election, single-username reservation, or distributed lock acquisition). Without linearizability, two nodes can simultaneously believe they acquired the lock.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>Unique Username Registration</h4>
+            <p>
+              Two users concurrently try to register `@saturn`. If the user table is linearizable, exactly one write succeeds and the second receives a unique constraint violation immediately.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>Serializable Snapshot Isolation (SSI)</h4>
+            <p>
+              A database running PostgreSQL SSI prevents all isolation anomalies (dirty reads, write skew), yet a reader can legitimately read from a 10-minute-old snapshot without violating Serializability. SSI is Serializable, but <em>not</em> Linearizable!
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>Leader Fencing via CAS</h4>
+            <p>
+              A distributed leader leases a lock in ZooKeeper with an auto-incrementing epoch token. If the lock register is non-linearizable, an old partitioned leader could renew its expired lease concurrently, creating split-brain data corruption.
+            </p>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-grid">
+          <div class="analogy-card">
+            <div class="card-label label-analogy">💡 Visual Analogy</div>
+            <div class="card-body-text">
+              Think of a physical whiteboard in a classroom. If a teacher writes "Class Dismissed" on the board, anyone looking at the board sees it instantly. An asynchronous replica cluster is like having 100 assistants copying the board onto separate sheets of paper with variable walking speed—some students see "Class Dismissed" while others still see "Pop Quiz".
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="card-label label-wrong">❌ What People Get Wrong</div>
+            <div class="card-body-text">
+              <strong>"Serializability is stronger than Linearizability."</strong> They are orthogonal dimensions! Serializability deals with multi-statement transaction order independence; Linearizability deals with real-time freshness of single-object operations. The strongest combined level is <em>Strict Serializability</em>.
+            </div>
+          </div>
+        </div>
+
+        <div class="why-matters-card">
+          <div class="card-label label-matters">🎯 Why This Matters in Production</div>
+          <div class="card-body-text">
+            If you implement leader election, inventory decrementing, or billing checkouts on read-replicas without linearizability, you will encounter race conditions, duplicate charges, and split-brain outages. You must know when you require linearizable primary reads vs. eventual follower reads.
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>Linearizability = Real-Time Freshness</strong> (No time travel after an ACK). <strong>Serializability = ACID Isolation</strong> (Transactions behave as if executed sequentially).
+        </div>
+
+        <!-- Interactive Simulator 1: Linearizability & Replication Lag Race Simulator -->
+        <div class="interactive-container">
+          <div class="interactive-header">
+            <div class="interactive-title">
+              <span>Interactive Simulator: Linearizability & Replication Lag Sandbox</span>
+            </div>
+            <span class="interactive-badge">Sim 01</span>
+          </div>
+
+          <div class="control-panel">
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text);">
+              Replication Mode:
+              <select id="sim1-mode" style="background: var(--bg-surface-elevated); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: var(--radius-sm); margin-left: 0.4rem;">
+                <option value="async">Asynchronous (Laggy Followers)</option>
+                <option value="sync">Fully Synchronous (Wait for All)</option>
+                <option value="linearizable-read">Quorum Linearizable Read (Read from Leader)</option>
+              </select>
+            </label>
+            <button class="btn-action" onclick="runSim1()">Simulate Match Final Whistle</button>
+            <button class="btn-secondary" onclick="resetSim1()">Reset Timeline</button>
+          </div>
+
+          <div class="sim-output-box" id="sim1-output">
+            System ready. Click "Simulate Match Final Whistle" to trigger the concurrent write and observe Alice and Bob's read responses.
+          </div>
+        </div>
+
+        <!-- Module 1 Quiz -->
+        <div class="module-quiz">
+          <div class="quiz-question">Quick Check: Which of the following statements accurately characterizes Linearizability?</div>
+          <div class="quiz-options">
+            <div class="quiz-option" onclick="checkQuiz(this, false, 'q1', 'Incorrect. ACID Serializable isolation allows reading from historical snapshots.')">A) A database with Serializable isolation is automatically Linearizable.</div>
+            <div class="quiz-option" onclick="checkQuiz(this, true, 'q1', 'Correct! Linearizability guarantees that once a write is committed/read, all subsequent real-time reads reflect that value.')">B) Linearizability enforces that reads return the most recent write on a global real-time continuum.</div>
+            <div class="quiz-option" onclick="checkQuiz(this, false, 'q1', 'Incorrect. Linearizability guarantees single-register real-time recency, not multi-object ACID atomicity.')">C) Linearizability guarantees multi-row atomicity across distributed shards.</div>
+          </div>
+          <div class="quiz-feedback" id="q1-fb"></div>
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">Now that we understand what linearizability guarantees, why don't all databases simply enable it by default?</span>
+          <a href="#module-2" class="inter-link-btn">Proceed to Module 02: The Latency & Partition Cost →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 2 -->
+      <!-- ========================================================================= -->
+      <section id="module-2" class="lesson-module">
+        <span class="module-badge">Module 02</span>
+        <h2 class="module-title">The Cost of Linearizability & The CAP Trade-Off</h2>
+
+        <div class="prose-block">
+          <p>
+            If linearizability provides such an intuitive, foolproof mental model, why are the vast majority of distributed databases (including MySQL, PostgreSQL read pools, MongoDB, and Cassandra) non-linearizable by default? The answer lies in the harsh physical constraints of networks: <strong class="highlight-term">Latency</strong> and <strong class="highlight-term">Unavoidable Partitions</strong>.
+          </p>
+          <p>
+            The relationship between linearizability and fault tolerance is formalized by the <strong>CAP Theorem</strong> (and its modern, comprehensive generalization, <strong>PACELC</strong>). When network cables are cut or routers fail between two datacenters, creating a <em>network partition ($P$)</em>, a distributed data system is forced to choose between two mutually exclusive behaviors:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">Linearizability / Consistency (CP):</strong> The isolated node refuses to serve client writes or reads because it cannot verify whether a newer write occurred in the other partition. The system sacrifices <em>Availability</em> to prevent stale or conflicting data.</li>
+            <li><strong style="color: var(--text);">Availability (AP):</strong> The isolated node continues serving reads and writes using whatever local state it possesses. The system remains <em>Available</em>, but completely sacrifices Linearizability.</li>
+          </ul>
+          <p>
+            Crucially, even when the network is operating with 100% perfection without any partitions, linearizability exacts a brutal latency tax. In a linearizable system, every write must synchronize across nodes, and every read must verify it is not querying a deposed leader (via lease checks or quorum reads). As proved by Attiya and Welch, the response time of read and write operations in a linearizable datastore is fundamentally proportional to the network round-trip time ($RTT$) between nodes. While an asynchronous write returns in $0.5\text{ ms}$ on local NVMe, a cross-datacenter linearizable write requires $50\text{ ms}$ to $200\text{ ms}$ of speed-of-light network transit.
+          </p>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">The PACELC Theorem Extension</div>
+          <div class="def-content">
+            If there is a <strong>Partition (P)</strong>, how does the system trade off <strong>Availability (A)</strong> versus <strong>Consistency (C)</strong>? <strong>Else (E)</strong>, when the network is operating normally, how does the system trade off <strong>Latency (L)</strong> versus <strong>Consistency (C)</strong>?
+          </div>
+        </div>
+
+        <!-- SVG Diagram 2: Replication Spectrum & Partition Split -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 280" role="img" aria-labelledby="diag2-title diag2-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag2-title">Replication Spectrum & Network Partition Dilemma</title>
+            <desc id="diag2-desc">Architecture diagram showing how Leader and Followers handle writes across a network partition boundary under CP vs AP configurations.</desc>
+
+            <defs>
+              <marker id="d2-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d2-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+              <marker id="d2-arrow-rose" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#f43f5e"/>
+              </marker>
+            </defs>
+
+            <!-- Partition Boundary Box -->
+            <rect x="520" y="30" width="330" height="220" rx="8" fill="rgba(244,63,94,0.04)" stroke="#f43f5e" stroke-width="1.2" stroke-dasharray="6,4"/>
+            <text x="685" y="52" fill="#f43f5e" font-family="'Geist Mono', monospace" font-size="10" font-weight="600" text-anchor="middle" letter-spacing="0.1em">PARTITIONED DATA CENTER (DC-2)</text>
+
+            <!-- Primary Data Center Box -->
+            <rect x="30" y="30" width="450" height="220" rx="8" class="diag-card-bg"/>
+            <text x="255" y="52" fill="var(--text-muted)" font-family="'Geist Mono', monospace" font-size="10" font-weight="600" text-anchor="middle" letter-spacing="0.1em">PRIMARY DATA CENTER (DC-1)</text>
+
+            <!-- Primary Leader Node -->
+            <rect x="60" y="80" width="160" height="60" rx="6" class="diag-focal"/>
+            <rect x="68" y="86" width="34" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+            <text x="85" y="95" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">LEADER</text>
+            <text x="140" y="112" class="diag-focal-text" font-size="13" text-anchor="middle">Leader (Primary)</text>
+            <text x="140" y="126" class="diag-subtext" text-anchor="middle">WAL Log · In-Memory B-Tree</text>
+
+            <!-- Sync Follower 1 -->
+            <rect x="280" y="80" width="160" height="60" rx="6" class="diag-card-bg"/>
+            <rect x="288" y="86" width="48" height="12" rx="2" fill="none" stroke="var(--teal)" stroke-width="0.8"/>
+            <text x="312" y="95" class="diag-tag-text" fill="var(--teal)" text-anchor="middle">SYNC FOLLOWER</text>
+            <text x="360" y="112" class="diag-text" font-size="13" text-anchor="middle">Sync Replica 1</text>
+            <text x="360" y="126" class="diag-subtext" text-anchor="middle">Semi-Sync Quorum Ack</text>
+
+            <!-- Partitioned Follower 2 -->
+            <rect x="560" y="80" width="160" height="60" rx="6" class="diag-card-bg"/>
+            <rect x="568" y="86" width="52" height="12" rx="2" fill="none" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="594" y="95" class="diag-tag-text" fill="#f43f5e" text-anchor="middle">ISOLATED FOLLOWER</text>
+            <text x="640" y="112" class="diag-text" font-size="13" text-anchor="middle">Follower 2 (DC-2)</text>
+            <text x="640" y="126" class="diag-subtext" text-anchor="middle">Stale Data or Blocked</text>
+
+            <!-- Client 1 on DC-1 -->
+            <rect x="60" y="180" width="160" height="48" rx="6" class="diag-card-bg"/>
+            <text x="140" y="204" class="diag-text" text-anchor="middle">Client A (Writes)</text>
+            <text x="140" y="218" class="diag-subtext" text-anchor="middle">Latency: ~5ms</text>
+
+            <!-- Client 2 on DC-2 -->
+            <rect x="560" y="180" width="160" height="48" rx="6" class="diag-card-bg"/>
+            <text x="640" y="204" class="diag-text" text-anchor="middle">Client B (Reads)</text>
+            <text x="640" y="218" class="diag-subtext" text-anchor="middle">CP: Error / AP: Stale</text>
+
+            <!-- Connectors (Orthogonal 4px grid) -->
+            <!-- Client A to Leader -->
+            <path d="M 140 180 L 140 148" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d2-arrow-accent)"/>
+
+            <!-- Leader to Sync Follower (Semi-sync path) -->
+            <path d="M 220 110 L 272 110" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d2-arrow)"/>
+            <rect x="230" y="98" width="36" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="248" y="107" class="diag-label" fill="#10b981">SYNC</text>
+
+            <!-- Leader to Partitioned Follower (Severed Connection) -->
+            <path d="M 440 110 L 552 110" stroke="#f43f5e" stroke-width="1.5" stroke-dasharray="4,4" fill="none" marker-end="url(#d2-arrow-rose)"/>
+            <circle cx="496" cy="110" r="10" fill="#f43f5e"/>
+            <text x="496" y="114" fill="#fff" font-family="'Geist Mono', monospace" font-size="11" font-weight="700" text-anchor="middle">✕</text>
+
+            <!-- Client B to Partitioned Follower -->
+            <path d="M 640 180 L 640 148" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d2-arrow)"/>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 9.2:</strong> Replication topology across a network partition. Sync replicas in DC-1 maintain quorum; DC-2 must choose between returning stale data (AP) or throwing 503 errors (CP).
+          </div>
+        </div>
+
+        <!-- Replication Comparison Table -->
+        <div class="table-container">
+          <table class="cheat-table">
+            <thead>
+              <tr>
+                <th>Replication Strategy</th>
+                <th>Write Latency</th>
+                <th>Fault Tolerance</th>
+                <th>Linearizability Guarantee</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Asynchronous (Default)</strong></td>
+                <td>Ultra-low (local disk commit)</td>
+                <td>Data loss possible if leader dies before async stream catches up</td>
+                <td>❌ None (Followers serve stale snapshots)</td>
+              </tr>
+              <tr>
+                <td><strong>Semi-Synchronous ($1$ sync follower)</strong></td>
+                <td>Moderate (local disk + 1 network hop)</td>
+                <td>Guarantees 1 replica has data; tolerates 1 node crash</td>
+                <td>⚠️ Partial (Linearizable only if reads route through Sync replica)</td>
+              </tr>
+              <tr>
+                <td><strong>Quorum Consensus (Raft/Paxos)</strong></td>
+                <td>Balanced ($N/2 + 1$ node acks)</td>
+                <td>Survives minority failure without halting</td>
+                <td>✅ Fully Linearizable with Leader Lease / Quorum reads</td>
+              </tr>
+              <tr>
+                <td><strong>Fully Synchronous (All $N$ nodes)</strong></td>
+                <td>Extremely High (limited by slowest node)</td>
+                <td>Zero data loss, but $1$ offline node halts all writes completely</td>
+                <td>✅ Linearizable, but virtually unusable in wide clusters</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>Transatlantic Fiber Cut</h4>
+            <p>
+              A submarine cable between US-East and EU-West is severed. An AP system (Cassandra) allows both regions to accept writes independently (diverging branches), while a CP system (Spanner) blocks EU writes until communication restores.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>Single-Leader Crash Failover</h4>
+            <p>
+              Even on a single-leader database (like standard Postgres or MySQL), asynchronous failover to an un-caught-up follower can resurrect deleted rows or violate uniqueness constraints, silently breaking linearizability.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>Garbage Collection Pauses</h4>
+            <p>
+              A leader node suffers a 2-second JVM Stop-the-World pause. During the pause, followers elect a new leader. When the old leader awakens, it serves non-linearizable writes for 200ms before discovering its lease expired.
+            </p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="analogy-card">
+            <div class="card-label label-analogy">💡 Visual Analogy</div>
+            <div class="card-body-text">
+              Imagine two bank branches in New York and London connected by a telephone line. If the phone wire snaps, a customer in London asks to withdraw all their money. The London teller must either: (1) Refuse service until the phone is repaired (CP - Consistent but Unavailable), or (2) Hand over the cash, risking that the customer also withdrew the money in New York (AP - Available but Non-linearizable).
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="card-label label-wrong">❌ What People Get Wrong</div>
+            <div class="card-body-text">
+              <strong>"CAP means you choose any 2 of 3: Consistency, Availability, or Partition Tolerance."</strong> You cannot choose "CA"! Network partitions are physical realities of hardware and cannot be avoided. Your only architectural choice is how to behave <em>when a partition occurs</em>: sacrifice Availability or sacrifice Consistency.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>CAP is a Trade-off Under Failure:</strong> Partitions are inevitable. You choose between <strong>CP (Consistency & Errors)</strong> or <strong>AP (Availability & Stale Data)</strong>.
+        </div>
+
+        <!-- Interactive Simulator 2: PACELC Latency & Availability Engine -->
+        <div class="interactive-container">
+          <div class="interactive-header">
+            <div class="interactive-title">
+              <span>Interactive Simulator: PACELC Latency vs Consistency Trade-Off Engine</span>
+            </div>
+            <span class="interactive-badge">Sim 02</span>
+          </div>
+
+          <div class="control-panel">
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text);">
+              Inter-DC Network RTT:
+              <input type="range" id="sim2-rtt" min="1" max="250" value="70" oninput="updateSim2()" style="vertical-align: middle;">
+              <span id="sim2-rtt-val" style="color: var(--accent); font-weight: 600;">70 ms</span>
+            </label>
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text); margin-left: 1rem;">
+              <input type="checkbox" id="sim2-partition" onchange="updateSim2()" style="vertical-align: middle;">
+              Inject Network Partition
+            </label>
+          </div>
+
+          <div class="sim-output-box" id="sim2-output">
+            Calculated Latency Profile:
+            - Asynchronous Local Write: 0.8 ms (High Throughput, AP)
+            - Semi-Synchronous Write: 70.8 ms (1 RTT delay)
+            - Fully Linearizable Consensus Write: 141.6 ms (2 RTT round trips)
+          </div>
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">To guarantee linearizability without an absolute physical clock, how do distributed systems order events deterministically?</span>
+          <a href="#module-3" class="inter-link-btn">Proceed to Module 03: Total Order Broadcast →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 3 -->
+      <!-- ========================================================================= -->
+      <section id="module-3" class="lesson-module">
+        <span class="module-badge">Module 03</span>
+        <h2 class="module-title">Ordering, Sequence Numbers & Total Order Broadcast</h2>
+
+        <div class="prose-block">
+          <p>
+            In Chapter 8, we discovered that physical wall clocks (NTP) cannot be trusted to establish a total order of events due to clock skew and leap second smearing. If physical timestamps are unreliable, how can distributed nodes agree on the exact chronological order of transactions? The solution is to transition from physical time to <strong class="highlight-term">Logical Ordering</strong> and <strong class="highlight-term">Total Order Broadcast</strong>.
+          </p>
+          <p>
+            An initial attempt at logical ordering is <strong>Lamport Timestamps</strong>. Each node pairs an incrementing counter with its unique node ID: `(counter, node_id)`. Whenever node $A$ sends a message to node $B$, it includes its counter; node $B$ advances its internal counter to $\max(\text{counter}_A, \text{counter}_B) + 1$. This guarantees that if operation $A$ causally preceded operation $B$, then $\text{timestamp}(A) < \text{timestamp}(B)$.
+          </p>
+          <p>
+            However, Lamport timestamps possess a fatal limitation: <strong>they only establish ordering after the fact</strong>. Imagine a user attempting to claim the username `@alex`. A node checks its local state, sees no conflict, and issues a Lamport timestamp `(42, Node_1)`. But it cannot know if another node concurrently issued `(41, Node_2)` for the same username until it has collected all operations from every other node in the cluster. If the network is slow or partitioned, the node cannot decide whether to commit or abort in real time.
+          </p>
+          <p>
+            To make real-time decisions, a system requires <strong class="highlight-term">Total Order Broadcast</strong> (also known as <em>atomic broadcast</em>). Total Order Broadcast is a protocol for exchanging messages between nodes that enforces two strict safety properties:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">Reliable Delivery:</strong> If a message is delivered to one correct node, it is guaranteed to be delivered to all correct nodes (no dropped messages).</li>
+            <li><strong style="color: var(--text);">Totally Ordered Delivery:</strong> Messages are delivered to every node in the exact same identical sequence. If node $A$ delivers message $m_1$ before $m_2$, node $B$ can never deliver $m_2$ before $m_1$.</li>
+          </ul>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">Equivalence Theorem: Total Order Broadcast & Linearizability</div>
+          <div class="def-content">
+            A Total Order Broadcast log is mathematically equivalent to a linearizable datastore: you can implement Total Order Broadcast atop linearizable Compare-and-Set registers, and you can implement linearizable storage atop a Total Order Broadcast log (by appending writes to the log and sequencing reads after the latest log entry).
+          </div>
+        </div>
+
+        <!-- SVG Diagram 3: Total Order Broadcast Pipeline -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 260" role="img" aria-labelledby="diag3-title diag3-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag3-title">Total Order Broadcast to Replicated State Machine</title>
+            <desc id="diag3-desc">Flow diagram showing how incoming client transactions enter an ordered broadcast log and are applied identically across all database replicas.</desc>
+
+            <defs>
+              <marker id="d3-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d3-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- Client Operations Ingress -->
+            <rect x="30" y="50" width="120" height="40" rx="6" class="diag-card-bg"/>
+            <text x="90" y="74" class="diag-text" text-anchor="middle">Client Write $W_1$</text>
+
+            <rect x="30" y="150" width="120" height="40" rx="6" class="diag-card-bg"/>
+            <text x="90" y="174" class="diag-text" text-anchor="middle">Client Write $W_2$</text>
+
+            <!-- Total Order Broadcast Sequencer / Pipe -->
+            <rect x="220" y="40" width="220" height="160" rx="8" class="diag-focal"/>
+            <rect x="228" y="46" width="60" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+            <text x="258" y="55" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">SEQUENCER</text>
+            <text x="330" y="75" class="diag-focal-text" font-size="13" text-anchor="middle">Total Order Broadcast</text>
+            <text x="330" y="90" class="diag-subtext" text-anchor="middle">Consensus Log (Raft / Paxos / Zab)</text>
+
+            <!-- Sequenced Log Entries Inside Pipe -->
+            <rect x="240" y="110" width="50" height="30" rx="4" class="diag-card-bg"/>
+            <text x="265" y="128" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">#1: W1</text>
+
+            <rect x="300" y="110" width="50" height="30" rx="4" class="diag-card-bg"/>
+            <text x="325" y="128" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">#2: W2</text>
+
+            <rect x="360" y="110" width="50" height="30" rx="4" class="diag-card-bg"/>
+            <text x="385" y="128" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">#3: W3</text>
+
+            <text x="330" y="165" class="diag-subtext" text-anchor="middle">Immutable Append-Only Stream</text>
+
+            <!-- Replicated Database Nodes -->
+            <rect x="540" y="30" width="300" height="50" rx="6" class="diag-card-bg"/>
+            <text x="590" y="52" class="diag-text">Replica Node A</text>
+            <text x="590" y="66" class="diag-subtext">Applies: #1 → #2 → #3 (State $S_3$)</text>
+
+            <rect x="540" y="95" width="300" height="50" rx="6" class="diag-card-bg"/>
+            <text x="590" y="117" class="diag-text">Replica Node B</text>
+            <text x="590" y="131" class="diag-subtext">Applies: #1 → #2 → #3 (State $S_3$)</text>
+
+            <rect x="540" y="160" width="300" height="50" rx="6" class="diag-card-bg"/>
+            <text x="590" y="182" class="diag-text">Replica Node C</text>
+            <text x="590" y="196" class="diag-subtext">Applies: #1 → #2 → #3 (State $S_3$)</text>
+
+            <!-- Orthogonal Connectors (4px grid, r=8) -->
+            <path d="M 150 70 L 212 70" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d3-arrow-accent)"/>
+            <path d="M 150 170 L 180 170 Q 188 170 188 162 L 188 130 Q 188 122 196 122 L 212 122" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d3-arrow)"/>
+
+            <!-- Broadcast Fan-Out from Sequencer to Replicas -->
+            <path d="M 440 60 L 532 60" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d3-arrow)"/>
+            <path d="M 440 120 L 532 120" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d3-arrow)"/>
+            <path d="M 440 160 L 480 160 Q 488 160 488 168 L 488 180 Q 488 188 496 188 L 532 188" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d3-arrow)"/>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 9.3:</strong> Total Order Broadcast implementing State Machine Replication. Every replica receives log events in the identical sequence, ensuring convergence to identical database states.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>ZooKeeper / etcd Transaction Log</h4>
+            <p>
+              When Kubernetes writes a Pod specification to `etcd`, the write is submitted to Raft Total Order Broadcast. Every control plane node applies the update at the identical log index $i$.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>Fencing Token Generation</h4>
+            <p>
+              Lock servers cannot just hand out boolean locks. They issue monotonic sequence numbers via total order broadcast. Even if an old client wakes up from GC, the storage server rejects tokens lower than the highest observed sequence number.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>Total Order Broadcast Read Stale Trap</h4>
+            <p>
+              While Total Order Broadcast makes writes linearizable, reading directly from a replica's local state without querying the log index can still return stale data! To achieve linearizable reads, the node must perform a quorum read or lease check.
+            </p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="analogy-card">
+            <div class="card-label label-analogy">💡 Visual Analogy</div>
+            <div class="card-body-text">
+              Total Order Broadcast is like a single numbered deli counter ticket dispenser. No matter how many customers push into the bakery simultaneously, everyone pulls a ticket with a strict integer: 101, 102, 103. The bakers serve customers strictly by integer order, completely eliminating disputes about who arrived first.
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="card-label label-wrong">❌ What People Get Wrong</div>
+            <div class="card-body-text">
+              <strong>"Lamport timestamps can be used to prevent double-spending or unique constraint violations in real time."</strong> False! Lamport timestamps let you sort historical events after the fact, but they cannot tell you whether another node generated a lower timestamp 1 millisecond ago without waiting for all nodes to respond.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>Total Order Broadcast:</strong> Reliable Delivery + Identical Order across all nodes. It is the architectural foundation of State Machine Replication.
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">When a transaction spans multiple distinct databases or partitions that must all commit together atomically, how is coordination achieved?</span>
+          <a href="#module-4" class="inter-link-btn">Proceed to Module 04: Two-Phase Commit (2PC) →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 4 -->
+      <!-- ========================================================================= -->
+      <section id="module-4" class="lesson-module">
+        <span class="module-badge">Module 04</span>
+        <h2 class="module-title">Atomic Commit & Two-Phase Commit (2PC)</h2>
+
+        <div class="prose-block">
+          <p>
+            On a single database node, transactional atomicity is straightforward: the engine writes all mutations to the Write-Ahead Log (WAL), appends a single <strong class="highlight-term">COMMIT</strong> record to disk, and executes `fsync()`. If the machine loses power one microsecond before the commit record is flushed, the entire transaction is rolled back during crash recovery. If power fails one microsecond after, the transaction is replayed and committed. The commit record is the crisp, atomic point of no return.
+          </p>
+          <p>
+            In a distributed database where a transaction spans multiple nodes (e.g., deducting money from an account on <em>Node A</em> and crediting an account on <em>Node B</em>), a simple commit command is completely broken. If the network drops after Node A commits but before Node B receives the message, Node A has committed while Node B rolls back, irreparably violating ACID Atomicity.
+          </p>
+          <p>
+            The classic algorithm for solving this across heterogeneous or partitioned systems is <strong class="highlight-term">Two-Phase Commit (2PC)</strong> (not to be confused with <em>Two-Phase Locking (2PL)</em>!). 2PC introduces an external <strong>Coordinator</strong> (or Transaction Manager) and divides the commit process into two distinct phases:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">Phase 1 (Prepare):</strong> The coordinator generates a globally unique transaction ID and sends a `PREPARE` RPC to every participating node. Each participant acquires necessary row locks, executes the query into temporary undo/redo buffers, writes changes and a `PREPARED` record to its local disk WAL, and replies with `VOTE YES` (an irrevocable guarantee that it can commit) or `VOTE NO` (if locks failed or disk was full).</li>
+            <li><strong style="color: var(--text);">Phase 2 (Commit / Abort):</strong> The coordinator tallies the votes. If <em>every single participant</em> voted YES, the coordinator writes a `COMMIT` record to its own WAL—this is the <strong>Point of No Return</strong>! The coordinator then broadcasts `GLOBAL COMMIT` to all participants. Participants commit their local transactions, release their locks, and return an acknowledgment. If even one participant voted NO or timed out during Phase 1, the coordinator writes `ABORT` to its WAL and broadcasts `GLOBAL ABORT`.</li>
+          </ul>
+          <p>
+            The fatal flaw of 2PC is that it is a <strong class="highlight-term">Blocking Protocol</strong>. If a participant votes `YES` in Phase 1, it enters the dreaded <strong>In-Doubt</strong> state: it has irrevocably surrendered its autonomy. It cannot abort (because the coordinator might decide to commit), and it cannot commit (because another node might have voted NO). If the coordinator crashes or network cables disconnect immediately after Phase 1 votes are cast, the participant must <strong>hold all row locks indefinitely</strong> until the coordinator recovers. In production, an In-Doubt lock freeze cascades across the entire database, locking up connection pools and halting all application traffic.
+          </p>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">The In-Doubt Dilemma in 2PC</div>
+          <div class="def-content">
+            Once a participant votes "YES", it promises under oath that it will commit if told to do so. If the coordinator dies before delivering Phase 2, the participant is frozen in doubt, holding exclusive table/row locks on disk until an administrator manually intervenes or the coordinator reboots from WAL logs.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 4: Two-Phase Commit Sequence & In-Doubt Crash -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 380" role="img" aria-labelledby="diag4-title diag4-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag4-title">Two-Phase Commit (2PC) Protocol & In-Doubt Window</title>
+            <desc id="diag4-desc">Sequence diagram tracing Phase 1 Prepare, Phase 2 Commit, Coordinator WAL logging, and the catastrophic in-doubt lock freeze state.</desc>
+
+            <defs>
+              <marker id="d4-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d4-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+              <marker id="d4-arrow-teal" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+              </marker>
+              <marker id="d4-arrow-rose" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#f43f5e"/>
+              </marker>
+            </defs>
+
+            <!-- Lifelines -->
+            <line x1="140" y1="50" x2="140" y2="340" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+            <line x1="440" y1="50" x2="440" y2="340" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+            <line x1="740" y1="50" x2="740" y2="340" stroke="var(--border)" stroke-width="1.2" stroke-dasharray="4,4"/>
+
+            <!-- Actor Header Boxes -->
+            <rect x="60" y="20" width="160" height="36" rx="6" class="diag-focal"/>
+            <text x="140" y="42" class="diag-focal-text" font-size="12" text-anchor="middle">Coordinator (2PC)</text>
+
+            <rect x="360" y="20" width="160" height="36" rx="6" class="diag-card-bg"/>
+            <text x="440" y="42" class="diag-text" text-anchor="middle">Participant 1 (Shard A)</text>
+
+            <rect x="660" y="20" width="160" height="36" rx="6" class="diag-card-bg"/>
+            <text x="740" y="42" class="diag-text" text-anchor="middle">Participant 2 (Shard B)</text>
+
+            <!-- Phase 1: Prepare Broadcast -->
+            <path d="M 140 80 L 432 80" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d4-arrow-accent)"/>
+            <path d="M 140 100 L 732 100" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d4-arrow-accent)"/>
+            <rect x="250" y="68" width="80" height="14" rx="2" class="diag-mask-elevated"/>
+            <text x="290" y="78" class="diag-label-accent">PREPARE Txn_101</text>
+            <rect x="400" y="88" width="80" height="14" rx="2" class="diag-mask-elevated"/>
+            <text x="440" y="98" class="diag-label-accent">PREPARE Txn_101</text>
+
+            <!-- Phase 1: Vote Responses -->
+            <path d="M 440 130 L 148 130" stroke="#10b981" stroke-width="1.2" fill="none" marker-end="url(#d4-arrow-teal)"/>
+            <rect x="260" y="118" width="60" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="290" y="127" class="diag-label" fill="#10b981">VOTE YES</text>
+
+            <path d="M 740 150 L 148 150" stroke="#10b981" stroke-width="1.2" fill="none" marker-end="url(#d4-arrow-teal)"/>
+            <rect x="410" y="138" width="60" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="440" y="147" class="diag-label" fill="#10b981">VOTE YES</text>
+
+            <!-- In-Doubt Window Highlight on Participants -->
+            <rect x="432" y="130" width="16" height="120" rx="2" fill="rgba(245,158,11,0.2)" stroke="var(--amber)" stroke-width="1"/>
+            <rect x="732" y="150" width="16" height="100" rx="2" fill="rgba(245,158,11,0.2)" stroke="var(--amber)" stroke-width="1"/>
+
+            <!-- Coordinator Point of No Return -->
+            <rect x="60" y="170" width="160" height="30" rx="4" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1"/>
+            <text x="140" y="188" fill="#10b981" font-family="'Geist Mono', monospace" font-size="9" font-weight="700" text-anchor="middle">WAL: COMMIT Txn_101</text>
+
+            <!-- Coordinator Crash Point (Failure Injection) -->
+            <circle cx="140" cy="220" r="10" fill="#f43f5e"/>
+            <text x="140" y="224" fill="#fff" font-family="'Geist Mono', monospace" font-size="11" font-weight="700" text-anchor="middle">⚡</text>
+            <rect x="160" y="210" width="180" height="20" rx="2" fill="rgba(244,63,94,0.1)" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="250" y="224" fill="#f43f5e" font-family="'Geist Mono', monospace" font-size="8.5" font-weight="600" text-anchor="middle">COORDINATOR CRASHES HERE!</text>
+
+            <!-- In-Doubt Lock Freeze Annotation -->
+            <rect x="460" y="230" width="380" height="50" rx="6" fill="rgba(245,158,11,0.1)" stroke="var(--amber)" stroke-width="1"/>
+            <text x="650" y="250" fill="var(--amber)" font-family="'Geist Mono', monospace" font-size="9" font-weight="700" text-anchor="middle">⚠️ IN-DOUBT LOCK FREEZE</text>
+            <text x="650" y="268" class="diag-subtext" text-anchor="middle">Participants hold row locks indefinitely. Cannot Commit or Abort!</text>
+
+            <!-- Phase 2 Global Commit (if coordinator recovers) -->
+            <path d="M 140 310 L 432 310" stroke="#10b981" stroke-width="1.2" stroke-dasharray="4,4" fill="none" marker-end="url(#d4-arrow-teal)"/>
+            <path d="M 140 330 L 732 330" stroke="#10b981" stroke-width="1.2" stroke-dasharray="4,4" fill="none" marker-end="url(#d4-arrow-teal)"/>
+            <rect x="240" y="298" width="100" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="290" y="307" class="diag-label" fill="#10b981">GLOBAL COMMIT (After Reboot)</text>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 9.4:</strong> Two-Phase Commit protocol timeline. If the coordinator crashes after receiving YES votes, participants enter the blocking In-Doubt state with locks held indefinitely.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>XA Distributed Transactions (Java JTA)</h4>
+            <p>
+              An enterprise Java service coordinates a transfer between a PostgreSQL database and an IBM MQ message queue using the XA 2PC standard, ensuring message ack and row insert commit in lockstep.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>Why 3-Phase Commit (3PC) Doesn't Save Us</h4>
+            <p>
+              Three-Phase Commit (3PC) attempts non-blocking commit by adding a "PreCommit" stage, but it assumes a synchronous network with bounded delay. Over real-world asynchronous Internet networks, 3PC can split-brain under partitions.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>Orphaned Prepared Transactions in PostgreSQL</h4>
+            <p>
+              If a client issues `PREPARE TRANSACTION 'foo'` and disconnects, PostgreSQL holds all locks and prevents table auto-vacuuming indefinitely until a DBA manually runs `ROLLBACK PREPARED 'foo'`.
+            </p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="analogy-card">
+            <div class="card-label label-analogy">💡 Visual Analogy</div>
+            <div class="card-body-text">
+              2PC is like a traditional marriage ceremony. The officiant (Coordinator) asks Groom (Node 1) "Do you take...?" Groom says "I do" (Vote YES). Officiant asks Bride (Node 2) "Do you take...?" Bride says "I do" (Vote YES). Both have committed their vows. If the officiant suddenly suffers a heart attack before saying "I now pronounce you husband and wife", the couple is stuck at the altar—unable to marry someone else, yet legally not married.
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="card-label label-wrong">❌ What People Get Wrong</div>
+            <div class="card-body-text">
+              <strong>"2PC and 2PL (Two-Phase Locking) are the same thing."</strong> 2PL is a concurrency control mechanism for serializable isolation (holding locks until end of txn). 2PC is a distributed atomic commit protocol across multiple nodes. They solve completely distinct problems!
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>2PC = Unanimous Vote + Point of No Return.</strong> Vulnerability: Coordinator crash leaves participants locked in the In-Doubt state.
+        </div>
+
+        <!-- Interactive Simulator 3: Two-Phase Commit State Machine & Crash Sandbox -->
+        <div class="interactive-container">
+          <div class="interactive-header">
+            <div class="interactive-title">
+              <span>Interactive Simulator: Two-Phase Commit Crash & In-Doubt Sandbox</span>
+            </div>
+            <span class="interactive-badge">Sim 03</span>
+          </div>
+
+          <div class="control-panel">
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text);">
+              Inject Crash Event:
+              <select id="sim3-crash" style="background: var(--bg-surface-elevated); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: var(--radius-sm); margin-left: 0.4rem;">
+                <option value="none">No Crash (Happy Path Global Commit)</option>
+                <option value="coord-phase1">Coordinator Crashes during Phase 1 (Before Vote)</option>
+                <option value="coord-phase2">Coordinator Crashes in Phase 2 (In-Doubt Lock Freeze)</option>
+                <option value="part-vote-no">Participant 2 Votes NO (Disk Full / Conflict)</option>
+              </select>
+            </label>
+            <button class="btn-action" onclick="runSim3()">Execute 2PC Protocol</button>
+          </div>
+
+          <div class="sim-output-box" id="sim3-output">
+            Click "Execute 2PC Protocol" to step through the coordinator and participant WAL logs.
+          </div>
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">How do large-scale sharded databases like Vitess and PlanetScale manage or avoid 2PC in real-world high-throughput architectures?</span>
+          <a href="#module-5" class="inter-link-btn">Proceed to Module 05: Sharded Distributed Transactions →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 5 -->
+      <!-- ========================================================================= -->
+      <section id="module-5" class="lesson-module">
+        <span class="module-badge">Module 05</span>
+        <h2 class="module-title">Distributed Transactions in Sharded Architectures</h2>
+
+        <div class="prose-block">
+          <p>
+            When scaling relational databases horizontally via sharding (as popularized by <strong class="highlight-term">Vitess</strong> at YouTube, Slack, GitHub, and PlanetScale), data is partitioned across dozens or hundreds of independent MySQL or PostgreSQL instances. While queries that target a single shard run at native B-tree speed with low single-digit millisecond latency, transactions that span multiple shards introduce severe architectural headwinds.
+          </p>
+          <p>
+            When an application issues a transaction modifying rows across Shard 1 and Shard 2 via a routing proxy (`vtgate`), the proxy must orchestrate a distributed 2PC transaction across the corresponding tablet processes (`vttablet`). In this environment, the <strong>latency multiplier</strong> becomes catastrophic:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">6x Network Hop Expansion:</strong> A single single-shard insert requires 1 network round-trip. A cross-shard 2PC insert requires: Begin Shard 1 + Begin Shard 2 $\rightarrow$ Insert Shard 1 + Insert Shard 2 $\rightarrow$ Prepare Shard 1 + Prepare Shard 2 $\rightarrow$ Global Commit. This generates at least <strong>6 distinct network round-trips</strong> across the cluster.</li>
+            <li><strong style="color: var(--text);">Lock Contention Amplification:</strong> Because InnoDB row locks must be held on both shards from the moment the insert executes until the final `GLOBAL COMMIT` ACK is received, lock hold times surge from $2\text{ ms}$ to $50\text{ ms}+$. Concurrent transactions attempting to touch the same rows queue up behind the locks, quickly exhausting database connection pools.</li>
+            <li><strong style="color: var(--text);">The Vitess Lessons:</strong> Due to these catastrophic performance degradation patterns, Vitess historically removed distributed transactions entirely, later reintroducing them only with strict timeouts and warnings. Modern distributed database architectures strongly advise designing application data models to <strong>strictly isolate transactions to a single shard key</strong>.</li>
+          </ul>
+          <p>
+            When cross-boundary coordination is strictly unavoidable, modern engineering teams replace synchronous 2PC with <strong class="highlight-term">Asynchronous Sagas</strong> (compensating transactions) or <strong class="highlight-term">Ledger Patterns</strong> using optimistic concurrency and single-row atomic increments.
+          </p>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">The Sharded Transaction Golden Rule</div>
+          <div class="def-content">
+            Design your sharding key (e.g., `tenant_id` or `account_id`) so that 99.9% of all write transactions are strictly scoped to a single database shard. Treat cross-shard 2PC as an expensive, emergency fallback rather than standard operational flow.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 5: Cross-Shard Vitess Architecture & Lock Windows -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 300" role="img" aria-labelledby="diag5-title diag5-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag5-title">Cross-Shard Distributed Transaction in Vitess</title>
+            <desc id="diag5-desc">Architecture diagram of Application Client communicating with VTGate routing proxy, coordinating 2PC across VTTablet Shard 1 and Shard 2.</desc>
+
+            <defs>
+              <marker id="d5-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d5-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+              </marker>
+            </defs>
+
+            <!-- App Client -->
+            <rect x="30" y="110" width="120" height="60" rx="6" class="diag-card-bg"/>
+            <text x="90" y="136" class="diag-text" text-anchor="middle">App Client</text>
+            <text x="90" y="152" class="diag-subtext" text-anchor="middle">SQL Statement</text>
+
+            <!-- VTGate Routing Proxy -->
+            <rect x="220" y="80" width="180" height="120" rx="8" class="diag-focal"/>
+            <rect x="228" y="86" width="48" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+            <text x="252" y="95" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">PROXY</text>
+            <text x="310" y="122" class="diag-focal-text" font-size="14" text-anchor="middle">VTGate Proxy</text>
+            <text x="310" y="140" class="diag-subtext" text-anchor="middle">2PC Coordinator Buffer</text>
+            <text x="310" y="156" class="diag-subtext" text-anchor="middle">Scatter-Gather Manager</text>
+
+            <!-- Shard 1 (VTTablet + MySQL) -->
+            <rect x="490" y="40" width="350" height="80" rx="6" class="diag-card-bg"/>
+            <text x="540" y="66" class="diag-text">Shard 1: User Accounts (keyspace: 00-80)</text>
+            <text x="540" y="82" class="diag-subtext">VTTablet 1 · MySQL InnoDB Instance · Row Locks Held</text>
+            <rect x="760" y="55" width="60" height="20" rx="3" fill="rgba(244,63,94,0.15)" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="790" y="69" class="diag-tag-text" fill="#f43f5e" text-anchor="middle">LOCK: 45ms</text>
+
+            <!-- Shard 2 (VTTablet + MySQL) -->
+            <rect x="490" y="160" width="350" height="80" rx="6" class="diag-card-bg"/>
+            <text x="540" y="186" class="diag-text">Shard 2: Billing Ledger (keyspace: 80-FF)</text>
+            <text x="540" y="202" class="diag-subtext">VTTablet 2 · MySQL InnoDB Instance · Row Locks Held</text>
+            <rect x="760" y="175" width="60" height="20" rx="3" fill="rgba(244,63,94,0.15)" stroke="#f43f5e" stroke-width="0.8"/>
+            <text x="790" y="189" class="diag-tag-text" fill="#f43f5e" text-anchor="middle">LOCK: 45ms</text>
+
+            <!-- Connectors (Orthogonal 4px grid, r=8) -->
+            <path d="M 150 140 L 212 140" stroke="#eb6c36" stroke-width="1.5" fill="none" marker-end="url(#d5-arrow-accent)"/>
+
+            <!-- VTGate to Shard 1 -->
+            <path d="M 400 120 L 440 120 Q 448 120 448 112 L 448 88 Q 448 80 456 80 L 482 80" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d5-arrow)"/>
+            <rect x="420" y="92" width="56" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="448" y="101" class="diag-label">PREPARE</text>
+
+            <!-- VTGate to Shard 2 -->
+            <path d="M 400 160 L 440 160 Q 448 160 448 168 L 448 192 Q 448 200 456 200 L 482 200" stroke="#8d9bb0" stroke-width="1.2" fill="none" marker-end="url(#d5-arrow)"/>
+            <rect x="420" y="172" width="56" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="448" y="181" class="diag-label">PREPARE</text>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 9.5:</strong> Cross-shard transaction in Vitess. VTGate coordinates 2PC across independent MySQL shards, amplifying network round-trips and extending InnoDB lock hold durations.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>Slack Channel Sharding</h4>
+            <p>
+              Slack shards databases by `workspace_id`. All messages, channels, and member writes within a workspace occur inside a single MySQL shard, completely bypassing cross-shard 2PC.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>Saga Pattern with Compensating Actions</h4>
+            <p>
+              Rather than locking Shard A and Shard B synchronously, a flight booking service commits the seat reservation immediately on Shard A. If hotel booking fails on Shard B later, an asynchronous message executes a <em>Cancel Reservation</em> compensating transaction.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>LSM-Tree vs B-Tree Contention</h4>
+            <p>
+              Under extreme high-contention sequential writes (like append-only ledger ledgers), B-Trees suffer lock contention on leaf pages. LSM-Tree databases (like ClickHouse or RocksDB) ingest writes sequentially in memory with near-zero locking overhead.
+            </p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="analogy-card">
+            <div class="card-label label-analogy">💡 Visual Analogy</div>
+            <div class="card-body-text">
+              A single-shard transaction is like paying a single cashier for groceries. A cross-shard 2PC transaction is like buying items at 4 different stores simultaneously, forcing all 4 store managers to hold the items at the register on the phone with you until everyone confirms credit card authorization.
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="card-label label-wrong">❌ What People Get Wrong</div>
+            <div class="card-body-text">
+              <strong>"Modern NewSQL databases (CockroachDB, Spanner) eliminated the 2PC performance penalty."</strong> They use optimized protocols (Raft per range + 2PC across ranges), but the laws of physics remain: cross-shard transactions still require multiple network RTTs and hold locks across nodes!
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>Colocate by Shard Key:</strong> Keep transactions local to one node. Use Sagas or Ledger patterns when crossing shard boundaries.
+        </div>
+
+        <!-- Interactive Simulator 4: Cross-Shard 2PC Latency & Throughput Calculator -->
+        <div class="interactive-container">
+          <div class="interactive-header">
+            <div class="interactive-title">
+              <span>Interactive Simulator: Cross-Shard 2PC Throughput & Lock Estimator</span>
+            </div>
+            <span class="interactive-badge">Sim 04</span>
+          </div>
+
+          <div class="control-panel">
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text);">
+              Participating Shards ($K$):
+              <input type="range" id="sim4-shards" min="1" max="10" value="3" oninput="updateSim4()" style="vertical-align: middle;">
+              <span id="sim4-shards-val" style="color: var(--accent); font-weight: 600;">3 Shards</span>
+            </label>
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text); margin-left: 1rem;">
+              Inter-Shard RTT:
+              <input type="range" id="sim4-rtt" min="1" max="50" value="5" oninput="updateSim4()" style="vertical-align: middle;">
+              <span id="sim4-rtt-val" style="color: var(--accent); font-weight: 600;">5 ms</span>
+            </label>
+          </div>
+
+          <div class="sim-output-box" id="sim4-output">
+            Estimated Metrics for 3-Shard 2PC:
+            - Minimum Network Round-Trips: 6 RTTs
+            - Total Commit Duration: ~30.0 ms
+            - Max Single-Row Throughput: ~33 transactions/sec per locked row (Lock Bottleneck!)
+          </div>
+        </div>
+
+        <div class="inter-link-card">
+          <span class="inter-link-text">If 2PC blocks when a coordinator crashes, how do modern consensus protocols achieve fault-tolerant agreement without blocking?</span>
+          <a href="#module-6" class="inter-link-btn">Proceed to Module 06: Fault-Tolerant Consensus (Raft & Paxos) →</a>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- MODULE 6 -->
+      <!-- ========================================================================= -->
+      <section id="module-6" class="lesson-module">
+        <span class="module-badge">Module 06</span>
+        <h2 class="module-title">Fault-Tolerant Consensus & Coordination Services</h2>
+
+        <div class="prose-block">
+          <p>
+            The fundamental flaw of Two-Phase Commit is that it requires <strong>unanimous agreement</strong>: if even one node crashes, the system cannot make forward progress. In distributed systems, the ultimate solution to non-blocking coordination is <strong class="highlight-term">Consensus</strong>. The consensus problem requires one or more nodes to propose values, and the algorithm guarantees that all non-faulty nodes agree on a single, irrevocable decision.
+          </p>
+          <p>
+            Formally, a consensus algorithm (such as <strong>Paxos</strong>, <strong>Raft</strong>, or <strong>Zab</strong>) must satisfy four core safety and liveness properties:
+          </p>
+          <ul style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: var(--text-muted);">
+            <li><strong style="color: var(--text);">Uniform Agreement:</strong> No two nodes can ever decide differently on the same log index.</li>
+            <li><strong style="color: var(--text);">Integrity:</strong> No node can decide twice on the same proposal.</li>
+            <li><strong style="color: var(--text);">Validity:</strong> If a node decides value $v$, then $v$ must have been proposed by some participant.</li>
+            <li><strong style="color: var(--text);">Termination:</strong> Every non-faulty node eventually decides on a value (liveness under majority availability).</li>
+          </ul>
+          <p>
+            How does Consensus avoid the blocking dilemma of 2PC? Consensus algorithms rely on <strong class="highlight-term">Majority Quorums</strong>. In a cluster of $N$ nodes (where $N = 2F + 1$), the protocol requires agreement from only a majority of $\lfloor N/2 \rfloor + 1$ nodes. A 5-node cluster requires only 3 votes to commit an entry, gracefully tolerating up to $F = 2$ dead nodes without halting or waiting!
+          </p>
+          <p>
+            To prevent split-brain leadership, consensus protocols employ <strong class="highlight-term">Epoch Numbers</strong> (called <em>Terms</em> in Raft, <em>Ballot Numbers</em> in Paxos, or <em>Zxids</em> in Zab). If an old partitioned leader wakes up and attempts to append log entries, majority followers reject its messages because a newer leader has already been elected with a higher Epoch number.
+          </p>
+          <p>
+            Because running consensus on every database row is computationally expensive, distributed architectures use specialized <strong>Coordination Services</strong> like <strong class="highlight-term">ZooKeeper</strong>, <strong class="highlight-term">etcd</strong>, and <strong class="highlight-term">Consul</strong>. These systems run Raft or Zab to hold small, critical cluster metadata: leader election locks, service discovery endpoints, fencing tokens, and sharding routing maps.
+          </p>
+        </div>
+
+        <div class="def-callout">
+          <div class="def-title">2PC vs. Quorum Consensus Comparison</div>
+          <div class="def-content">
+            <strong>2PC requires UNANIMOUS agreement ($N$ of $N$):</strong> If 1 node dies, the protocol blocks indefinitely.
+            <strong>Consensus requires MAJORITY agreement ($\lfloor N/2 \rfloor + 1$):</strong> If a minority of nodes die, the system continues making progress with zero interruption.
+          </div>
+        </div>
+
+        <!-- SVG Diagram 6: Consensus Quorum Cluster & Epoch Elections -->
+        <div class="diagram-figure">
+          <svg viewBox="0 0 880 320" role="img" aria-labelledby="diag6-title diag6-desc" style="width: 100%; height: auto; display: block;">
+            <title id="diag6-title">5-Node Quorum Consensus Cluster (Raft / Paxos)</title>
+            <desc id="diag6-desc">Architecture diagram of a 5-node consensus cluster showing Leader with Epoch 2, Majority Quorum of 3 nodes, and 2 partitioned nodes.</desc>
+
+            <defs>
+              <marker id="d6-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#8d9bb0"/>
+              </marker>
+              <marker id="d6-arrow-teal" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+              </marker>
+              <marker id="d6-arrow-rose" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#f43f5e"/>
+              </marker>
+            </defs>
+
+            <!-- Majority Quorum Boundary Box -->
+            <rect x="30" y="30" width="540" height="260" rx="8" class="diag-card-bg"/>
+            <text x="300" y="52" fill="var(--teal)" font-family="'Geist Mono', monospace" font-size="10" font-weight="600" text-anchor="middle" letter-spacing="0.1em">ACTIVE MAJORITY QUORUM (3 of 5 Nodes = Quorum Met ✅)</text>
+
+            <!-- Leader Node (Epoch 2) -->
+            <rect x="60" y="80" width="160" height="70" rx="6" class="diag-focal"/>
+            <rect x="68" y="86" width="60" height="12" rx="2" fill="none" stroke="var(--accent)" stroke-width="0.8"/>
+            <text x="98" y="95" class="diag-tag-text" fill="var(--accent)" text-anchor="middle">LEADER · E=2</text>
+            <text x="140" y="116" class="diag-focal-text" font-size="13" text-anchor="middle">Node 1 (Leader)</text>
+            <text x="140" y="132" class="diag-subtext" text-anchor="middle">Appends Log Entry #42</text>
+
+            <!-- Follower 2 -->
+            <rect x="320" y="80" width="160" height="60" rx="6" class="diag-card-bg"/>
+            <rect x="328" y="86" width="56" height="12" rx="2" fill="none" stroke="var(--teal)" stroke-width="0.8"/>
+            <text x="356" y="95" class="diag-tag-text" fill="var(--teal)" text-anchor="middle">FOLLOWER</text>
+            <text x="400" y="112" class="diag-text" text-anchor="middle">Node 2 (Healthy)</text>
+            <text x="400" y="126" class="diag-subtext" text-anchor="middle">Votes YES · Acks #42</text>
+
+            <!-- Follower 3 -->
+            <rect x="320" y="180" width="160" height="60" rx="6" class="diag-card-bg"/>
+            <rect x="328" y="186" width="56" height="12" rx="2" fill="none" stroke="var(--teal)" stroke-width="0.8"/>
+            <text x="356" y="195" class="diag-tag-text" fill="var(--teal)" text-anchor="middle">FOLLOWER</text>
+            <text x="400" y="212" class="diag-text" text-anchor="middle">Node 3 (Healthy)</text>
+            <text x="400" y="226" class="diag-subtext" text-anchor="middle">Votes YES · Acks #42</text>
+
+            <!-- Partitioned / Dead Nodes Box -->
+            <rect x="620" y="30" width="230" height="260" rx="8" fill="rgba(244,63,94,0.04)" stroke="#f43f5e" stroke-width="1" stroke-dasharray="4,4"/>
+            <text x="735" y="52" fill="#f43f5e" font-family="'Geist Mono', monospace" font-size="10" font-weight="600" text-anchor="middle" letter-spacing="0.1em">MINORITY PARTITION (2 of 5)</text>
+
+            <!-- Node 4 (Dead) -->
+            <rect x="650" y="80" width="170" height="60" rx="6" class="diag-card-bg"/>
+            <text x="735" y="106" class="diag-text" fill="#f43f5e">Node 4 (Crashed)</text>
+            <text x="735" y="122" class="diag-subtext">Offline / Power Failure</text>
+
+            <!-- Node 5 (Isolated) -->
+            <rect x="650" y="180" width="170" height="60" rx="6" class="diag-card-bg"/>
+            <text x="735" y="206" class="diag-text" fill="#f43f5e">Node 5 (Isolated)</text>
+            <text x="735" y="222" class="diag-subtext">Old Epoch 1 · Cannot Form Quorum</text>
+
+            <!-- Quorum Arrows (Orthogonal 4px grid) -->
+            <path d="M 220 110 L 312 110" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d6-arrow-teal)"/>
+            <rect x="240" y="98" width="56" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="268" y="107" class="diag-label" fill="#10b981">APPEND #42</text>
+
+            <path d="M 140 150 L 140 210 Q 140 218 148 218 L 312 218" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#d6-arrow-teal)"/>
+            <rect x="180" y="206" width="56" height="12" rx="2" class="diag-mask-elevated"/>
+            <text x="208" y="215" class="diag-label" fill="#10b981">APPEND #42</text>
+
+            <!-- Blocked Arrow to Node 4 -->
+            <path d="M 480 110 L 642 110" stroke="#f43f5e" stroke-width="1.2" stroke-dasharray="4,4" fill="none" marker-end="url(#d6-arrow-rose)"/>
+            <circle cx="560" cy="110" r="8" fill="#f43f5e"/>
+            <text x="560" y="113" fill="#fff" font-family="'Geist Mono', monospace" font-size="9" font-weight="700" text-anchor="middle">✕</text>
+          </svg>
+          <div class="diagram-caption">
+            <strong>Figure 9.6:</strong> Raft/Paxos 5-node consensus cluster. The majority quorum (Nodes 1, 2, 3) commits entries without waiting for failed Nodes 4 and 5.
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag tag-obvious">Obvious Example</span>
+            <h4>Kubernetes Control Plane (etcd)</h4>
+            <p>
+              A 3-node etcd cluster runs Raft. If 1 control plane VM dies, the remaining 2 nodes still form a majority quorum ($2 > 3/2$), allowing continuous pod scheduling and API server commits without pause.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-counter">Counter-Intuitive Example</span>
+            <h4>Why Odd Cluster Sizes ($3, 5, 7$) are Mandatory</h4>
+            <p>
+              A 4-node cluster tolerates $F = \lfloor (4-1)/2 \rfloor = 1$ failure, requiring a majority of 3. A 3-node cluster also tolerates 1 failure (majority 2). Adding a 4th node adds cost and network traffic without increasing fault tolerance!
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag tag-edge">Edge-Case Example</span>
+            <h4>ZooKeeper Ephemeral Node Heartbeats</h4>
+            <p>
+              In Kafka or Vitess, a leader registers an ephemeral node in ZooKeeper. If the leader experiences a network timeout, ZooKeeper deletes the ephemeral node, automatically triggering a consensus election for a new leader.
+            </p>
+          </div>
+        </div>
+
+        <div class="pedagogy-grid">
+          <div class="analogy-card">
+            <div class="card-label label-analogy">💡 Visual Analogy</div>
+            <div class="card-body-text">
+              Consensus is like the Supreme Court voting on a decision. There are 9 judges ($N=9$). If 4 judges are ill and absent, the remaining 5 judges still form a majority quorum ($5 > 4.5$) and deliver a legally binding, final judgment. No single absent judge can hold the court hostage.
+            </div>
+          </div>
+          <div class="misconception-card">
+            <div class="card-label label-wrong">❌ What People Get Wrong</div>
+            <div class="card-body-text">
+              <strong>"Paxos and Raft can handle Byzantine (malicious / hacked) nodes."</strong> False! Paxos and Raft operate in the <em>Crash-Recovery Model</em> where nodes may crash or delay, but messages are authentic. Dealing with lying or corrupted nodes requires <em>Byzantine Fault Tolerance (BFT)</em>, requiring $3F + 1$ nodes.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-tag">Memory Rule</span>
+          <strong>Consensus Quorum Formula:</strong> $N = 2F + 1$. A cluster of size $N$ survives $F$ node failures with a majority vote of $\lfloor N/2 \rfloor + 1$.
+        </div>
+
+        <!-- Interactive Simulator 5: Consensus Quorum vs 2PC Availability Calculator -->
+        <div class="interactive-container">
+          <div class="interactive-header">
+            <div class="interactive-title">
+              <span>Interactive Simulator: Quorum Consensus vs 2PC Availability Calculator</span>
+            </div>
+            <span class="interactive-badge">Sim 05</span>
+          </div>
+
+          <div class="control-panel">
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text);">
+              Cluster Size ($N$):
+              <select id="sim5-nodes" onchange="updateSim5()" style="background: var(--bg-surface-elevated); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: var(--radius-sm); margin-left: 0.4rem;">
+                <option value="3">3 Nodes (Tolerates 1 failure)</option>
+                <option value="5" selected>5 Nodes (Tolerates 2 failures)</option>
+                <option value="7">7 Nodes (Tolerates 3 failures)</option>
+              </select>
+            </label>
+            <label style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text); margin-left: 1rem;">
+              Simulated Dead Nodes:
+              <input type="range" id="sim5-dead" min="0" max="4" value="2" oninput="updateSim5()" style="vertical-align: middle;">
+              <span id="sim5-dead-val" style="color: var(--accent); font-weight: 600;">2 Nodes</span>
+            </label>
+          </div>
+
+          <div class="sim-output-box" id="sim5-output">
+            Evaluating 5-Node Cluster:
+            - Quorum Requirement: 3 of 5 nodes
+            - Healthy Nodes Remaining: 3 nodes
+            - Raft / Paxos Consensus Status: ✅ OPERATIONAL (Quorum Satisfied)
+            - Two-Phase Commit (2PC) Status: ❌ BLOCKED (Requires 5 of 5 nodes)
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- INTERACTIVE FLASHCARDS -->
+      <!-- ========================================================================= -->
+      <section class="flashcards-section">
+        <h3 style="font-family: var(--font-serif); font-size: 1.8rem; font-weight: 400; margin-bottom: 0.5rem;">Active Recall Challenge Deck</h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">Click any flashcard to flip and test your deep understanding of Chapter 9 concepts.</p>
+
+        <div class="flashcards-grid">
+          <!-- Card 1 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 01</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">What is the fundamental difference between Serializability and Linearizability?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;"><strong>Serializability</strong> is an ACID isolation property for multi-operation transactions (execution matches some serial order). <strong>Linearizability</strong> is a real-time recency guarantee on single objects (reads return the latest acknowledged write).</p>
+            </div>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 02</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">Why does Two-Phase Commit (2PC) cause the dreaded "In-Doubt" lock freeze?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">Once a participant votes "YES" in Phase 1, it surrenders its autonomy. If the coordinator crashes before broadcasting Phase 2, the participant cannot abort or commit unilaterally, holding row locks indefinitely.</p>
+            </div>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 03</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">Why are Lamport Timestamps insufficient to implement a unique username register in real time?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">Lamport timestamps establish a total order only <em>after</em> all operations are collected. A node cannot decide immediately whether a username is unique because a concurrent write with a lower timestamp might still be in flight.</p>
+            </div>
+          </div>
+
+          <!-- Card 4 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 04</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">How do consensus algorithms (Paxos/Raft) eliminate the single-point-of-failure blocking problem of 2PC?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">2PC requires unanimous ($N$ of $N$) agreement. Consensus protocols require only a <strong>majority quorum</strong> ($\lfloor N/2 \rfloor + 1$). In a 5-node cluster, 3 nodes can commit log entries even if 2 nodes are completely dead.</p>
+            </div>
+          </div>
+
+          <!-- Card 5 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 05</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">Why did Vitess and YouTube historically disable cross-shard 2PC?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">Cross-shard 2PC amplifies network round-trips (6+ RTTs) and holds InnoDB row locks across shards for tens of milliseconds, causing connection pool exhaustion and catastrophic throughput collapse under load.</p>
+            </div>
+          </div>
+
+          <!-- Card 6 -->
+          <div class="flashcard" onclick="this.classList.toggle('flipped')">
+            <div class="flashcard-front">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase;">Question 06</span>
+              <p style="margin-top: 0.75rem; font-weight: 600; color: var(--text);">What role do Epoch Numbers (Terms) play in consensus leader election?</p>
+              <span class="card-flip-prompt">Click to reveal answer ↻</span>
+            </div>
+            <div class="flashcard-back">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); font-weight: 700; text-transform: uppercase;">Answer</span>
+              <p style="margin-top: 0.75rem;">Epoch numbers guarantee that there is at most one valid leader per term. If an old partitioned leader wakes up and attempts to issue commands, followers reject them because they recognize a higher epoch number.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- SUMMARY & CHEAT SHEET -->
+      <!-- ========================================================================= -->
+      <section id="summary-cheatsheet" class="cheat-sheet-section">
+        <span class="module-badge">Synthesis & Reference</span>
+        <h2 class="module-title">Chapter 9 Cheat Sheet & Architectural Reference</h2>
+
+        <div class="table-container">
+          <table class="cheat-table">
+            <thead>
+              <tr>
+                <th>Protocol / Concept</th>
+                <th>Agreement Scope</th>
+                <th>Failure Tolerance</th>
+                <th>Primary Use Case & Tooling</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Linearizability</strong></td>
+                <td>Single Object (Real-time recency)</td>
+                <td>Blocked under network partitions (CP)</td>
+                <td>Leader election, Distributed locks, CAS registers</td>
+              </tr>
+              <tr>
+                <td><strong>Total Order Broadcast</strong></td>
+                <td>Ordered message sequence</td>
+                <td>Survives minority failures ($F < N/2$)</td>
+                <td>State Machine Replication (etcd, ZooKeeper, Raft log)</td>
+              </tr>
+              <tr>
+                <td><strong>Two-Phase Commit (2PC)</strong></td>
+                <td>Heterogeneous atomic commit ($N$ of $N$)</td>
+                <td>Zero tolerance: 1 crash blocks the entire transaction</td>
+                <td>Cross-shard SQL transactions, XA transactions (JTA)</td>
+              </tr>
+              <tr>
+                <td><strong>Paxos / Raft / Zab</strong></td>
+                <td>Consensus on state/log index ($N/2 + 1$)</td>
+                <td>Survives $F = \lfloor (N-1)/2 \rfloor$ node failures</td>
+                <td>Core database replication engine (Spanner, CockroachDB, TiDB)</td>
+              </tr>
+              <tr>
+                <td><strong>Asynchronous Sagas</strong></td>
+                <td>Eventual consistency via compensating txns</td>
+                <td>High (each local txn commits independently)</td>
+                <td>Microservices, Payment workflows, Long-running checkouts</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Technical FAQ -->
+        <h3 style="font-family: var(--font-serif); font-size: 1.8rem; font-weight: 400; margin: 3rem 0 1.5rem;">Frequently Asked Technical Questions</h3>
+        <div class="faq-grid">
+          <div class="faq-item">
+            <h4>Q1: Can we achieve Linearizability without a single leader?</h4>
+            <p>
+              Yes, leaderless systems (like Dynamo or Cassandra) can achieve linearizability by performing strict read-repair and read/write quorum overlap ($W + R > N$). However, to handle concurrent racing writes without Last-Write-Wins data loss, leaderless stores must implement a consensus-based Compare-and-Set register (like Cassandra Lightweight Transactions via Paxos).
+            </p>
+          </div>
+          <div class="faq-item">
+            <h4>Q2: Why does Google Spanner need atomic GPS and atomic clocks (TrueTime)?</h4>
+            <p>
+              Google Spanner uses TrueTime uncertainty bounds ($\epsilon \approx 7\text{ ms}$) to assign monotonic commit timestamps to transactions. By waiting $2\epsilon$ before releasing a commit (Commit-Wait), Spanner achieves Strict Serializability (Linearizability + Serializability) across globally distributed datacenters without requiring cross-region 2PC locks for read-only transactions!
+            </p>
+          </div>
+          <div class="faq-item">
+            <h4>Q3: What happens if an etcd cluster loses 2 nodes in a 3-node deployment?</h4>
+            <p>
+              In a 3-node cluster, the majority quorum requirement is $\lfloor 3/2 \rfloor + 1 = 2$. If 2 nodes die, only 1 node remains. The cluster can no longer form a quorum and transitions to read-only or error state, rejecting all writes to protect consistency until at least 1 node recovers.
+            </p>
+          </div>
+          <div class="faq-item">
+            <h4>Q4: How does a ledger pattern with optimistic concurrency solve the cross-shard 2PC bottleneck?</h4>
+            <p>
+              Instead of locking rows across Shards A and B simultaneously in a 2PC transaction, each shard maintains an append-only ledger log. Transactions execute a conditional atomic write (`INSERT ... WHERE sequence = expected_seq`) locally on Shard A, then publish an event to an ordered message queue to append on Shard B asynchronously.
+            </p>
+          </div>
+        </div>
+
+        <!-- Actionable Next Steps -->
+        <div class="why-matters-card" style="margin-top: 3rem;">
+          <div class="card-label label-matters">🚀 Production Action Items</div>
+          <div class="card-body-text">
+            <ol style="margin-left: 1.5rem; line-height: 1.7;">
+              <li><strong>Audit Shard Routing Keys:</strong> Review your database schema to verify that high-frequency write paths do not trigger cross-shard 2PC transactions. Ensure multi-row operations share a common tenant or entity ID.</li>
+              <li><strong>Check Ephemeral Locks & Fencing Tokens:</strong> If you use ZooKeeper or Redis for distributed locks, ensure downstream storage engines validate monotonic fencing tokens to prevent zombie leader corruption during GC pauses.</li>
+              <li><strong>Validate Quorum Cluster Sizing:</strong> Verify that production etcd and ZooKeeper clusters use odd numbers of nodes ($3$ or $5$) and are distributed across independent availability zones.</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Vanilla JavaScript Logic -->
+  <script>
+    // Theme Toggle
+    function toggleTheme() {
+      const body = document.body;
+      const themeBtn = document.getElementById('theme-btn');
+      const themeIcon = document.getElementById('theme-icon');
+      const themeText = document.getElementById('theme-text');
+
+      if (body.getAttribute('data-theme') === 'dark') {
+        body.setAttribute('data-theme', 'light');
+        themeIcon.textContent = '🌙';
+        themeText.textContent = 'Dark';
+      } else {
+        body.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '☀️';
+        themeText.textContent = 'Light';
+      }
+    }
+
+    // Scroll Progress Bar & Nav Activation
+    window.addEventListener('scroll', () => {
+      const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      document.getElementById('reading-progress').style.width = scrolled + '%';
+
+      // Highlight active sidebar item
+      const modules = document.querySelectorAll('.lesson-module, .hero-section');
+      const navLinks = document.querySelectorAll('.nav-links a');
+      let currentSectionId = '';
+
+      modules.forEach(section => {
+        const sectionTop = section.offsetTop - 120;
+        if (winScroll >= sectionTop) {
+          currentSectionId = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + currentSectionId) {
+          link.classList.add('active');
+        }
+      });
+    });
+
+    // Quiz Checker
+    function checkQuiz(element, isCorrect, qId, feedbackText) {
+      const options = element.parentElement.querySelectorAll('.quiz-option');
+      options.forEach(opt => {
+        opt.style.pointerEvents = 'none';
+      });
+
+      const fbBox = document.getElementById(qId + '-fb');
+      fbBox.style.display = 'block';
+
+      if (isCorrect) {
+        element.classList.add('correct');
+        fbBox.style.background = 'var(--teal-subtle)';
+        fbBox.style.border = '1px solid var(--teal)';
+        fbBox.style.color = 'var(--teal)';
+        fbBox.textContent = '✅ ' + feedbackText;
+      } else {
+        element.classList.add('incorrect');
+        fbBox.style.background = 'var(--rose-subtle)';
+        fbBox.style.border = '1px solid var(--rose)';
+        fbBox.style.color = 'var(--rose)';
+        fbBox.textContent = '❌ ' + feedbackText;
+      }
+    }
+
+    // Simulator 1: Linearizability & Read Skew Sandbox
+    function runSim1() {
+      const mode = document.getElementById('sim1-mode').value;
+      const out = document.getElementById('sim1-output');
+
+      if (mode === 'async') {
+        out.innerHTML = `
+<span style="color: var(--accent);">[T=0ms]</span> Referee writes final score: Germany 2 - 1 Argentina to Leader DB.<br>
+<span style="color: var(--teal);">[T=2ms]</span> Leader DB flushes WAL and returns ACK to Referee.<br>
+<span style="color: var(--blue);">[T=5ms]</span> Replication stream delivers score update to Follower 1.<br>
+<span style="color: var(--teal);">[T=12ms]</span> Alice queries Follower 1. Response: <strong>Germany Won (2-1)</strong>.<br>
+<span style="color: var(--accent);">[T=15ms]</span> Alice shouts to Bob: "Germany won the World Cup!"<br>
+<span style="color: var(--amber);">[T=18ms]</span> Bob queries Follower 2 (experiencing 40ms network lag)...<br>
+<span style="color: var(--rose);">[T=22ms]</span> Follower 2 returns: <strong>Game in Progress (0-0)</strong>.<br>
+<span style="color: var(--rose); font-weight: 700;">⚠️ LINEARIZABILITY VIOLATION DETECTED!</span> Bob observed a state causally older than Alice's read.
+        `;
+      } else if (mode === 'sync') {
+        out.innerHTML = `
+<span style="color: var(--accent);">[T=0ms]</span> Referee writes final score: Germany 2 - 1 Argentina to Leader DB.<br>
+<span style="color: var(--text-muted);">[T=2ms]</span> Leader holds ACK and replicates to BOTH Follower 1 and Follower 2.<br>
+<span style="color: var(--blue);">[T=6ms]</span> Follower 1 ACKs replication.<br>
+<span style="color: var(--blue);">[T=42ms]</span> Follower 2 ACKs replication (delayed by WAN network).<br>
+<span style="color: var(--teal);">[T=45ms]</span> Leader sends ACK to Referee: Write committed.<br>
+<span style="color: var(--teal);">[T=48ms]</span> Alice queries Follower 1: Germany Won (2-1).<br>
+<span style="color: var(--teal);">[T=52ms]</span> Bob queries Follower 2: Germany Won (2-1).<br>
+<span style="color: var(--teal); font-weight: 700;">✅ LINEARIZABLE!</span> Both clients observe consistent state, but write latency increased from 2ms to 45ms.
+        `;
+      } else {
+        out.innerHTML = `
+<span style="color: var(--accent);">[T=0ms]</span> Referee writes final score to Leader DB.<br>
+<span style="color: var(--teal);">[T=2ms]</span> Leader commits and updates atomic register.<br>
+<span style="color: var(--teal);">[T=8ms]</span> Alice routes read request directly to Leader: Germany Won (2-1).<br>
+<span style="color: var(--teal);">[T=12ms]</span> Bob routes read request directly to Leader: Germany Won (2-1).<br>
+<span style="color: var(--teal); font-weight: 700;">✅ STRICTLY LINEARIZABLE!</span> Reads query the single authoritative register, bypassing replication lag entirely.
+        `;
+      }
+    }
+
+    function resetSim1() {
+      document.getElementById('sim1-output').innerHTML = 'System reset. Select a replication mode and click "Simulate Match Final Whistle".';
+    }
+
+    // Simulator 2: PACELC Latency & Availability Engine
+    function updateSim2() {
+      const rtt = parseInt(document.getElementById('sim2-rtt').value);
+      const isPartitioned = document.getElementById('sim2-partition').checked;
+      document.getElementById('sim2-rtt-val').textContent = rtt + ' ms';
+      const out = document.getElementById('sim2-output');
+
+      if (isPartitioned) {
+        out.innerHTML = `
+<span style="color: var(--rose); font-weight: 700;">🚨 NETWORK PARTITION ACTIVE (Inter-DC Fiber Severed)</span><br>
+- <strong>CP Configuration (Spanner / etcd):</strong> Partitioned node in DC-2 rejects all client reads and writes with <span style="color: var(--rose);">HTTP 503 Service Unavailable</span>. System preserves Linearizability at the cost of total Availability loss.<br>
+- <strong>AP Configuration (Cassandra / Dynamo):</strong> Partitioned node serves local stale reads and accepts disconnected writes. Linearizability is completely lost; diverging branches must be resolved post-healing.
+        `;
+      } else {
+        const syncLatency = (rtt * 1.0 + 0.8).toFixed(1);
+        const linearizableLatency = (rtt * 2.0 + 1.2).toFixed(1);
+        out.innerHTML = `
+<strong>Normal Network Execution (PACELC Evaluation):</strong><br>
+- Local Asynchronous Write: <span style="color: var(--teal); font-weight: 600;">0.8 ms</span> (High throughput, 0 network hops)<br>
+- Semi-Synchronous (1 Sync Replica): <span style="color: var(--amber); font-weight: 600;">${syncLatency} ms</span> (1 RTT network wait)<br>
+- Full Linearizable Quorum Write: <span style="color: var(--accent); font-weight: 600;">${linearizableLatency} ms</span> (2 RTT round trips for consensus)<br>
+<em>Notice how enforcing linearizability scales write latency directly with physical network distance!</em>
+        `;
+      }
+    }
+
+    // Simulator 3: Two-Phase Commit State Machine
+    function runSim3() {
+      const crashMode = document.getElementById('sim3-crash').value;
+      const out = document.getElementById('sim3-output');
+
+      if (crashMode === 'none') {
+        out.innerHTML = `
+<span style="color: var(--accent);">[Phase 1]</span> Coordinator broadcasts PREPARE Txn_101 to Shard A and Shard B.<br>
+<span style="color: var(--text-muted);">[Phase 1]</span> Shard A: Acquires row locks, writes changes to undo log, appends PREPARED to WAL. Votes <span style="color: var(--teal);">YES</span>.<br>
+<span style="color: var(--text-muted);">[Phase 1]</span> Shard B: Acquires row locks, writes changes to undo log, appends PREPARED to WAL. Votes <span style="color: var(--teal);">YES</span>.<br>
+<span style="color: var(--teal); font-weight: 700;">[Point of No Return]</span> Coordinator receives unanimous YES votes. Writes <strong>COMMIT</strong> to Coordinator WAL.<br>
+<span style="color: var(--teal);">[Phase 2]</span> Coordinator broadcasts GLOBAL COMMIT to all participants.<br>
+<span style="color: var(--teal);">[Phase 2]</span> Shard A and Shard B commit mutations, release row locks, and send ACK.<br>
+<span style="color: var(--teal); font-weight: 700;">✅ TRANSACTION COMMITTED SUCCESSFULLY!</span>
+        `;
+      } else if (crashMode === 'coord-phase2') {
+        out.innerHTML = `
+<span style="color: var(--accent);">[Phase 1]</span> Coordinator broadcasts PREPARE Txn_101 to Shard A and Shard B.<br>
+<span style="color: var(--teal);">[Phase 1]</span> Shard A and Shard B vote <span style="color: var(--teal);">YES</span> and enter the PREPARED state.<br>
+<span style="color: var(--teal);">[Point of No Return]</span> Coordinator writes COMMIT to its WAL...<br>
+<span style="color: var(--rose); font-weight: 700;">⚡ CRASH INJECTION: Coordinator power supply dies before Phase 2 messages are sent!</span><br>
+<span style="color: var(--amber); font-weight: 700;">⚠️ IN-DOUBT LOCK FREEZE:</span><br>
+- Shard A and Shard B are stuck in the PREPARED state holding exclusive row locks.<br>
+- Shard A cannot Abort (coordinator might have committed).<br>
+- Shard A cannot Commit (coordinator might have aborted).<br>
+- All other transactions attempting to access these rows are queued indefinitely until the coordinator reboots!
+        `;
+      } else if (crashMode === 'coord-phase1') {
+        out.innerHTML = `
+<span style="color: var(--accent);">[Phase 1]</span> Coordinator sends PREPARE to Shard A and crashes before reaching Shard B.<br>
+<span style="color: var(--amber);">[Timeout]</span> Shard A times out waiting for coordinator. Because Shard A has not yet voted YES, it safely aborts and releases its locks.<br>
+<span style="color: var(--teal);">✅ SAFE ABORT:</span> No in-doubt lock freeze occurred because crash happened before Phase 1 agreement.
+        `;
+      } else {
+        out.innerHTML = `
+<span style="color: var(--accent);">[Phase 1]</span> Coordinator broadcasts PREPARE Txn_101.<br>
+<span style="color: var(--teal);">[Phase 1]</span> Shard A votes <span style="color: var(--teal);">YES</span>.<br>
+<span style="color: var(--rose);">[Phase 1]</span> Shard B encounters a disk-full error and votes <span style="color: var(--rose); font-weight: 700;">NO</span>.<br>
+<span style="color: var(--rose);">[Phase 2]</span> Coordinator detects non-unanimous vote. Appends <strong>ABORT</strong> to Coordinator WAL.<br>
+<span style="color: var(--rose);">[Phase 2]</span> Coordinator broadcasts GLOBAL ABORT. Shard A and Shard B roll back all modifications and release locks.<br>
+<span style="color: var(--teal);">✅ SAFE ROLLBACK: ACID Atomicity preserved.</span>
+        `;
+      }
+    }
+
+    // Simulator 4: Cross-Shard 2PC Latency & Throughput Estimator
+    function updateSim4() {
+      const shards = parseInt(document.getElementById('sim4-shards').value);
+      const rtt = parseInt(document.getElementById('sim4-rtt').value);
+      document.getElementById('sim4-shards-val').textContent = shards + ' Shards';
+      document.getElementById('sim4-rtt-val').textContent = rtt + ' ms';
+
+      const minHops = 2 + (shards * 2);
+      const totalDuration = (rtt * 6).toFixed(1);
+      const maxTps = Math.max(1, Math.floor(1000 / (rtt * 6)));
+
+      document.getElementById('sim4-output').innerHTML = `
+<strong>Cross-Shard 2PC Performance Profile (${shards} Shards @ ${rtt}ms RTT):</strong><br>
+- Minimum Network Round-Trips: <span style="color: var(--accent); font-weight: 600;">6 sequential RTTs</span><br>
+- Total Transaction Commit Duration: <span style="color: var(--amber); font-weight: 600;">${totalDuration} ms</span><br>
+- Exclusive Row Lock Hold Time: <span style="color: var(--rose); font-weight: 600;">~${totalDuration} ms</span><br>
+- Maximum Contended Row Throughput: <span style="color: var(--teal); font-weight: 700;">${maxTps} txns/sec</span> per hot row<br>
+<em>Notice that as network latency or shard count grows, throughput on contested rows falls off a cliff!</em>
+      `;
+    }
+
+    // Simulator 5: Quorum Consensus vs 2PC Availability
+    function updateSim5() {
+      const N = parseInt(document.getElementById('sim5-nodes').value);
+      const dead = parseInt(document.getElementById('sim5-dead').value);
+      document.getElementById('sim5-dead-val').textContent = dead + ' Nodes';
+
+      const maxDeadAllowed = Math.floor((N - 1) / 2);
+      const quorumRequired = Math.floor(N / 2) + 1;
+      const remainingHealthy = N - dead;
+      const isConsensusOperational = remainingHealthy >= quorumRequired;
+      const is2PCOperational = dead === 0;
+
+      document.getElementById('sim5-output').innerHTML = `
+<strong>Fault Tolerance Analysis for Cluster Size N=${N}:</strong><br>
+- Quorum Threshold: <span style="color: var(--blue); font-weight: 600;">${quorumRequired} of ${N} nodes required</span><br>
+- Max Tolerated Node Failures ($F$): <span style="color: var(--accent); font-weight: 600;">${maxDeadAllowed} nodes</span><br>
+- Current Healthy Nodes: <span style="color: var(--text); font-weight: 600;">${remainingHealthy} nodes</span><br><br>
+<strong>Protocol Operational Status:</strong><br>
+- <strong>Raft / Paxos Consensus:</strong> ${isConsensusOperational ? '<span style="color: var(--teal); font-weight: 700;">✅ OPERATIONAL (Quorum Satisfied)</span>' : '<span style="color: var(--rose); font-weight: 700;">❌ BLOCKED (Quorum Lost)</span>'}<br>
+- <strong>Two-Phase Commit (2PC):</strong> ${is2PCOperational ? '<span style="color: var(--teal); font-weight: 700;">✅ OPERATIONAL</span>' : '<span style="color: var(--rose); font-weight: 700;">❌ BLOCKED (Requires 100% Unanimity)</span>'}
+      `;
+    }
+  </script>
+</body>
+</html>

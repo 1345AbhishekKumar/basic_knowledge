@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kimi K3 Architecture: 2.8T Sparse MoE &amp; Delta Attention</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:       #f5f5f5;   /* white-smoke */
+      --color-paper-2:     #ececec;   /* container fill */
+      --color-ink:         #2d3142;   /* jet-black */
+      --color-muted:       #4f5d75;   /* blue-slate */
+      --color-soft:        #7a8399;   /* sublabels */
+      --color-accent:      #eb6c36;   /* atomic-tangerine */
+      --color-accent-tint: rgba(235,108,54,0.08);
+      --color-rule:        rgba(45,49,66,0.12);
+      --color-rule-solid:  #bfc0c0;
+      --font-sans:         'Geist', system-ui, -apple-system, sans-serif;
+      --font-serif:        'Instrument Serif', Georgia, serif;
+      --font-mono:         'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      line-height: 1.65;
+      padding: 3rem 1.5rem;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .nav-back {
+      margin-bottom: 2rem;
+    }
+
+    .nav-back a {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--color-muted);
+      text-decoration: none;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .nav-back a:hover {
+      color: var(--color-accent);
+    }
+
+    .header {
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--color-rule);
+      padding-bottom: 1.75rem;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(2.2rem, 3.5vw + 1rem, 3.2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 0.75rem;
+    }
+
+    .lead {
+      font-size: 1.15rem;
+      color: var(--color-muted);
+      max-width: 820px;
+      line-height: 1.5;
+    }
+
+    .diagram-card {
+      background: #ffffff;
+      border: 1px solid var(--color-rule);
+      border-radius: 8px;
+      padding: 1.75rem;
+      margin: 2.5rem 0 3rem;
+    }
+
+    .diagram-caption {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-muted);
+      margin-top: 1rem;
+      text-align: center;
+      letter-spacing: 0.06em;
+    }
+
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .explanation-section {
+      margin-top: 3rem;
+    }
+
+    .section-heading {
+      font-family: var(--font-serif);
+      font-size: 2rem;
+      font-weight: 400;
+      color: var(--color-ink);
+      margin-bottom: 1rem;
+      letter-spacing: -0.015em;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin: 1.5rem 0 2.5rem;
+    }
+
+    .info-card {
+      background: #ffffff;
+      border: 1px solid var(--color-rule);
+      border-radius: 6px;
+      padding: 1.5rem;
+    }
+
+    .info-card.focal {
+      border-color: var(--color-accent);
+      background: var(--color-accent-tint);
+    }
+
+    .info-tag {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 0.4rem;
+    }
+
+    .info-title {
+      font-family: var(--font-serif);
+      font-size: 1.35rem;
+      color: var(--color-ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .info-text {
+      font-size: 0.92rem;
+      color: var(--color-muted);
+      line-height: 1.55;
+    }
+
+    .code-block {
+      background: #1e222d;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+
+    .footer {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-soft);
+      text-align: center;
+      margin-top: 4.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--color-rule);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav-back">
+      <a href="index.html">← Back to Master Curriculum Index</a>
+    </div>
+
+    <header class="header">
+      <p class="eyebrow">Model Architecture &amp; Scalability · Diagram Design</p>
+      <h1>Kimi K3: 2.8T Parameter Architecture &amp; Sparse MoE</h1>
+      <p class="lead">How Moonshot AI's Kimi K3 achieves 1M context reasoning and long-horizon agentic coding using an 896-expert sparse MoE (16 active / ~50B awake) and linear Delta Attention.</p>
+    </header>
+
+    <main>
+      <div class="diagram-card">
+        <!-- STANDALONE EDITORIAL SVG DIAGRAM -->
+        <svg viewBox="0 0 980 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="kimi-arch-title kimi-arch-desc">
+          <title id="kimi-arch-title">Kimi K3 Sparse MoE and Linear Delta Attention Architecture</title>
+          <desc id="kimi-arch-desc">System diagram illustrating 2.8T parameters, 896 total experts, 16 active awake experts, and Delta Attention residual loops.</desc>
+
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+            </marker>
+            <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+            </marker>
+          </defs>
+
+          <rect width="100%" height="100%" fill="#ffffff" rx="8"/>
+
+          <!-- 1. 2.8T PARAMETER POOL (LEFT) -->
+          <rect x="36" y="36" width="280" height="468" rx="6" fill="#f5f5f5" stroke="#bfc0c0" stroke-width="1"/>
+          <rect x="36" y="36" width="280" height="38" rx="6" fill="#ececec"/>
+          <text x="50" y="60" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#2d3142" letter-spacing="0.12em">1. 2.8T PARAMETER EXPERT POOL</text>
+
+          <rect x="50" y="88" width="252" height="118" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="62" y="108" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" fill="#2d3142">896 Total Experts</text>
+          <text x="62" y="122" font-family="'Geist Mono', monospace" font-size="8" fill="#7a8399">2.8 TRILLION TOTAL WEIGHTS</text>
+          <text x="62" y="142" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Massive capacity &amp; broad world knowledge</text>
+          <text x="62" y="158" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Compared to K2 (384 experts / 8 active)</text>
+          <text x="62" y="174" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Doubled sparsity for extreme efficiency</text>
+
+          <!-- Router Gate -->
+          <rect x="50" y="220" width="252" height="120" rx="4" fill="rgba(235,108,54,0.06)" stroke="#eb6c36" stroke-width="1.2"/>
+          <text x="62" y="240" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" fill="#eb6c36">Dynamic Top-16 Router</text>
+          <text x="62" y="254" font-family="'Geist Mono', monospace" font-size="8" fill="#eb6c36">SPARSE WAKE-UP MECHANISM</text>
+          <text x="62" y="274" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• Only 16 of 896 experts awake per token</text>
+          <text x="62" y="290" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• ~50 Billion active parameters</text>
+          <text x="62" y="306" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• Sub-millisecond expert switching</text>
+
+          <text x="50" y="380" font-family="'Geist Mono', monospace" font-size="8" fill="#7a8399">SPARSITY RATIO: 1.78%</text>
+          <text x="50" y="396" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">98.22% of parameters remain dormant per pass, preserving compute throughput.</text>
+
+          <!-- Arrow to Center -->
+          <path d="M 302 280 L 348 280" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+
+          <!-- 2. DELTA ATTENTION MECHANISM (CENTER) -->
+          <rect x="348" y="36" width="310" height="468" rx="6" fill="#f5f5f5" stroke="#2d3142" stroke-width="1.2"/>
+          <rect x="348" y="36" width="310" height="38" rx="6" fill="#2d3142"/>
+          <text x="362" y="60" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#ffffff" letter-spacing="0.12em">2. KIMI DELTA ATTENTION (KDA)</text>
+
+          <!-- Quadratic Wall Comparison -->
+          <rect x="364" y="88" width="278" height="96" rx="4" fill="#ffffff" stroke="#bfc0c0" stroke-width="0.8"/>
+          <text x="376" y="108" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#4f5d75">Standard Quadratic Attention: O(N²)</text>
+          <text x="376" y="122" font-family="'Geist Mono', monospace" font-size="8" fill="#7a8399">N × N ALL-TO-ALL PAIRWISE COMPUTATION</text>
+          <text x="376" y="142" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• 2× tokens = 4× work</text>
+          <text x="376" y="156" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">• Unscalable for 1M context agent loops</text>
+
+          <!-- Delta Attention Solution -->
+          <rect x="364" y="196" width="278" height="154" rx="4" fill="#ffffff" stroke="#eb6c36" stroke-width="1.2"/>
+          <text x="376" y="216" font-family="'Geist', sans-serif" font-size="11.5" font-weight="600" fill="#eb6c36">Kimi Delta Attention: O(N) Linear</text>
+          <text x="376" y="230" font-family="'Geist Mono', monospace" font-size="8" fill="#eb6c36">RECURSIVE RUNNING AVERAGE UPDATE</text>
+          <text x="376" y="250" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• Computes attention like an exponential moving average</text>
+          <text x="376" y="266" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• Updates running state recursively: St = λSt-1 + vt qt^T</text>
+          <text x="376" y="282" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• Zero recomputation of prior context</text>
+          <text x="376" y="298" font-family="'Geist', sans-serif" font-size="9" fill="#2d3142">• 1 Million token context processed in linear time</text>
+
+          <!-- Attention Residuals -->
+          <rect x="364" y="362" width="278" height="88" rx="4" fill="rgba(45,49,66,0.04)" stroke="#2d3142" stroke-width="1"/>
+          <text x="376" y="382" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#2d3142">Attention Residuals &amp; Loop Reuse</text>
+          <text x="376" y="396" font-family="'Geist Mono', monospace" font-size="8" fill="#7a8399">BUILT FOR AGENTIC LOOPS</text>
+          <text x="376" y="416" font-family="'Geist', sans-serif" font-size="9" fill="#4f5d75">Caches prior loop activations -> 10× cheaper iterative agent runs.</text>
+
+          <!-- Arrow to Right -->
+          <path d="M 642 273 L 686 273" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+
+          <!-- 3. LONG-HORIZON AGENTIC CODING (RIGHT) -->
+          <rect x="686" y="36" width="258" height="468" rx="6" fill="#f5f5f5" stroke="#bfc0c0" stroke-width="1"/>
+          <rect x="686" y="36" width="258" height="38" rx="6" fill="#ececec"/>
+          <text x="700" y="60" font-family="'Geist Mono', monospace" font-size="9" font-weight="600" fill="#2d3142" letter-spacing="0.12em">3. AGENTIC EXECUTION</text>
+
+          <rect x="700" y="88" width="230" height="96" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="710" y="108" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#2d3142">1M Context Window</text>
+          <text x="710" y="122" font-family="'Geist Mono', monospace" font-size="7.5" fill="#7a8399">MASSIVE REASONING HORIZON</text>
+          <text x="710" y="140" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">Ingests entire codebases and complex multi-turn histories.</text>
+
+          <rect x="700" y="196" width="230" height="110" rx="4" fill="rgba(235,108,54,0.06)" stroke="#eb6c36" stroke-width="1.2"/>
+          <text x="710" y="216" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#eb6c36">Iterative Loop Reuse</text>
+          <text x="710" y="230" font-family="'Geist Mono', monospace" font-size="7.5" fill="#eb6c36">10× COST REDUCTION</text>
+          <text x="710" y="248" font-family="'Geist', sans-serif" font-size="8.5" fill="#2d3142">• Agent loops resend 95% same tokens</text>
+          <text x="710" y="262" font-family="'Geist', sans-serif" font-size="8.5" fill="#2d3142">• Reuses computation state</text>
+          <text x="710" y="276" font-family="'Geist', sans-serif" font-size="8.5" fill="#2d3142">• Dramatically lowers per-turn pricing</text>
+
+          <rect x="700" y="318" width="230" height="110" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="710" y="338" font-family="'Geist', sans-serif" font-size="11" font-weight="600" fill="#2d3142">Autonomous Tool Calling</text>
+          <text x="710" y="352" font-family="'Geist Mono', monospace" font-size="7.5" fill="#7a8399">TERMINAL · BROWSER · SPAWN</text>
+          <text x="710" y="370" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">• Spawns Python subagents</text>
+          <text x="710" y="384" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">• Navigates local calendar APIs</text>
+          <text x="710" y="398" font-family="'Geist', sans-serif" font-size="8.5" fill="#4f5d75">• Evaluated on local Waku harness</text>
+        </svg>
+        <p class="diagram-caption">FIGURE 1.0 — KIMI K3 2.8T SPARSE MOE &amp; DELTA ATTENTION ARCHITECTURE</p>
+      </div>
+
+      <!-- IN-PAGE DETAILED EXPLANATIONS -->
+      <section class="explanation-section">
+        <h2 class="section-heading">Detailed Architectural Explanations</h2>
+
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Innovation 01</p>
+            <h3 class="info-title">2.8 Trillion Parameters with 1.78% Sparsity</h3>
+            <p class="info-text">
+              Traditional dense models activate every single parameter for every token, hitting severe compute and latency walls. Kimi K3 features <strong>896 total experts</strong> (~2.8T parameters), but the dynamic top-16 router only awakens <strong>16 experts per token</strong> (~50B active parameters). This gives the model world-class knowledge capacity while executing at the speed of a medium-sized model.
+            </p>
+          </div>
+
+          <div class="info-card focal">
+            <p class="info-tag">Innovation 02 · Core Breakthrough</p>
+            <h3 class="info-title">Kimi Delta Attention (KDA)</h3>
+            <p class="info-text">
+              Standard softmax attention computes all pairwise token interactions, creating an $O(N^2)$ quadratic cost. KDA replaces this with a <strong>recursive running average</strong> (exponentially weighted moving average). Instead of re-evaluating the entire history at each step, it updates a continuous attention state in <strong>$O(N)$ linear time</strong>, making 1M token contexts viable for multi-turn agent harnesses.
+            </p>
+          </div>
+        </div>
+
+        <div class="code-block">
+# CONCEPTUAL DELTA ATTENTION UPDATE VS QUADRATIC ATTENTION
+# 1. Standard Transformer Attention: O(N^2)
+# Attention(Q, K, V) = softmax(Q * K.T / sqrt(d)) * V  -> All pairs recomputed!
+
+# 2. Kimi Delta Attention (KDA): O(N) Linear Recursive State
+def delta_attention_step(prev_state, query_t, key_t, value_t, decay_lambda=0.95):
+    """Updates attention state recursively like an exponential running mean."""
+    # Compute error/delta against current key-state projection
+    predicted_v = prev_state @ key_t
+    delta_v = value_t - predicted_v
+    
+    # Linear recursive update without pairwise N^2 matrix
+    new_state = decay_lambda * prev_state + (delta_v[:, None] @ key_t[None, :])
+    output_t = new_state @ query_t
+    return output_t, new_state
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      Diagram Design Editorial System · 4px Grid Layout · Jet-Black &amp; Atomic-Tangerine
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,2453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designing Data-Intensive Applications — Chapter 3: Storage & Retrieval</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090a0f;
+      --bg-surface: #12141c;
+      --bg-surface-elevated: #1a1e2b;
+      --bg-surface-glass: rgba(18, 20, 28, 0.82);
+      --border: #232838;
+      --border-accent: #373f56;
+      --text: #f0f2f7;
+      --text-muted: #8e96aa;
+      --text-subtle: #5a6278;
+      --accent: #eb6c36;
+      --accent-glow: rgba(235, 108, 54, 0.18);
+      --accent-subtle: rgba(235, 108, 54, 0.08);
+      --teal: #10b981;
+      --teal-subtle: rgba(16, 185, 129, 0.1);
+      --blue: #3b82f6;
+      --blue-subtle: rgba(59, 130, 246, 0.1);
+      --purple: #8b5cf6;
+      --purple-subtle: rgba(139, 92, 246, 0.1);
+      --amber: #f59e0b;
+      --amber-subtle: rgba(245, 158, 11, 0.1);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.1);
+      --font-serif: "Instrument Serif", Georgia, serif;
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-surface-glass: rgba(255, 255, 255, 0.88);
+      --border: #e2e8f0;
+      --border-accent: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+      --accent: #d9531e;
+      --accent-glow: rgba(217, 83, 30, 0.15);
+      --accent-subtle: rgba(217, 83, 30, 0.08);
+      --teal: #059669;
+      --teal-subtle: rgba(5, 150, 105, 0.08);
+      --blue: #2563eb;
+      --blue-subtle: rgba(37, 99, 235, 0.08);
+      --purple: #7c3aed;
+      --purple-subtle: rgba(124, 58, 237, 0.08);
+      --amber: #d97706;
+      --amber-subtle: rgba(217, 119, 6, 0.08);
+      --rose: #e11d48;
+      --rose-subtle: rgba(225, 29, 72, 0.08);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    /* Top Progress Bar */
+    #reading-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #f97316);
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    /* Layout: Editorial Rail Layout */
+    .app-container {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 1024px) {
+      .app-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Sticky Sidebar Navigation */
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--bg-surface-glass);
+      backdrop-filter: blur(12px);
+      border-right: 1px solid var(--border);
+      padding: 2rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      z-index: 100;
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar {
+        position: relative;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      background: var(--accent-subtle);
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(235, 108, 54, 0.25);
+      width: fit-content;
+    }
+
+    .sidebar-header h2 {
+      font-family: var(--font-serif);
+      font-size: 1.6rem;
+      font-weight: 400;
+      margin-top: 0.6rem;
+      line-height: 1.15;
+    }
+
+    .sidebar-header p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 0.9rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      transition: all 0.2s ease;
+    }
+    .theme-toggle-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .nav-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .nav-item:hover {
+      color: var(--text);
+      background: var(--bg-surface-elevated);
+    }
+
+    .nav-item.active {
+      color: var(--text);
+      background: var(--accent-subtle);
+      border-left: 3px solid var(--accent);
+      font-weight: 500;
+    }
+
+    .nav-num {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      opacity: 0.8;
+      min-width: 1.5rem;
+    }
+
+    /* Main Content Area */
+    .main-content {
+      padding: 3rem 4rem 8rem 4rem;
+      max-width: 1120px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        padding: 2rem 1.25rem 4rem 1.25rem;
+      }
+    }
+
+    /* Chapter Header */
+    .chapter-hero {
+      margin-bottom: 4rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .chapter-eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+
+    .chapter-title {
+      font-family: var(--font-serif);
+      font-size: clamp(2.8rem, 5vw, 4.2rem);
+      font-weight: 400;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.2rem;
+    }
+
+    .chapter-subtitle {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 760px;
+      line-height: 1.5;
+    }
+
+    /* Metadata Bar */
+    .metadata-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1.25rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .metadata-item h4 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-subtle);
+      font-family: var(--font-mono);
+      margin-bottom: 0.35rem;
+    }
+
+    .metadata-item p {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    /* Executive Summary Callout */
+    .exec-summary {
+      background: linear-gradient(135deg, var(--bg-surface-elevated), var(--bg-surface));
+      border: 1px solid var(--border-accent);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-md);
+      padding: 1.75rem 2rem;
+      margin-bottom: 4rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .exec-summary h3 {
+      font-family: var(--font-serif);
+      font-size: 1.6rem;
+      font-weight: 400;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .exec-summary p {
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1.65;
+    }
+
+    /* Modules */
+    .module-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 3rem;
+      margin-bottom: 4.5rem;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+      transition: border-color 0.2s ease;
+    }
+
+    @media (max-width: 768px) {
+      .module-card {
+        padding: 1.75rem 1.25rem;
+      }
+    }
+
+    .module-card:hover {
+      border-color: var(--border-accent);
+    }
+
+    .module-tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+
+    .module-title {
+      font-family: var(--font-serif);
+      font-size: 2.2rem;
+      font-weight: 400;
+      margin-bottom: 1.5rem;
+      line-height: 1.2;
+    }
+
+    /* Comprehensive Core Explanation Text */
+    .core-explanation {
+      font-size: 1.05rem;
+      color: var(--text);
+      line-height: 1.8;
+      margin-bottom: 2rem;
+    }
+
+    .core-explanation p {
+      margin-bottom: 1.2rem;
+    }
+
+    .core-explanation strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .core-explanation code {
+      font-family: var(--font-mono);
+      font-size: 0.88em;
+      background: var(--bg-surface-elevated);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    /* Definitions Panel */
+    .definitions-panel {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1.5rem 1.75rem;
+      margin: 2rem 0;
+    }
+
+    .definitions-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .def-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.15rem;
+    }
+
+    .def-item dt {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .def-item dt::before {
+      content: "▪";
+      color: var(--accent);
+    }
+
+    .def-item dd {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      padding-left: 1.25rem;
+    }
+
+    /* Diagram Containers adhering to diagram-design skill */
+    .diagram-container {
+      margin: 2.5rem 0;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.75rem;
+      overflow-x: auto;
+    }
+
+    .diagram-container svg {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+    }
+
+    .diagram-caption {
+      font-size: 0.82rem;
+      color: var(--text-subtle);
+      font-family: var(--font-mono);
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    /* Examples Trio Grid */
+    .examples-trio {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      margin: 2rem 0;
+    }
+
+    @media (max-width: 900px) {
+      .examples-trio {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .example-box {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .example-type {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      width: fit-content;
+      font-weight: 600;
+    }
+
+    .type-obvious {
+      color: var(--teal);
+      background: var(--teal-subtle);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .type-counter {
+      color: var(--amber);
+      background: var(--amber-subtle);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .type-edge {
+      color: var(--rose);
+      background: var(--rose-subtle);
+      border: 1px solid rgba(244, 63, 94, 0.2);
+    }
+
+    .example-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    .example-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Pedagogy Pillars: Analogy, Misconception, Production */
+    .pedagogy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin: 2rem 0;
+    }
+
+    @media (max-width: 768px) {
+      .pedagogy-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .pedagogy-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+    }
+
+    .pedagogy-card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .pedagogy-title {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .pedagogy-title.analogy { color: var(--blue); }
+    .pedagogy-title.misconception { color: var(--rose); }
+    .pedagogy-title.production { color: var(--accent); }
+
+    .pedagogy-content {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Memory Pill */
+    .memory-pill {
+      background: linear-gradient(90deg, var(--accent-subtle), transparent);
+      border-left: 3px solid var(--accent);
+      padding: 1rem 1.25rem;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      margin-top: 2rem;
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+    }
+
+    .memory-pill-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .memory-pill-text {
+      font-size: 0.95rem;
+      color: var(--text);
+      font-style: italic;
+    }
+
+    /* Interactive Component Containers */
+    .interactive-section {
+      background: var(--bg);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1.75rem;
+      margin: 2.5rem 0;
+    }
+
+    .interactive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .interactive-title {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn {
+      background: var(--bg-surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.9rem;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+
+    /* Interactive UI widgets */
+    .bash-terminal {
+      background: #0d0f17;
+      color: #e2e8f0;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid #232838;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+
+    .bash-log-view {
+      max-height: 180px;
+      overflow-y: auto;
+      margin: 0.75rem 0;
+      padding: 0.5rem;
+      background: #08090d;
+      border-radius: 4px;
+      border: 1px solid #1a1e2b;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    .bash-input-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .input-field {
+      background: #12141c;
+      border: 1px solid #232838;
+      color: #f0f2f7;
+      padding: 0.45rem 0.75rem;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      flex: 1;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Master Table Comparison */
+    .comparison-table-wrapper {
+      overflow-x: auto;
+      margin: 2.5rem 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+    .comparison-table th, .comparison-table td {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .comparison-table th {
+      background: var(--bg-surface-elevated);
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-subtle);
+    }
+
+    .comparison-table tr:hover td {
+      background: var(--bg-surface-elevated);
+    }
+
+    /* Master Glossary Section */
+    .glossary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+
+    .glossary-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem;
+    }
+
+    .glossary-term {
+      font-family: var(--font-mono);
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 0.4rem;
+    }
+
+    .glossary-def {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Inter-module Connections List */
+    .connections-box {
+      border: 1px dashed var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      background: var(--accent-subtle);
+    }
+
+    .connections-header {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .connections-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+
+    .connections-list li a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .connections-list li a:hover {
+      text-decoration: underline;
+    }
+
+    /* SVG Diagram Styles strictly adhering to diagram-design */
+    .dia-bg { fill: #12141c; }
+    .dia-card { fill: #1a1e2b; stroke: #232838; stroke-width: 1px; rx: 8px; }
+    .dia-card-highlight { fill: rgba(235, 108, 54, 0.08); stroke: #eb6c36; stroke-width: 1.5px; rx: 8px; }
+    .dia-card-teal { fill: rgba(16, 185, 129, 0.08); stroke: #10b981; stroke-width: 1.5px; rx: 8px; }
+    .dia-card-blue { fill: rgba(59, 130, 246, 0.08); stroke: #3b82f6; stroke-width: 1.5px; rx: 8px; }
+    .dia-line { stroke: #5a6278; stroke-width: 1.5px; fill: none; }
+    .dia-line-accent { stroke: #eb6c36; stroke-width: 1.5px; fill: none; }
+    .dia-line-teal { stroke: #10b981; stroke-width: 1.5px; fill: none; }
+    .dia-title { font-family: "Instrument Serif", Georgia, serif; font-size: 18px; fill: #f0f2f7; }
+    .dia-label { font-family: "Geist", sans-serif; font-size: 12px; fill: #f0f2f7; font-weight: 500; }
+    .dia-subtext { font-family: "Geist", sans-serif; font-size: 10px; fill: #8e96aa; }
+    .dia-mono { font-family: "Geist Mono", monospace; font-size: 11px; fill: #eb6c36; }
+    .dia-mono-muted { font-family: "Geist Mono", monospace; font-size: 10px; fill: #8e96aa; }
+    .dia-pill-mask { fill: #12141c; stroke: #232838; stroke-width: 1px; rx: 4px; }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <div id="reading-progress"></div>
+
+  <div class="app-container">
+    <!-- Sticky Sidebar Navigation Rail -->
+    <aside class="sidebar">
+      <div class="brand-pill">DDIA Masterclass</div>
+      <div class="sidebar-header">
+        <h2>Chapter 3</h2>
+        <p>Storage & Retrieval Engines</p>
+      </div>
+
+      <button class="theme-toggle-btn" id="theme-toggle">
+        <span id="theme-text">Mode: Dark</span>
+        <span>◐</span>
+      </button>
+
+      <nav class="nav-sections">
+        <a href="#overview" class="nav-item active"><span class="nav-num">00</span> Overview & Core Trade-off</a>
+        <a href="#module-1" class="nav-item"><span class="nav-num">01</span> The 6-Line Bash DB & Indexes</a>
+        <a href="#module-2" class="nav-item"><span class="nav-num">02</span> LSM-Trees, MemTables & SSTables</a>
+        <a href="#module-3" class="nav-item"><span class="nav-num">03</span> B-Trees & Hardware Pages</a>
+        <a href="#module-4" class="nav-item"><span class="nav-num">04</span> Clustered vs Heap Indexes</a>
+        <a href="#module-5" class="nav-item"><span class="nav-num">05</span> OLTP vs OLAP & Warehouses</a>
+        <a href="#module-6" class="nav-item"><span class="nav-num">06</span> Column Storage & Bitmap Encoding</a>
+        <a href="#synthesis" class="nav-item"><span class="nav-num">07</span> Architectural Comparison</a>
+        <a href="#glossary" class="nav-item"><span class="nav-num">08</span> Master Definitions Glossary</a>
+      </nav>
+
+      <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--text-subtle); font-family: var(--font-mono);">
+        Based on Martin Kleppmann's DDIA Chapter 3 Analysis
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+      <!-- Hero Header -->
+      <section id="overview" class="chapter-hero">
+        <div class="chapter-eyebrow">Data Systems Internals • Systematic Curriculum</div>
+        <h1 class="chapter-title">Storage and Retrieval</h1>
+        <p class="chapter-subtitle">
+          How data structures dictate database performance: unraveling the fundamental divergence between write-optimized Log-Structured engines (LSM-trees) and read-optimized In-Place Page engines (B-trees), through to columnar analytical warehouses.
+        </p>
+
+        <div class="metadata-grid">
+          <div class="metadata-item">
+            <h4>Core Paradigm</h4>
+            <p>Append-Only vs In-Place</p>
+          </div>
+          <div class="metadata-item">
+            <h4>Primary Structures</h4>
+            <p>SSTables, LSM-Trees, B+Trees</p>
+          </div>
+          <div class="metadata-item">
+            <h4>Workload Profiles</h4>
+            <p>OLTP (Point) vs OLAP (Scan)</p>
+          </div>
+          <div class="metadata-item">
+            <h4>Hardware Alignment</h4>
+            <p>Sequential I/O vs 4KB Page I/O</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Executive Summary -->
+      <div class="exec-summary">
+        <h3>Executive Architecture Summary</h3>
+        <p>
+          At its foundational core, a storage engine must resolve a zero-sum mechanical dilemma: <strong>writing is fastest when appending naively to the end of a log</strong>, but <strong>retrieval is fastest when data is strictly sorted, partitioned, and pre-indexed</strong>. Every production database engine represents a specialized compromise between write throughput, read latency, storage amplification, and hardware alignment. Relational workloads (MySQL InnoDB, PostgreSQL) historically optimized for random point queries and updates in-place using 4KB/8KB B-tree pages, whereas modern high-throughput stream systems (Cassandra, RocksDB, ClickHouse) buffer writes in memory (MemTables) and flush sequential, immutable sorted runs (SSTables) compacted in the background. Meanwhile, analytical data warehouses discard row boundaries altogether, organizing data by column to maximize compression ratios and vectorize aggregations over billions of historical records.
+        </p>
+      </div>
+
+      <!-- MODULE 1: The 6-Line Bash DB & Indexes -->
+      <section id="module-1" class="module-card">
+        <div class="module-tag">Module 01 • The Minimalist Baseline</div>
+        <h2 class="module-title">The World's Simplest Database & Indexing Overhead</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">Crucial Terms & Mathematical Definitions</div>
+          <dl class="def-list">
+            <div class="def-item">
+              <dt>Storage Engine</dt>
+              <dd>The internal low-level software component of a database management system responsible for storing, reading, and updating raw bytes on non-volatile media (HDD/SSD) and memory buffers.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Index</dt>
+              <dd>An auxiliary data structure derived entirely from the primary table data, maintained specifically to accelerate read operations (queries) at the explicit expense of write throughput and storage space.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Append-Only Log</dt>
+              <dd>An append-only sequence of immutable records written sequentially to disk. Inserts and updates simply append a newer entry to the tail; deletes append a deletion marker.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Write Amplification</dt>
+              <dd>The structural ratio of physical bytes written to underlying storage media divided by the logical bytes submitted in the database write request. Critical for SSD wear and disk saturation.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            To understand modern database engines spanning millions of lines of C++, Martin Kleppmann begins with the simplest possible functional database implemented in just two lines of Bash:
+          </p>
+          <pre style="background: var(--bg); padding: 1rem; border-radius: 6px; border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.88rem; margin: 1rem 0; color: var(--accent);">
+db_set () { echo "$1,$2" >> database.txt; }
+db_get () { grep "^$1," database.txt | sed -e "s/^$1,//" | tail -n 1; }
+          </pre>
+          <p>
+            <code>db_set</code> achieves the maximum theoretical write performance possible on any storage medium: an append-only write of $O(1)$ complexity. Appending to a file sequentially avoids costly random disk head movement on HDDs and avoids block erase cycles on SSDs. However, the penalty paid on retrieval is catastrophic: <code>db_get</code> has an algorithmic complexity of $O(N)$. To find a single key among one billion records, the operating system must stream every single byte from disk through CPU memory to parse the comma separator.
+          </p>
+          <p>
+            This illustrates the iron rule of database storage architecture: <strong>an index is a pure trade-off</strong>. Any index you add inevitably slows down write operations because every insertion, update, or deletion must update not only the primary data records, but also every secondary index structure. Yet without indexes, ad-hoc point queries on large datasets become computationally intractable.
+          </p>
+          <p>
+            Why can't we run a production enterprise on this 6-line Bash script? Because it completely ignores transactional atomicity (concurrency conflicts when two processes append simultaneously corrupting lines), crash safety, log size bounding (files grow to infinity), binary data serialization, and page-aligned memory caching.
+          </p>
+        </div>
+
+        <!-- Interactive 1: Bash DB Simulator -->
+        <div class="interactive-section">
+          <div class="interactive-header">
+            <div class="interactive-title">Interactive Terminal • 6-Line Bash Database Simulator</div>
+            <button class="btn" onclick="resetBashDB()">Reset File</button>
+          </div>
+          <div class="bash-terminal">
+            <div style="color: var(--text-subtle); margin-bottom: 0.5rem;">// File: /var/data/database.txt (Sequential Append-Only Log)</div>
+            <div class="bash-log-view" id="bashLogView">
+101,{"user":"Alice","country":"US"}
+102,{"user":"Bob","country":"UK"}
+101,{"user":"Alice","country":"CA"}   <-- Overwrite of 101 appended at tail
+            </div>
+            <div class="bash-input-group">
+              <input type="text" id="bashKey" class="input-field" placeholder="Key (e.g. 103)" value="103" style="max-width: 120px;">
+              <input type="text" id="bashVal" class="input-field" placeholder='JSON Value e.g. {"user":"Dave"}' value='{"user":"Dave","country":"DE"}'>
+              <button class="btn btn-primary" onclick="execBashSet()">db_set (Append O(1))</button>
+              <button class="btn" onclick="execBashGet()">db_get (Scan O(N))</button>
+            </div>
+            <div id="bashOutput" style="margin-top: 0.75rem; color: var(--teal); font-size: 0.82rem; min-height: 20px;"></div>
+          </div>
+        </div>
+
+        <!-- Concrete Examples Trio -->
+        <div class="examples-trio">
+          <div class="example-box">
+            <span class="example-type type-obvious">Obvious Case</span>
+            <div class="example-title">Appending Sensor Telemetry</div>
+            <div class="example-desc">A solar panel inverter logging power output every 100ms. An append-only log ingests 10,000 writes/sec without disk seek overhead.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-counter">Counter-Intuitive</span>
+            <div class="example-title">Updates Are Just Writes</div>
+            <div class="example-desc">Updating a customer address does not overwrite bytes in-place; it appends the new record. Compaction purges obsolete versions asynchronously.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-edge">Edge Case</span>
+            <div class="example-title">Disk Full on Unbounded Log</div>
+            <div class="example-desc">Without background segment compaction or file rollover, high-speed append-only logs fill storage volumes in hours, crashing OS processes.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-card">
+            <div class="pedagogy-title analogy">Analogy • Physical Ledger</div>
+            <div class="pedagogy-content">
+              An accountant never erases a line in a paper journal with an eraser; they append a compensating entry on the next clean row. Erasing damages the physical paper (SSD flash cell degradation); appending maintains an audit trail.
+            </div>
+          </div>
+          <div class="pedagogy-card">
+            <div class="pedagogy-title misconception">Misconception • Free Indexes</div>
+            <div class="pedagogy-content">
+              Junior engineers often add secondary indexes to every column in an ORM migration. In high-write workloads, secondary index maintenance frequently accounts for over 70% of total CPU and I/O write stalls.
+            </div>
+          </div>
+          <div class="pedagogy-card full-width">
+            <div class="pedagogy-title production">Production Reality • Bitcask Hash Index</div>
+            <div class="pedagogy-content">
+              Riak's Bitcask engine stores an in-memory hash map pointing to byte offsets in append-only files. It delivers blazing fast read/write speeds, but requires <strong>every single key to fit entirely in RAM</strong>. If your key set exceeds memory, pure hash indexing breaks down.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-label">Memory Pill</span>
+          <span class="memory-pill-text">"Well-chosen indexes speed up reads, but every single index slows down writes."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 2: LSM-Trees, MemTables & SSTables -->
+      <section id="module-2" class="module-card">
+        <div class="module-tag">Module 02 • Log-Structured Storage</div>
+        <h2 class="module-title">SSTables, MemTables & Log-Structured Merge-Trees (LSM-Trees)</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">Crucial Terms & Architectural Definitions</div>
+          <dl class="def-list">
+            <div class="def-item">
+              <dt>SSTable (Sorted String Table)</dt>
+              <dd>A file format where key-value pairs are strictly sorted by key. Once written to disk, an SSTable file is completely immutable, allowing concurrent reads without locking.</dd>
+            </div>
+            <div class="def-item">
+              <dt>MemTable</dt>
+              <dd>An in-memory write buffer backed by a balanced binary tree structure (such as a Red-Black tree, AVL tree, or SkipList). It maintains newly inserted and updated keys in sorted order in RAM.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Write-Ahead Log (WAL)</dt>
+              <dd>An append-only sequential log on disk where every incoming mutation is immediately synced before acknowledging the client, ensuring durability if the server crashes before MemTable is flushed.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Compaction</dt>
+              <dd>A background merge process that continuously reads multiple sorted SSTable files, merges them using an $O(N)$ multi-way merge sort, preserves the newest version of each key, and discards superseded duplicates or tombstones.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Bloom Filter</dt>
+              <dd>A space-efficient probabilistic data structure that tests whether an element is definitely not in a set or possibly in a set. Prevents expensive disk reads for keys that do not exist in an SSTable.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Tombstone</dt>
+              <dd>A special deletion marker appended to the MemTable and flushed to an SSTable indicating that a key has been deleted. It prevents an older version in a deeper SSTable layer from resurfacing.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            While an append-only log provides unmatched write speeds, a pure hash index fails when datasets outgrow memory or when queries require ranges (e.g. <code>WHERE timestamp BETWEEN x AND y</code>). The breakthrough solution is the <strong>SSTable (Sorted String Table)</strong>, where key-value pairs are stored strictly ordered by key within each segment file.
+          </p>
+          <p>
+            Maintaining sorted order on disk during random incoming writes would normally require costly random rewrites. The <strong>LSM-Tree (Log-Structured Merge-Tree)</strong>, formalized by Patrick O'Neil et al. in 1996 and popularized by Google Bigtable, LevelDB, RocksDB, and Apache Cassandra, solves this elegantly:
+          </p>
+          <p>
+            1. <strong>In-Memory Buffering (MemTable)</strong>: When a write arrives, it is appended to an on-disk Write-Ahead Log (WAL) for crash durability, and simultaneously inserted into an in-memory balanced tree (the <em>MemTable</em>, typically a Red-Black tree or SkipList). Because insertions occur in RAM, sorting is fast and cheap.
+          </p>
+          <p>
+            2. <strong>Flushing Immutable SSTables</strong>: When the MemTable exceeds a configured size threshold (typically 4MB to 64MB), it is frozen into a read-only state, and a fresh active MemTable is spawned for incoming traffic. A background worker flushes the frozen MemTable sequentially to disk as a brand new SSTable file. Because the keys are already sorted in RAM, the disk write is 100% sequential streaming.
+          </p>
+          <p>
+            3. <strong>Multi-Way Merge Compaction</strong>: As SSTable files accumulate across disk storage levels, a background compaction worker runs an algorithm identical to <em>mergesort</em>: it reads multiple sorted files concurrently, iterates through keys in parallel, emits the most recent value, and writes out a single consolidated, tightly packed new SSTable file, deleting the old obsolete files.
+          </p>
+          <p>
+            For read operations, the database searches the active MemTable first, then any frozen MemTables, and finally searches the SSTables on disk from newest to oldest. To prevent severe read degradation when searching for non-existent keys (which would force scanning every SSTable down to disk), engines attach an in-memory <strong>Bloom filter</strong> to each SSTable.
+          </p>
+        </div>
+
+        <!-- SVG Diagram 1: Strictly adhering to diagram-design skill -->
+        <div class="diagram-container">
+          <svg viewBox="0 0 960 440" width="960" height="440" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="#8e96aa" />
+              </marker>
+              <marker id="arrow-accent" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="#eb6c36" />
+              </marker>
+              <marker id="arrow-teal" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 8 5 L 0 9 z" fill="#10b981" />
+              </marker>
+            </defs>
+
+            <!-- Canvas Background -->
+            <rect width="960" height="440" class="dia-bg" />
+
+            <!-- Boundary 1: Memory Subsystem (RAM) -->
+            <rect x="40" y="40" width="380" height="340" rx="8" fill="none" stroke="#232838" stroke-dasharray="4 4" />
+            <text x="60" y="68" class="dia-mono-muted">MEMORY SPACE (RAM)</text>
+
+            <!-- Client Write Input -->
+            <rect x="60" y="100" width="140" height="56" class="dia-card-highlight" />
+            <text x="130" y="126" text-anchor="middle" class="dia-label" fill="#f0f2f7">Incoming Write</text>
+            <text x="130" y="142" text-anchor="middle" class="dia-mono">PUT k=user_99</text>
+
+            <!-- MemTable (In-Memory RB Tree) -->
+            <rect x="250" y="92" width="150" height="120" class="dia-card" />
+            <text x="325" y="116" text-anchor="middle" class="dia-label">Active MemTable</text>
+            <text x="325" y="134" text-anchor="middle" class="dia-subtext">Sorted Red-Black Tree</text>
+            <rect x="265" y="146" width="120" height="20" rx="3" fill="#12141c" stroke="#232838" />
+            <text x="325" y="160" text-anchor="middle" class="dia-mono" font-size="10px">k:101 -> v:Bob</text>
+            <rect x="265" y="172" width="120" height="20" rx="3" fill="#12141c" stroke="#232838" />
+            <text x="325" y="186" text-anchor="middle" class="dia-mono" font-size="10px">k:102 -> v:Zed</text>
+
+            <!-- WAL (Disk Durability) -->
+            <rect x="60" y="240" width="140" height="80" class="dia-card" />
+            <text x="130" y="266" text-anchor="middle" class="dia-label">Disk WAL Log</text>
+            <text x="130" y="284" text-anchor="middle" class="dia-subtext">Append-Only Crash Log</text>
+            <text x="130" y="302" text-anchor="middle" class="dia-mono-muted">[Append 100% Seq]</text>
+
+            <!-- Boundary 2: Disk Storage (SSTables) -->
+            <rect x="460" y="40" width="460" height="340" rx="8" fill="none" stroke="#232838" stroke-dasharray="4 4" />
+            <text x="480" y="68" class="dia-mono-muted">PERSISTENT DISK STORAGE (IMMUTABLE SSTABLES)</text>
+
+            <!-- Level 0 SSTables -->
+            <rect x="480" y="100" width="180" height="100" class="dia-card" />
+            <text x="570" y="124" text-anchor="middle" class="dia-label">SSTable Segment #42</text>
+            <text x="570" y="142" text-anchor="middle" class="dia-mono" font-size="10px">[Sorted: user_01..user_88]</text>
+            <rect x="500" y="156" width="140" height="24" rx="4" class="dia-card-teal" />
+            <text x="570" y="172" text-anchor="middle" class="dia-subtext" fill="#10b981">Attached Bloom Filter</text>
+
+            <rect x="480" y="220" width="180" height="100" class="dia-card" />
+            <text x="570" y="244" text-anchor="middle" class="dia-label">SSTable Segment #41</text>
+            <text x="570" y="262" text-anchor="middle" class="dia-mono" font-size="10px">[Sorted: user_12..user_99]</text>
+            <rect x="500" y="276" width="140" height="24" rx="4" class="dia-card-teal" />
+            <text x="570" y="292" text-anchor="middle" class="dia-subtext" fill="#10b981">Attached Bloom Filter</text>
+
+            <!-- Background Compaction Worker & Level 1 Output -->
+            <rect x="740" y="150" width="160" height="130" class="dia-card-highlight" />
+            <text x="820" y="176" text-anchor="middle" class="dia-label" fill="#eb6c36">Compacted L1 File</text>
+            <text x="820" y="196" text-anchor="middle" class="dia-subtext">Multi-Way Merged Run</text>
+            <text x="820" y="214" text-anchor="middle" class="dia-mono-muted">Duplicates Dropped</text>
+            <text x="820" y="232" text-anchor="middle" class="dia-mono" font-size="10px">Tombstones Purged</text>
+            <rect x="755" y="244" width="130" height="22" rx="3" fill="#12141c" stroke="#eb6c36" />
+            <text x="820" y="259" text-anchor="middle" class="dia-mono" font-size="9px">Optimally Sequential</text>
+
+            <!-- CONNECTORS WITH ORTHOGONAL ROUTING r=8, FANNED ATTACH POINTS >=12px -->
+            <!-- 1. Write to MemTable -->
+            <path d="M 200 128 L 242 128" class="dia-line-accent" marker-end="url(#arrow-accent)" />
+            <!-- 2. Write to WAL (fanned attach at x=130, y=156) -->
+            <path d="M 130 156 L 130 232" class="dia-line" marker-end="url(#arrow)" />
+            <!-- 3. Flush from MemTable to Disk SSTable (fanned exit at x=400, y=140) -->
+            <path d="M 400 140 L 472 140" class="dia-line" marker-end="url(#arrow)" />
+            <rect x="410" y="130" width="54" height="18" class="dia-pill-mask" />
+            <text x="437" y="142" text-anchor="middle" class="dia-mono" font-size="9px">FLUSH</text>
+
+            <!-- 4. Compaction Merging: Seg 42 to L1 -->
+            <path d="M 660 150 Q 690 150 700 180 L 732 195" class="dia-line-accent" marker-end="url(#arrow-accent)" />
+            <!-- 5. Compaction Merging: Seg 41 to L1 -->
+            <path d="M 660 270 Q 690 270 700 240 L 732 225" class="dia-line-accent" marker-end="url(#arrow-accent)" />
+            <rect x="670" y="198" width="56" height="18" class="dia-pill-mask" />
+            <text x="698" y="210" text-anchor="middle" class="dia-mono" font-size="9px">MERGE</text>
+
+            <!-- BOTTOM HORIZONTAL LEGEND STRIP -->
+            <rect x="40" y="394" width="880" height="34" rx="6" fill="#161924" stroke="#232838" />
+            <circle cx="70" cy="411" r="5" fill="#eb6c36" />
+            <text x="82" y="415" class="dia-subtext">Active Mutation Path (Write / Flush)</text>
+            <circle cx="280" cy="411" r="5" fill="#10b981" />
+            <text x="292" y="415" class="dia-subtext">Bloom Filter (Zero-IO Read Guard)</text>
+            <circle cx="490" cy="411" r="5" fill="#3b82f6" />
+            <text x="502" y="415" class="dia-subtext">Disk WAL (Durability Boundary)</text>
+            <circle cx="690" cy="411" r="5" fill="#8e96aa" />
+            <text x="702" y="415" class="dia-subtext">Multi-way Merge Compaction</text>
+          </svg>
+          <div class="diagram-caption">Figure 3.1: Complete architectural lifecycle of an LSM-Tree: MemTable buffering, WAL disk logging, SSTable flushing, Bloom filter testing, and multi-way merge compaction.</div>
+        </div>
+
+        <!-- Interactive 2: LSM-Tree Flush & Compaction Engine Simulator -->
+        <div class="interactive-section">
+          <div class="interactive-header">
+            <div class="interactive-title">Live Engine Simulator • MemTable Flush & Mergesort Compaction</div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-primary" onclick="simulateLsmInsert()">Insert Record</button>
+              <button class="btn" onclick="triggerLsmFlush()">Manual Flush</button>
+              <button class="btn" onclick="triggerLsmCompaction()">Run Compaction</button>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+            <div style="background: var(--bg-surface-elevated); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+              <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); margin-bottom: 0.5rem; text-transform: uppercase;">
+                RAM MemTable (<span id="memtableCount">2</span>/4 capacity)
+              </div>
+              <div id="memtableContent" style="font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.6; min-height: 80px;">
+                k: "bravo" => 240<br>
+                k: "kilo" => 810
+              </div>
+            </div>
+            <div style="background: var(--bg-surface-elevated); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+              <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--teal); margin-bottom: 0.5rem; text-transform: uppercase;">
+                Disk SSTable Runs (Level 0)
+              </div>
+              <div id="sstableContent" style="font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.6; min-height: 80px; color: var(--text-muted);">
+                [Run 1]: alpha:100, echo:500<br>
+                [Run 2]: bravo:210, hotel:720
+              </div>
+            </div>
+            <div style="background: var(--bg-surface-elevated); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+              <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--blue); margin-bottom: 0.5rem; text-transform: uppercase;">
+                Compacted Master Run (Level 1)
+              </div>
+              <div id="compactedContent" style="font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.6; min-height: 80px; color: var(--text);">
+                (Run Compaction to merge runs and drop superseded values)
+              </div>
+            </div>
+          </div>
+          <div id="lsmStatusText" style="margin-top: 0.75rem; font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-subtle);">
+            System idle. Insert items to see automated MemTable buffering.
+          </div>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-trio">
+          <div class="example-box">
+            <span class="example-type type-obvious">Obvious Case</span>
+            <div class="example-title">High-Velocity Click Events</div>
+            <div class="example-desc">Tracking advertising clicks at 50,000 requests/second. LSM-trees absorb traffic in RAM MemTables with zero random disk I/O.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-counter">Counter-Intuitive</span>
+            <div class="example-title">Deletes Are Actually Writes</div>
+            <div class="example-desc">Calling <code>DELETE</code> in Cassandra does not free disk space immediately. It writes a tombstone record to disk, which consumes storage until compaction runs.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-edge">Edge Case</span>
+            <div class="example-title">Compaction Latency Spikes</div>
+            <div class="example-desc">If incoming write bandwidth saturates disk bandwidth, background compaction falls behind. Uncompacted SSTables multiply, causing read latency to spike at the 99.9th percentile.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-card">
+            <div class="pedagogy-title analogy">Analogy • Kitchen Ticket Rail</div>
+            <div class="pedagogy-content">
+              A line cook slaps orders onto an order rail in arrival order (MemTable). Every 15 minutes, the chef stacks them, sorts them by table number, and clips them into historical batch binders (SSTables).
+            </div>
+          </div>
+          <div class="pedagogy-card">
+            <div class="pedagogy-title misconception">Misconception • Log-Structured Engines Lack Durability</div>
+            <div class="pedagogy-content">
+              Developers assume that buffering writes in an in-memory MemTable risks losing uncommitted data during power loss. In reality, the Write-Ahead Log (WAL) synchronously guarantees zero data loss via sequential disk flushes.
+            </div>
+          </div>
+          <div class="pedagogy-card full-width">
+            <div class="pedagogy-title production">Production Reality • Size-Tiered vs Leveled Compaction</div>
+            <div class="pedagogy-content">
+              Cassandra uses <strong>Size-Tiered Compaction</strong> (combines SSTables of similar sizes), which is faster for heavy write throughput but requires up to 50% temporary disk headroom. RocksDB defaults to <strong>Leveled Compaction</strong> (splits data into key ranges across discrete levels L0, L1, L2), which minimizes read amplification and uses significantly less transient storage space.
+            </div>
+          </div>
+        </div>
+
+        <!-- Connections & Memory Pill -->
+        <div class="connections-box">
+          <div class="connections-header">Inter-Module Dynamic Connections</div>
+          <ul class="connections-list">
+            <li>LSM-trees contrast sharply with <a href="#module-3">Module 03's B-Trees</a>, which mutate fixed-size disk pages in-place rather than appending sequential runs.</li>
+            <li>The sequential multi-way merge used in compaction forms the underlying ingestion mechanic for <a href="#module-5">Module 05's Analytical Warehouses</a>.</li>
+          </ul>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-label">Memory Pill</span>
+          <span class="memory-pill-text">"Buffer in RAM tree, flush sequentially to disk, merge sort in the background."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 3: B-Trees & Hardware Pages -->
+      <section id="module-3" class="module-card">
+        <div class="module-tag">Module 03 • The In-Place Page Standard</div>
+        <h2 class="module-title">B-Trees & Hardware-Aligned Page Storage</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">Crucial Terms & Mathematical Definitions</div>
+          <dl class="def-list">
+            <div class="def-item">
+              <dt>B-Tree</dt>
+              <dd>A self-balancing search tree structure introduced by Rudolf Bayer and Edward McCreight in 1970 that breaks databases down into fixed-size blocks or pages (traditionally 4KB to 8KB), matching underlying physical hardware sector boundaries.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Branching Factor (Fanout)</dt>
+              <dd>The number of child page references held in a single internal B-tree node. A high branching factor (e.g. 500) allows a four-level tree to index billions of records with minimal depth: $\text{Depth} = O(\log_{\text{fanout}} N)$.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Page Split</dt>
+              <dd>When an insertion exceeds a page's fixed capacity, the page is split into two half-full pages (typically 50/50), and the parent routing page is updated. Cascading splits can propagate up to the root.</dd>
+            </div>
+            <div class="def-item">
+              <dt>B+Tree Variant</dt>
+              <dd>The ubiquitous production variant where interior nodes store only routing boundary keys and page pointers, while all user data records are strictly confined to leaf nodes, linked sequentially via a doubly-linked list for fast range scanning.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            Introduced in 1970, the <strong>B-tree</strong> remains the uncontested default indexing standard across virtually every relational database, including MySQL InnoDB, PostgreSQL, SQLite, Oracle, and Microsoft SQL Server. While LSM-trees divide data into variable-sized sequential segment runs, B-trees structure data into <strong>fixed-size blocks or pages</strong> (traditionally 4KB to 16KB), mirroring the physical block geometry of spinning disk sectors and SSD flash blocks.
+          </p>
+          <p>
+            One page is designated as the <em>root</em>. The interior pages contain an ordered array of keys and child page memory/disk references. When looking up a key, the query engine performs a binary search within the root page, identifies the pointer whose range bounds the target key, reads that child page from disk or the buffer pool, and traverses down the tree until reaching the designated <em>leaf page</em>.
+          </p>
+          <p>
+            The profound strength of the B-tree is its <strong>branching factor</strong>. With a typical 8KB page size and modest key sizes, an internal page can easily store 500 child pointers. A 4-level tree with a branching factor of 500 can index up to $500^4 = 62.5 \text{ billion records}$, meaning any arbitrary record in a multi-terabyte table can be pinpointed within at most 4 page fetches!
+          </p>
+          <p>
+            However, updating a B-tree requires <strong>in-place mutation</strong>. To update an existing record, the database must seek to the exact physical page on disk, read it into the buffer cache, mutate the bytes, and write the entire 4KB or 8KB page back over the exact same disk sectors. If an insertion overflows a page, it triggers an expensive <em>page split</em>. Furthermore, to prevent catastrophic file corruption if power cuts during a multi-page split, B-tree engines must write an independent Write-Ahead Log (or Redo Log) before mutating disk pages, introducing significant write amplification.
+          </p>
+        </div>
+
+        <!-- SVG Diagram 2: Strictly adhering to diagram-design skill -->
+        <div class="diagram-container">
+          <svg viewBox="0 0 960 420" width="960" height="420" xmlns="http://www.w3.org/2000/svg">
+            <!-- Canvas Background -->
+            <rect width="960" height="420" class="dia-bg" />
+
+            <!-- Level 1: Root Node Page (4KB) -->
+            <rect x="360" y="30" width="240" height="70" class="dia-card-highlight" />
+            <text x="480" y="54" text-anchor="middle" class="dia-label" fill="#eb6c36">Root Page (ID: 1, 4KB)</text>
+            <rect x="380" y="62" width="60" height="24" rx="3" fill="#12141c" stroke="#232838" />
+            <text x="410" y="78" text-anchor="middle" class="dia-mono" font-size="10px">ptr &lt; 200</text>
+            <rect x="450" y="62" width="60" height="24" rx="3" fill="#12141c" stroke="#232838" />
+            <text x="480" y="78" text-anchor="middle" class="dia-mono" font-size="10px">200..500</text>
+            <rect x="520" y="62" width="60" height="24" rx="3" fill="#12141c" stroke="#232838" />
+            <text x="550" y="78" text-anchor="middle" class="dia-mono" font-size="10px">ptr &gt; 500</text>
+
+            <!-- Level 2: Intermediate Branch Pages -->
+            <rect x="140" y="150" width="200" height="64" class="dia-card" />
+            <text x="240" y="174" text-anchor="middle" class="dia-label">Branch Page (ID: 12)</text>
+            <text x="240" y="194" text-anchor="middle" class="dia-mono" font-size="10px">[Keys: 50, 120, 180]</text>
+
+            <rect x="380" y="150" width="200" height="64" class="dia-card-teal" />
+            <text x="480" y="174" text-anchor="middle" class="dia-label" fill="#10b981">Branch Page (ID: 15)</text>
+            <text x="480" y="194" text-anchor="middle" class="dia-mono" font-size="10px">[Keys: 250, 340, 420]</text>
+
+            <rect x="620" y="150" width="200" height="64" class="dia-card" />
+            <text x="720" y="174" text-anchor="middle" class="dia-label">Branch Page (ID: 19)</text>
+            <text x="720" y="194" text-anchor="middle" class="dia-mono" font-size="10px">[Keys: 600, 750, 910]</text>
+
+            <!-- Level 3: Leaf Pages (Data or TID pointers) -->
+            <rect x="60" y="270" width="180" height="74" class="dia-card" />
+            <text x="150" y="294" text-anchor="middle" class="dia-label">Leaf Page A</text>
+            <text x="150" y="312" text-anchor="middle" class="dia-mono" font-size="10px">k:40 | k:50 | k:75</text>
+            <text x="150" y="328" text-anchor="middle" class="dia-subtext">Free Space: 1.2 KB</text>
+
+            <rect x="280" y="270" width="180" height="74" class="dia-card-highlight" />
+            <text x="370" y="294" text-anchor="middle" class="dia-label" fill="#eb6c36">Leaf Page B (Target)</text>
+            <text x="370" y="312" text-anchor="middle" class="dia-mono" font-size="10px">k:250 | k:280 | k:310</text>
+            <text x="370" y="328" text-anchor="middle" class="dia-subtext">Target: 280 Found!</text>
+
+            <rect x="500" y="270" width="180" height="74" class="dia-card" />
+            <text x="590" y="294" text-anchor="middle" class="dia-label">Leaf Page C</text>
+            <text x="590" y="312" text-anchor="middle" class="dia-mono" font-size="10px">k:340 | k:390 | k:415</text>
+            <text x="590" y="328" text-anchor="middle" class="dia-subtext">Free Space: 0.8 KB</text>
+
+            <rect x="720" y="270" width="180" height="74" class="dia-card" />
+            <text x="810" y="294" text-anchor="middle" class="dia-label">Leaf Page D</text>
+            <text x="810" y="312" text-anchor="middle" class="dia-mono" font-size="10px">k:600 | k:650 | k:720</text>
+            <text x="810" y="328" text-anchor="middle" class="dia-subtext">Free Space: 1.5 KB</text>
+
+            <!-- Orthogonal Routing Connectors: Root to Branches -->
+            <path d="M 410 100 L 410 125 Q 410 135 390 135 L 250 135 Q 240 135 240 142" class="dia-line" marker-end="url(#arrow)" />
+            <path d="M 480 100 L 480 142" class="dia-line-accent" marker-end="url(#arrow-accent)" />
+            <path d="M 550 100 L 550 125 Q 550 135 570 135 L 710 135 Q 720 135 720 142" class="dia-line" marker-end="url(#arrow)" />
+
+            <!-- Branch to Leaf Connectors -->
+            <path d="M 440 214 L 440 240 Q 440 250 420 250 L 380 250 Q 370 250 370 262" class="dia-line-accent" marker-end="url(#arrow-accent)" />
+            <path d="M 520 214 L 520 240 Q 520 250 540 250 L 580 250 Q 590 250 590 262" class="dia-line" marker-end="url(#arrow)" />
+
+            <!-- Doubly-Linked List Pointers Between Leaves -->
+            <path d="M 240 307 L 272 307" class="dia-line-teal" marker-end="url(#arrow-teal)" />
+            <path d="M 460 307 L 492 307" class="dia-line-teal" marker-end="url(#arrow-teal)" />
+            <path d="M 680 307 L 712 307" class="dia-line-teal" marker-end="url(#arrow-teal)" />
+
+            <!-- Bottom Legend Strip -->
+            <rect x="40" y="375" width="880" height="32" rx="6" fill="#161924" stroke="#232838" />
+            <circle cx="80" cy="391" r="5" fill="#eb6c36" />
+            <text x="92" y="395" class="dia-subtext">Active Lookup Traversal Path (Key: 280)</text>
+            <circle cx="340" cy="391" r="5" fill="#10b981" />
+            <text x="352" y="395" class="dia-subtext">Leaf Sequential Range Pointers (B+Tree Doubly Linked List)</text>
+            <circle cx="680" cy="391" r="5" fill="#5a6278" />
+            <text x="692" y="395" class="dia-subtext">Hardware-Aligned 4KB Page Boundaries</text>
+          </svg>
+          <div class="diagram-caption">Figure 3.2: B+Tree page hierarchy showing routing pointers, logarithmic fanout, in-place 4KB page nodes, and leaf-level range links.</div>
+        </div>
+
+        <!-- Interactive 3: B+Tree Traversal & Node Split Visualizer -->
+        <div class="interactive-section">
+          <div class="interactive-header">
+            <div class="interactive-title">Interactive Tool • B+Tree Traversal & Split Simulator</div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-primary" onclick="simulateBTreeSearch()">Search Key 280</button>
+              <button class="btn" onclick="simulateBTreeInsert()">Insert Key (Trigger Split)</button>
+              <button class="btn" onclick="resetBTreeDemo()">Reset Tree</button>
+            </div>
+          </div>
+          <div id="btreeCanvas" style="background: #0d0f17; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1.5rem; text-align: center; font-family: var(--font-mono);">
+            <div id="btreeStepText" style="color: var(--accent); font-size: 0.9rem; margin-bottom: 1rem;">
+              Click 'Search Key 280' to trace root-to-leaf traversal step by step.
+            </div>
+            <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;" id="btreeNodeContainer">
+              <div style="border: 2px solid var(--border); padding: 0.75rem 1.25rem; border-radius: 6px; background: #161924;">
+                <div style="font-size: 0.7rem; color: var(--text-subtle);">ROOT PAGE</div>
+                <div style="font-size: 0.85rem; color: var(--text);">[200 | 500]</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-trio">
+          <div class="example-box">
+            <span class="example-type type-obvious">Obvious Case</span>
+            <div class="example-title">Primary Key Point Query</div>
+            <div class="example-desc"><code>SELECT * FROM users WHERE id = 482910</code>. A 4-level B-tree executes precisely 4 page reads, taking &lt; 0.5ms.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-counter">Counter-Intuitive</span>
+            <div class="example-title">Sequential Insert Fragmentation</div>
+            <div class="example-desc">Inserting auto-incrementing IDs fills leaf pages smoothly. But inserting random UUIDs causes catastrophic 50% page splits, inflating disk footprint by 2x.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-edge">Edge Case</span>
+            <div class="example-title">Crash Mid-Split Recovery</div>
+            <div class="example-desc">If power fails when a page has split but before parent routing pointers are updated, the index is corrupt without a Write-Ahead Log (Redo Log) recovery pass.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-card">
+            <div class="pedagogy-title analogy">Analogy • Library Card Catalog</div>
+            <div class="pedagogy-content">
+              A library catalog cabinet lists broad ranges ("A-D", "E-H"). Opening drawer "E-H" gives sub-dividers, leading directly to a drawer where index cards are linked alphabetically.
+            </div>
+          </div>
+          <div class="pedagogy-card">
+            <div class="pedagogy-title misconception">Misconception • B-Trees Never Write to Logs</div>
+            <div class="pedagogy-content">
+              Because B-trees overwrite pages in-place on disk, they <strong>must</strong> maintain a separate Write-Ahead Log (WAL / Redo Log) on disk. Otherwise, a mid-page crash leaves torn pages and irrecoverably scrambled trees.
+            </div>
+          </div>
+          <div class="pedagogy-card full-width">
+            <div class="pedagogy-title production">Production Reality • SSD Write Amplification in B-Trees</div>
+            <div class="pedagogy-content">
+              When updating a 20-byte user status field, a B-tree must write the entire 16KB InnoDB page to the SSD. If the flash drive's physical block size is 2MB, updating 20 bytes can trigger 16KB-2MB of NAND write wear.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-label">Memory Pill</span>
+          <span class="memory-pill-text">"Fixed 4KB/8KB hardware pages, high branching factor, in-place updates guarded by WAL."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 4: Clustered vs Heap Indexes -->
+      <section id="module-4" class="module-card">
+        <div class="module-tag">Module 04 • Physical Record Placement</div>
+        <h2 class="module-title">Clustered Indexes vs Heap Files & The Covering Index Advantage</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">Crucial Terms & Storage Formats</div>
+          <dl class="def-list">
+            <div class="def-item">
+              <dt>Heap File</dt>
+              <dd>An unordered storage collection where rows are appended to data pages in arbitrary order. Secondary and primary indexes both store direct pointers (Tuple ID: Page Number + Line Offset) to heap locations.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Clustered Index (Index-Organized Table)</dt>
+              <dd>A storage architecture where table rows are physically ordered and stored directly inside the leaf pages of the primary key index (as in MySQL InnoDB).</dd>
+            </div>
+            <div class="def-item">
+              <dt>Secondary Index</dt>
+              <dd>An auxiliary index built on non-primary columns. In clustered systems (InnoDB), secondary index leaves store the Primary Key value; in heap systems (PostgreSQL), they store the Heap Tuple Pointer.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Covering Index (Index-Only Scan)</dt>
+              <dd>An index that contains every column requested by a query in its key list or included payload, allowing the database to satisfy the query entirely from the index structure without jumping to leaf rows or heap files.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            When an index pinpoints a matching key, how does the engine actually retrieve the full tuple (the user's name, email, address, and timestamps)? The answer divides database engines into two contrasting architectural philosophies: <strong>Clustered Indexes</strong> versus <strong>Heap Files</strong>.
+          </p>
+          <p>
+            In <strong>PostgreSQL</strong>, tables are stored in <em>Heap Files</em>. Tuples are placed wherever free space is found across unordered heap pages. Every index on the table—whether primary key or secondary—is identical in structure: its leaf nodes store a <strong>Tuple ID (TID)</strong> consisting of <code>[Block Number, Offset Index]</code>. Looking up a row via an index requires one tree descent followed by a single direct jump into the heap page. If a row is updated without changing its size, it can be updated in-place inside the heap block without touching any index pointers (PostgreSQL's HOT optimization).
+          </p>
+          <p>
+            In <strong>MySQL InnoDB</strong>, tables are strictly <em>Clustered</em>. The primary key index <em>is</em> the table. The leaf pages of the primary B-tree contain the complete columns of the row. This makes primary key lookups extraordinarily fast: descending the primary tree immediately yields the data bytes with zero secondary I/O jumps.
+          </p>
+          <p>
+            However, this introduces a severe penalty for secondary indexes in InnoDB: secondary index leaf pages cannot store direct physical disk pointers (because if a primary key page splits or rows move, every secondary index would have to be rewritten). Instead, InnoDB secondary indexes store the <strong>Primary Key value</strong> as their pointer. Thus, a query like <code>SELECT email FROM users WHERE signup_date = '2026-01-01'</code> must traverse the secondary B-tree to find the Primary Key, and then traverse the entire Primary Key B-tree from the root a second time (a "double lookup")!
+          </p>
+          <p>
+            This explains the profound superpower of a <strong>Covering Index</strong>. If you create an index on <code>(signup_date, email)</code>, the secondary index leaf node already contains the requested <code>email</code> column. The query engine reads the answer directly out of the secondary index page and immediately returns, bypassing the primary key lookup completely.
+          </p>
+        </div>
+
+        <!-- Interactive 4: Clustered (MySQL) vs Heap (Postgres) Simulator -->
+        <div class="interactive-section">
+          <div class="interactive-header">
+            <div class="interactive-title">Pointer Hop Visualizer • MySQL Clustered vs PostgreSQL Heap Engine</div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-primary" onclick="simulateLookupPath('innodb-regular')">MySQL: Regular Secondary</button>
+              <button class="btn" onclick="simulateLookupPath('innodb-covering')">MySQL: Covering Index</button>
+              <button class="btn" onclick="simulateLookupPath('postgres-heap')">PostgreSQL: Heap Pointer</button>
+            </div>
+          </div>
+          <div style="background: #0d0f17; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1.25rem; font-family: var(--font-mono); font-size: 0.85rem;">
+            <div style="color: var(--text-subtle); margin-bottom: 0.75rem;">
+              Query: <span style="color: var(--accent);">SELECT username FROM users WHERE signup_date = '2026-03-01';</span>
+            </div>
+            <div id="pointerSimResult" style="line-height: 1.6; color: var(--text);">
+              Select a lookup mode above to trace the physical disk and cache page hops.
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 1rem; font-size: 0.75rem; color: var(--text-subtle);">
+              <span id="hopCounter">Page Traversal Hops: 0</span> |
+              <span id="ioEstimate">Estimated Physical I/O: 0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-trio">
+          <div class="example-box">
+            <span class="example-type type-obvious">Obvious Case</span>
+            <div class="example-title">Primary Key Get in MySQL</div>
+            <div class="example-desc"><code>SELECT * FROM orders WHERE order_id = 991</code>. InnoDB reaches leaf page and reads all 30 columns immediately with zero extra hops.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-counter">Counter-Intuitive</span>
+            <div class="example-title">UUID Primary Key in InnoDB</div>
+            <div class="example-desc">Using a 36-character UUID as a clustered primary key balloons every secondary index on the table, as each secondary leaf must copy the 36-byte UUID.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-edge">Edge Case</span>
+            <div class="example-title">Index-Only Count Optimization</div>
+            <div class="example-desc"><code>SELECT COUNT(*) FROM users WHERE status = 1</code> runs in 2ms with a covering index, but takes 800ms if forced to fetch full heap pages in PostgreSQL.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-card">
+            <div class="pedagogy-title analogy">Analogy • Book Index vs Library Shelf</div>
+            <div class="pedagogy-content">
+              A <em>Heap File</em> is a warehouse where books are shelved on any open rack; the catalog card gives exact shelf coordinates. A <em>Clustered Index</em> sorts the physical books themselves chronologically on the main shelf.
+            </div>
+          </div>
+          <div class="pedagogy-card">
+            <div class="pedagogy-title misconception">Misconception • Secondary Indexes Always Point to Disk Rows Directly</div>
+            <div class="pedagogy-content">
+              In clustered databases like MySQL InnoDB, secondary indexes <strong>never</strong> point to physical disk addresses; they point to the primary key, requiring a double B-tree descent unless covered.
+            </div>
+          </div>
+          <div class="pedagogy-card full-width">
+            <div class="pedagogy-title production">Production Reality • PostgreSQL HOT (Heap-Only Tuples)</div>
+            <div class="pedagogy-content">
+              When updating a record in PostgreSQL, if none of the indexed columns were modified and the updated row fits in the same heap page, Postgres creates a <em>Heap-Only Tuple</em>. The index pointers remain untouched, preventing massive index write amplification across all secondary indexes!
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-label">Memory Pill</span>
+          <span class="memory-pill-text">"Clustered inlines data in the primary leaf; heap separates indexes from unordered tuple blocks."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 5: OLTP vs OLAP & Warehouses -->
+      <section id="module-5" class="module-card">
+        <div class="module-tag">Module 05 • Workload Divergence</div>
+        <h2 class="module-title">OLTP vs OLAP Workloads & The Data Warehousing Architecture</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">Crucial Terms & Workload Archetypes</div>
+          <dl class="def-list">
+            <div class="def-item">
+              <dt>OLTP (Online Transaction Processing)</dt>
+              <dd>Workload pattern characterized by high-concurrency, low-latency queries operating on small numbers of records per request, indexed by primary/secondary keys. Typically user-facing applications (carts, orders, profiles).</dd>
+            </div>
+            <div class="def-item">
+              <dt>OLAP (Online Analytical Processing)</dt>
+              <dd>Workload pattern characterized by complex queries scanning millions or billions of rows across a handful of columns to aggregate business metrics (e.g. <code>SUM</code>, <code>AVG</code>, <code>GROUP BY</code>). Typically used by analysts and executives.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Data Warehouse</dt>
+              <dd>A dedicated, centralized analytical database (e.g., Snowflake, BigQuery, ClickHouse, Redshift) separated entirely from operational OLTP databases to allow heavy analytical scans without starving production transactional traffic.</dd>
+            </div>
+            <div class="def-item">
+              <dt>ETL (Extract, Transform, Load)</dt>
+              <dd>The data engineering process of periodically extracting raw transactional data from operational OLTP systems, transforming and cleaning it into an analytical schema, and loading it into a data warehouse.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Star Schema / Snowflake Schema</dt>
+              <dd>A dimensional data modeling pattern consisting of a massive central <strong>Fact Table</strong> (representing business events: purchases, clicks) surrounded by <strong>Dimension Tables</strong> (representing who, what, where: products, stores, customers).</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            In the early days of computing, databases were expected to execute both transactional operations (inserting orders into an e-commerce cart) and reporting queries (calculating total corporate revenue for the past five years). By the late 1990s, this dual-use pattern collapsed under enterprise scale.
+          </p>
+          <p>
+            Transactional applications demand <strong>high concurrency and strict low latency</strong>. A user loading their checkout page expects response times under 20 milliseconds. If an executive simultaneously fires an analytical SQL query that scans 50 million historical purchase records with full table scans, the database locks disk pages, evicts active user session buffers from RAM, and brings production customer traffic to a screeching halt.
+          </p>
+          <p>
+            This fundamental tension led to the architectural separation of <strong>OLTP</strong> and <strong>OLAP</strong>. Operational systems remain purely OLTP, running on relational engines (MySQL, Postgres). In the background, an <strong>ETL pipeline</strong> extracts data (via continuous Change Data Capture or batch export), transforms it into optimized denormalized schemas (Star Schemas), and loads it into a specialized <strong>Data Warehouse</strong>.
+          </p>
+          <p>
+            The physical storage mechanics required for OLAP are the polar opposite of OLTP. An OLTP query reads and writes <em>all columns of a single row</em> (e.g. <code>SELECT * FROM users WHERE id = ?</code>). An OLAP query reads <em>one or two columns across hundreds of millions of rows</em> (e.g. <code>SELECT category, SUM(price) FROM sales GROUP BY category</code>). Running such an analytical query on a row-oriented database wastes up to 98% of disk bandwidth loading unused columns into RAM!
+          </p>
+        </div>
+
+        <!-- Master Comparison Table: OLTP vs OLAP -->
+        <div class="comparison-table-wrapper">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Workload Characteristic</th>
+                <th>OLTP (Operational)</th>
+                <th>OLAP (Analytical / Data Warehouse)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Primary Read Pattern</strong></td>
+                <td>Small number of records retrieved by primary/secondary key</td>
+                <td>Aggregating millions of records across a few columns</td>
+              </tr>
+              <tr>
+                <td><strong>Primary Write Pattern</strong></td>
+                <td>Random access, low-latency single updates & inserts from users</td>
+                <td>Bulk batch loads, streaming append pipelines (ETL)</td>
+              </tr>
+              <tr>
+                <td><strong>Typical End User</strong></td>
+                <td>Web application customer, mobile end-user</td>
+                <td>Data analyst, business intelligence dashboard, executive</td>
+              </tr>
+              <tr>
+                <td><strong>Data Representation</strong></td>
+                <td>Current latest state of the world (normalized, 3NF)</td>
+                <td>Historical audit log spanning decades (Star/Snowflake Schema)</td>
+              </tr>
+              <tr>
+                <td><strong>Dataset Size</strong></td>
+                <td>Gigabytes to low Terabytes</td>
+                <td>Terabytes to multi-Petabytes</td>
+              </tr>
+              <tr>
+                <td><strong>Bottleneck</strong></td>
+                <td>Disk seek latency, lock contention, transaction isolation</td>
+                <td>Disk streaming scan throughput, memory bandwidth</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-trio">
+          <div class="example-box">
+            <span class="example-type type-obvious">Obvious Case</span>
+            <div class="example-title">ATM Cash Withdrawal</div>
+            <div class="example-desc">OLTP: Decrement checking balance, insert audit ledger row. Must commit in &lt; 50ms with strict ACID guarantees.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-counter">Counter-Intuitive</span>
+            <div class="example-title">Redundant Dimension Tables</div>
+            <div class="example-desc">OLAP star schemas deliberately denormalize dimension tables, sacrificing relational purity to eliminate costly multi-table joins during multi-gigabyte scans.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-edge">Edge Case</span>
+            <div class="example-title">HTAP (Hybrid Engines)</div>
+            <div class="example-desc">Modern hybrid engines (TiDB, SingleStore) maintain both a row-store for OLTP writes and an asynchronous replicated columnar store for real-time analytics.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-card">
+            <div class="pedagogy-title analogy">Analogy • Cashier vs Tax Auditor</div>
+            <div class="pedagogy-content">
+              An OLTP cashier rings up individual items into paper receipts one customer at a time. An OLAP tax auditor arrives at year's end with a team of accountants to compute total quarterly tax across 500,000 receipts.
+            </div>
+          </div>
+          <div class="pedagogy-card">
+            <div class="pedagogy-title misconception">Misconception • Big Data Means You Need Hadoop/Spark</div>
+            <div class="pedagogy-content">
+              Modern columnar analytic engines (ClickHouse, DuckDB) running on a single 64-core NVMe server can scan and aggregate 1 billion rows in under 2 seconds, outperforming multi-node distributed clusters by eliminating network serialization.
+            </div>
+          </div>
+          <div class="pedagogy-card full-width">
+            <div class="pedagogy-title production">Production Reality • Protecting Production OLTP from Read Stalls</div>
+            <div class="pedagogy-content">
+              Running heavy analytical queries directly against an operational OLTP database triggers shared read locks and memory thrashing. Production teams enforce read-only replica routing or streaming CDC into Snowflake/ClickHouse to isolate analytical queries from customer transactions.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-label">Memory Pill</span>
+          <span class="memory-pill-text">"OLTP writes individual rows at low latency; OLAP scans wide columns over decades of history."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 6: Column Storage & Bitmap Encoding -->
+      <section id="module-6" class="module-card">
+        <div class="module-tag">Module 06 • Analytical Physics</div>
+        <h2 class="module-title">Column-Oriented Storage, Run-Length Encoding & Bitmap Indexing</h2>
+
+        <!-- Definitions Panel -->
+        <div class="definitions-panel">
+          <div class="definitions-header">Crucial Terms & Compression Fundamentals</div>
+          <dl class="def-list">
+            <div class="def-item">
+              <dt>Column-Oriented Storage</dt>
+              <dd>A physical storage architecture that stores all the values of a single column together contiguously in separate files on disk, rather than grouping all columns of a row together.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Bitmap Index</dt>
+              <dd>An indexing technique where each distinct value in a column has a bit vector (array of 1s and 0s) indicating which row numbers contain that value. Ideal for low-cardinality attributes (e.g. status, country, gender).</dd>
+            </div>
+            <div class="def-item">
+              <dt>Run-Length Encoding (RLE)</dt>
+              <dd>A lossless compression algorithm that replaces repeated contiguous sequences of the same value with a count and value pair (e.g., <code>[0, 0, 0, 0, 0]</code> becomes <code>5 × 0</code>), drastically reducing storage footprint.</dd>
+            </div>
+            <div class="def-item">
+              <dt>Vectorized Execution / SIMD</dt>
+              <dd>A CPU execution model where single instruction stream operates on multiple data points simultaneously (Single Instruction, Multiple Data), evaluating bitwise AND/OR operations over compressed column bitmaps directly in L1 CPU registers.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="core-explanation">
+          <p>
+            In a traditional <strong>Row-Oriented</strong> database (MySQL, PostgreSQL), row bytes are laid out contiguously: <code>[Row 1: col1, col2, col3...]</code>, followed by <code>[Row 2: col1, col2, col3...]</code>. If a fact table has 60 columns and 100 million rows, executing:
+          </p>
+          <pre style="background: var(--bg); padding: 1rem; border-radius: 6px; border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.88rem; margin: 1rem 0; color: var(--accent);">
+SELECT product_id, SUM(quantity) FROM sales GROUP BY product_id;
+          </pre>
+          <p>
+            forces the storage engine to read <em>every single page containing all 60 columns</em> off disk into memory, discarding 58 unneeded columns (customer addresses, payment tokens, delivery notes) in CPU registers. If the table is 200 Gigabytes, the query must physically pull 200 GB across the PCIe/SATA bus.
+          </p>
+          <p>
+            In <strong>Column-Oriented Storage</strong> (Parquet, ClickHouse, Amazon Redshift, DuckDB), each column is stored in its own dedicated, contiguous file: <code>product_id.col</code>, <code>quantity.col</code>, <code>customer_id.col</code>. To execute the query above, the database opens <em>only</em> the files for <code>product_id</code> and <code>quantity</code>. If those two columns consume only 3 GB out of the 200 GB table, disk I/O is reduced by <strong>98.5%</strong>!
+          </p>
+          <p>
+            Even more dramatically, storing column values contiguously enables extreme <strong>data compression</strong>. In a row store, adjacent bytes have differing types (an integer, followed by a string, followed by a timestamp). In a column store, millions of identical types sit next to each other. If you have 500,000 rows with <code>country = 'US'</code>, a <strong>Bitmap Index</strong> with <strong>Run-Length Encoding (RLE)</strong> compresses these sequences into a tiny handful of bytes. Queries with multiple filter conditions (e.g., <code>WHERE country = 'US' AND device = 'Mobile'</code>) can be resolved by loading the two compressed bitmaps and computing bitwise <code>AND</code> instructions directly inside CPU SIMD registers without ever unpacking the raw data!
+          </p>
+        </div>
+
+        <!-- SVG Diagram 3: Strictly adhering to diagram-design skill -->
+        <div class="diagram-container">
+          <svg viewBox="0 0 960 400" width="960" height="400" xmlns="http://www.w3.org/2000/svg">
+            <rect width="960" height="400" class="dia-bg" />
+
+            <!-- Row-Oriented Layout Section -->
+            <rect x="40" y="40" width="420" height="280" rx="8" class="dia-card" />
+            <text x="60" y="68" class="dia-label" fill="#eb6c36">ROW-ORIENTED STORAGE (OLTP: MySQL / Postgres)</text>
+            <text x="60" y="86" class="dia-subtext">Tuples stored contiguously on disk pages</text>
+
+            <!-- Row 1 -->
+            <rect x="60" y="104" width="380" height="40" rx="4" fill="#12141c" stroke="#232838" />
+            <rect x="65" y="108" width="50" height="32" rx="3" fill="#232838" />
+            <text x="90" y="128" text-anchor="middle" class="dia-mono" font-size="10px">ID:1</text>
+            <rect x="120" y="108" width="80" height="32" rx="3" fill="#232838" />
+            <text x="160" y="128" text-anchor="middle" class="dia-mono" font-size="10px">Alice</text>
+            <rect x="205" y="108" width="90" height="32" rx="3" class="dia-card-highlight" />
+            <text x="250" y="128" text-anchor="middle" class="dia-mono" font-size="10px" fill="#eb6c36">Qty: 5</text>
+            <rect x="300" y="108" width="135" height="32" rx="3" fill="#232838" />
+            <text x="367" y="128" text-anchor="middle" class="dia-subtext">Address / Bio / Notes...</text>
+
+            <!-- Row 2 -->
+            <rect x="60" y="152" width="380" height="40" rx="4" fill="#12141c" stroke="#232838" />
+            <rect x="65" y="156" width="50" height="32" rx="3" fill="#232838" />
+            <text x="90" y="176" text-anchor="middle" class="dia-mono" font-size="10px">ID:2</text>
+            <rect x="120" y="156" width="80" height="32" rx="3" fill="#232838" />
+            <text x="160" y="176" text-anchor="middle" class="dia-mono" font-size="10px">Bob</text>
+            <rect x="205" y="156" width="90" height="32" rx="3" class="dia-card-highlight" />
+            <text x="250" y="176" text-anchor="middle" class="dia-mono" font-size="10px" fill="#eb6c36">Qty: 12</text>
+            <rect x="300" y="156" width="135" height="32" rx="3" fill="#232838" />
+            <text x="367" y="176" text-anchor="middle" class="dia-subtext">Address / Bio / Notes...</text>
+
+            <rect x="60" y="210" width="380" height="90" rx="6" fill="#161924" stroke="#eb6c36" stroke-width="1.5px" />
+            <text x="80" y="234" class="dia-label" fill="#eb6c36">Query: SUM(quantity)</text>
+            <text x="80" y="254" class="dia-subtext">Must load ALL 380 bytes per row from disk into RAM.</text>
+            <text x="80" y="272" class="dia-mono" font-size="11px" fill="#eb6c36">I/O Overhead: ~85% WASTED DISK READ BANDWIDTH</text>
+
+            <!-- Column-Oriented Layout Section -->
+            <rect x="500" y="40" width="420" height="280" rx="8" class="dia-card" />
+            <text x="520" y="68" class="dia-label" fill="#10b981">COLUMN-ORIENTED STORAGE (OLAP: ClickHouse / Parquet)</text>
+            <text x="520" y="86" class="dia-subtext">Each column isolated in contiguous sequential files</text>
+
+            <rect x="520" y="104" width="380" height="32" rx="4" fill="#12141c" stroke="#232838" />
+            <text x="530" y="124" class="dia-mono" font-size="10px">Col (ID):</text>
+            <text x="610" y="124" class="dia-mono-muted">[ 1, 2, 3, 4, 5, 6, 7... ] (Skipped entirely)</text>
+
+            <rect x="520" y="144" width="380" height="36" rx="4" class="dia-card-teal" />
+            <text x="530" y="166" class="dia-mono" font-size="10px" fill="#10b981">Col (Qty):</text>
+            <text x="610" y="166" class="dia-mono" font-size="11px" fill="#10b981">[ 5, 12, 3, 8, 20... ] (Contiguous Streaming)</text>
+
+            <rect x="520" y="188" width="380" height="32" rx="4" fill="#12141c" stroke="#232838" />
+            <text x="530" y="208" class="dia-mono" font-size="10px">Col (Notes):</text>
+            <text x="610" y="208" class="dia-mono-muted">[ "addr..", "addr.." ] (Zero Disk Reads)</text>
+
+            <rect x="520" y="230" width="380" height="70" rx="6" fill="#161924" stroke="#10b981" stroke-width="1.5px" />
+            <text x="540" y="254" class="dia-label" fill="#10b981">Query: SUM(quantity)</text>
+            <text x="540" y="274" class="dia-subtext">Only loads quantity.col! 100% vectorized SIMD streaming.</text>
+            <text x="540" y="288" class="dia-mono" font-size="11px" fill="#10b981">I/O Efficiency: 98% I/O REDUCTION</text>
+
+            <!-- Bottom Legend Strip -->
+            <rect x="40" y="345" width="880" height="32" rx="6" fill="#161924" stroke="#232838" />
+            <circle cx="80" cy="361" r="5" fill="#eb6c36" />
+            <text x="92" y="365" class="dia-subtext">Row-Oriented I/O Penalty (Must read unneeded attributes)</text>
+            <circle cx="450" cy="361" r="5" fill="#10b981" />
+            <text x="462" y="365" class="dia-subtext">Columnar Selective Streaming (Reads only required columns)</text>
+          </svg>
+          <div class="diagram-caption">Figure 3.3: Row-oriented physical layout (loading full tuples) vs Column-oriented layout (loading only queried columns with contiguous streaming).</div>
+        </div>
+
+        <!-- Interactive 5: Row Store vs Column Store I/O Scanner -->
+        <div class="interactive-section">
+          <div class="interactive-header">
+            <div class="interactive-title">Disk I/O Bandwidth Calculator • Row vs Column Store</div>
+            <button class="btn btn-primary" onclick="recalculateIO()">Recalculate I/O</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem;">
+            <div>
+              <label style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); display: block; margin-bottom: 0.4rem;">
+                Total Table Rows: <span id="valRows" style="color: var(--accent);">10,000,000</span>
+              </label>
+              <input type="range" id="sliderRows" min="1" max="50" value="10" style="width: 100%;" oninput="recalculateIO()">
+
+              <label style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); display: block; margin: 1rem 0 0.4rem;">
+                Total Columns in Table: <span id="valTotalCols" style="color: var(--accent);">40</span>
+              </label>
+              <input type="range" id="sliderTotalCols" min="5" max="100" value="40" style="width: 100%;" oninput="recalculateIO()">
+
+              <label style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); display: block; margin: 1rem 0 0.4rem;">
+                Columns Needed by Analytical Query: <span id="valQueryCols" style="color: var(--accent);">2</span>
+              </label>
+              <input type="range" id="sliderQueryCols" min="1" max="10" value="2" style="width: 100%;" oninput="recalculateIO()">
+            </div>
+            <div style="background: var(--bg-surface-elevated); padding: 1.25rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.82rem;">
+              <div style="color: var(--text-subtle); margin-bottom: 0.5rem;">ESTIMATED DISK READ I/O:</div>
+              <div style="margin-bottom: 0.5rem;">Row-Store Read: <strong id="rowStoreBytes" style="color: var(--rose);">3.20 GB</strong></div>
+              <div style="margin-bottom: 0.5rem;">Column-Store Read: <strong id="colStoreBytes" style="color: var(--teal);">0.16 GB</strong> (Uncompressed)</div>
+              <div style="margin-bottom: 0.5rem;">Column-Store + RLE: <strong id="colStoreCompressed" style="color: var(--accent);">0.03 GB</strong> (Compressed)</div>
+              <div style="margin-top: 1rem; padding-top: 0.5rem; border-top: 1px solid var(--border); color: var(--teal); font-weight: 600;">
+                Bandwidth Saved: <span id="bandwidthSavedPercent">99.1%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio Grid -->
+        <div class="examples-trio">
+          <div class="example-box">
+            <span class="example-type type-obvious">Obvious Case</span>
+            <div class="example-title">Gender or Country Column</div>
+            <div class="example-desc">A column with 2 distinct values (M/F) across 10 million rows compresses down to 1 bit per row, achieving a 99.8% compression ratio.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-counter">Counter-Intuitive</span>
+            <div class="example-title">Bitwise Filters Without Decompression</div>
+            <div class="example-desc">Evaluating <code>country = 'US' AND status = 'Active'</code> executes a single bitwise <code>AND</code> instruction across compressed words in CPU cache without unpacking.</div>
+          </div>
+          <div class="example-box">
+            <span class="example-type type-edge">Edge Case</span>
+            <div class="example-title">Row Inserts in Column Stores</div>
+            <div class="example-desc">Inserting a single row into a column store requires opening, decompressing, and appending to 40 separate column files, making ad-hoc point inserts notoriously slow.</div>
+          </div>
+        </div>
+
+        <!-- Pedagogy Grid -->
+        <div class="pedagogy-grid">
+          <div class="pedagogy-card">
+            <div class="pedagogy-title analogy">Analogy • Spreadsheet vs Stripped Columns</div>
+            <div class="pedagogy-content">
+              A row store prints the full spreadsheet on wide paper rolls. A column store tears each column out and puts them in separate labeled binders; calculating sum of column C only requires opening binder C.
+            </div>
+          </div>
+          <div class="pedagogy-card">
+            <div class="pedagogy-title misconception">Misconception • Column Stores Are Slower Because They Need Stitching</div>
+            <div class="pedagogy-content">
+              Engineers worry that reconstructing rows slows down queries. But analytical queries rarely reconstruct rows—they compute aggregations (sums, counts) and return only small summarized result sets!
+            </div>
+          </div>
+          <div class="pedagogy-card full-width">
+            <div class="pedagogy-title production">Production Reality • Sort Keys in Columnar Formats</div>
+            <div class="pedagogy-content">
+              In ClickHouse and Amazon Redshift, all columns are sorted by the table's primary sort key (e.g., <code>timestamp</code>). The first column achieves mind-boggling Run-Length Encoding compression because identical values are physically adjacent, accelerating time-range filtering.
+            </div>
+          </div>
+        </div>
+
+        <div class="memory-pill">
+          <span class="memory-pill-label">Memory Pill</span>
+          <span class="memory-pill-text">"Store columns together, compress adjacent identical data types, filter with SIMD bitwise math."</span>
+        </div>
+      </section>
+
+      <!-- MODULE 7: Master Comparison Matrix -->
+      <section id="synthesis" class="module-card">
+        <div class="module-tag">Module 07 • System Synthesis</div>
+        <h2 class="module-title">Architectural Trade-offs & Engine Selection Matrix</h2>
+
+        <div class="core-explanation">
+          <p>
+            The choice of storage engine is the single most defining architectural decision in database engineering. No single engine excels across all workload profiles. The table below synthesizes the trade-offs across all three primary paradigms discussed in Chapter 3:
+          </p>
+        </div>
+
+        <div class="comparison-table-wrapper">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>System Dimension</th>
+                <th>LSM-Trees (Log-Structured)</th>
+                <th>B-Trees (Page-Oriented)</th>
+                <th>Column-Oriented (Analytical)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Primary Representative Engines</strong></td>
+                <td>Cassandra, RocksDB, LevelDB, ScyllaDB</td>
+                <td>PostgreSQL, MySQL InnoDB, SQLite, Oracle</td>
+                <td>ClickHouse, Snowflake, DuckDB, BigQuery</td>
+              </tr>
+              <tr>
+                <td><strong>Write Performance</strong></td>
+                <td>Exceptional ($O(1)$ sequential log + RAM MemTable)</td>
+                <td>Moderate (Random in-place 4KB page rewrites + WAL)</td>
+                <td>Slow for point writes; ultra-fast for batch appends</td>
+              </tr>
+              <tr>
+                <td><strong>Point Read ($O(1)$ Key Lookup)</strong></td>
+                <td>Slower (Must check MemTable + multi-level SSTables)</td>
+                <td>Fastest ($O(\log N)$ predictable page traversal)</td>
+                <td>Inefficient (Must seek across multiple column files)</td>
+              </tr>
+              <tr>
+                <td><strong>Range Scans</strong></td>
+                <td>Good across sorted SSTables, but merges needed</td>
+                <td>Excellent via doubly-linked leaf pages</td>
+                <td>Superlative over sorted column partitions</td>
+              </tr>
+              <tr>
+                <td><strong>Storage Footprint</strong></td>
+                <td>Compact (Tightly packed SSTables, no fragmentation)</td>
+                <td>Fragmented (Pages contain empty padding space)</td>
+                <td>Ultra-compact (RLE, Bitmaps, Dictionary compression)</td>
+              </tr>
+              <tr>
+                <td><strong>Write Amplification</strong></td>
+                <td>Caused by background compaction re-writing runs</td>
+                <td>Caused by WAL writes + writing full 4KB-16KB pages</td>
+                <td>High if performing single-row updates</td>
+              </tr>
+              <tr>
+                <td><strong>Ideal Workload</strong></td>
+                <td>High-velocity streams (metrics, logs, clickstreams)</td>
+                <td>Transactional OLTP with mixed random reads/writes</td>
+                <td>Analytical OLAP, large historical aggregations</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Interactive 6: Workload Engine Matcher -->
+        <div class="interactive-section">
+          <div class="interactive-header">
+            <div class="interactive-title">Architectural Decision Engine • Match Your Workload</div>
+            <button class="btn" onclick="resetEngineMatcher()">Reset Form</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+            <div>
+              <label style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Write Pattern:</label>
+              <select id="matchWrites" class="input-field" style="width: 100%; margin-bottom: 0.75rem;" onchange="computeEngineMatch()">
+                <option value="stream">High-frequency continuous stream (10k+ writes/sec)</option>
+                <option value="point">Random point updates & transactions (e-commerce)</option>
+                <option value="batch">Periodic bulk batch ETL loads</option>
+              </select>
+
+              <label style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Primary Read Pattern:</label>
+              <select id="matchReads" class="input-field" style="width: 100%; margin-bottom: 0.75rem;" onchange="computeEngineMatch()">
+                <option value="point">Point lookups by user/order ID (single row)</option>
+                <option value="aggregate">Large multi-column aggregations & historical metrics</option>
+                <option value="range">Range scans within short recent time windows</option>
+              </select>
+            </div>
+            <div style="background: var(--bg-surface-elevated); padding: 1.25rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-family: var(--font-mono);">
+              <div style="color: var(--text-subtle); font-size: 0.75rem; margin-bottom: 0.35rem;">RECOMMENDED ARCHITECTURE:</div>
+              <div id="matchResultTitle" style="font-size: 1.1rem; color: var(--accent); font-weight: 600; margin-bottom: 0.5rem;">Log-Structured Engine (LSM-Tree)</div>
+              <div id="matchResultDesc" style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;">
+                Recommended engine: RocksDB, Apache Cassandra, or ScyllaDB. Excellent write throughput buffering in MemTables with sequential flushing.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MODULE 8: Master Glossary & Definitions -->
+      <section id="glossary" class="module-card">
+        <div class="module-tag">Module 08 • Master Reference</div>
+        <h2 class="module-title">Master Definitions Glossary</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+          Exhaustive reference of every core data storage, indexing, and hardware alignment term established in Chapter 3 of Designing Data-Intensive Applications.
+        </p>
+
+        <div class="glossary-grid">
+          <div class="glossary-card">
+            <div class="glossary-term">Append-Only Log</div>
+            <div class="glossary-def">An immutable file structure where new mutations are simply appended to the end of the file. Maximizes write throughput ($O(1)$) by utilizing sequential disk I/O.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">B-Tree / B+Tree</div>
+            <div class="glossary-def">A balanced tree indexing structure that partitions data into fixed-size pages (4KB-8KB). In B+trees, internal nodes route searches and leaves contain data/pointers linked for range queries.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">SSTable (Sorted String Table)</div>
+            <div class="glossary-def">An immutable disk file containing key-value pairs sorted strictly by key. Serves as the persistent storage unit of Log-Structured Merge-Trees.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">MemTable</div>
+            <div class="glossary-def">An in-memory write buffer backed by a balanced binary search tree (SkipList or Red-Black Tree) that accumulates incoming mutations in sorted order before flushing to an SSTable.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Write-Ahead Log (WAL)</div>
+            <div class="glossary-def">A sequential log on disk where every mutation is durably recorded before updating in-memory data structures or mutating disk pages, enabling complete crash recovery.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Bloom Filter</div>
+            <div class="glossary-def">A probabilistic, memory-efficient bit-array data structure that instantly determines if a key definitely does not exist in an SSTable, preventing unnecessary disk seeks.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Compaction</div>
+            <div class="glossary-def">The background maintenance process in LSM engines that reads multiple sorted SSTable files, merges them using mergesort, discards superseded values, and writes a single compacted run.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Clustered Index</div>
+            <div class="glossary-def">An index structure where row data is physically stored directly inside the leaf pages of the primary key tree (e.g. MySQL InnoDB). Eliminates secondary lookups for primary key queries.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Heap File</div>
+            <div class="glossary-def">An unordered collection of disk pages where table rows are placed arbitrarily wherever free space exists. Indexes store Tuple IDs (TIDs) pointing into the heap (e.g. PostgreSQL).</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Covering Index</div>
+            <div class="glossary-def">An index that includes all columns required by a query, allowing the database engine to resolve the request purely from index pages without fetching the underlying table rows.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">OLTP (Online Transaction Processing)</div>
+            <div class="glossary-def">Operational database workloads featuring high concurrency, low latency, and single-record point updates and reads (e.g., user checkouts, banking transfers).</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">OLAP (Online Analytical Processing)</div>
+            <div class="glossary-def">Analytical workloads scanning millions of records across a few columns to aggregate business intelligence metrics (e.g., total quarterly revenue).</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Column-Oriented Storage</div>
+            <div class="glossary-def">Storing the values of each database column together contiguously on disk, drastically reducing I/O requirements for analytical queries on wide tables.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Bitmap Index</div>
+            <div class="glossary-def">An index representing distinct column values as arrays of bits (1 for presence, 0 for absence). Enables ultra-fast boolean logic (AND, OR) directly inside CPU SIMD registers.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Run-Length Encoding (RLE)</div>
+            <div class="glossary-def">A compression technique that condenses repeated sequences of the same value into a single count and value descriptor, achieving immense compression ratios on sorted columns.</div>
+          </div>
+
+          <div class="glossary-card">
+            <div class="glossary-term">Tombstone</div>
+            <div class="glossary-def">A special deletion record appended to a log-structured engine to mark a key as deleted, ensuring older versions in deeper SSTable levels are suppressed during compaction.</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- JavaScript Implementation -->
+  <script>
+    // Theme Toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    const themeText = document.getElementById('theme-text');
+    themeBtn.addEventListener('click', () => {
+      const current = document.body.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.body.setAttribute('data-theme', next);
+      themeText.textContent = `Mode: ${next.charAt(0).toUpperCase() + next.slice(1)}`;
+    });
+
+    // Reading Progress Indicator
+    window.addEventListener('scroll', () => {
+      const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      document.getElementById('reading-progress').style.width = scrolled + '%';
+
+      // Active Section Highlighting
+      const sections = document.querySelectorAll('.module-card, .chapter-hero');
+      const navLinks = document.querySelectorAll('.nav-item');
+      let currentSection = '';
+
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop - 150;
+        if (winScroll >= sectionTop) {
+          currentSection = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${currentSection}`) {
+          link.classList.add('active');
+        }
+      });
+    });
+
+    // Interactive 1: Bash DB Engine
+    let bashDbLog = [
+      '101,{"user":"Alice","country":"US"}',
+      '102,{"user":"Bob","country":"UK"}',
+      '101,{"user":"Alice","country":"CA"}'
+    ];
+
+    function renderBashLog() {
+      const view = document.getElementById('bashLogView');
+      view.innerHTML = bashDbLog.map((line, idx) => {
+        const isTail = idx === bashDbLog.length - 1;
+        return `<div>${line} ${isTail ? '<span style="color:var(--accent);"> &lt;-- [File Tail]</span>' : ''}</div>`;
+      }).join('');
+    }
+
+    function execBashSet() {
+      const k = document.getElementById('bashKey').value.trim();
+      const v = document.getElementById('bashVal').value.trim();
+      if (!k || !v) return;
+      bashDbLog.push(`${k},${v}`);
+      renderBashLog();
+      document.getElementById('bashOutput').innerHTML = `<code>echo "${k},${v}" &gt;&gt; database.txt</code> &rarr; Appended in <strong>O(1)</strong> time (Seek: 0ms).`;
+    }
+
+    function execBashGet() {
+      const k = document.getElementById('bashKey').value.trim();
+      if (!k) return;
+      // Linear scan from top to bottom, pick last
+      let found = null;
+      let scans = 0;
+      for (let i = 0; i < bashDbLog.length; i++) {
+        scans++;
+        const parts = bashDbLog[i].split(',');
+        if (parts[0] === k) {
+          found = parts.slice(1).join(',');
+        }
+      }
+      const out = document.getElementById('bashOutput');
+      if (found) {
+        out.innerHTML = `<code>grep "^${k}," database.txt | tail -n 1</code> &rarr; Found: <strong>${found}</strong> (Scanned ${scans} lines, O(N)).`;
+      } else {
+        out.innerHTML = `<code>grep "^${k}," database.txt</code> &rarr; Key not found (Scanned all ${scans} lines).`;
+      }
+    }
+
+    function resetBashDB() {
+      bashDbLog = [
+        '101,{"user":"Alice","country":"US"}',
+        '102,{"user":"Bob","country":"UK"}',
+        '101,{"user":"Alice","country":"CA"}'
+      ];
+      renderBashLog();
+      document.getElementById('bashOutput').innerText = 'Database reset to default 3 lines.';
+    }
+
+    // Interactive 2: LSM-Tree Simulation
+    let memtable = [
+      { key: "bravo", val: 240 },
+      { key: "kilo", val: 810 }
+    ];
+    let sstables = [
+      [ { key: "alpha", val: 100 }, { key: "echo", val: 500 } ],
+      [ { key: "bravo", val: 210 }, { key: "hotel", val: 720 } ]
+    ];
+    let compactedRun = [];
+
+    function renderLSM() {
+      document.getElementById('memtableCount').innerText = memtable.length;
+      document.getElementById('memtableContent').innerHTML = memtable.length ?
+        memtable.map(i => `k: "${i.key}" &rarr; ${i.val}`).join('<br>') : '<em style="color:var(--text-subtle);">[Empty MemTable]</em>';
+
+      document.getElementById('sstableContent').innerHTML = sstables.length ?
+        sstables.map((run, idx) => `[SSTable Run ${idx+1}]: ` + run.map(r => `${r.key}:${r.val}`).join(', ')).join('<br>') :
+        '<em style="color:var(--text-subtle);">[No Level 0 SSTables]</em>';
+
+      document.getElementById('compactedContent').innerHTML = compactedRun.length ?
+        compactedRun.map(r => `<strong>${r.key}</strong>: ${r.val}`).join(', ') :
+        '<em style="color:var(--text-subtle);">(Run Compaction to merge runs and drop superseded values)</em>';
+    }
+
+    const samplePool = [
+      { key: "alpha", val: 105 },
+      { key: "charlie", val: 300 },
+      { key: "delta", val: 400 },
+      { key: "hotel", val: 799 },
+      { key: "zulu", val: 999 }
+    ];
+    let sampleIdx = 0;
+
+    function simulateLsmInsert() {
+      const item = samplePool[sampleIdx % samplePool.length];
+      sampleIdx++;
+      memtable = memtable.filter(m => m.key !== item.key);
+      memtable.push(item);
+      memtable.sort((a, b) => a.key.localeCompare(b.key));
+      document.getElementById('lsmStatusText').innerText = `Inserted "${item.key}": ${item.val} into MemTable (Sorted in RAM).`;
+
+      if (memtable.length >= 4) {
+        triggerLsmFlush();
+      } else {
+        renderLSM();
+      }
+    }
+
+    function triggerLsmFlush() {
+      if (!memtable.length) {
+        document.getElementById('lsmStatusText').innerText = 'MemTable is currently empty.';
+        return;
+      }
+      sstables.push([...memtable]);
+      memtable = [];
+      document.getElementById('lsmStatusText').innerText = 'MemTable size reached threshold! Flushed sequentially to new immutable SSTable file on disk.';
+      renderLSM();
+    }
+
+    function triggerLsmCompaction() {
+      if (sstables.length < 2) {
+        document.getElementById('lsmStatusText').innerText = 'Need at least 2 SSTables to run multi-way merge compaction.';
+        return;
+      }
+      // Merge all SSTables keeping latest
+      let mergedMap = {};
+      sstables.forEach(run => {
+        run.forEach(item => {
+          mergedMap[item.key] = item.val;
+        });
+      });
+      compactedRun = Object.keys(mergedMap).sort().map(k => ({ key: k, val: mergedMap[k] }));
+      sstables = [];
+      document.getElementById('lsmStatusText').innerText = 'Compaction Complete: Mergesort merged runs into single contiguous L1 file. Outdated keys purged!';
+      renderLSM();
+    }
+
+    // Interactive 3: B+Tree Node Demo
+    let btreeStep = 0;
+    function simulateBTreeSearch() {
+      const text = document.getElementById('btreeStepText');
+      const container = document.getElementById('btreeNodeContainer');
+      btreeStep = (btreeStep % 3) + 1;
+
+      if (btreeStep === 1) {
+        text.innerHTML = '<span style="color:var(--accent);">Step 1: Read Root Page (ID: 1) from Buffer Pool</span> &rarr; Binary search 280: between 200 and 500 &rarr; Follow pointer to Page ID 15.';
+        container.innerHTML = `
+          <div style="border: 2px solid var(--accent); padding: 0.75rem 1.25rem; border-radius: 6px; background: rgba(235,108,54,0.1);">
+            <div style="font-size: 0.7rem; color: var(--accent);">ROOT PAGE [ACTIVE]</div>
+            <div style="font-size: 0.85rem; color: var(--text);">[200 | <span style="color:var(--accent); font-weight:bold;">PTR: 200..500</span> | 500]</div>
+          </div>
+        `;
+      } else if (btreeStep === 2) {
+        text.innerHTML = '<span style="color:var(--accent);">Step 2: Read Intermediate Branch Page (ID: 15)</span> &rarr; Keys: [250, 340, 420] &rarr; 280 falls in range [250..340] &rarr; Follow pointer to Leaf Page B.';
+        container.innerHTML = `
+          <div style="border: 1px solid var(--border); padding: 0.75rem 1.25rem; border-radius: 6px; background: #161924; opacity: 0.6;">
+            <div style="font-size: 0.7rem;">ROOT PAGE</div>
+            <div style="font-size: 0.85rem;">[200 | 500]</div>
+          </div>
+          <div style="border: 2px solid var(--teal); padding: 0.75rem 1.25rem; border-radius: 6px; background: rgba(16,185,129,0.1);">
+            <div style="font-size: 0.7rem; color: var(--teal);">BRANCH PAGE ID: 15 [ACTIVE]</div>
+            <div style="font-size: 0.85rem; color: var(--text);">[250 | <span style="color:var(--teal); font-weight:bold;">PTR: 250..340</span> | 340]</div>
+          </div>
+        `;
+      } else if (btreeStep === 3) {
+        text.innerHTML = '<span style="color:var(--teal);">Step 3: Reach Leaf Page B</span> &rarr; Record Key 280 found in-place! Record payload returned in <strong>3 page reads</strong> total.';
+        container.innerHTML = `
+          <div style="border: 1px solid var(--border); padding: 0.75rem 1.25rem; border-radius: 6px; background: #161924; opacity: 0.4;">
+            <div style="font-size: 0.7rem;">ROOT PAGE</div>
+          </div>
+          <div style="border: 1px solid var(--border); padding: 0.75rem 1.25rem; border-radius: 6px; background: #161924; opacity: 0.4;">
+            <div style="font-size: 0.7rem;">BRANCH PAGE ID: 15</div>
+          </div>
+          <div style="border: 2px solid var(--accent); padding: 0.75rem 1.25rem; border-radius: 6px; background: rgba(235,108,54,0.15);">
+            <div style="font-size: 0.7rem; color: var(--accent);">TARGET LEAF PAGE B</div>
+            <div style="font-size: 0.85rem; color: #fff;">[250, <strong style="color:var(--accent);">280: Payload</strong>, 310]</div>
+          </div>
+        `;
+      }
+    }
+
+    function simulateBTreeInsert() {
+      const text = document.getElementById('btreeStepText');
+      const container = document.getElementById('btreeNodeContainer');
+      text.innerHTML = '<span style="color:var(--rose);">Page Capacity Exceeded (4KB full)!</span> &rarr; Leaf Page splits into two 50% full pages (Leaf B1 & Leaf B2). Parent router updated.';
+      container.innerHTML = `
+        <div style="border: 2px solid var(--rose); padding: 0.75rem 1.25rem; border-radius: 6px; background: rgba(244,63,94,0.1);">
+          <div style="font-size: 0.7rem; color: var(--rose);">LEAF B1 (50% full)</div>
+          <div style="font-size: 0.85rem;">[250, 270, 280]</div>
+        </div>
+        <div style="border: 2px solid var(--rose); padding: 0.75rem 1.25rem; border-radius: 6px; background: rgba(244,63,94,0.1);">
+          <div style="font-size: 0.7rem; color: var(--rose);">LEAF B2 (50% full)</div>
+          <div style="font-size: 0.85rem;">[290, 310, 330]</div>
+        </div>
+      `;
+    }
+
+    function resetBTreeDemo() {
+      btreeStep = 0;
+      document.getElementById('btreeStepText').innerText = "Click 'Search Key 280' to trace root-to-leaf traversal step by step.";
+      document.getElementById('btreeNodeContainer').innerHTML = `
+        <div style="border: 2px solid var(--border); padding: 0.75rem 1.25rem; border-radius: 6px; background: #161924;">
+          <div style="font-size: 0.7rem; color: var(--text-subtle);">ROOT PAGE</div>
+          <div style="font-size: 0.85rem; color: var(--text);">[200 | 500]</div>
+        </div>
+      `;
+    }
+
+    // Interactive 4: Pointer Hop Simulator
+    function simulateLookupPath(mode) {
+      const result = document.getElementById('pointerSimResult');
+      const hop = document.getElementById('hopCounter');
+      const io = document.getElementById('ioEstimate');
+
+      if (mode === 'innodb-regular') {
+        result.innerHTML = `
+          <strong>1. Secondary B-Tree Descent:</strong> Traverses secondary index on <code>signup_date</code> (3 page reads) &rarr; Retrieves <strong>Primary Key: 84920</strong>.<br>
+          <strong>2. Primary B-Tree Descent (Double Lookup):</strong> Traverses primary key B-tree from root (3 page reads) &rarr; Finds leaf page holding full row.<br>
+          <span style="color:var(--amber);">Total Hops: 6 page accesses. Incurs 2 separate tree traversals.</span>
+        `;
+        hop.innerText = "Page Traversal Hops: 6";
+        ioEstimate.innerText = "Estimated Physical I/O: 2-4 Random Page Fetches";
+      } else if (mode === 'innodb-covering') {
+        result.innerHTML = `
+          <strong>1. Secondary B-Tree Descent:</strong> Traverses secondary index on <code>(signup_date, username)</code> (3 page reads).<br>
+          <strong>2. Direct Answer:</strong> The secondary index leaf page <em>already contains the username!</em><br>
+          <span style="color:var(--teal);">Total Hops: 3 page accesses. Zero primary tree lookups required (Covering Index / Index-Only Scan)!</span>
+        `;
+        hop.innerText = "Page Traversal Hops: 3";
+        ioEstimate.innerText = "Estimated Physical I/O: 1 Page Fetch (Zero Primary Tree Seeks)";
+      } else if (mode === 'postgres-heap') {
+        result.innerHTML = `
+          <strong>1. Index Tree Descent:</strong> Traverses index on <code>signup_date</code> (3 page reads) &rarr; Finds <strong>Tuple ID: (Block 402, Offset 14)</strong>.<br>
+          <strong>2. Direct Heap Jump:</strong> Jumps directly to physical Heap Block 402 and extracts username (1 page read).<br>
+          <span style="color:var(--blue);">Total Hops: 4 page accesses. Direct physical pointer jump with no secondary tree descent.</span>
+        `;
+        hop.innerText = "Page Traversal Hops: 4";
+        ioEstimate.innerText = "Estimated Physical I/O: 1 Index Page + 1 Heap Page Fetch";
+      }
+    }
+
+    // Interactive 5: Column vs Row I/O Scanner
+    function recalculateIO() {
+      const rows = parseInt(document.getElementById('sliderRows').value) * 1000000;
+      const totalCols = parseInt(document.getElementById('sliderTotalCols').value);
+      const queryCols = parseInt(document.getElementById('sliderQueryCols').value);
+
+      document.getElementById('valRows').innerText = (rows / 1000000) + ",000,000";
+      document.getElementById('valTotalCols').innerText = totalCols;
+      document.getElementById('valQueryCols').innerText = queryCols;
+
+      const bytesPerRow = totalCols * 8; // Assuming 8 bytes avg per col
+      const totalRowBytes = rows * bytesPerRow;
+      const totalColBytes = rows * (queryCols * 8);
+      const compressedColBytes = totalColBytes * 0.18; // 82% compression ratio typical
+
+      document.getElementById('rowStoreBytes').innerText = (totalRowBytes / (1024*1024*1024)).toFixed(2) + " GB";
+      document.getElementById('colStoreBytes').innerText = (totalColBytes / (1024*1024*1024)).toFixed(2) + " GB";
+      document.getElementById('colStoreCompressed').innerText = (compressedColBytes / (1024*1024*1024)).toFixed(2) + " GB";
+
+      const saved = ((1 - (compressedColBytes / totalRowBytes)) * 100).toFixed(1);
+      document.getElementById('bandwidthSavedPercent').innerText = saved + "%";
+    }
+
+    // Interactive 6: Workload Matcher
+    function computeEngineMatch() {
+      const writes = document.getElementById('matchWrites').value;
+      const reads = document.getElementById('matchReads').value;
+      const title = document.getElementById('matchResultTitle');
+      const desc = document.getElementById('matchResultDesc');
+
+      if (reads === 'aggregate') {
+        title.innerText = "Column-Oriented Engine (ClickHouse / Snowflake / DuckDB)";
+        title.style.color = "var(--teal)";
+        desc.innerText = "Your workload is heavily analytical. Storing data by column with Run-Length Encoding and Bitmap indexes will reduce query times from minutes to milliseconds.";
+      } else if (writes === 'stream' || (writes === 'stream' && reads === 'range')) {
+        title.innerText = "Log-Structured Engine (LSM-Tree / Cassandra / RocksDB)";
+        title.style.color = "var(--accent)";
+        desc.innerText = "Heavy streaming writes require sequential disk append characteristics. An LSM-tree buffers insertions in a MemTable and handles sequential flushes without random page seek degradation.";
+      } else {
+        title.innerText = "B-Tree Page-Oriented Engine (MySQL InnoDB / PostgreSQL)";
+        title.style.color = "var(--blue)";
+        desc.innerText = "Standard OLTP application with random point reads and ACID transactions. Predictable logarithmic B-tree depth and clustered/heap indexing deliver optimal single-record latency.";
+      }
+    }
+
+    function resetEngineMatcher() {
+      document.getElementById('matchWrites').value = "stream";
+      document.getElementById('matchReads').value = "point";
+      computeEngineMatch();
+    }
+
+    // Initialize displays on load
+    renderBashLog();
+    renderLSM();
+    recalculateIO();
+  </script>
+</body>
+</html>

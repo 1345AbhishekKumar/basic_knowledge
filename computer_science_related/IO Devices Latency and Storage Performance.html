@@ -1,0 +1,3948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>I/O Devices, Latency, and Storage Performance</title>
+  <style>
+    :root {
+      --bg: #f7f6f2;
+      --surface: #ffffff;
+      --surface-subtle: #f1efe8;
+      --border: #e2ded4;
+      --border-focus: #c2bbae;
+      --text: #1a1917;
+      --text-muted: #6b675e;
+      --text-soft: #8c877b;
+      --accent: #b45309;
+      --accent-soft: #fef3c7;
+      --accent-text: #92400e;
+      --teal: #0f766e;
+      --teal-soft: #ccfbf1;
+      --blue: #1d4ed8;
+      --blue-soft: #dbeafe;
+      --rose: #be123c;
+      --rose-soft: #ffe4e6;
+      --font-serif: "Charter", "Georgia", "Cambria", "Times New Roman", serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "SF Mono", "Consolas", "Liberation Mono", "Menlo", monospace;
+      --sidebar-width: 320px;
+      --radius: 6px;
+      --transition: 0.2s ease;
+    }
+
+    [data-theme="dark"] {
+      --bg: #141413;
+      --surface: #1e1d1b;
+      --surface-subtle: #262422;
+      --border: #33312d;
+      --border-focus: #524e47;
+      --text: #eae8e1;
+      --text-muted: #a19d93;
+      --text-soft: #7a766c;
+      --accent: #f59e0b;
+      --accent-soft: #3b2806;
+      --accent-text: #fbbf24;
+      --teal: #14b8a6;
+      --teal-soft: #082f2c;
+      --blue: #3b82f6;
+      --blue-soft: #11274c;
+      --rose: #f43f5e;
+      --rose-soft: #420b17;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Top reading progress indicator */
+    #progress-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: transparent;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.1s linear;
+    }
+
+    /* Split Atlas Layout */
+    .atlas-layout {
+      display: flex;
+      width: 100%;
+      min-height: 100vh;
+    }
+
+    /* Left Sidebar Rail */
+    .sidebar {
+      width: var(--sidebar-width);
+      min-width: var(--sidebar-width);
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .sidebar-header {
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+    }
+
+    .series-tag {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-soft);
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .sidebar-title {
+      font-family: var(--font-serif);
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1.35;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .sidebar-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .theme-toggle-btn {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.35rem 0.65rem;
+      border-radius: var(--radius);
+      font-size: 0.75rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: var(--transition);
+    }
+    .theme-toggle-btn:hover {
+      border-color: var(--border-focus);
+    }
+
+    .nav-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-soft);
+      font-weight: 600;
+      margin: 0.75rem 0 0.4rem;
+    }
+
+    .module-nav {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .module-nav-item {
+      display: block;
+      text-decoration: none;
+      color: var(--text-muted);
+      padding: 0.55rem 0.65rem;
+      border-radius: var(--radius);
+      font-size: 0.84rem;
+      border: 1px solid transparent;
+      transition: var(--transition);
+      line-height: 1.3;
+    }
+
+    .module-nav-item:hover {
+      background: var(--surface-subtle);
+      color: var(--text);
+    }
+
+    .module-nav-item.active {
+      background: var(--surface-subtle);
+      color: var(--text);
+      border-color: var(--border);
+      font-weight: 600;
+    }
+
+    .module-nav-num {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-right: 0.35rem;
+    }
+
+    .nav-tools {
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .progress-pill {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.25rem;
+    }
+
+    /* Right Content Pane */
+    .content-pane {
+      flex: 1;
+      max-width: 960px;
+      padding: 3rem 4rem 6rem;
+      overflow-x: hidden;
+    }
+
+    @media (max-width: 1080px) {
+      .atlas-layout {
+        flex-direction: column;
+      }
+      .sidebar {
+        width: 100%;
+        min-width: 100%;
+        height: auto;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .content-pane {
+        padding: 2rem 1.5rem 4rem;
+      }
+    }
+
+    /* Typography & Editorial Aesthetics */
+    h1.lesson-title {
+      font-family: var(--font-serif);
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.015em;
+      margin-bottom: 0.75rem;
+    }
+
+    .lesson-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 65ch;
+      margin-bottom: 2rem;
+      line-height: 1.5;
+    }
+
+    .source-banner {
+      background: var(--surface-subtle);
+      border-left: 3px solid var(--accent);
+      padding: 0.85rem 1.25rem;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 2.5rem;
+    }
+    .source-banner strong {
+      color: var(--text);
+    }
+
+    /* What You'll Learn Section */
+    .learn-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      margin-bottom: 3rem;
+    }
+
+    .card-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    .learn-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 700px) {
+      .learn-list {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .learn-item {
+      display: flex;
+      gap: 0.75rem;
+      font-size: 0.92rem;
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .learn-bullet {
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    /* Knowledge Map SVG */
+    .knowledge-map-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 3.5rem;
+    }
+    .map-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .map-instruction {
+      font-size: 0.78rem;
+      color: var(--text-soft);
+    }
+    .knowledge-map-svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .map-node {
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .map-node:hover rect {
+      stroke: var(--accent);
+      stroke-width: 2;
+    }
+
+    /* Modules */
+    .module-section {
+      margin-bottom: 4.5rem;
+      scroll-margin-top: 2rem;
+    }
+
+    .module-header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .module-tag {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.35rem;
+    }
+
+    h2.module-title {
+      font-family: var(--font-serif);
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+
+    .core-explanation {
+      font-size: 1.05rem;
+      color: var(--text);
+      line-height: 1.75;
+      margin-bottom: 1.75rem;
+    }
+    .core-explanation p {
+      margin-bottom: 1.15rem;
+    }
+
+    /* Step-by-Step Breakdown */
+    .breakdown-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .breakdown-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .step-item {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+
+    /* Examples Trio */
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    @media (max-width: 820px) {
+      .examples-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .example-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.15rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .example-type {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 700;
+      margin-bottom: 0.45rem;
+    }
+    .type-obvious { color: var(--teal); }
+    .type-counter { color: var(--accent); }
+    .type-edge { color: var(--rose); }
+
+    .example-name {
+      font-weight: 600;
+      font-size: 0.92rem;
+      margin-bottom: 0.4rem;
+      color: var(--text);
+    }
+
+    .example-desc {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* Visual Analogy Card */
+    .analogy-card {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+    .analogy-icon {
+      font-size: 1.75rem;
+      line-height: 1;
+      padding-top: 0.2rem;
+    }
+    .analogy-body h4 {
+      font-family: var(--font-serif);
+      font-size: 1.1rem;
+      margin-bottom: 0.35rem;
+      color: var(--text);
+    }
+    .analogy-body p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Misconception & Why It Matters Callouts */
+    .callout-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    @media (max-width: 768px) {
+      .callout-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .callout-card {
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      border: 1px solid;
+    }
+    .callout-misconception {
+      background: var(--rose-soft);
+      border-color: rgba(190, 18, 60, 0.2);
+    }
+    .callout-why {
+      background: var(--teal-soft);
+      border-color: rgba(15, 118, 110, 0.2);
+    }
+    .callout-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .callout-misconception .callout-title { color: var(--rose); }
+    .callout-why .callout-title { color: var(--teal); }
+
+    .callout-text {
+      font-size: 0.88rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* Interactive Visual / Simulator Shell */
+    .interactive-shell {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .shell-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .shell-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .shell-badge {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      color: var(--accent);
+    }
+
+    .controls-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px dashed var(--border);
+    }
+
+    .btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.45rem 0.85rem;
+      border-radius: var(--radius);
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: var(--transition);
+    }
+    .btn:hover {
+      border-color: var(--border-focus);
+      background: var(--surface-subtle);
+    }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background: #92400e;
+      border-color: #92400e;
+    }
+
+    /* Inter-Module Link */
+    .inter-link {
+      font-size: 0.85rem;
+      color: var(--text-soft);
+      font-style: italic;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+      margin-top: 1.5rem;
+    }
+    .inter-link a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      font-style: normal;
+    }
+    .inter-link a:hover {
+      text-decoration: underline;
+    }
+
+    /* Flashcard Deck Component */
+    .flashcard-deck {
+      margin: 3rem 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+    }
+    .deck-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+    }
+    .deck-counter {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-soft);
+    }
+    .flashcard-container {
+      perspective: 1000px;
+      min-height: 200px;
+      cursor: pointer;
+    }
+    .flashcard-inner {
+      position: relative;
+      width: 100%;
+      min-height: 200px;
+      text-align: center;
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface-subtle);
+    }
+    .flashcard-inner.flipped {
+      transform: rotateY(180deg);
+    }
+    .flashcard-front, .flashcard-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .flashcard-back {
+      transform: rotateY(180deg);
+      background: var(--surface);
+    }
+    .card-cue {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-soft);
+      margin-bottom: 0.5rem;
+    }
+    .card-term {
+      font-family: var(--font-serif);
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .card-answer {
+      font-size: 0.95rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .deck-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1.25rem;
+    }
+
+    /* Drag & Drop Term Matcher */
+    .drag-matcher {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      margin: 3rem 0;
+    }
+    .matcher-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin: 1.25rem 0;
+    }
+    @media (max-width: 700px) {
+      .matcher-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .draggable-terms, .target-slots {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .drag-item {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.65rem 0.85rem;
+      font-size: 0.85rem;
+      cursor: grab;
+      user-select: none;
+      font-weight: 500;
+      transition: var(--transition);
+    }
+    .drag-item.dragging {
+      opacity: 0.4;
+    }
+    .drop-slot {
+      background: var(--bg);
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem;
+      font-size: 0.82rem;
+      min-height: 64px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      transition: var(--transition);
+    }
+    .drop-slot.drag-over {
+      border-color: var(--accent);
+      background: var(--surface-subtle);
+    }
+    .drop-slot.matched {
+      border-style: solid;
+      border-color: var(--teal);
+      background: var(--teal-soft);
+    }
+    .slot-label {
+      font-size: 0.75rem;
+      color: var(--text-soft);
+      margin-bottom: 0.25rem;
+    }
+
+    /* Module Mini-Quiz */
+    .mini-quiz {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+    .quiz-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+    .quiz-question {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .quiz-opt {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.65rem 0.9rem;
+      font-size: 0.88rem;
+      text-align: left;
+      cursor: pointer;
+      color: var(--text);
+      transition: var(--transition);
+    }
+    .quiz-opt:hover {
+      border-color: var(--border-focus);
+    }
+    .quiz-opt.correct {
+      background: var(--teal-soft);
+      border-color: var(--teal);
+      color: var(--text);
+      font-weight: 600;
+    }
+    .quiz-opt.incorrect {
+      background: var(--rose-soft);
+      border-color: var(--rose);
+      color: var(--text);
+    }
+    .quiz-feedback {
+      margin-top: 0.75rem;
+      font-size: 0.84rem;
+      line-height: 1.45;
+      display: none;
+    }
+
+    /* Summary & Cheat Sheet Table */
+    .table-container {
+      overflow-x: auto;
+      margin: 1.5rem 0 2.5rem;
+    }
+    table.cheat-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    table.cheat-table th, table.cheat-table td {
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    table.cheat-table th {
+      background: var(--surface-subtle);
+      font-weight: 600;
+      color: var(--text);
+    }
+    table.cheat-table tr:nth-child(even) {
+      background: var(--bg);
+    }
+
+    /* FAQ Section */
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+      padding: 1.25rem 0;
+    }
+    .faq-item:first-of-type {
+      border-top: 1px solid var(--border);
+    }
+    .faq-q {
+      font-family: var(--font-serif);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+    .faq-a {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Next Steps */
+    .next-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    @media (max-width: 768px) {
+      .next-steps-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+    }
+    .step-card h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+    .step-card p {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* Systems Lexicon & Definitions Browser */
+    .definitions-section {
+      margin: 4rem 0 3.5rem;
+      scroll-margin-top: 2rem;
+    }
+
+    .lexicon-shell {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+
+    .lex-toolbar {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .lex-search-row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .lex-search-input-wrap {
+      flex: 1;
+      min-width: 260px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .lex-search-icon {
+      position: absolute;
+      left: 0.85rem;
+      color: var(--text-soft);
+      font-size: 0.85rem;
+      pointer-events: none;
+    }
+
+    .lex-input {
+      width: 100%;
+      padding: 0.65rem 0.85rem 0.65rem 2.2rem;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 0.88rem;
+      font-family: var(--font-sans);
+      transition: var(--transition);
+    }
+    .lex-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: var(--surface);
+      box-shadow: 0 0 0 2px var(--accent-soft);
+    }
+
+    .lex-view-toggle {
+      display: inline-flex;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2px;
+    }
+
+    .lex-view-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      border-radius: calc(var(--radius) - 2px);
+      cursor: pointer;
+      font-weight: 500;
+      transition: var(--transition);
+    }
+    .lex-view-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 600;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .lex-cat-nav {
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+
+    .lex-cat-tab {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 0.35rem 0.65rem;
+      border-radius: var(--radius);
+      font-size: 0.76rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: var(--transition);
+    }
+    .lex-cat-tab:hover {
+      background: var(--surface-subtle);
+      color: var(--text);
+    }
+    .lex-cat-tab.active {
+      background: var(--surface-subtle);
+      color: var(--accent);
+      border-color: var(--border);
+      font-weight: 600;
+    }
+
+    /* Split Master-Detail Layout */
+    .lex-split-view {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      min-height: 560px;
+    }
+    @media (max-width: 860px) {
+      .lex-split-view {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .lex-index-col {
+      border-right: 1px solid var(--border);
+      background: var(--bg);
+      max-height: 620px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .lex-item {
+      padding: 0.85rem 1.15rem;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      background: var(--surface);
+      border-left: 3px solid transparent;
+      text-align: left;
+    }
+    .lex-item:hover {
+      background: var(--surface-subtle);
+    }
+    .lex-item.active {
+      background: var(--surface-subtle);
+      border-left-color: var(--accent);
+    }
+
+    .lex-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+
+    .lex-item-title {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+    .lex-item.active .lex-item-title {
+      color: var(--accent);
+    }
+
+    .lex-item-metric {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-soft);
+      white-space: nowrap;
+    }
+
+    .lex-item-badge-row {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .lex-tag {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .tag-cpu { color: var(--teal); border-color: rgba(15,118,110,0.25); background: var(--teal-soft); }
+    .tag-hdd { color: var(--accent); border-color: rgba(180,83,9,0.25); background: var(--accent-soft); }
+    .tag-ssd { color: var(--blue); border-color: rgba(29,78,216,0.25); background: var(--blue-soft); }
+    .tag-queue { color: #7c3aed; border-color: rgba(124,58,237,0.25); background: #ede9fe; }
+    .tag-cloud { color: var(--rose); border-color: rgba(190,18,60,0.25); background: var(--rose-soft); }
+
+    /* Right Detail Panel */
+    .lex-detail-col {
+      padding: 2.25rem 2.5rem;
+      max-height: 620px;
+      overflow-y: auto;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .lex-detail-header {
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .lex-detail-tagline {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .lex-detail-title {
+      font-family: var(--font-serif);
+      font-size: 1.85rem;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .lex-detail-body {
+      font-size: 0.98rem;
+      color: var(--text);
+      line-height: 1.7;
+      margin-bottom: 1.75rem;
+    }
+
+    .lex-specs-card {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1.75rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 650px) {
+      .lex-specs-card {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .lex-spec-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .lex-spec-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      color: var(--text-soft);
+    }
+
+    .lex-spec-val {
+      font-size: 0.88rem;
+      color: var(--text);
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .lex-significance-box {
+      border-left: 3px solid var(--accent);
+      background: var(--surface-subtle);
+      padding: 1rem 1.25rem;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin-bottom: 1.5rem;
+      font-size: 0.88rem;
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .lex-significance-box strong {
+      color: var(--accent);
+      display: block;
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.75rem;
+    }
+
+    .lex-related-link {
+      margin-top: auto;
+      font-size: 0.82rem;
+      color: var(--text-soft);
+      padding-top: 1rem;
+      border-top: 1px dashed var(--border);
+    }
+    .lex-related-link a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .lex-related-link a:hover {
+      text-decoration: underline;
+    }
+
+    /* List View (Alternative Reader Format) */
+    .lex-list-view {
+      display: none;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .lex-list-entry {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+    }
+    .lex-list-entry:last-child {
+      border-bottom: none;
+    }
+
+    /* Footer */
+    footer.lesson-footer {
+      margin-top: 5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--text-soft);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    /* SVGs Utility */
+    svg text {
+      font-family: var(--font-sans);
+      fill: var(--text);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Reading Progress Bar -->
+  <div id="progress-container">
+    <div id="progress-bar"></div>
+  </div>
+
+  <div class="atlas-layout">
+    <!-- Left Navigation Rail (Split Atlas) -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="series-tag">Systems Performance &bull; Storage Engineering</div>
+        <h2 class="sidebar-title">I/O Devices, Latency &amp; Architecture</h2>
+        <div class="sidebar-meta">
+          <span>6 Modules</span>
+          <span>&bull;</span>
+          <span>~40 min study</span>
+          <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle dark mode">
+            <span id="theme-icon">&#9790;</span> <span id="theme-text">Dark</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="nav-label">Modules</div>
+      <ul class="module-nav">
+        <li>
+          <a href="#module-1" class="module-nav-item active">
+            <span class="module-nav-num">01</span> Hardware-Aware Software
+          </a>
+        </li>
+        <li>
+          <a href="#module-2" class="module-nav-item">
+            <span class="module-nav-num">02</span> HDD Mechanics &amp; Seek Time
+          </a>
+        </li>
+        <li>
+          <a href="#module-3" class="module-nav-item">
+            <span class="module-nav-num">03</span> I/O Queuing &amp; Elevator Logic
+          </a>
+        </li>
+        <li>
+          <a href="#module-4" class="module-nav-item">
+            <span class="module-nav-num">04</span> SSDs, NAND Flash &amp; Striping
+          </a>
+        </li>
+        <li>
+          <a href="#module-5" class="module-nav-item">
+            <span class="module-nav-num">05</span> Storage Economics &amp; Caching
+          </a>
+        </li>
+        <li>
+          <a href="#module-6" class="module-nav-item">
+            <span class="module-nav-num">06</span> Cloud Architectures: NVMe, EBS, S3
+          </a>
+        </li>
+      </ul>
+
+      <div class="nav-label" style="margin-top: 1.5rem;">Interactive Labs</div>
+      <ul class="module-nav">
+        <li><a href="#lab-hdd" class="module-nav-item">&bull; Platter &amp; Arm Simulator</a></li>
+        <li><a href="#lab-queue" class="module-nav-item">&bull; Elevator Queue Reordering</a></li>
+        <li><a href="#lab-striping" class="module-nav-item">&bull; 3D NAND Parallelism</a></li>
+        <li><a href="#lab-hierarchy" class="module-nav-item">&bull; Cache Hierarchy Scale</a></li>
+        <li><a href="#lab-turbopuffer" class="module-nav-item">&bull; Tiered Database Simulator</a></li>
+        <li><a href="#lab-cloud" class="module-nav-item">&bull; Cloud Storage Calculator</a></li>
+        <li><a href="#flashcards" class="module-nav-item">&bull; Concept Flashcards</a></li>
+        <li><a href="#matcher" class="module-nav-item">&bull; Architecture Matcher</a></li>
+        <li><a href="#definitions" class="module-nav-item" style="color: var(--accent); font-weight: 600;">&bull; Technical Definitions Index</a></li>
+      </ul>
+
+      <div class="nav-tools">
+        <div class="progress-pill">
+          <span>Study Completion</span>
+          <span id="completion-pct">0%</span>
+        </div>
+        <div style="background: var(--surface-subtle); height: 6px; border-radius: 999px; overflow: hidden; border: 1px solid var(--border);">
+          <div id="sidebar-progress" style="background: var(--accent); height: 100%; width: 0%; transition: width 0.2s;"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Content Pane -->
+    <main class="content-pane">
+      <header>
+        <h1 class="lesson-title">I/O Devices, Latency, and Storage Performance</h1>
+        <p class="lesson-subtitle">A deep technical analysis of disk mechanics, solid-state flash physics, multi-layer queuing theory, and modern cloud storage tradeoffs.</p>
+        
+        <div class="source-banner">
+          <strong>Based on Systems Performance Analysis:</strong> Synthesized from Brendan Gregg's foundational text <em>Systems Performance</em>, industry engineering blogs on I/O latency, and real-world distributed architectures at PlanetScale, AWS, and modern vector databases.
+        </div>
+      </header>
+
+      <!-- What You'll Learn -->
+      <section class="learn-card">
+        <div class="card-label">Core Learning Outcomes</div>
+        <ul class="learn-list">
+          <li class="learn-item">
+            <span class="learn-bullet">01.</span>
+            <span>Understand why software performance hinges on crossing the hardware boundary and respecting device physical constraints.</span>
+          </li>
+          <li class="learn-item">
+            <span class="learn-bullet">02.</span>
+            <span>Master HDD geometry—tracks, sectors, rotational latency, and why random seeks cost "a century" in CPU clock cycles.</span>
+          </li>
+          <li class="learn-item">
+            <span class="learn-bullet">03.</span>
+            <span>Analyze on-device and OS kernel I/O queuing, elevator scheduling algorithms (SCAN), and why request reordering creates latency jitter.</span>
+          </li>
+          <li class="learn-item">
+            <span class="learn-bullet">04.</span>
+            <span>Deconstruct 3D NAND flash architecture, page writes versus erase blocks, garbage collection overhead, and multi-channel striping.</span>
+          </li>
+          <li class="learn-item">
+            <span class="learn-bullet">05.</span>
+            <span>Internalize the "Everything is a Cache" mental model across CPU caches, DRAM, NVMe, spinning rust, and remote object storage.</span>
+          </li>
+          <li class="learn-item">
+            <span class="learn-bullet">06.</span>
+            <span>Evaluate cloud storage primitives: EC2 local NVMe with Multi-AZ consensus vs. network-attached EBS vs. petabyte-scale S3.</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Interactive Knowledge Map -->
+      <section class="knowledge-map-wrap">
+        <div class="map-header">
+          <div class="card-label" style="margin-bottom: 0;">Interactive Knowledge Topology</div>
+          <span class="map-instruction">Click any node to navigate to its module</span>
+        </div>
+        <svg class="knowledge-map-svg" viewBox="0 0 800 240" aria-label="Knowledge Map Diagram">
+          <title>System Architecture Knowledge Map</title>
+          <!-- Connectors -->
+          <line x1="100" y1="120" x2="230" y2="70" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="3,3" />
+          <line x1="100" y1="120" x2="230" y2="170" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="3,3" />
+          <line x1="230" y1="70" x2="380" y2="70" stroke="var(--border)" stroke-width="1.5" />
+          <line x1="230" y1="170" x2="380" y2="170" stroke="var(--border)" stroke-width="1.5" />
+          <line x1="380" y1="70" x2="520" y2="120" stroke="var(--border)" stroke-width="1.5" />
+          <line x1="380" y1="170" x2="520" y2="120" stroke="var(--border)" stroke-width="1.5" />
+          <line x1="520" y1="120" x2="680" y2="120" stroke="var(--border)" stroke-width="1.5" />
+
+          <!-- Nodes -->
+          <a href="#module-1" class="map-node">
+            <rect x="20" y="90" width="140" height="60" rx="6" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+            <text x="90" y="118" text-anchor="middle" font-size="12" font-weight="600">01. Hardware</text>
+            <text x="90" y="134" text-anchor="middle" font-size="10" fill="var(--text-muted)">Boundary &amp; Cost</text>
+          </a>
+
+          <a href="#module-2" class="map-node">
+            <rect x="170" y="40" width="130" height="60" rx="6" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+            <text x="235" y="68" text-anchor="middle" font-size="12" font-weight="600">02. HDD Physics</text>
+            <text x="235" y="84" text-anchor="middle" font-size="10" fill="var(--text-muted)">Seek &amp; Rotation</text>
+          </a>
+
+          <a href="#module-3" class="map-node">
+            <rect x="320" y="40" width="130" height="60" rx="6" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+            <text x="385" y="68" text-anchor="middle" font-size="12" font-weight="600">03. Queuing</text>
+            <text x="385" y="84" text-anchor="middle" font-size="10" fill="var(--text-muted)">Elevator (SCAN)</text>
+          </a>
+
+          <a href="#module-4" class="map-node">
+            <rect x="250" y="140" width="130" height="60" rx="6" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+            <text x="315" y="168" text-anchor="middle" font-size="12" font-weight="600">04. NAND Flash</text>
+            <text x="315" y="184" text-anchor="middle" font-size="10" fill="var(--text-muted)">Pages &amp; Striping</text>
+          </a>
+
+          <a href="#module-5" class="map-node">
+            <rect x="460" y="90" width="130" height="60" rx="6" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+            <text x="525" y="118" text-anchor="middle" font-size="12" font-weight="600">05. Hierarchy</text>
+            <text x="525" y="134" text-anchor="middle" font-size="10" fill="var(--text-muted)">Tiered Caching</text>
+          </a>
+
+          <a href="#module-6" class="map-node">
+            <rect x="620" y="90" width="140" height="60" rx="6" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+            <text x="690" y="118" text-anchor="middle" font-size="12" font-weight="600">06. Cloud Storage</text>
+            <text x="690" y="134" text-anchor="middle" font-size="10" fill="var(--text-muted)">Local vs EBS vs S3</text>
+          </a>
+        </svg>
+      </section>
+
+      <!-- ==========================================
+           MODULE 1: Hardware-Aware Software
+           ========================================== -->
+      <article id="module-1" class="module-section">
+        <header class="module-header">
+          <div class="module-tag">Module 01</div>
+          <h2 class="module-title">Bridging Software &amp; Hardware: Brendan Gregg's Systems Performance</h2>
+        </header>
+
+        <div class="core-explanation">
+          <p>
+            When engineers develop software in high-level languages, the underlying physical machine is frequently abstracted behind operating system system calls, runtime garbage collectors, and virtual file system abstractions. However, as Brendan Gregg methodically demonstrates in his 880-page reference work <em>Systems Performance</em>, extreme throughput and minimal latency cannot be achieved by treating hardware as an opaque black box. Every database engine, compiler, queue worker, and network stack ultimately converts code into memory references and input/output requests across physical buses.
+          </p>
+          <p>
+            The fundamental chasm in computing is the latency disparity between the central processing unit and non-volatile storage. While modern CPUs execute instructions in fractions of a nanosecond (gigahertz clock cycles), retrieving a block of data from a storage peripheral requires issuing commands across an I/O bus (PCIe, SATA, or SAS), traversing device firmware controllers, and potentially waiting for physical mechanical elements to relocate. If a CPU instruction cycle were scaled to one human second, accessing an on-die L1 cache would take roughly three seconds, fetching from main memory would take a few minutes, but reading from a mechanical hard disk would take between one and nine months.
+          </p>
+          <p>
+            Hardware-aware software is intentionally architected to minimize this penalty. Instead of issuing thousands of tiny, unaligned read requests, database storage engines like InnoDB, RocksDB, and SQLite buffer modifications in volatile memory and execute contiguous sequential flushes. By aligning the software's access patterns with the hardware controller's internal block boundaries, engineers prevent the operating system kernel and drive controllers from entering catastrophic wait states. Performance engineering is not about blindly tweaking flags; it is about bringing software into direct harmony with physical silicon and magnetic media.
+          </p>
+        </div>
+
+        <div class="breakdown-box">
+          <div class="breakdown-title">System Execution Path &bull; The I/O Request Lifecycle</div>
+          <ul class="step-list">
+            <li class="step-item">
+              <span class="step-num">1</span>
+              <div><strong>Application User Space:</strong> Application code calls a standard library file write or database write-ahead log flush (e.g., <code>write()</code> or <code>fsync()</code>).</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span>
+              <div><strong>VFS &amp; Kernel Page Cache:</strong> The Linux Virtual File System (VFS) buffers dirty pages in DRAM unless direct I/O (<code>O_DIRECT</code>) is explicitly requested.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span>
+              <div><strong>Block I/O Layer &amp; Elevator Scheduler:</strong> The kernel block layer groups, splits, and reorders requests using scheduling algorithms before queuing them for the host bus adapter.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span>
+              <div><strong>Host Bus &amp; Controller Queue:</strong> Requests traverse the PCIe or SATA bus to the storage device's onboard controller, which manages internal queue depth and physical cell or track targeting.</div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-type type-obvious">Obvious Example</div>
+            <div class="example-name">Write-Ahead Logging (WAL)</div>
+            <div class="example-desc">Relational databases append transaction records sequentially to a log file on disk before updating data pages, ensuring durability while avoiding costly random seeks.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-counter">Counter-Intuitive Example</div>
+            <div class="example-name">Small Reads Bottlenecking CPUs</div>
+            <div class="example-desc">Reading 100 scattered single bytes across an unindexed file can run 1,000x slower than sequentially scanning a contiguous 100 megabyte file due to constant bus roundtrips and seek penalties.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-edge">Edge-Case Example</div>
+            <div class="example-name">Memory-Mapped File Page Faults</div>
+            <div class="example-desc">Using <code>mmap()</code> appears to operate purely in memory, but touching an unpaged memory address synchronously stalls the thread on a kernel minor or major page fault to disk.</div>
+          </div>
+        </div>
+
+        <!-- Visual Analogy Card -->
+        <div class="analogy-card">
+          <div class="analogy-icon">&#128218;</div>
+          <div class="analogy-body">
+            <h4>The Research Library vs. The Distant Warehouse</h4>
+            <p>
+              Your CPU registers and caches are notes already spread across your desk. RAM is walking over to the bookshelf behind you. An SSD is driving across town to the central university archives. A spinning hard drive is taking a cargo ship across the ocean to retrieve a single parchment. Architecting software without hardware awareness is like ordering individual sentences from across the globe one at a time.
+            </p>
+          </div>
+        </div>
+
+        <!-- Misconceptions & Why It Matters -->
+        <div class="callout-row">
+          <div class="callout-card callout-misconception">
+            <div class="callout-title"><span>&#10006;</span> What People Get Wrong</div>
+            <div class="callout-text">
+              <strong>"Fast CPUs make slow storage irrelevant."</strong> A CPU capable of 4 billion instructions per second completely idles while waiting on an unbuffered disk seek. The fastest processor in the world simply spends more clock cycles stalled in wait states.
+            </div>
+          </div>
+          <div class="callout-card callout-why">
+            <div class="callout-title"><span>&#10004;</span> Why This Matters</div>
+            <div class="callout-text">
+              Systems architecture decisions—such as choosing LSM-trees over B-trees, buffering batches in memory, or selecting asynchronous I/O frameworks (e.g., <code>io_uring</code>)—are direct responses to bridging this exact hardware gap.
+            </div>
+          </div>
+        </div>
+
+        <div class="inter-link">
+          Proceeding to hardware mechanics: In <a href="#module-2">Module 02</a>, we inspect the mechanical anatomy of Hard Disk Drives (HDDs) and the rotational physics that govern their performance.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 2: Hard Disk Drive Mechanics
+           ========================================== -->
+      <article id="module-2" class="module-section">
+        <header class="module-header">
+          <div class="module-tag">Module 02</div>
+          <h2 class="module-title">Hard Disk Drive (HDD) Physics: Platters, Tracks, and the Seek Bottleneck</h2>
+        </header>
+
+        <div class="core-explanation">
+          <p>
+            To appreciate modern storage performance, one must examine the physical engineering of magnetic hard disk drives (HDDs). Unlike solid-state components, an HDD is an electro-mechanical machine containing one or more rigid aluminum or glass platters coated with a microscopic magnetic layer. These platters are mounted on a central spindle that rotates continuously at speeds typically ranging from 5,400 to 15,000 revolutions per minute (RPM). Data is encoded by polarizing billions of magnetic domains representing binary ones and zeros.
+          </p>
+          <p>
+            The platters are organized concentrically into tens of thousands of circular rings called <em>tracks</em>. Each track is divided into small arcs known as <em>sectors</em> (historically 512 bytes, now commonly 4,096 bytes or 4KB Advanced Format). Positioned above each platter surface is an aerodynamic slider carrying an electromagnetic read/write head, suspended on a mechanical actuator arm. The head does not touch the platter; rather, it flies on an air bearing mere nanometers above the spinning surface.
+          </p>
+          <p>
+            Because reading or writing requires physical movement, total HDD request latency is governed by three physical components: <strong>seek time</strong>, <strong>rotational latency</strong>, and <strong>transfer time</strong>. Seek time is the duration required for the actuator arm to accelerate, travel radially across tracks, and settle precisely over the target track (typically 3 to 10 milliseconds). Rotational latency is the time spent waiting for the platter to spin the desired sector beneath the head (averaging 3ms on a 10,000 RPM drive). Transfer time is the relatively swift process of streaming bits as the sector passes the head.
+          </p>
+          <p>
+            This mechanical reality creates a massive divergence between <em>sequential</em> and <em>random</em> I/O. When reading sequential blocks laid out along the same track (such as the red, green, blue, and orange blocks demonstrated on stream), the actuator arm remains stationary while data streams continuously into the controller buffer at over 150–250 MB/s. However, if blocks are scattered across random tracks and rotational angles (fragmented pink and purple blocks), the actuator arm must repeatedly seek back and forth while the platter spins through wasted revolutions. Random I/O drops throughput from hundreds of megabytes per second down to single-digit megabytes, limiting HDDs to roughly 75 to 200 I/O operations per second (IOPS).
+          </p>
+        </div>
+
+        <div class="breakdown-box">
+          <div class="breakdown-title">Physical Latency Equation &bull; The Mechanics of a Read</div>
+          <ul class="step-list">
+            <li class="step-item">
+              <span class="step-num">1</span>
+              <div><strong>Command Dispatch &amp; Decode:</strong> The drive controller decodes the Logical Block Address (LBA) and calculates the physical cylinder, head, and sector coordinates.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span>
+              <div><strong>Actuator Arm Seek (3–10 ms):</strong> The voice coil motor energizes, radially accelerating the actuator arm across tracks until the head settles over the target cylinder.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span>
+              <div><strong>Rotational Latency (2–6 ms):</strong> The spindle rotates the platter until the beginning of the requested sector arrives directly beneath the flying head.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span>
+              <div><strong>Magnetic Flux Sensing &amp; Transfer (<0.1 ms):</strong> The head detects magnetic transitions, converts analog pulses into digital bits, and transfers them across the bus to the host.</div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Interactive Lab: HDD Platter & Arm Simulator -->
+        <div id="lab-hdd" class="interactive-shell">
+          <div class="shell-header">
+            <span class="shell-title">Interactive Lab: HDD Platter &amp; Actuator Arm Seek Simulator</span>
+            <span class="shell-badge">Mechanical Physics</span>
+          </div>
+
+          <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 280px; text-align: center;">
+              <svg id="hdd-svg" viewBox="0 0 320 320" style="max-width: 280px; height: auto; margin: 0 auto; display: block;">
+                <!-- Platter Base -->
+                <circle cx="160" cy="160" r="140" fill="var(--surface-subtle)" stroke="var(--border)" stroke-width="2"/>
+                <!-- Outer Track -->
+                <circle cx="160" cy="160" r="120" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4"/>
+                <!-- Middle Track -->
+                <circle cx="160" cy="160" r="90" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4"/>
+                <!-- Inner Track -->
+                <circle cx="160" cy="160" r="60" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4"/>
+                <!-- Spindle Hub -->
+                <circle cx="160" cy="160" r="24" fill="var(--border-focus)" stroke="var(--text-soft)" stroke-width="1.5"/>
+
+                <!-- Rotating Data Group -->
+                <g id="platter-data" transform="rotate(0 160 160)">
+                  <!-- Sequential Blocks on Inner Track -->
+                  <circle cx="220" cy="160" r="8" fill="#ef4444" title="Block 1 (Red)"/>
+                  <circle cx="212" cy="185" r="8" fill="#22c55e" title="Block 2 (Green)"/>
+                  <circle cx="190" cy="207" r="8" fill="#3b82f6" title="Block 3 (Blue)"/>
+                  <circle cx="160" cy="220" r="8" fill="#f97316" title="Block 4 (Orange)"/>
+
+                  <!-- Random Scattered Blocks -->
+                  <circle cx="280" cy="160" r="8" fill="#a855f7" title="Scattered A (Purple)"/>
+                  <circle cx="85" cy="115" r="8" fill="#ec4899" title="Scattered B (Pink)"/>
+                  <circle cx="110" cy="215" r="8" fill="#eab308" title="Scattered C (Yellow)"/>
+                </g>
+
+                <!-- Actuator Pivot Base -->
+                <circle cx="40" cy="40" r="16" fill="var(--border)" stroke="var(--text-soft)" stroke-width="1.5"/>
+                
+                <!-- Actuator Arm -->
+                <g id="actuator-arm" transform="rotate(18 40 40)">
+                  <polygon points="40,36 170,150 174,154 40,44" fill="var(--text-muted)"/>
+                  <circle cx="172" cy="152" r="4" fill="var(--accent)"/>
+                </g>
+              </svg>
+            </div>
+
+            <div style="flex: 1; min-width: 280px; font-size: 0.88rem;">
+              <div style="margin-bottom: 0.75rem;">
+                <strong>Simulation State:</strong> <span id="hdd-mode-label" style="color: var(--accent);">Idle (Stopped)</span>
+              </div>
+              <div style="background: var(--surface-subtle); padding: 0.85rem; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 1rem; font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.6;">
+                <div>Arm Status: <span id="arm-status">Parked</span></div>
+                <div>Platter Speed: <span id="rpm-status">0 RPM</span></div>
+                <div>Accumulated Seek Time: <span id="seek-time-disp">0.0 ms</span></div>
+                <div>Rotational Delay: <span id="rot-delay-disp">0.0 ms</span></div>
+                <div>Effective Throughput: <span id="throughput-disp">0 MB/s</span></div>
+              </div>
+              <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 0.75rem;">
+                Observe how reading contiguous blocks on track 1 keeps the actuator arm locked in place, whereas scattered reads force repeated radial arm sweeps and full rotational delays.
+              </p>
+              <div class="controls-bar" style="border: none; padding: 0; margin: 0;">
+                <button id="btn-seq-read" class="btn btn-primary">Run Sequential Read</button>
+                <button id="btn-rand-read" class="btn">Run Random Read</button>
+                <button id="btn-reset-hdd" class="btn">Reset</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-type type-obvious">Obvious Example</div>
+            <div class="example-name">Streaming HD Video Playback</div>
+            <div class="example-desc">Sequential file streaming reads gigabytes effortlessly from an HDD because the arm stays on adjacent tracks, delivering 150+ MB/s without hitching.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-counter">Counter-Intuitive Example</div>
+            <div class="example-name">Outer Tracks Are Faster</div>
+            <div class="example-desc">Due to constant angular velocity (CAV), outer platter tracks have a larger circumference and pack more sectors per revolution, yielding up to 2x higher throughput than inner tracks.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-edge">Edge-Case Example</div>
+            <div class="example-name">Rotational Vibration (RV) Interference</div>
+            <div class="example-desc">In high-density server chassis with dozens of HDDs, acoustic vibrations from adjacent drives knock actuator arms off track, causing severe seek retries and latency spikes.</div>
+          </div>
+        </div>
+
+        <!-- Visual Analogy Card -->
+        <div class="analogy-card">
+          <div class="analogy-icon">&#127925;</div>
+          <div class="analogy-body">
+            <h4>The Vinyl Record Needle</h4>
+            <p>
+              Listening to an entire song continuously is effortless: the stylus rests quietly in a groove as the vinyl spins beneath it. But attempting to play individual notes chosen at random from different tracks across the record requires constantly picking up the needle, repositioning your hand, dropping it into the tiny groove, and waiting for the right moment in the spin. Your playback turns into endless scratching and mechanical delay.
+            </p>
+          </div>
+        </div>
+
+        <!-- Misconceptions & Why It Matters -->
+        <div class="callout-row">
+          <div class="callout-card callout-misconception">
+            <div class="callout-title"><span>&#10006;</span> What People Get Wrong</div>
+            <div class="callout-text">
+              <strong>"Defragmentation is just software housekeeping."</strong> On an HDD, defragmentation is a critical physical optimization. It rearranges non-contiguous file blocks into adjacent sectors on identical tracks, eliminating mechanical arm travel during subsequent reads.
+            </div>
+          </div>
+          <div class="callout-card callout-why">
+            <div class="callout-title"><span>&#10004;</span> Why This Matters</div>
+            <div class="callout-text">
+              Understanding mechanical seek latency explains why traditional database engines (like MySQL InnoDB) rely heavily on B+ trees with large page sizes (16KB) to maximize the amount of relevant data fetched per physical arm seek.
+            </div>
+          </div>
+        </div>
+
+        <div class="inter-link">
+          Managing these mechanical delays requires intelligent scheduling: In <a href="#module-3">Module 03</a>, we investigate how device controllers and operating system kernels reorder incoming requests using elevator algorithms.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 3: I/O Queuing & Elevator Logic
+           ========================================== -->
+      <article id="module-3" class="module-section">
+        <header class="module-header">
+          <div class="module-tag">Module 03</div>
+          <h2 class="module-title">I/O Queuing Dynamics: Elevator Algorithms, Reordering, and Jitter</h2>
+        </header>
+
+        <div class="core-explanation">
+          <p>
+            When multiple threads or processes issue concurrent storage commands, requests cannot all be serviced simultaneously by the underlying hardware. Both the operating system kernel and the storage device firmware implement queuing mechanisms to buffer and schedule work. An I/O request typically enters an OS-level block queue, passes across the bus, and settles into an on-device controller queue (such as Native Command Queuing / NCQ for SATA, or multi-queue NVMe submission queues).
+          </p>
+          <p>
+            If requests were processed strictly First-In, First-Out (FIFO), mechanical hard drives would thrash their actuator arms uncontrollably. If Request A arrives for Track 2, Request B arrives for Track 95, and Request C arrives for Track 3, servicing them in order forces the arm to travel 2 &rarr; 95 &rarr; 3. To prevent this, storage systems implement <em>elevator algorithms</em> (such as SCAN, C-SCAN, and deadline schedulers).
+          </p>
+          <p>
+            Consider an elevator in a 10-story building during a morning rush. If people on floors 2, 9, and 3 push the button in that order, an intelligent elevator does not travel from floor 2 up to 9 and immediately plunge back to floor 3. Instead, it maintains its upward trajectory, stops at floor 2, continues up to floor 3, and terminates at floor 9 before reversing direction. Similarly, disk controllers reorder incoming requests to service tracks in sweeping unidirectional passes. If Request B and Request E reside on the same cylinder or adjacent sectors, the controller will coalesce and execute them together, even if Request E arrived long after other pending jobs.
+          </p>
+          <p>
+            While elevator scheduling dramatically boosts aggregate throughput and reduces overall head travel, it introduces a crucial engineering challenge: <strong>latency jitter</strong> (non-determinism). The exact same 100-byte read operation issued by your application might complete in 0.8 milliseconds on one run (when the arm is already passing that track) and take 14 milliseconds on the next (when the request is temporarily deprioritized behind a batch of contiguous writes).
+          </p>
+        </div>
+
+        <div class="breakdown-box">
+          <div class="breakdown-title">Queue Scheduling Mechanics &bull; Request Reordering &amp; Coalescing</div>
+          <ul class="step-list">
+            <li class="step-item">
+              <span class="step-num">1</span>
+              <div><strong>Queue Arrival &amp; Tagging:</strong> Requests [A, B, C, D, E] enter the queue tagged with timestamp, process ID, direction (read/write), and physical cylinder target.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span>
+              <div><strong>Proximity Detection:</strong> The controller scans the queue and discovers that Request B (Track 40) and Request E (Track 41) are physically adjacent.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span>
+              <div><strong>Unidirectional Sweep (SCAN):</strong> Rather than seeking to Request A (Track 5) first, the scheduler prioritizes B and E as the head sweeps past Track 40.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span>
+              <div><strong>Starvation Prevention (Deadline):</strong> To avoid leaving distant Request A stranded indefinitely, deadline timers enforce maximum queue residence times before forcing an arm seek.</div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Interactive Lab: Elevator Queue Reordering -->
+        <div id="lab-queue" class="interactive-shell">
+          <div class="shell-header">
+            <span class="shell-title">Interactive Lab: Elevator (SCAN) Queue Reordering Simulator</span>
+            <span class="shell-badge">Queuing Theory</span>
+          </div>
+
+          <div style="margin-bottom: 1rem; font-size: 0.88rem; color: var(--text-muted);">
+            Compare how a strictly First-In, First-Out (FIFO) queue causes wild actuator thrashing compared to an elevator (SCAN) scheduling algorithm that batches adjacent tracks.
+          </div>
+
+          <!-- Queue Visualizer -->
+          <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.25rem;">
+            <div style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-soft); font-weight: 600; margin-bottom: 0.5rem;">Incoming Request Queue</div>
+            <div id="queue-strip" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+              <!-- Dynamic queue cards inserted here -->
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem;">
+              <div style="font-weight: 600; font-size: 0.88rem; color: var(--rose); margin-bottom: 0.5rem;">FIFO Execution Order</div>
+              <div id="fifo-order" style="font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 0.5rem;">Order: A(Track 10) &rarr; B(Track 85) &rarr; C(Track 15) &rarr; D(Track 90) &rarr; E(Track 86)</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Total Arm Travel: <strong id="fifo-travel" style="color: var(--text);">295 Tracks</strong> &bull; Heavy Thrash</div>
+            </div>
+
+            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem;">
+              <div style="font-weight: 600; font-size: 0.88rem; color: var(--teal); margin-bottom: 0.5rem;">Elevator (SCAN) Execution Order</div>
+              <div id="scan-order" style="font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 0.5rem;">Order: A(Track 10) &rarr; C(Track 15) &rarr; B(Track 85) &rarr; E(Track 86) &rarr; D(Track 90)</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Total Arm Travel: <strong id="scan-travel" style="color: var(--text);">80 Tracks</strong> &bull; 73% Less Wear &amp; Time</div>
+            </div>
+          </div>
+
+          <div class="controls-bar" style="border: none; padding: 0; margin: 0;">
+            <button id="btn-run-reorder" class="btn btn-primary">Simulate Queue Step</button>
+            <button id="btn-shuffle-queue" class="btn">Generate New Random Requests</button>
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-type type-obvious">Obvious Example</div>
+            <div class="example-name">Building Elevator at 9:00 AM</div>
+            <div class="example-desc">An elevator does not service requests in the order buttons were pressed; it sweeps smoothly in one direction, picking up passengers on floors along its path.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-counter">Counter-Intuitive Example</div>
+            <div class="example-name">Deep Queues Lower Average Latency</div>
+            <div class="example-desc">Counter-intuitively, keeping queue depth at 16 or 32 gives the scheduler more requests to coalesce, vastly improving overall device throughput despite individual queue delays.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-edge">Edge-Case Example</div>
+            <div class="example-name">Elevator Starvation on Outer Tracks</div>
+            <div class="example-desc">If a continuous deluge of writes floods middle tracks, pure SCAN scheduling can starve requests waiting on outer tracks until deadline timers intervene.</div>
+          </div>
+        </div>
+
+        <!-- Visual Analogy Card -->
+        <div class="analogy-card">
+          <div class="analogy-icon">&#128646;</div>
+          <div class="analogy-body">
+            <h4>The Postal Delivery Route</h4>
+            <p>
+              Imagine a mail carrier with five letters addressed to houses on a two-mile avenue. If they delivered letters in the exact order they were dropped into the city mailbox, they would walk back and forth from mile marker 0.1 to 1.9 multiple times. Instead, the carrier sorts letters by house number and delivers them sequentially in a single forward pass.
+            </p>
+          </div>
+        </div>
+
+        <!-- Misconceptions & Why It Matters -->
+        <div class="callout-row">
+          <div class="callout-card callout-misconception">
+            <div class="callout-title"><span>&#10006;</span> What People Get Wrong</div>
+            <div class="callout-text">
+              <strong>"A benchmark with p50 latency tells the whole story."</strong> In queued systems, p50 can look pristine while the 99th percentile (p99) latency explodes because outlier requests were repeatedly deprioritized to allow adjacent batch coalescing.
+            </div>
+          </div>
+          <div class="callout-card callout-why">
+            <div class="callout-title"><span>&#10004;</span> Why This Matters</div>
+            <div class="callout-text">
+              Modern distributed databases monitor p99 and p99.9 latencies precisely because queue reordering and head scheduling create tail-latency spikes that breach Service Level Agreements (SLAs).
+            </div>
+          </div>
+        </div>
+
+        <div class="inter-link">
+          Eliminating mechanical queues led to solid-state memory: In <a href="#module-4">Module 04</a>, we deconstruct how 3D NAND flash drives eliminate physical seek times through silicon arrays and parallel striping.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 4: Solid-State Drives & NAND Flash
+           ========================================== -->
+      <article id="module-4" class="module-section">
+        <header class="module-header">
+          <div class="module-tag">Module 04</div>
+          <h2 class="module-title">Solid-State Drives (SSDs): 3D NAND Flash, Striping, and Erase Blocks</h2>
+        </header>
+
+        <div class="core-explanation">
+          <p>
+            Solid-State Drives (SSDs) represent an architectural departure from magnetic disks. Instead of spinning platters and moving heads, an SSD stores data purely electronically using floating-gate or charge-trap transistors configured into arrays of non-volatile NAND flash memory. In contemporary drives, these cells are stacked vertically into dozens or hundreds of microscopic layers—a technology known as <em>3D NAND flash</em>—allowing consumer drives to hold multiple terabytes within an M.2 gum-stick form factor.
+          </p>
+          <p>
+            Internally, an SSD consists of an embedded microcontroller, DRAM cache buffer, and several flash packages or "targets" (dies) connected via multiple independent high-speed channels. Because there are zero moving components, random reads do not require physical arm relocation. The controller simply issues memory addresses over the channel, achieving read latencies measured in tens of microseconds rather than milliseconds.
+          </p>
+          <p>
+            However, NAND flash has a fundamental physical asymmetry: <strong>the read/write versus erase granularity mismatch</strong>. Data can be read and programmed (written) in units called <em>pages</em> (typically 4KB, 8KB, or 16KB). However, once a flash cell has been written, it cannot be overwritten in place; it must first be electrically discharged back to an erased state. Crucially, cells can only be erased in large groupings called <em>erase blocks</em> (which contain hundreds of pages, spanning 2MB to 8MB).
+          </p>
+          <p>
+            This mismatch necessitates complex on-drive firmware called the Flash Translation Layer (FTL). When software updates a page, the FTL writes the new data to a fresh, already-erased page elsewhere, marks the old page as "invalid," and remaps the logical address. Eventually, the drive must perform <strong>garbage collection</strong>: it identifies blocks filled with invalid pages, copies any remaining valid pages to a new location, and discharges the entire block. This process causes <em>write amplification</em> and cell wear. Furthermore, controllers leverage multi-channel parallelism by striping large files across multiple flash dies simultaneously, allowing concurrent read operations that saturate high-bandwidth PCIe buses.
+          </p>
+        </div>
+
+        <div class="breakdown-box">
+          <div class="breakdown-title">NAND Flash Operational Lifecycle &bull; Read, Write, and Erase</div>
+          <ul class="step-list">
+            <li class="step-item">
+              <span class="step-num">1</span>
+              <div><strong>Page Read (20–50 &mu;s):</strong> The controller addresses the target die; the internal charge levels are sensed and transferred to the internal register.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span>
+              <div><strong>Out-of-Place Page Write (200–500 &mu;s):</strong> Electrons are tunneled into floating gates on an erased page; the FTL remaps the LBA and invalidates stale pages.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span>
+              <div><strong>Garbage Collection Cycle:</strong> The FTL selects blocks with the highest ratio of dead pages, moves valid survivors to an active block, and triggers a high-voltage block erase.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span>
+              <div><strong>Multi-Die Striping:</strong> Large files are distributed across 4 to 8 independent channels, enabling concurrent fetch operations that multiply throughput.</div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Interactive Lab: 3D NAND Parallelism & Striping -->
+        <div id="lab-striping" class="interactive-shell">
+          <div class="shell-header">
+            <span class="shell-title">Interactive Lab: Multi-Channel Striping vs. Single-Target Bottleneck</span>
+            <span class="shell-badge">Silicon Architecture</span>
+          </div>
+
+          <div style="margin-bottom: 1rem; font-size: 0.88rem; color: var(--text-muted);">
+            Explore how an SSD controller utilizes internal bus channels. When a large file is concentrated on a single NAND die, requests serialize. When striped across 4 targets, reads happen concurrently.
+          </div>
+
+          <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 320px;">
+              <svg viewBox="0 0 400 220" style="width: 100%; height: auto; display: block;">
+                <!-- Controller Box -->
+                <rect x="20" y="70" width="80" height="80" rx="4" fill="var(--surface-subtle)" stroke="var(--border-focus)" stroke-width="1.5"/>
+                <text x="60" y="105" text-anchor="middle" font-size="11" font-weight="600">SSD</text>
+                <text x="60" y="120" text-anchor="middle" font-size="9" fill="var(--text-muted)">Controller</text>
+
+                <!-- 4 Channels -->
+                <path d="M 100 80 L 160 35" stroke="var(--border)" stroke-width="1.5" fill="none" id="chan-0"/>
+                <path d="M 100 95 L 160 80" stroke="var(--border)" stroke-width="1.5" fill="none" id="chan-1"/>
+                <path d="M 100 125 L 160 140" stroke="var(--border)" stroke-width="1.5" fill="none" id="chan-2"/>
+                <path d="M 100 140 L 160 185" stroke="var(--border)" stroke-width="1.5" fill="none" id="chan-3"/>
+
+                <!-- 4 Flash Target Dies -->
+                <g id="die-0" transform="translate(160, 15)">
+                  <rect width="210" height="38" rx="4" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+                  <text x="10" y="23" font-size="10" font-weight="600">NAND Die 0</text>
+                  <circle cx="100" cy="19" r="7" fill="#3b82f6" id="blk-0-0" opacity="0.3"/>
+                  <circle cx="125" cy="19" r="7" fill="#3b82f6" id="blk-0-1" opacity="0.3"/>
+                  <circle cx="150" cy="19" r="7" fill="#3b82f6" id="blk-0-2" opacity="0.3"/>
+                  <circle cx="175" cy="19" r="7" fill="#3b82f6" id="blk-0-3" opacity="0.3"/>
+                </g>
+
+                <g id="die-1" transform="translate(160, 65)">
+                  <rect width="210" height="38" rx="4" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+                  <text x="10" y="23" font-size="10" font-weight="600">NAND Die 1</text>
+                  <circle cx="100" cy="19" r="7" fill="#3b82f6" id="blk-1-0" opacity="0.3"/>
+                  <circle cx="125" cy="19" r="7" fill="#3b82f6" id="blk-1-1" opacity="0.3"/>
+                  <circle cx="150" cy="19" r="7" fill="#3b82f6" id="blk-1-2" opacity="0.3"/>
+                  <circle cx="175" cy="19" r="7" fill="#3b82f6" id="blk-1-3" opacity="0.3"/>
+                </g>
+
+                <g id="die-2" transform="translate(160, 115)">
+                  <rect width="210" height="38" rx="4" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+                  <text x="10" y="23" font-size="10" font-weight="600">NAND Die 2</text>
+                  <circle cx="100" cy="19" r="7" fill="#3b82f6" id="blk-2-0" opacity="0.3"/>
+                  <circle cx="125" cy="19" r="7" fill="#3b82f6" id="blk-2-1" opacity="0.3"/>
+                  <circle cx="150" cy="19" r="7" fill="#3b82f6" id="blk-2-2" opacity="0.3"/>
+                  <circle cx="175" cy="19" r="7" fill="#3b82f6" id="blk-2-3" opacity="0.3"/>
+                </g>
+
+                <g id="die-3" transform="translate(160, 165)">
+                  <rect width="210" height="38" rx="4" fill="var(--surface)" stroke="var(--border)" stroke-width="1.5"/>
+                  <text x="10" y="23" font-size="10" font-weight="600">NAND Die 3</text>
+                  <circle cx="100" cy="19" r="7" fill="#3b82f6" id="blk-3-0" opacity="0.3"/>
+                  <circle cx="125" cy="19" r="7" fill="#3b82f6" id="blk-3-1" opacity="0.3"/>
+                  <circle cx="150" cy="19" r="7" fill="#3b82f6" id="blk-3-2" opacity="0.3"/>
+                  <circle cx="175" cy="19" r="7" fill="#3b82f6" id="blk-3-3" opacity="0.3"/>
+                </g>
+              </svg>
+            </div>
+
+            <div style="flex: 1; min-width: 260px; font-size: 0.88rem;">
+              <div style="background: var(--surface-subtle); padding: 0.85rem; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 1rem; font-family: var(--font-mono); font-size: 0.82rem;">
+                <div>Channel Mode: <strong id="stripe-mode">Striped Across 4 Dies</strong></div>
+                <div>Read Concurrency: <strong id="stripe-concurrency">4 Parallel Channels</strong></div>
+                <div>Simulated Latency: <strong id="stripe-latency">25 &mu;s</strong></div>
+                <div>Bus Utilization: <strong id="stripe-util">92% (High Bandwidth)</strong></div>
+              </div>
+              <div class="controls-bar" style="border: none; padding: 0; margin: 0;">
+                <button id="btn-toggle-stripe" class="btn btn-primary">Switch to Single-Die Mode</button>
+                <button id="btn-fire-read" class="btn">Simulate 4-Page Read</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-type type-obvious">Obvious Example</div>
+            <div class="example-name">Sub-Millisecond Random Reads</div>
+            <div class="example-desc">An index lookup in a database on NVMe returns in 30 microseconds because electronic transistor addressing replaces mechanical seek time.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-counter">Counter-Intuitive Example</div>
+            <div class="example-name">Write Performance Degradation</div>
+            <div class="example-desc">An SSD full of dirty, un-erased blocks can experience sudden write latency stalls of tens of milliseconds when synchronous garbage collection kicks in.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-edge">Edge-Case Example</div>
+            <div class="example-name">Unpowered Cold Storage Bit Leakage</div>
+            <div class="example-desc">NAND flash cells trap electrical charges. Left unpowered in a hot environment for 2–5 years, charge slowly leaks through insulating oxides, leading to silent data corruption.</div>
+          </div>
+        </div>
+
+        <!-- Visual Analogy Card -->
+        <div class="analogy-card">
+          <div class="analogy-icon">&#128221;</div>
+          <div class="analogy-body">
+            <h4>The Notebook with Ink and Eraser Restrictions</h4>
+            <p>
+              Imagine writing notes with a pen on a pad of paper where you are allowed to write fine sentences line by line (pages). However, you have an eraser that is so massive it can only scrub out an entire 100-page chapter at once (erase block). If you want to change one sentence on page 42, you have to copy the other 99 good pages to a fresh notebook before erasing the entire original chapter.
+            </p>
+          </div>
+        </div>
+
+        <!-- Misconceptions & Why It Matters -->
+        <div class="callout-row">
+          <div class="callout-card callout-misconception">
+            <div class="callout-title"><span>&#10006;</span> What People Get Wrong</div>
+            <div class="callout-text">
+              <strong>"You should defragment SSDs regularly."</strong> Defragmenting an SSD does not improve performance; it simply subjects the drive to hundreds of unnecessary write cycles, directly exhausting the limited Program/Erase (P/E) endurance of the NAND cells.
+            </div>
+          </div>
+          <div class="callout-card callout-why">
+            <div class="callout-title"><span>&#10004;</span> Why This Matters</div>
+            <div class="callout-text">
+              Storage-heavy production systems track <em>Terabytes Written (TBW)</em> and issue operating system <code>TRIM</code> commands so the drive's garbage collector knows which invalidated blocks to reclaim before write buffers stall.
+            </div>
+          </div>
+        </div>
+
+        <div class="inter-link">
+          Balancing SSD speed against costs: In <a href="#module-5">Module 05</a>, we examine storage economics, recent price fluctuations, and the overarching "Everything is a Cache" hierarchy.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 5: Storage Economics & The Hierarchy
+           ========================================== -->
+      <article id="module-5" class="module-section">
+        <header class="module-header">
+          <div class="module-tag">Module 05</div>
+          <h2 class="module-title">Storage Economics, Market Volatility &amp; The "Everything is a Cache" Hierarchy</h2>
+        </header>
+
+        <div class="core-explanation">
+          <p>
+            When designing systems, engineers quickly realize that pure performance cannot be evaluated without considering economic constraints. As highlighted on stream using PCPartPicker hardware pricing data, solid-state drives command a steep cost premium per gigabyte compared to mechanical hard drives. Even during market fluctuations, a 4TB enterprise spinning hard drive costs roughly $220 (~$0.05/GB), whereas an equivalent 4TB high-performance NVMe SSD often reaches $800 to $900 (~$0.22/GB)—a 4x price differential.
+          </p>
+          <p>
+            Furthermore, global macroeconomic surges—most notably the explosive infrastructure buildout for Artificial Intelligence training and inference—profoundly disrupt component markets. The unprecedented demand for high-bandwidth memory (HBM) and GPU video RAM (VRAM) absorbs massive silicon wafer fabrication capacity, cascading into severe supply shortages and price spikes (often doubling or tripling costs) for standard DDR5 DRAM and high-density 3D NAND flash.
+          </p>
+          <p>
+            Because fast memory is physically constrained and economically expensive, modern systems architecture relies on a unified mental model: <strong>Everything is a Cache</strong>. Within a computer, storage is organized into a steep hierarchy:
+          </p>
+          <p>
+            At the top sit CPU Registers and L1/L2/L3 on-die SRAM caches, offering sub-nanosecond speeds but constrained to mere megabytes because they occupy irreplaceable silicon die real estate alongside CPU cores. Below them sits Main Memory (DRAM), delivering tens of nanoseconds latency with tens to hundreds of gigabytes of capacity. Further down lies Local NVMe SSD (microseconds, terabytes), followed by Local Mechanical HDD (milliseconds, tens of terabytes), and finally Remote Object Storage such as Amazon S3 or Google Cloud Storage (tens of milliseconds, virtually infinite petabytes). Each layer serves as a volatile or persistent cache for the slower, cheaper, and larger layer beneath it.
+          </p>
+        </div>
+
+        <div class="breakdown-box">
+          <div class="breakdown-title">The Complete Storage Hierarchy &bull; Capacity vs. Latency Tradeoffs</div>
+          <ul class="step-list">
+            <li class="step-item">
+              <span class="step-num">1</span>
+              <div><strong>L1 / L2 / L3 CPU Caches (0.5 – 15 ns):</strong> Built directly into the processor die. Tiny capacity (32KB–64MB), astronomical cost per byte, strictly volatile.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span>
+              <div><strong>Main Memory DRAM (50 – 100 ns):</strong> Connected via motherboard memory channels. Moderate capacity (16GB–512GB), volatile, holds active working sets.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span>
+              <div><strong>Non-Volatile NVMe SSD (20 – 100 &mu;s):</strong> High-speed PCIe interface. Large capacity (1TB–8TB), non-volatile, serves as persistent local primary storage.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span>
+              <div><strong>Mechanical HDD &amp; Remote Object Store (5 ms – 100 ms):</strong> SATA or HTTP network interface. Petabyte-scale capacity, lowest cost per gigabyte, ultimate durable backstop.</div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Interactive Lab: Hierarchy Scale Visualizer -->
+        <div id="lab-hierarchy" class="interactive-shell">
+          <div class="shell-header">
+            <span class="shell-title">Interactive Lab: The Storage Hierarchy &amp; Human Time Scale</span>
+            <span class="shell-badge">Orders of Magnitude</span>
+          </div>
+
+          <div style="margin-bottom: 1rem; font-size: 0.88rem; color: var(--text-muted);">
+            Click on any layer of the memory hierarchy to inspect its physical latency, capacity limits, and what that duration feels like if we scaled 1 CPU cycle (0.3 ns) to 1 human second.
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: center;">
+            <div style="display: flex; flex-direction: column; gap: 0.45rem;">
+              <button class="btn tier-btn active" data-tier="reg" style="justify-content: space-between;">
+                <span>CPU Registers &amp; L1 Cache</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem;">~1 ns</span>
+              </button>
+              <button class="btn tier-btn" data-tier="l3" style="justify-content: space-between;">
+                <span>L3 CPU Cache</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem;">~10 ns</span>
+              </button>
+              <button class="btn tier-btn" data-tier="ram" style="justify-content: space-between;">
+                <span>Main Memory (DDR5 RAM)</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem;">~60 ns</span>
+              </button>
+              <button class="btn tier-btn" data-tier="nvme" style="justify-content: space-between;">
+                <span>Local NVMe SSD</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem;">~25 &mu;s</span>
+              </button>
+              <button class="btn tier-btn" data-tier="hdd" style="justify-content: space-between;">
+                <span>Mechanical Hard Drive (HDD)</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem;">~6 ms</span>
+              </button>
+              <button class="btn tier-btn" data-tier="s3" style="justify-content: space-between;">
+                <span>Cloud Object Storage (AWS S3)</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem;">~80 ms</span>
+              </button>
+            </div>
+
+            <div id="tier-detail" style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem;">
+              <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 700; margin-bottom: 0.35rem;" id="tier-name">CPU Registers &amp; L1 Cache</div>
+              <div style="font-size: 1.4rem; font-family: var(--font-serif); font-weight: 700; margin-bottom: 0.5rem;" id="tier-latency">0.5 – 1.0 Nanoseconds</div>
+              <div style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 0.85rem;" id="tier-desc">Integrated directly inside each core execution unit. Sub-nanosecond electrical access across SRAM flip-flop circuits.</div>
+              <div style="background: var(--surface); padding: 0.75rem; border-radius: var(--radius); border: 1px solid var(--border); font-size: 0.82rem;">
+                <div>Typical Capacity: <strong id="tier-cap">64 KB per core</strong></div>
+                <div>Cost per Gigabyte: <strong id="tier-cost">~$50,000+ (Silicon Real Estate)</strong></div>
+                <div>Scaled to Human Time: <strong id="tier-human" style="color: var(--accent);">~3 Seconds</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-type type-obvious">Obvious Example</div>
+            <div class="example-name">Linux Page Cache Buffering</div>
+            <div class="example-desc">Unused RAM is automatically utilized by the Linux kernel as a page cache to absorb disk reads, drastically speeding up repeated file operations.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-counter">Counter-Intuitive Example</div>
+            <div class="example-name">Magnetic Tape Still Reigns in Cold Storage</div>
+            <div class="example-desc">For exabyte-scale cold archives accessed linearly, magnetic tape remains far cheaper than HDDs and SSDs (~$0.002/GB), requiring zero electricity when sitting on shelves.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-edge">Edge-Case Example</div>
+            <div class="example-name">Unified Memory Systems (Apple Silicon)</div>
+            <div class="example-desc">By sharing a single unified DRAM pool between CPU and GPU on package, modern SoCs avoid copying multi-gigabyte models over PCIe buses, bridging latency gaps.</div>
+          </div>
+        </div>
+
+        <!-- Visual Analogy Card -->
+        <div class="analogy-card">
+          <div class="analogy-icon">&#127970;</div>
+          <div class="analogy-body">
+            <h4>The Global Supply Chain Warehouse</h4>
+            <p>
+              Think of retail inventory: you keep immediate essentials in your pocket (L1), common supplies in the store backroom (RAM), regional distribution centers for restocks (NVMe/HDD), and cargo containers shipping across oceans from overseas factories (S3/Tape). You could never afford to put every product in your front pocket, nor would you survive waiting for an ocean freighter every time you needed a pencil.
+            </p>
+          </div>
+        </div>
+
+        <!-- Misconceptions & Why It Matters -->
+        <div class="callout-row">
+          <div class="callout-card callout-misconception">
+            <div class="callout-title"><span>&#10006;</span> What People Get Wrong</div>
+            <div class="callout-text">
+              <strong>"Why don't we just make the entire computer L1 cache?"</strong> L1 cache is static RAM requiring 6 transistors per bit, generating immense heat and consuming physical silicon area. Building a 64GB L1 cache is physically impossible on a silicon wafer.
+            </div>
+          </div>
+          <div class="callout-card callout-why">
+            <div class="callout-title"><span>&#10004;</span> Why This Matters</div>
+            <div class="callout-text">
+              Recognizing that all storage is a multi-tier cache allows architects to design hybrid systems—such as placing hot indexes in DRAM, warm operational datasets on NVMe, and historical data in cold object stores.
+            </div>
+          </div>
+        </div>
+
+        <div class="inter-link">
+          Applying this hierarchy in production: In <a href="#module-6">Module 06</a>, we analyze modern cloud architectures, comparing EC2 local NVMe, Elastic Block Store (EBS), and Amazon S3.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           MODULE 6: Cloud Architectures & Distributed Storage
+           ========================================== -->
+      <article id="module-6" class="module-section">
+        <header class="module-header">
+          <div class="module-tag">Module 06</div>
+          <h2 class="module-title">Cloud Storage Architectures: Tiered Databases, EC2 NVMe, EBS, and S3</h2>
+        </header>
+
+        <div class="core-explanation">
+          <p>
+            In modern cloud environments like Amazon Web Services (AWS), storage choices dictate both system reliability and monthly infrastructure expenditures. When provisioning compute instances (such as Amazon EC2), engineers are confronted with three distinct storage paradigms: <strong>Local Instance Store NVMe</strong>, <strong>Elastic Block Store (EBS)</strong>, and <strong>Simple Storage Service (S3)</strong>.
+          </p>
+          <p>
+            <strong>Local Instance Store NVMe</strong> disks are physically attached to the server chassis hosting the virtual machine. They offer the absolute pinnacle of performance: sub-50-microsecond access times and hundreds of thousands of IOPS. However, they are fundamentally <em>ephemeral</em>. If the virtual machine halts, the host hypervisor encounters a hardware fault, or the physical box is decommissioned, all data on that drive vanishes permanently. To safely run mission-critical databases on local NVMe (such as PlanetScale Metal), architects must build Multi-Availability Zone replication clusters (typically three nodes using Raft or semi-synchronous replication across distinct physical buildings).
+          </p>
+          <p>
+            <strong>Elastic Block Store (EBS)</strong> abstracts storage as a virtual block device mounted over the internal data center network. Powered primarily by solid-state drives in modern GP3 and IO2 configurations, EBS decouples compute from storage: an EC2 instance can terminate, and its EBS volume can be remounted to a fresh server in seconds with zero data loss. However, because every read and write must traverse a network hop, EBS introduces latency jitter (averaging 0.5 to 3 milliseconds) and enforces provisioned IOPS/bandwidth limits that incur substantial costs.
+          </p>
+          <p>
+            <strong>Simple Storage Service (S3)</strong> is an object storage platform backed by tens of millions of spinning hard disk drives (augmented by SSD caching layers and intelligent tiering engines like Google Colossus). S3 delivers virtually infinite scalability and 99.999999999% (11 nines) durability at an economical price point (~$0.023 per gigabyte per month). However, fetching an object over HTTP incurs 50 to 100 milliseconds of latency.
+          </p>
+          <p>
+            To resolve these tradeoffs, modern data systems—exemplified by vector databases like <strong>TurboPuffer</strong>—employ tiered storage. The primary server keeps the hottest search vectors in local DRAM (instant response) and warm vectors on a local NVMe drive (LRU cache), while persisting the authoritative multi-terabyte dataset in S3. If 95% of queries hit RAM or NVMe, the application enjoys microsecond query speeds while keeping storage costs at inexpensive S3 commodity rates.
+          </p>
+        </div>
+
+        <div class="breakdown-box">
+          <div class="breakdown-title">Architectural Comparison &bull; Cloud Storage Primitives</div>
+          <ul class="step-list">
+            <li class="step-item">
+              <span class="step-num">1</span>
+              <div><strong>Local NVMe (Instance Store):</strong> Microsecond latency, highest IOPS, zero network overhead. Ephemeral lifecycle requires application-layer consensus replication.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span>
+              <div><strong>Network Block Storage (EBS):</strong> Sub-millisecond to multi-millisecond latency. Persistent across VM restarts, dynamic volume resizing, but cost scales with IOPS.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span>
+              <div><strong>Object Storage (S3 / GCS):</strong> Tens of milliseconds latency. High throughput for large files, extreme durability, lowest cost per gigabyte, HTTP/REST API access.</div>
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span>
+              <div><strong>Tiered Database Pattern:</strong> DRAM (Hot) &rarr; Local NVMe (Warm Cache) &rarr; S3 (Cold Source of Truth), combining microsecond query speed with low storage costs.</div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Interactive Lab: TurboPuffer Tiered Storage Simulator -->
+        <div id="lab-turbopuffer" class="interactive-shell">
+          <div class="shell-header">
+            <span class="shell-title">Interactive Lab: TurboPuffer Tiered Storage Query Simulator</span>
+            <span class="shell-badge">System Architecture</span>
+          </div>
+
+          <div style="margin-bottom: 1rem; font-size: 0.88rem; color: var(--text-muted);">
+            Simulate queries hitting a modern vector database. Observe how the distribution of cache hits between DRAM, Local NVMe, and S3 dictates average query latency.
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: center;">
+            <div>
+              <div style="margin-bottom: 0.75rem;">
+                <label style="font-size: 0.82rem; font-weight: 600;">Workload Cache Hit Skew (80/20 Rule vs. Uniform):</label>
+                <select id="workload-select" style="width: 100%; padding: 0.4rem; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 0.84rem; margin-top: 0.25rem;">
+                  <option value="skewed">Skewed Hot Vectors (90% RAM, 8% NVMe, 2% S3)</option>
+                  <option value="moderate">Moderate Cache (60% RAM, 30% NVMe, 10% S3)</option>
+                  <option value="uniform">Uniform Random Across 100TB (10% RAM, 15% NVMe, 75% S3)</option>
+                </select>
+              </div>
+
+              <div style="margin-top: 1rem;">
+                <button id="btn-fire-queries" class="btn btn-primary" style="width: 100%; justify-content: center;">Simulate 1,000 Concurrent Queries</button>
+              </div>
+            </div>
+
+            <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; font-family: var(--font-mono); font-size: 0.82rem;">
+              <div style="margin-bottom: 0.4rem;">Query Distribution:</div>
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                <span style="color: var(--teal);" id="stat-ram">RAM Hits: 0</span> &bull;
+                <span style="color: var(--blue);" id="stat-nvme">NVMe Hits: 0</span> &bull;
+                <span style="color: var(--rose);" id="stat-s3">S3 Misses: 0</span>
+              </div>
+              <div style="border-top: 1px dashed var(--border); padding-top: 0.5rem;">
+                <div>Median Latency (p50): <strong id="stat-p50" style="color: var(--text);">--</strong></div>
+                <div>99th Percentile (p99): <strong id="stat-p99" style="color: var(--rose);">--</strong></div>
+                <div>Avg Query Latency: <strong id="stat-avg" style="color: var(--accent);">--</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cloud Storage Decision Matrix / Calculator -->
+        <div id="lab-cloud" class="interactive-shell">
+          <div class="shell-header">
+            <span class="shell-title">Cloud Storage Cost &amp; Capability Matrix</span>
+            <span class="shell-badge">Economic Analysis</span>
+          </div>
+
+          <div class="table-container" style="margin: 0 0 1rem 0;">
+            <table class="cheat-table">
+              <thead>
+                <tr>
+                  <th>Storage Dimension</th>
+                  <th>EC2 Local NVMe</th>
+                  <th>AWS EBS (GP3/IO2)</th>
+                  <th>AWS S3 (Standard)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Primary Media</strong></td>
+                  <td>Direct-Attached NVMe SSD</td>
+                  <td>Networked SSD Arrays</td>
+                  <td>Tens of Millions of HDDs + SSD Cache</td>
+                </tr>
+                <tr>
+                  <td><strong>Typical Latency</strong></td>
+                  <td>20 – 60 &mu;s</td>
+                  <td>0.8 – 3.0 ms</td>
+                  <td>30 – 100 ms</td>
+                </tr>
+                <tr>
+                  <td><strong>IOPS Capacity</strong></td>
+                  <td>100,000 – 1,000,000+</td>
+                  <td>3,000 – 64,000 (Provisioned)</td>
+                  <td>Virtually Infinite (Partitioned)</td>
+                </tr>
+                <tr>
+                  <td><strong>Durability Model</strong></td>
+                  <td>Ephemeral (Poof on VM death)</td>
+                  <td>Replicated across 1 AZ</td>
+                  <td>11 Nines (Multi-AZ Replicated)</td>
+                </tr>
+                <tr>
+                  <td><strong>Relative Cost / GB</strong></td>
+                  <td>Bundled in instance price</td>
+                  <td>~$0.08 – $0.125 / GB / Mo</td>
+                  <td>~$0.023 / GB / Mo (~4x Cheaper)</td>
+                </tr>
+                <tr>
+                  <td><strong>Ideal Use Case</strong></td>
+                  <td>Replicated consensus databases</td>
+                  <td>General VMs, standard disks</td>
+                  <td>Media assets, backups, big data, cold logs</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Examples Trio -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <div class="example-type type-obvious">Obvious Example</div>
+            <div class="example-name">User Avatar &amp; PDF Storage in S3</div>
+            <div class="example-desc">Storing user uploads in S3 saves massive costs over mounting giant EBS disks, providing global accessibility and automated multi-datacenter replication.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-counter">Counter-Intuitive Example</div>
+            <div class="example-name">Local NVMe Databases Saving Cloud Costs</div>
+            <div class="example-desc">While managing 3-node NVMe replication clusters requires engineering effort, avoiding exorbitant provisioned EBS IOPS bills often slashes monthly cloud costs by 60%.</div>
+          </div>
+          <div class="example-card">
+            <div class="example-type type-edge">Edge-Case Example</div>
+            <div class="example-name">Uniform Access Cache Thrashing</div>
+            <div class="example-desc">When a system accesses 100TB of data completely randomly with zero locality, a tiered NVMe cache churns constantly, providing zero hit rate while adding network hops.</div>
+          </div>
+        </div>
+
+        <!-- Visual Analogy Card -->
+        <div class="analogy-card">
+          <div class="analogy-icon">&#128666;</div>
+          <div class="analogy-body">
+            <h4>The Logistics Fleet: Scooter vs. Delivery Van vs. Freight Train</h4>
+            <p>
+              Local NVMe is an agile courier scooter parked right outside your front door: near-instantaneous departures for single packages, but if the scooter breaks down, the cargo on it is lost. EBS is a fleet of commercial delivery vans on call via dispatch: highly reliable and persistent, but every trip must negotiate city traffic (the network). S3 is a transcontinental freight train: capable of hauling millions of tons at the lowest cost imaginable, but you don't call a freight train to deliver an urgent sandwich.
+            </p>
+          </div>
+        </div>
+
+        <!-- Misconceptions & Why It Matters -->
+        <div class="callout-row">
+          <div class="callout-card callout-misconception">
+            <div class="callout-title"><span>&#10006;</span> What People Get Wrong</div>
+            <div class="callout-text">
+              <strong>"EBS acts just like an internal motherboard SSD."</strong> EBS is a network service. It experiences packet loss, network congestion, and hypervisor bandwidth throttling. Treating EBS as a zero-latency local disk causes unexpected tail latency spikes in write-heavy software.
+            </div>
+          </div>
+          <div class="callout-card callout-why">
+            <div class="callout-title"><span>&#10004;</span> Why This Matters</div>
+            <div class="callout-text">
+              High-throughput architectures at companies like PlanetScale, AWS, and modern AI labs combine local NVMe for maximum I/O throughput with background asynchronous snapshots to S3 to guarantee both extreme speed and ironclad durability.
+            </div>
+          </div>
+        </div>
+
+        <div class="inter-link">
+          This completes the core theoretical modules. Below, reinforce your mastery through the interactive flashcards, architectural matcher, summary cheat sheet, and FAQ.
+        </div>
+      </article>
+
+      <!-- ==========================================
+           INTERACTIVE LEARNING LABS & TOOLS
+           ========================================== -->
+
+      <!-- Flashcards Section -->
+      <section id="flashcards" class="flashcard-deck">
+        <div class="deck-header">
+          <div>
+            <div class="card-label" style="margin-bottom: 0.25rem;">Active Recall Tool</div>
+            <h3 style="font-family: var(--font-serif); font-size: 1.3rem;">Core Storage Concept Flashcards</h3>
+          </div>
+          <div class="deck-counter"><span id="card-index">1</span> / <span id="card-total">6</span></div>
+        </div>
+
+        <div class="flashcard-container" id="flashcard">
+          <div class="flashcard-inner" id="card-inner">
+            <div class="flashcard-front">
+              <div class="card-cue">Concept Prompt &bull; Click to Flip</div>
+              <div class="card-term" id="card-front-text">Seek Time</div>
+            </div>
+            <div class="flashcard-back">
+              <div class="card-cue">Technical Definition</div>
+              <div class="card-answer" id="card-back-text">The mechanical time required for an HDD actuator arm to radially accelerate, travel across concentric cylinders, and settle over the target track (typically 3 to 10 ms).</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="deck-controls">
+          <button id="btn-prev-card" class="btn">&larr; Previous</button>
+          <span style="font-size: 0.8rem; color: var(--text-soft);">Click card to toggle term / explanation</span>
+          <button id="btn-next-card" class="btn">Next &rarr;</button>
+        </div>
+      </section>
+
+      <!-- Drag & Drop Architecture Matcher -->
+      <section id="matcher" class="drag-matcher">
+        <div class="card-label">Architectural Synthesis</div>
+        <h3 style="font-family: var(--font-serif); font-size: 1.3rem; margin-bottom: 0.5rem;">Match Concepts to Technical Reality</h3>
+        <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.25rem;">Drag each architectural term from the left onto its corresponding system behavior on the right.</p>
+
+        <div class="matcher-grid">
+          <div class="draggable-terms" id="source-terms">
+            <div class="drag-item" draggable="true" data-term="elevator">SCAN Scheduling</div>
+            <div class="drag-item" draggable="true" data-term="eraseblock">NAND Erase Block</div>
+            <div class="drag-item" draggable="true" data-term="ephemeral">Instance Store NVMe</div>
+            <div class="drag-item" draggable="true" data-term="s3durability">S3 Object Storage</div>
+          </div>
+
+          <div class="target-slots" id="target-slots">
+            <div class="drop-slot" data-accept="elevator">
+              <div class="slot-label">Reorders I/O requests to service physical cylinders in sweeping passes:</div>
+              <div class="slot-content">Drop matching term here</div>
+            </div>
+            <div class="drop-slot" data-accept="eraseblock">
+              <div class="slot-label">Must be erased in bulk (MBs) even though reads and writes happen in pages (KBs):</div>
+              <div class="slot-content">Drop matching term here</div>
+            </div>
+            <div class="drop-slot" data-accept="ephemeral">
+              <div class="slot-label">Provides microsecond speeds but data is lost immediately on instance termination:</div>
+              <div class="slot-content">Drop matching term here</div>
+            </div>
+            <div class="drop-slot" data-accept="s3durability">
+              <div class="slot-label">Backed by millions of spinning HDDs providing 11 nines of durable object storage:</div>
+              <div class="slot-content">Drop matching term here</div>
+            </div>
+          </div>
+        </div>
+        <div id="matcher-feedback" style="font-size: 0.85rem; font-weight: 600; color: var(--teal); display: none;">All concepts correctly matched! Excellent systems comprehension.</div>
+      </section>
+
+      <!-- Mini-Quiz Check -->
+      <section class="mini-quiz">
+        <div class="quiz-title">Knowledge Verification &bull; Checkpoint</div>
+        <div class="quiz-question">Why does sequentially reading a 100MB file on an HDD typically achieve over 150 MB/s, while randomly reading 100 scattered single-byte values can drop throughput below 1 MB/s?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt" data-correct="false">The HDD controller disables its internal RAM cache during random operations.</button>
+          <button class="quiz-opt" data-correct="true">Sequential reads keep the actuator arm stationary on adjacent tracks while platters spin, whereas random reads force repeated physical seeks and rotational waits for every block.</button>
+          <button class="quiz-opt" data-correct="false">The SATA/PCIe bus experiences electrical signal degradation during small transfers.</button>
+          <button class="quiz-opt" data-correct="false">Magnetic bits decay rapidly when addressed individually.</button>
+        </div>
+        <div class="quiz-feedback" id="quiz-fb"></div>
+      </section>
+
+      <!-- Comprehensive Technical Definitions & Glossary (Systems & Storage Dictionary) -->
+      <section id="definitions" class="definitions-section">
+        <div class="card-label">Authoritative Terminology</div>
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; margin-bottom: 0.5rem;">Technical Definitions &amp; Systems Glossary</h3>
+        <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+          Exhaustive reference of every core concept, hardware component, latency metric, and cloud architectural primitive discussed in this study unit.
+        </p>
+
+        <!-- Search and Filter UI -->
+        <div class="def-search-bar">
+          <input type="text" id="def-search-input" class="def-input" placeholder="Search definitions (e.g. L1, L2, L3, NVMe, Seek Time, FTL, EBS)..." aria-label="Search definitions">
+        </div>
+        <div class="def-categories" id="def-category-pills">
+          <button class="def-cat-pill active" data-cat="all">All Terms (<span id="def-count-all">52</span>)</button>
+          <button class="def-cat-pill" data-cat="cpu">CPU &amp; Caching</button>
+          <button class="def-cat-pill" data-cat="hdd">HDD &amp; Mechanics</button>
+          <button class="def-cat-pill" data-cat="ssd">SSD &amp; Silicon</button>
+          <button class="def-cat-pill" data-cat="queue">Queuing &amp; Metrics</button>
+          <button class="def-cat-pill" data-cat="cloud">Cloud &amp; Distributed</button>
+        </div>
+
+        <div class="definitions-grid" id="definitions-container">
+          <!-- CPU & CACHING -->
+          <div class="def-card" data-category="cpu" data-terms="l1 cache level 1 sram cpu core">
+            <div class="def-card-top">
+              <span class="def-term">L1 Cache (Level 1)</span>
+              <span class="def-badge">CPU / On-Die</span>
+            </div>
+            <p class="def-meaning">
+              The smallest, fastest hardware cache directly embedded inside each CPU core execution unit, built using 6-transistor Static RAM (SRAM). Operates synchronously with core clock cycles and is typically divided into separate instruction (L1i) and data (L1d) caches to eliminate pipeline structural hazards.
+            </p>
+            <div class="def-meta">
+              <div>Typical Latency: <strong>0.5 – 1.0 nanoseconds (~3-4 clock cycles)</strong></div>
+              <div>Typical Capacity: <strong>32 KB to 64 KB per core</strong></div>
+              <div>Physical Location: <strong>Directly adjacent to execution ALUs on CPU die</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cpu" data-terms="l2 cache level 2 sram dedicated core">
+            <div class="def-card-top">
+              <span class="def-term">L2 Cache (Level 2)</span>
+              <span class="def-badge">CPU / On-Die</span>
+            </div>
+            <p class="def-meaning">
+              An on-die intermediate SRAM cache dedicated to a single CPU core that buffers misses from the L1 cache. Offers significantly larger capacity than L1 while preserving low-latency access, minimizing expensive traversals across shared interconnect fabrics to L3 or main memory.
+            </p>
+            <div class="def-meta">
+              <div>Typical Latency: <strong>3.0 – 5.0 nanoseconds (~12-14 clock cycles)</strong></div>
+              <div>Typical Capacity: <strong>512 KB to 1 MB per core</strong></div>
+              <div>Physical Location: <strong>On-die, tightly coupled to individual core</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cpu" data-terms="l3 cache level 3 llc last level cache shared">
+            <div class="def-card-top">
+              <span class="def-term">L3 Cache (Level 3 / LLC)</span>
+              <span class="def-badge">CPU / On-Die</span>
+            </div>
+            <p class="def-meaning">
+              The Last Level Cache (LLC) residing on the processor silicon die, shared across all processor cores via a high-speed ring or mesh interconnect. Acts as the final on-chip defense preventing threads from issuing slow, energy-costly memory bus requests to external DRAM.
+            </p>
+            <div class="def-meta">
+              <div>Typical Latency: <strong>10 – 15 nanoseconds (~40-60 clock cycles)</strong></div>
+              <div>Typical Capacity: <strong>16 MB to 96 MB+ (up to hundreds of MBs in 3D V-Cache)</strong></div>
+              <div>Physical Location: <strong>Shared silicon real estate across all processor cores</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cpu" data-terms="cpu registers alu registers flip flops">
+            <div class="def-card-top">
+              <span class="def-term">CPU Registers</span>
+              <span class="def-badge">Execution Unit</span>
+            </div>
+            <p class="def-meaning">
+              Microscopic, ultra-fast storage locations wired directly into the processor's Arithmetic Logic Units (ALUs). Registers hold immediate operands and instruction addresses for execution within a single clock cycle, representing the fastest possible memory in computer architecture.
+            </p>
+            <div class="def-meta">
+              <div>Typical Latency: <strong>&lt; 0.3 nanoseconds (Single clock cycle)</strong></div>
+              <div>Typical Capacity: <strong>Roughly 1 KB to 2 KB total (e.g. 16-32 general purpose + SIMD)</strong></div>
+              <div>Physical Location: <strong>Inside core execution pipeline</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cpu" data-terms="dram dynamic ram main memory memory bus">
+            <div class="def-card-top">
+              <span class="def-term">Main Memory (DRAM / DDR5)</span>
+              <span class="def-badge">Volatile Storage</span>
+            </div>
+            <p class="def-meaning">
+              Dynamic Random-Access Memory consisting of millions of capacitor-transistor memory cells on external modules. Because capacitors slowly leak electrical charge, DRAM requires continuous periodic refresh cycles (every 64ms), trading access speed for massive, cost-effective capacity.
+            </p>
+            <div class="def-meta">
+              <div>Typical Latency: <strong>50 – 90 nanoseconds</strong></div>
+              <div>Typical Capacity: <strong>16 GB to 512 GB+ per server node</strong></div>
+              <div>Physical Location: <strong>DIMM slots on motherboard via memory bus</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cpu" data-terms="sram static ram cache transistor">
+            <div class="def-card-top">
+              <span class="def-term">Static RAM (SRAM)</span>
+              <span class="def-badge">Silicon Circuit</span>
+            </div>
+            <p class="def-meaning">
+              Volatile semiconductor memory constructed from cross-coupled inverter flip-flops (typically 6 transistors per cell). Unlike DRAM, SRAM requires zero electrical refresh cycles, granting sub-nanosecond speeds at the cost of high heat, complex circuitry, and immense silicon die area.
+            </p>
+            <div class="def-meta">
+              <div>Key Characteristic: <strong>Zero refresh cycles; sub-nanosecond latency</strong></div>
+              <div>Primary Usage: <strong>CPU L1, L2, and L3 caches, drive controller buffers</strong></div>
+              <div>Limitation: <strong>High cost (~$50,000/GB silicon footprint) and physical size</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cpu" data-terms="vram video ram hbm gpu memory ai inference">
+            <div class="def-card-top">
+              <span class="def-term">VRAM &amp; HBM</span>
+              <span class="def-badge">Accelerator Memory</span>
+            </div>
+            <p class="def-meaning">
+              Video RAM (such as GDDR6 or vertically stacked High Bandwidth Memory / HBM) engineered for extreme memory bandwidth (terabytes/sec) required by GPUs. Essential for holding large language model parameters, KV caches, and matrix tensors during AI training and inference.
+            </p>
+            <div class="def-meta">
+              <div>Bandwidth: <strong>Up to 3 – 5 TB/s (HBM3e) vs ~80 GB/s for standard DDR5</strong></div>
+              <div>Market Impact: <strong>AI demand for HBM consumes wafer capacity, raising global DRAM prices</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cpu" data-terms="unified memory uma apple silicon soc">
+            <div class="def-card-top">
+              <span class="def-term">Unified Memory Architecture (UMA)</span>
+              <span class="def-badge">System on Chip</span>
+            </div>
+            <p class="def-meaning">
+              A System-on-Chip (SoC) architecture where CPU cores, GPU execution units, and neural processing engines share a single physical pool of high-speed memory on-package (e.g., Apple Silicon), eliminating latency-heavy data copies across discrete PCIe buses.
+            </p>
+            <div class="def-meta">
+              <div>Key Benefit: <strong>Zero-copy data transfer between CPU, GPU, and neural engines</strong></div>
+              <div>Architectural Shift: <strong>Blurs traditional boundaries between system DRAM and VRAM</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cpu" data-terms="virtual memory page fault kernel mmap">
+            <div class="def-card-top">
+              <span class="def-term">Virtual Memory &amp; Page Faults</span>
+              <span class="def-badge">OS Subsystem</span>
+            </div>
+            <p class="def-meaning">
+              An operating system memory management abstraction providing each process with an isolated, contiguous virtual address space mapped to physical DRAM pages. When an instruction accesses an address not currently resident in RAM, the CPU Memory Management Unit (MMU) raises a <em>page fault</em> interrupt, forcing a synchronous disk read.
+            </p>
+            <div class="def-meta">
+              <div>Minor Page Fault: <strong>Page allocated in memory, just missing page-table mapping</strong></div>
+              <div>Major Page Fault: <strong>Requires physical block fetch from SSD/HDD (milliseconds stall)</strong></div>
+            </div>
+          </div>
+
+          <!-- HDD & MECHANICS -->
+          <div class="def-card" data-category="hdd" data-terms="hdd hard drive disk magnetic mechanical">
+            <div class="def-card-top">
+              <span class="def-term">Hard Disk Drive (HDD)</span>
+              <span class="def-badge">Electro-Mechanical</span>
+            </div>
+            <p class="def-meaning">
+              A non-volatile storage peripheral that stores and retrieves digital information using rapidly rotating magnetic platters and mechanical actuator arms. Data is represented by altering the magnetic polarity of ferromagnetic domains across microscopic tracks.
+            </p>
+            <div class="def-meta">
+              <div>Random Latency: <strong>4 – 10 milliseconds</strong></div>
+              <div>Typical IOPS: <strong>75 – 200 IOPS</strong></div>
+              <div>Economic Advantage: <strong>Extremely low cost per gigabyte (~$0.04 - $0.06/GB)</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="platter magnetic disk substrate spindle">
+            <div class="def-card-top">
+              <span class="def-term">Platters</span>
+              <span class="def-badge">HDD Mechanical</span>
+            </div>
+            <p class="def-meaning">
+              The circular, rigid disks housed inside an HDD, manufactured from aluminum alloy or glass-ceramic substrates and coated with a microscopic magnetic recording layer. High-capacity enterprise drives often stack up to 10 platters inside a helium-sealed enclosure.
+            </p>
+            <div class="def-meta">
+              <div>Rotational Speed: <strong>5,400 to 15,000 revolutions per minute (RPM)</strong></div>
+              <div>Recording Layers: <strong>Both top and bottom surfaces hold polarized magnetic tracks</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="spindle motor revolutions per minute rpm cav">
+            <div class="def-card-top">
+              <span class="def-term">Spindle &amp; Spindle Motor</span>
+              <span class="def-badge">HDD Mechanical</span>
+            </div>
+            <p class="def-meaning">
+              The precision central drive shaft and brushless electric motor that spins the platters at a constant angular velocity (CAV). The rotational speed directly dictates rotational latency and data streaming throughput.
+            </p>
+            <div class="def-meta">
+              <div>Standard Enterprise Speeds: <strong>7,200 RPM (4.16ms rev), 10,000 RPM (3.0ms rev)</strong></div>
+              <div>Outer Track Advantage: <strong>Larger circumference yields higher linear speed and throughput</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="track cylinder concentric rings sectors">
+            <div class="def-card-top">
+              <span class="def-term">Tracks &amp; Cylinders</span>
+              <span class="def-badge">HDD Geometry</span>
+            </div>
+            <p class="def-meaning">
+              Concentric microscopic rings on a platter surface where data bits are magnetically encoded. A <em>cylinder</em> comprises the identical circular track across all stacked platter surfaces that can be accessed simultaneously without moving the actuator arm.
+            </p>
+            <div class="def-meta">
+              <div>Density: <strong>Tens of thousands of tracks per inch (TPI)</strong></div>
+              <div>Cylinder Benefit: <strong>Reading across platter surfaces incurs zero seek penalty</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="sector 512b 4k advanced format lba">
+            <div class="def-card-top">
+              <span class="def-term">Sectors</span>
+              <span class="def-badge">HDD Geometry</span>
+            </div>
+            <p class="def-meaning">
+              The smallest addressable physical storage segment of a track. Historically standardized at 512 bytes, modern hard drives universally utilize 4,096-byte (4KB) Advanced Format sectors to improve error correction efficiency and areal storage density.
+            </p>
+            <div class="def-meta">
+              <div>Standard Size: <strong>4 KB (4,096 bytes)</strong></div>
+              <div>Addressing: <strong>Mapped by drive firmware to Logical Block Addresses (LBAs)</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="actuator arm head slider air bearing vcm">
+            <div class="def-card-top">
+              <span class="def-term">Actuator Arm &amp; Read/Write Head</span>
+              <span class="def-badge">HDD Mechanical</span>
+            </div>
+            <p class="def-meaning">
+              A high-precision mechanical assembly driven by an electromagnetic voice-coil motor (VCM). Suspends aerodynamic sliders carrying microscopic inductive or magnetoresistive read/write heads that fly nanometers above the spinning platter on a cushion of air.
+            </p>
+            <div class="def-meta">
+              <div>Flight Height: <strong>5 to 10 nanometers above spinning surface</strong></div>
+              <div>Mechanical Stress: <strong>Rapid acceleration and deceleration across tracks induces physical wear</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="seek time mechanical latency cylinder track">
+            <div class="def-card-top">
+              <span class="def-term">Seek Time</span>
+              <span class="def-badge">Latency Component</span>
+            </div>
+            <p class="def-meaning">
+              The mechanical duration required for the actuator arm to accelerate, transit across concentric tracks, and settle precisely over the target cylinder. Represents the single largest source of latency and performance degradation in hard disk drives.
+            </p>
+            <div class="def-meta">
+              <div>Track-to-Track Seek: <strong>0.5 – 1.5 milliseconds</strong></div>
+              <div>Average Seek: <strong>3.5 – 9.0 milliseconds</strong></div>
+              <div>Full Stroke Seek (Edge to Edge): <strong>15 – 20 milliseconds</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="rotational latency delay rpm spindle">
+            <div class="def-card-top">
+              <span class="def-term">Rotational Latency</span>
+              <span class="def-badge">Latency Component</span>
+            </div>
+            <p class="def-meaning">
+              The time elapsed while the read/write head remains stationary over the target track, waiting for the platter's constant rotation to bring the beginning of the requested sector directly beneath the head.
+            </p>
+            <div class="def-meta">
+              <div>Calculation: <strong>Average delay = 1/2 of one full platter revolution</strong></div>
+              <div>At 7,200 RPM: <strong>Average 4.16 ms rotational delay</strong></div>
+              <div>At 15,000 RPM: <strong>Average 2.00 ms rotational delay</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="transfer time magnetic streaming bus data">
+            <div class="def-card-top">
+              <span class="def-term">Transfer Time</span>
+              <span class="def-badge">Latency Component</span>
+            </div>
+            <p class="def-meaning">
+              The duration required for data bits to physically pass beneath the head and stream across the drive controller buffer to the host interface once seek and rotational delays have completed.
+            </p>
+            <div class="def-meta">
+              <div>Relative Speed: <strong>Fraction of a millisecond for individual pages</strong></div>
+              <div>Sustained Sequential Rate: <strong>150 – 260 MB/s on modern enterprise HDDs</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="sequential io contiguous stream streaming">
+            <div class="def-card-top">
+              <span class="def-term">Sequential I/O</span>
+              <span class="def-badge">Access Pattern</span>
+            </div>
+            <p class="def-meaning">
+              Storage read or write operations targeting contiguous, consecutive logical block addresses. On an HDD, sequential I/O allows the actuator arm to remain parked on adjacent tracks, eliminating seek penalties and achieving maximum streaming bandwidth.
+            </p>
+            <div class="def-meta">
+              <div>HDD Performance: <strong>High (150–250+ MB/s)</strong></div>
+              <div>Software Alignment: <strong>Utilized in Write-Ahead Logs (WAL), sequential table scans, backups</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="random io iops seek penalty fragmentation">
+            <div class="def-card-top">
+              <span class="def-term">Random I/O</span>
+              <span class="def-badge">Access Pattern</span>
+            </div>
+            <p class="def-meaning">
+              Input/output operations addressing disparate, non-contiguous sectors scattered across different tracks and rotational angles. Forces the mechanical arm to repeatedly seek and wait for platter revolutions, causing throughput to collapse down to single-digit MB/s.
+            </p>
+            <div class="def-meta">
+              <div>HDD Performance: <strong>Catastrophic drop to 75–200 IOPS (&lt; 2 MB/s)</strong></div>
+              <div>Mitigation: <strong>Batching, in-memory buffering (LSM-trees), elevator schedulers</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="hdd" data-terms="defragmentation hdd disk sectors contiguous">
+            <div class="def-card-top">
+              <span class="def-term">Defragmentation (HDD)</span>
+              <span class="def-badge">Maintenance</span>
+            </div>
+            <p class="def-meaning">
+              A software optimization process that physically reorganizes fragmented file pieces scattered across non-contiguous tracks into contiguous physical sectors on identical cylinders, eliminating mechanical actuator arm travel during subsequent reads.
+            </p>
+            <div class="def-meta">
+              <div>Relevance: <strong>Critical for mechanical hard drives</strong></div>
+              <div>Contraindication: <strong>Never run on SSDs (causes useless NAND wear without benefit)</strong></div>
+            </div>
+          </div>
+
+          <!-- SSD & SILICON -->
+          <div class="def-card" data-category="ssd" data-terms="ssd solid state drive flash semiconductor">
+            <div class="def-card-top">
+              <span class="def-term">Solid-State Drive (SSD)</span>
+              <span class="def-badge">Solid-State Silicon</span>
+            </div>
+            <p class="def-meaning">
+              A non-volatile computer storage device that uses semiconductor NAND flash memory chips rather than magnetic platters to store data persistently. Eliminates mechanical seek times and rotational latency, delivering tens of microseconds read latency.
+            </p>
+            <div class="def-meta">
+              <div>Random Read Latency: <strong>20 – 60 microseconds</strong></div>
+              <div>Typical IOPS: <strong>100,000 to 1,000,000+ IOPS</strong></div>
+              <div>Key Advantage: <strong>Virtually zero penalty for random read access</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="nvme non volatile memory express pcie pci express">
+            <div class="def-card-top">
+              <span class="def-term">NVMe (Non-Volatile Memory Express)</span>
+              <span class="def-badge">Host Interface</span>
+            </div>
+            <p class="def-meaning">
+              An open host controller interface and storage protocol designed specifically to connect non-volatile memory directly to the CPU across high-speed PCI Express (PCIe) lanes. Replaces legacy SATA/AHCI protocols with parallel multi-queue architectures supporting up to 64,000 queues with 64,000 commands each.
+            </p>
+            <div class="def-meta">
+              <div>Bus Interface: <strong>Direct PCIe Gen4/Gen5 lanes (multiple GB/s bandwidth)</strong></div>
+              <div>Concurrency: <strong>64,000 hardware queues vs. 1 queue with 32 slots in SATA/AHCI</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="nand flash floating gate charge trap memory">
+            <div class="def-card-top">
+              <span class="def-term">NAND Flash Memory</span>
+              <span class="def-badge">Silicon Tech</span>
+            </div>
+            <p class="def-meaning">
+              A non-volatile solid-state storage technology based on floating-gate or charge-trap field-effect transistors. Electrical charges trapped in an insulated oxide layer alter the transistor's threshold voltage, persistently encoding binary states without requiring continuous electrical power.
+            </p>
+            <div class="def-meta">
+              <div>Endurance: <strong>Finite Program/Erase (P/E) cycles due to oxide breakdown</strong></div>
+              <div>Cell Types: <strong>SLC (1 bit), MLC (2 bits), TLC (3 bits), QLC (4 bits per cell)</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="3d nand flash vertical stacking layers">
+            <div class="def-card-top">
+              <span class="def-term">3D NAND Flash</span>
+              <span class="def-badge">Silicon Architecture</span>
+            </div>
+            <p class="def-meaning">
+              A solid-state manufacturing architecture that stacks memory cells vertically in dozens or hundreds of microscopic layers (e.g. 176–232+ layers) on a single silicon die, dramatically increasing bit density while reducing interference between adjacent floating gates.
+            </p>
+            <div class="def-meta">
+              <div>Capacity Benefit: <strong>Multi-terabyte SSDs in compact M.2 or U.2 form factors</strong></div>
+              <div>Reliability: <strong>Larger physical cell geometry compared to sub-15nm planar 2D NAND</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="flash page read write unit 4k 16k">
+            <div class="def-card-top">
+              <span class="def-term">Flash Page</span>
+              <span class="def-badge">NAND Granularity</span>
+            </div>
+            <p class="def-meaning">
+              The smallest addressable unit for read and write (program) operations in NAND flash memory. A single page typically holds 4KB, 8KB, or 16KB of data, accompanied by extra out-of-band bytes dedicated to Error-Correcting Code (ECC) metadata.
+            </p>
+            <div class="def-meta">
+              <div>Read Speed: <strong>20 – 50 microseconds</strong></div>
+              <div>Program Speed: <strong>200 – 500 microseconds</strong></div>
+              <div>Golden Rule: <strong>A page can only be programmed if it is already in an erased state</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="erase block erase unit high voltage clear">
+            <div class="def-card-top">
+              <span class="def-term">Erase Block (Erase Unit)</span>
+              <span class="def-badge">NAND Granularity</span>
+            </div>
+            <p class="def-meaning">
+              The smallest unit of data that can be electrically cleared (erased) in NAND flash. An erase block comprises hundreds of individual pages (typically spanning 2MB to 8MB). Because erasure requires applying high reverse-voltage pulses to the substrate, individual pages cannot be erased in isolation.
+            </p>
+            <div class="def-meta">
+              <div>Size: <strong>2 MB to 8 MB (128 to 512 pages)</strong></div>
+              <div>Erase Latency: <strong>2 – 5 milliseconds</strong></div>
+              <div>Asymmetry Cause: <strong>Creates the fundamental page write vs block erase dilemma</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="ftl flash translation layer firmware lba pba">
+            <div class="def-card-top">
+              <span class="def-term">Flash Translation Layer (FTL)</span>
+              <span class="def-badge">Drive Firmware</span>
+            </div>
+            <p class="def-meaning">
+              The embedded microcontroller firmware operating inside an SSD that abstracts the underlying NAND flash physics. Translates OS Logical Block Addresses (LBAs) into Physical Block Addresses (PBAs), orchestrating out-of-place writes, wear leveling, and background garbage collection.
+            </p>
+            <div class="def-meta">
+              <div>Core Function: <strong>Maintains in-memory address mapping table (often cached in drive DRAM)</strong></div>
+              <div>Crucial Role: <strong>Prevents host operating systems from needing to manage physical flash cells</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="garbage collection ssd invalid pages reclaim">
+            <div class="def-card-top">
+              <span class="def-term">Garbage Collection (SSD)</span>
+              <span class="def-badge">SSD Maintenance</span>
+            </div>
+            <p class="def-meaning">
+              The background maintenance process performed by the FTL to reclaim flash storage space. The controller identifies erase blocks containing stale, invalidated pages, copies the surviving valid pages to an empty block, and discharges the original block back to a clean state.
+            </p>
+            <div class="def-meta">
+              <div>Overhead: <strong>Generates background read/write traffic that causes write amplification</strong></div>
+              <div>Latency Impact: <strong>Synchronous garbage collection stalls incoming host writes</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="waf write amplification factor host bytes written">
+            <div class="def-card-top">
+              <span class="def-term">Write Amplification Factor (WAF)</span>
+              <span class="def-badge">Efficiency Metric</span>
+            </div>
+            <p class="def-meaning">
+              The numerical ratio of the total physical bytes written to the underlying NAND flash media divided by the logical bytes requested by the host operating system. A WAF of 1.0 is ideal; elevated WAF accelerates drive degradation and degrades write throughput.
+            </p>
+            <div class="def-meta">
+              <div>Formula: <strong>WAF = Total Bytes Written to Flash / Host Bytes Written</strong></div>
+              <div>Drivers: <strong>Random 4KB writes, internal page migration during garbage collection</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="wear leveling pe cycles tbw cell degradation">
+            <div class="def-card-top">
+              <span class="def-term">Wear Leveling &amp; P/E Cycles</span>
+              <span class="def-badge">Durability Physics</span>
+            </div>
+            <p class="def-meaning">
+              The algorithmic technique used by the FTL to distribute write and erase cycles evenly across every physical block on the drive. Prevents frequently written blocks (e.g. database logs) from exhausting their Program/Erase (P/E) endurance while static blocks sit untouched.
+            </p>
+            <div class="def-meta">
+              <div>Dynamic Wear Leveling: <strong>Writes new data only to blocks with low erase counts</strong></div>
+              <div>Static Wear Leveling: <strong>Periodically relocates unchanging data to free up worn blocks</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="tbw terabytes written endurance warranty">
+            <div class="def-card-top">
+              <span class="def-term">Terabytes Written (TBW)</span>
+              <span class="def-badge">Endurance Metric</span>
+            </div>
+            <p class="def-meaning">
+              A standard industry specification defining the total cumulative volume of data that can be written to an SSD over its operational lifespan before the failure rate of its NAND flash cells exceeds manufacturer warranty specifications.
+            </p>
+            <div class="def-meta">
+              <div>Typical Enterprise 2TB SSD: <strong>1,200 to 3,000+ TBW</strong></div>
+              <div>Monitoring: <strong>Tracked by systems engineers via S.M.A.R.T. health metrics</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="trim command ata nvme delete deallocate">
+            <div class="def-card-top">
+              <span class="def-term">TRIM Command</span>
+              <span class="def-badge">OS / Storage Protocol</span>
+            </div>
+            <p class="def-meaning">
+              An ATA/NVMe command issued by the operating system informing the SSD that specific logical block ranges no longer contain valid file data (e.g. after a file deletion). Allows the FTL to avoid copying dead data during garbage collection cycles, directly reducing WAF.
+            </p>
+            <div class="def-meta">
+              <div>Benefit: <strong>Lowers write amplification and sustains long-term write throughput</strong></div>
+              <div>Mechanism: <strong>Marks pages as invalid immediately in the FTL mapping table</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="ssd" data-terms="multi channel striping parallelism nand dies">
+            <div class="def-card-top">
+              <span class="def-term">Multi-Channel Striping</span>
+              <span class="def-badge">SSD Architecture</span>
+            </div>
+            <p class="def-meaning">
+              An architectural design where the SSD controller distributes data across multiple physical NAND dies connected via 4, 8, or 16 independent internal channels. Reading or writing across channels in parallel multiplies aggregate throughput to saturate PCIe bus interfaces.
+            </p>
+            <div class="def-meta">
+              <div>Throughput Multiplication: <strong>4 channels = 4x simultaneous page transfer capacity</strong></div>
+              <div>Analogy: <strong>Internal hardware RAID-0 across silicon packages</strong></div>
+            </div>
+          </div>
+
+          <!-- QUEUING & SCHEDULING -->
+          <div class="def-card" data-category="queue" data-terms="io queue queue depth blk mq ncq">
+            <div class="def-card-top">
+              <span class="def-term">I/O Queue &amp; Queue Depth</span>
+              <span class="def-badge">Queuing Theory</span>
+            </div>
+            <p class="def-meaning">
+              A software or hardware buffer that holds pending input/output operations waiting for service by storage devices. <em>Queue depth</em> represents the number of concurrent outstanding requests submitted to the storage system at a given moment.
+            </p>
+            <div class="def-meta">
+              <div>Kernel Layer: <strong>Linux multi-queue block layer (<code>blk-mq</code>)</strong></div>
+              <div>Device Layer: <strong>Hardware controller submission queues on drive</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="queue" data-terms="elevator algorithm scan c scan look scheduling">
+            <div class="def-card-top">
+              <span class="def-term">Elevator Algorithm (SCAN / C-SCAN)</span>
+              <span class="def-badge">I/O Scheduling</span>
+            </div>
+            <p class="def-meaning">
+              An I/O scheduling algorithm that sorts queued requests by physical track/cylinder address, servicing them in a continuous sweeping pass across the platter. Prevents wild actuator arm thrashing by treating disk tracks like floors in a 10-story elevator.
+            </p>
+            <div class="def-meta">
+              <div>Benefit: <strong>Dramatically reduces total mechanical head travel distance</strong></div>
+              <div>Tradeoff: <strong>Creates latency variance; can deprioritize requests on far tracks</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="queue" data-terms="request coalescing merging block layer adjacent">
+            <div class="def-card-top">
+              <span class="def-term">Request Coalescing (Merging)</span>
+              <span class="def-badge">I/O Optimization</span>
+            </div>
+            <p class="def-meaning">
+              An optimization performed by kernel I/O schedulers or drive controllers where multiple logically adjacent read or write commands (e.g. Request B and E on track 85 and 86) are merged into a single contiguous hardware transfer command.
+            </p>
+            <div class="def-meta">
+              <div>Advantage: <strong>Reduces protocol command overhead and bus interrupt frequency</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="queue" data-terms="latency jitter tail latency p99 variance">
+            <div class="def-card-top">
+              <span class="def-term">Latency Jitter &amp; Tail Latency</span>
+              <span class="def-badge">Performance Metric</span>
+            </div>
+            <p class="def-meaning">
+              The statistical dispersion and variance in request response times. While median (p50) latency measures typical execution, <em>tail latency</em> (p99, p99.9) captures the worst-case delays experienced when requests wait behind long queues, head seeks, or garbage collection stalls.
+            </p>
+            <div class="def-meta">
+              <div>SLA Impact: <strong>In distributed queries touching 100 nodes, p99 latency dominates user wait time</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="queue" data-terms="ncq native command queuing sata ahci">
+            <div class="def-card-top">
+              <span class="def-term">Native Command Queuing (NCQ)</span>
+              <span class="def-badge">SATA Protocol</span>
+            </div>
+            <p class="def-meaning">
+              A SATA protocol feature enabling hard drives and SATA SSDs to receive up to 32 commands simultaneously, allowing the onboard drive controller to internally determine the most efficient execution order based on current platter rotation and head position.
+            </p>
+            <div class="def-meta">
+              <div>Capacity: <strong>Up to 32 pending commands in hardware queue</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="queue" data-terms="hba host bus adapter pcie sata sas">
+            <div class="def-card-top">
+              <span class="def-term">Host Bus Adapter (HBA) &amp; I/O Buses</span>
+              <span class="def-badge">Hardware Bus</span>
+            </div>
+            <p class="def-meaning">
+              The physical circuit interface and transport bus connecting the central processor to external storage peripherals. Modern architectures rely on PCIe lanes for direct NVMe communication, or SATA/SAS controllers for legacy disks and network arrays.
+            </p>
+            <div class="def-meta">
+              <div>PCIe Gen4 x4: <strong>~7.88 GB/s bidirectional throughput</strong></div>
+              <div>SATA 3.0: <strong>Capped at 600 MB/s (6 Gbps PHY rate)</strong></div>
+            </div>
+          </div>
+
+          <!-- CLOUD & DISTRIBUTED -->
+          <div class="def-card" data-category="cloud" data-terms="ec2 elastic compute cloud aws virtual machine">
+            <div class="def-card-top">
+              <span class="def-term">Amazon EC2</span>
+              <span class="def-badge">Cloud Compute</span>
+            </div>
+            <p class="def-meaning">
+              Amazon Web Services' Elastic Compute Cloud platform providing resizable virtualized and bare-metal compute instances running inside AWS global data centers. Compute instances connect to either direct-attached local storage or networked block devices.
+            </p>
+            <div class="def-meta">
+              <div>Primary Role: <strong>Hosting production compute workloads, databases, and microservices</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="ec2 local nvme instance store ephemeral metal">
+            <div class="def-card-top">
+              <span class="def-term">EC2 Local NVMe (Instance Store)</span>
+              <span class="def-badge">High-Perf Cloud</span>
+            </div>
+            <p class="def-meaning">
+              Physical enterprise NVMe solid-state disks physically installed inside the host server hardware running the virtual machine. Delivers sub-millisecond (microsecond) latency and millions of IOPS without traversing data center network fabrics.
+            </p>
+            <div class="def-meta">
+              <div>Latency: <strong>20 – 60 microseconds</strong></div>
+              <div>Durability Constraint: <strong>Fundamentally ephemeral; lost immediately if VM halts or fails</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="ephemeral storage instance store temporary loss">
+            <div class="def-card-top">
+              <span class="def-term">Ephemeral Storage</span>
+              <span class="def-badge">Cloud Lifecycle</span>
+            </div>
+            <p class="def-meaning">
+              Storage volumes whose lifecycle is strictly bound to the running instance of a virtual machine. If the instance is stopped, rebooted across hypervisors, or encounters hardware termination, all residing data is irreversibly wiped.
+            </p>
+            <div class="def-meta">
+              <div>Engineering Requirement: <strong>Must be paired with consensus replication (Raft) across multiple nodes</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="ebs elastic block store network attached volume">
+            <div class="def-card-top">
+              <span class="def-term">AWS Elastic Block Store (EBS)</span>
+              <span class="def-badge">Networked Storage</span>
+            </div>
+            <p class="def-meaning">
+              A high-availability, network-attached virtual block storage service in AWS. EBS volumes reside on distributed SSD arrays mounted to EC2 instances over dedicated data center networks, persisting data independently of the virtual machine's lifespan.
+            </p>
+            <div class="def-meta">
+              <div>Latency: <strong>0.8 – 3.0 milliseconds (Network switch roundtrip)</strong></div>
+              <div>Advantage: <strong>Persistent, snapshot-capable, dynamically expandable</strong></div>
+              <div>Cost Factor: <strong>Costs scale heavily when provisioning high IOPS and throughput</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="s3 simple storage service object store 11 nines">
+            <div class="def-card-top">
+              <span class="def-term">AWS Simple Storage Service (S3)</span>
+              <span class="def-badge">Object Storage</span>
+            </div>
+            <p class="def-meaning">
+              An internet-scale object storage service engineered for 99.999999999% (11 nines) of data durability. Backed by tens of millions of mechanical hard disk drives augmented by solid-state caching tiers, accessible globally via HTTP REST APIs.
+            </p>
+            <div class="def-meta">
+              <div>Latency: <strong>30 – 100 milliseconds (HTTP/TLS overhead)</strong></div>
+              <div>Cost: <strong>Inexpensive (~$0.023 per GB/month; ~4x cheaper than EBS)</strong></div>
+              <div>Durability: <strong>Automatically replicated across minimum 3 physical Availability Zones</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="object storage rest api metadata flat bucket">
+            <div class="def-card-top">
+              <span class="def-term">Object Storage</span>
+              <span class="def-badge">Storage Paradigm</span>
+            </div>
+            <p class="def-meaning">
+              A storage architecture that manages data as discrete, self-contained objects bundled with rich custom metadata and unique key identifiers inside flat namespaces (buckets), completely dispensing with traditional hierarchical directory trees and block offsets.
+            </p>
+            <div class="def-meta">
+              <div>Access Method: <strong>HTTP REST calls (<code>GET</code>, <code>PUT</code>, <code>DELETE</code>)</strong></div>
+              <div>Scalability: <strong>Virtually limitless exabyte scaling across thousands of storage nodes</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="multi az consensus replication raft paxos planetscale">
+            <div class="def-card-top">
+              <span class="def-term">Multi-AZ Consensus Replication</span>
+              <span class="def-badge">Distributed Systems</span>
+            </div>
+            <p class="def-meaning">
+              An architectural pattern (utilized by PlanetScale Metal and distributed databases) where database writes are replicated synchronously or semi-synchronously across three distinct physical data center facilities (Availability Zones) using consensus protocols like Raft.
+            </p>
+            <div class="def-meta">
+              <div>Resilience: <strong>Enables safe use of ultra-fast ephemeral local NVMe without data loss</strong></div>
+              <div>Fault Tolerance: <strong>Withstands the total catastrophic failure of an entire data center</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="tiered storage hsm lru cache hot cold warm">
+            <div class="def-card-top">
+              <span class="def-term">Tiered Storage (Hierarchical Storage)</span>
+              <span class="def-badge">System Pattern</span>
+            </div>
+            <p class="def-meaning">
+              A storage methodology that automatically distributes data across different physical media tiers based on access frequency, performance demands, and cost constraints—placing hot data in DRAM/NVMe while offloading cold historical data to object storage or tape.
+            </p>
+            <div class="def-meta">
+              <div>80/20 Rule: <strong>Succeeds when a small fraction of data absorbs the vast majority of queries</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="turbopuffer vector database tiered s3 nvme ram">
+            <div class="def-card-top">
+              <span class="def-term">TurboPuffer Pattern</span>
+              <span class="def-badge">Database Architecture</span>
+            </div>
+            <p class="def-meaning">
+              A modern cloud-native database design pattern (exemplified by the TurboPuffer vector database) that uses local server RAM and NVMe SSDs as an LRU cache for hot search queries while utilizing AWS S3 as the ultimate, low-cost durable source of truth.
+            </p>
+            <div class="def-meta">
+              <div>Speed &amp; Economics: <strong>Delivers sub-millisecond search latencies at commodity S3 storage prices</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="google colossus gfs distributed file system predictive">
+            <div class="def-card-top">
+              <span class="def-term">Google Colossus</span>
+              <span class="def-badge">Distributed Systems</span>
+            </div>
+            <p class="def-meaning">
+              Google's second-generation planet-scale distributed file system (successor to GFS) that underpins Google Cloud Storage, BigTable, and YouTube. Uses predictive algorithms to dynamically tier data between fast SSD arrays and high-capacity magnetic disk pools based on real-time traffic demand.
+            </p>
+            <div class="def-meta">
+              <div>Scale: <strong>Manages exabytes of data across hundreds of thousands of storage nodes</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="magnetic tape lto cold archive offline">
+            <div class="def-card-top">
+              <span class="def-term">Magnetic Tape Storage (LTO)</span>
+              <span class="def-badge">Cold Archive</span>
+            </div>
+            <p class="def-meaning">
+              A sequential recording medium utilizing a thin magnetic coating on plastic ribbon wound onto spools (such as LTO-9). Consumes zero electrical power when sitting offline on warehouse shelves, offering the lowest cost per petabyte for compliance and disaster recovery.
+            </p>
+            <div class="def-meta">
+              <div>Cost per GB: <strong>~$0.002 per GB (orders of magnitude cheaper than SSDs)</strong></div>
+              <div>Access Model: <strong>Purely sequential; loading tape cartridges takes minutes</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="nas network attached storage nfs smb raid">
+            <div class="def-card-top">
+              <span class="def-term">Network-Attached Storage (NAS)</span>
+              <span class="def-badge">Storage Appliance</span>
+            </div>
+            <p class="def-meaning">
+              A dedicated storage server appliance connected to a local area network (LAN) that provides centralized file-level data access (via NFS, SMB/CIFS) to multiple client devices. Frequently packed with high-capacity 3.5-inch mechanical HDDs arranged in RAID arrays for cost efficiency.
+            </p>
+            <div class="def-meta">
+              <div>Primary Use: <strong>Household media libraries, office shared drives, local automated backups</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="ttft time to first token ttfb latency streaming">
+            <div class="def-card-top">
+              <span class="def-term">Time to First Token (TTFT) / TTFB</span>
+              <span class="def-badge">Latency Metric</span>
+            </div>
+            <p class="def-meaning">
+              Critical latency metrics measuring the elapsed duration from when a client submits a request until the very first byte (TTFB) or initial AI response token (TTFT) is emitted. Dictated by memory bandwidth, queue delays, and prefill compute latencies.
+            </p>
+            <div class="def-meta">
+              <div>Application: <strong>Streaming LLM chat interfaces, real-time agentic workflows</strong></div>
+            </div>
+          </div>
+
+          <div class="def-card" data-category="cloud" data-terms="systems performance brendan gregg ftrace bpf tracing">
+            <div class="def-card-top">
+              <span class="def-term">Systems Performance Methodology</span>
+              <span class="def-badge">Engineering Discipline</span>
+            </div>
+            <p class="def-meaning">
+              The rigorous discipline codified by Brendan Gregg in <em>Systems Performance</em>, prioritizing holistic hardware-software boundaries, queuing theory, utilization, saturation, and error metrics (USE Method) over isolated microbenchmarks or tool-specific obsessions.
+            </p>
+            <div class="def-meta">
+              <div>Reference Work: <strong>Systems Performance: Enterprise and the Cloud (880 pages)</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Summary & Cheat Sheet -->
+      <section style="margin: 4rem 0;">
+        <div class="card-label">Comprehensive Reference</div>
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; margin-bottom: 0.75rem;">Summary &amp; Engineering Cheat Sheet</h3>
+        <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 1.5rem;">Key metrics, operational boundaries, and physical rules across storage technologies.</p>
+
+        <div class="table-container">
+          <table class="cheat-table">
+            <thead>
+              <tr>
+                <th>Technology</th>
+                <th>Physical Mechanism</th>
+                <th>Typical Latency</th>
+                <th>Random IOPS</th>
+                <th>Cost / GB</th>
+                <th>Primary Bottleneck</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>L1 / L2 / L3 Cache</strong></td>
+                <td>On-die SRAM flip-flops</td>
+                <td>0.5 – 15 ns</td>
+                <td>100,000,000+</td>
+                <td>~$50,000+</td>
+                <td>Physical silicon wafer real estate &amp; thermal limits</td>
+              </tr>
+              <tr>
+                <td><strong>DRAM (Main Memory)</strong></td>
+                <td>Capacitor + transistor cell</td>
+                <td>50 – 100 ns</td>
+                <td>10,000,000+</td>
+                <td>~$3.00 – $6.00</td>
+                <td>Volatile memory bus bandwidth &amp; refresh cycles</td>
+              </tr>
+              <tr>
+                <td><strong>NVMe SSD (PCIe Gen4)</strong></td>
+                <td>3D NAND charge traps</td>
+                <td>20 – 60 &mu;s</td>
+                <td>100,000 – 1M+</td>
+                <td>~$0.18 – $0.25</td>
+                <td>Garbage collection, block erasure &amp; write amplification</td>
+              </tr>
+              <tr>
+                <td><strong>HDD (Enterprise 7200 RPM)</strong></td>
+                <td>Magnetic spinning platters</td>
+                <td>4 – 10 ms</td>
+                <td>75 – 200</td>
+                <td>~$0.04 – $0.06</td>
+                <td>Physical actuator arm seek time &amp; rotational latency</td>
+              </tr>
+              <tr>
+                <td><strong>AWS EBS (GP3)</strong></td>
+                <td>Network-attached SSD array</td>
+                <td>0.8 – 3.0 ms</td>
+                <td>3,000 – 16,000</td>
+                <td>~$0.08 – $0.12</td>
+                <td>Data center network roundtrips &amp; provisioned rate limits</td>
+              </tr>
+              <tr>
+                <td><strong>AWS S3 (Standard)</strong></td>
+                <td>Distributed HDDs + SSD cache</td>
+                <td>30 – 100 ms</td>
+                <td>Partition scalable</td>
+                <td>~$0.023</td>
+                <td>HTTP/TLS handshakes, connection setup &amp; serialization</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- FAQ Section -->
+      <section style="margin: 4rem 0;">
+        <div class="card-label">Frequently Clarified Points</div>
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; margin-bottom: 1.25rem;">Frequently Asked Questions</h3>
+
+        <div class="faq-item">
+          <div class="faq-q">Can we simply use an SSD as a transparent cache for an HDD or S3?</div>
+          <div class="faq-a">
+            Yes, this is precisely how tiered architectures (like modern vector databases and Google's Colossus file system) operate. However, this strategy only succeeds when access patterns exhibit high temporal or spatial locality (the 80/20 or 99/1 rule). If queries are uniformly distributed across a 100-terabyte dataset, the SSD cache experiences constant misses, churns dirty blocks, and adds unnecessary routing overhead without improving performance.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Where exactly does the I/O queue live—in the operating system or on the drive?</div>
+          <div class="faq-a">
+            Both. The Linux kernel maintains multiple block-layer I/O queues (via <code>blk-mq</code>) where elevator schedulers (such as BFQ, Kyber, or none/mq-deadline) operate. Once dispatched across the bus, requests enter the physical drive's hardware controller queue (e.g., Native Command Queuing for SATA with 32 slots, or NVMe queues supporting up to 64,000 commands across 64,000 queues).
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Why does the recent AI boom impact standard computer storage and RAM prices?</div>
+          <div class="faq-a">
+            Modern AI model training requires tens of thousands of GPUs equipped with High Bandwidth Memory (HBM) and vast server clusters packed with terabytes of system DRAM. Silicon fabrication facilities (TSMC, Samsung, SK Hynix, Micron) reallocated significant wafer production capacity toward HBM and high-density enterprise memory, reducing consumer DDR5 DRAM and NAND flash supply and sparking global price inflation.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">What actually happens when a file is deleted from an SSD?</div>
+          <div class="faq-a">
+            The operating system simply marks the file's sectors as free in its file system metadata table and sends an asynchronous <code>TRIM</code> command to the drive. The SSD does not immediately zero out the physical flash cells. Instead, the Flash Translation Layer marks those logical pages as "invalid." The actual electrical erasure only occurs later during background garbage collection when the entire block is recycled.
+          </div>
+        </div>
+      </section>
+
+      <!-- Next Steps -->
+      <section style="margin: 4rem 0;">
+        <div class="card-label">Practical Application</div>
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; margin-bottom: 1rem;">Next Engineering Steps</h3>
+        <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 1.5rem;">Recommended hands-on exercises to anchor your understanding of I/O performance.</p>
+
+        <div class="next-steps-grid">
+          <div class="step-card">
+            <h4>1. Benchmark with fio</h4>
+            <p>Run the <code>fio</code> flexible I/O tester on your local machine to directly measure sequential versus 4K random read IOPS and latency percentiles on your local drive.</p>
+          </div>
+          <div class="step-card">
+            <h4>2. Inspect Kernel I/O Schedulers</h4>
+            <p>Check your Linux kernel's active block scheduler using <code>cat /sys/block/&lt;dev&gt;/queue/scheduler</code> and observe how queue depth changes with <code>iostat -xz 1</code>.</p>
+          </div>
+          <div class="step-card">
+            <h4>3. Model Tiered Storage Costs</h4>
+            <p>Calculate the monthly cost difference between running a 10TB database on AWS EBS GP3 versus a hybrid local NVMe caching tier backed by S3 object storage.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="lesson-footer">
+        <div>I/O Devices, Latency &amp; Storage Architecture &bull; Self-Contained Study Unit</div>
+        <div>Engineered for Deep Learning</div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Vanilla JavaScript Logic -->
+  <script>
+    // Theme Management
+    const themeBtn = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+
+    function initTheme() {
+      const savedTheme = localStorage.getItem('lesson_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      updateThemeUI(savedTheme);
+    }
+
+    function updateThemeUI(theme) {
+      if (theme === 'dark') {
+        themeIcon.innerHTML = '&#9788;';
+        themeText.textContent = 'Light';
+      } else {
+        themeIcon.innerHTML = '&#9790;';
+        themeText.textContent = 'Dark';
+      }
+    }
+
+    themeBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      const target = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', target);
+      localStorage.setItem('lesson_theme', target);
+      updateThemeUI(target);
+    });
+    initTheme();
+
+    // Scroll Progress & Nav Sync
+    const progressBar = document.getElementById('progress-bar');
+    const sidebarProgress = document.getElementById('sidebar-progress');
+    const completionPct = document.getElementById('completion-pct');
+    const navLinks = document.querySelectorAll('.module-nav-item');
+    const sections = document.querySelectorAll('.module-section');
+
+    window.addEventListener('scroll', () => {
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrolled = window.scrollY;
+      const pct = docHeight > 0 ? Math.min(100, Math.round((scrolled / docHeight) * 100)) : 0;
+
+      progressBar.style.width = pct + '%';
+      sidebarProgress.style.width = pct + '%';
+      completionPct.textContent = pct + '%';
+
+      // Highlight active section in sidebar
+      let currentSectionId = '';
+      sections.forEach(section => {
+        const top = section.offsetTop - 120;
+        if (scrolled >= top) {
+          currentSectionId = section.getAttribute('id');
+        }
+      });
+
+      if (currentSectionId) {
+        navLinks.forEach(link => {
+          if (link.getAttribute('href') === '#' + currentSectionId) {
+            link.classList.add('active');
+          } else if (link.getAttribute('href').startsWith('#module-')) {
+            link.classList.remove('active');
+          }
+        });
+      }
+    });
+
+    // ----------------------------------------------------
+    // LAB 1: HDD Simulator Logic
+    // ----------------------------------------------------
+    const platterData = document.getElementById('platter-data');
+    const actuatorArm = document.getElementById('actuator-arm');
+    const hddModeLabel = document.getElementById('hdd-mode-label');
+    const armStatus = document.getElementById('arm-status');
+    const rpmStatus = document.getElementById('rpm-status');
+    const seekTimeDisp = document.getElementById('seek-time-disp');
+    const rotDelayDisp = document.getElementById('rot-delay-disp');
+    const throughputDisp = document.getElementById('throughput-disp');
+
+    let hddAnimId = null;
+    let platterRotation = 0;
+    let isSpinning = false;
+
+    function spinPlatter(rpm) {
+      if (hddAnimId) cancelAnimationFrame(hddAnimId);
+      const step = (rpm / 60) * 360 / 60; // 60 fps
+      function animate() {
+        platterRotation = (platterRotation + step) % 360;
+        platterData.setAttribute('transform', `rotate(${platterRotation} 160 160)`);
+        hddAnimId = requestAnimationFrame(animate);
+      }
+      animate();
+    }
+
+    document.getElementById('btn-seq-read').addEventListener('click', () => {
+      spinPlatter(7200);
+      rpmStatus.textContent = '7,200 RPM';
+      hddModeLabel.textContent = 'Sequential Read (Locked Track)';
+      armStatus.textContent = 'Stationary on Track 1 (Inner)';
+      actuatorArm.setAttribute('transform', 'rotate(18 40 40)'); // Inner track
+      seekTimeDisp.textContent = '4.2 ms (Single Seek)';
+      rotDelayDisp.textContent = '2.1 ms';
+      throughputDisp.textContent = '210 MB/s (High)';
+    });
+
+    document.getElementById('btn-rand-read').addEventListener('click', () => {
+      spinPlatter(7200);
+      rpmStatus.textContent = '7,200 RPM';
+      hddModeLabel.textContent = 'Random Read (Actuator Thrashing)';
+      seekTimeDisp.textContent = '28.5 ms (Accumulated Seeks)';
+      rotDelayDisp.textContent = '16.8 ms (Multiple Revolutions)';
+      throughputDisp.textContent = '2.4 MB/s (Collapsed)';
+
+      let toggle = false;
+      let count = 0;
+      const interval = setInterval(() => {
+        toggle = !toggle;
+        actuatorArm.setAttribute('transform', toggle ? 'rotate(32 40 40)' : 'rotate(8 40 40)');
+        armStatus.textContent = toggle ? 'Seeking Outer Track...' : 'Seeking Inner Track...';
+        count++;
+        if (count > 8) {
+          clearInterval(interval);
+          armStatus.textContent = 'Random Sweep Complete';
+        }
+      }, 400);
+    });
+
+    document.getElementById('btn-reset-hdd').addEventListener('click', () => {
+      if (hddAnimId) cancelAnimationFrame(hddAnimId);
+      platterRotation = 0;
+      platterData.setAttribute('transform', 'rotate(0 160 160)');
+      actuatorArm.setAttribute('transform', 'rotate(18 40 40)');
+      hddModeLabel.textContent = 'Idle (Stopped)';
+      armStatus.textContent = 'Parked';
+      rpmStatus.textContent = '0 RPM';
+      seekTimeDisp.textContent = '0.0 ms';
+      rotDelayDisp.textContent = '0.0 ms';
+      throughputDisp.textContent = '0 MB/s';
+    });
+
+    // ----------------------------------------------------
+    // LAB 2: Elevator Queue Simulator
+    // ----------------------------------------------------
+    const initialQueue = [
+      { id: 'A', track: 10, color: '#ef4444' },
+      { id: 'B', track: 85, color: '#3b82f6' },
+      { id: 'C', track: 15, color: '#22c55e' },
+      { id: 'D', track: 90, color: '#f59e0b' },
+      { id: 'E', track: 86, color: '#8b5cf6' }
+    ];
+    let currentQueue = [...initialQueue];
+
+    function renderQueueStrip() {
+      const container = document.getElementById('queue-strip');
+      container.innerHTML = '';
+      currentQueue.forEach(item => {
+        const div = document.createElement('div');
+        div.style.background = 'var(--surface)';
+        div.style.border = '1px solid var(--border)';
+        div.style.borderRadius = 'var(--radius)';
+        div.style.padding = '0.4rem 0.75rem';
+        div.style.fontSize = '0.82rem';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.gap = '0.45rem';
+        div.innerHTML = `<span style="width: 10px; height: 10px; border-radius: 50%; background: ${item.color};"></span>
+                         <strong>Req ${item.id}</strong> (Cyl ${item.track})`;
+        container.appendChild(div);
+      });
+    }
+    renderQueueStrip();
+
+    document.getElementById('btn-shuffle-queue').addEventListener('click', () => {
+      currentQueue = initialQueue.map(item => ({
+        ...item,
+        track: Math.floor(Math.random() * 95) + 5
+      }));
+      renderQueueStrip();
+
+      // Recalculate travel
+      let fifoTrv = 0;
+      let curr = 50;
+      currentQueue.forEach(i => {
+        fifoTrv += Math.abs(i.track - curr);
+        curr = i.track;
+      });
+
+      const sorted = [...currentQueue].sort((a, b) => a.track - b.track);
+      let scanTrv = 0;
+      curr = 50;
+      sorted.forEach(i => {
+        scanTrv += Math.abs(i.track - curr);
+        curr = i.track;
+      });
+
+      document.getElementById('fifo-order').textContent = 'Order: ' + currentQueue.map(i => `${i.id}(${i.track})`).join(' → ');
+      document.getElementById('fifo-travel').textContent = `${fifoTrv} Tracks`;
+      document.getElementById('scan-order').textContent = 'Order: ' + sorted.map(i => `${i.id}(${i.track})`).join(' → ');
+      document.getElementById('scan-travel').textContent = `${scanTrv} Tracks`;
+    });
+
+    document.getElementById('btn-run-reorder').addEventListener('click', () => {
+      const container = document.getElementById('queue-strip');
+      const sorted = [...currentQueue].sort((a, b) => a.track - b.track);
+      currentQueue = sorted;
+      renderQueueStrip();
+    });
+
+    // ----------------------------------------------------
+    // LAB 3: NAND Striping Simulator
+    // ----------------------------------------------------
+    let isStriped = true;
+    const stripeMode = document.getElementById('stripe-mode');
+    const stripeConcurrency = document.getElementById('stripe-concurrency');
+    const stripeLatency = document.getElementById('stripe-latency');
+    const stripeUtil = document.getElementById('stripe-util');
+    const btnToggleStripe = document.getElementById('btn-toggle-stripe');
+    const btnFireRead = document.getElementById('btn-fire-read');
+
+    btnToggleStripe.addEventListener('click', () => {
+      isStriped = !isStriped;
+      if (isStriped) {
+        stripeMode.textContent = 'Striped Across 4 Dies';
+        stripeConcurrency.textContent = '4 Parallel Channels';
+        stripeLatency.textContent = '25 µs';
+        stripeUtil.textContent = '92% (High Bandwidth)';
+        btnToggleStripe.textContent = 'Switch to Single-Die Mode';
+      } else {
+        stripeMode.textContent = 'Concentrated on Single Die (Die 0)';
+        stripeConcurrency.textContent = '1 Channel (Serialized)';
+        stripeLatency.textContent = '100 µs (4x Slower)';
+        stripeUtil.textContent = '25% (Bus Underutilized)';
+        btnToggleStripe.textContent = 'Switch to Striped Mode';
+      }
+    });
+
+    btnFireRead.addEventListener('click', () => {
+      const dots = [
+        document.getElementById('blk-0-0'),
+        document.getElementById('blk-1-0'),
+        document.getElementById('blk-2-0'),
+        document.getElementById('blk-3-0'),
+        document.getElementById('blk-0-1'),
+        document.getElementById('blk-0-2'),
+        document.getElementById('blk-0-3')
+      ];
+      dots.forEach(d => { if (d) d.setAttribute('opacity', '0.3'); });
+
+      if (isStriped) {
+        // Flash 4 different dies simultaneously
+        ['blk-0-0', 'blk-1-0', 'blk-2-0', 'blk-3-0'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.setAttribute('opacity', '1');
+            setTimeout(() => el.setAttribute('opacity', '0.3'), 600);
+          }
+        });
+      } else {
+        // Flash sequentially on die 0
+        ['blk-0-0', 'blk-0-1', 'blk-0-2', 'blk-0-3'].forEach((id, idx) => {
+          setTimeout(() => {
+            const el = document.getElementById(id);
+            if (el) {
+              el.setAttribute('opacity', '1');
+              setTimeout(() => el.setAttribute('opacity', '0.3'), 250);
+            }
+          }, idx * 250);
+        });
+      }
+    });
+
+    // ----------------------------------------------------
+    // LAB 4: Memory Hierarchy Scale
+    // ----------------------------------------------------
+    const tierData = {
+      reg: {
+        name: "CPU Registers & L1 Cache",
+        latency: "0.5 – 1.0 Nanoseconds",
+        desc: "Integrated directly inside each core execution unit. Sub-nanosecond electrical access across SRAM flip-flop circuits.",
+        cap: "64 KB per core",
+        cost: "~$50,000+ / GB (Die Silicon)",
+        human: "~3 Seconds"
+      },
+      l3: {
+        name: "L3 Shared CPU Cache",
+        latency: "10 – 15 Nanoseconds",
+        desc: "Shared on-die SRAM buffer across all processor cores. Absorbs misses before memory bus crossing.",
+        cap: "16 MB – 96 MB",
+        cost: "~$10,000 / GB",
+        human: "~45 Seconds"
+      },
+      ram: {
+        name: "Main Memory (DDR5 RAM)",
+        latency: "50 – 90 Nanoseconds",
+        desc: "High-density capacitor DRAM chips accessed over motherboard memory buses. Volatile working state.",
+        cap: "16 GB – 512 GB",
+        cost: "~$3.50 / GB",
+        human: "~4 Minutes"
+      },
+      nvme: {
+        name: "Local NVMe SSD (PCIe 4.0)",
+        latency: "20 – 60 Microseconds",
+        desc: "Direct PCIe bus connection to multi-die 3D NAND flash cells. Persistent local block storage.",
+        cap: "1 TB – 8 TB",
+        cost: "~$0.20 / GB",
+        human: "~1.5 Days"
+      },
+      hdd: {
+        name: "Mechanical Hard Drive (7.2K RPM)",
+        latency: "4 – 10 Milliseconds",
+        desc: "Physical actuator arm seek and rotating magnetic platters. Highly susceptible to random seek stalls.",
+        cap: "4 TB – 24 TB",
+        cost: "~$0.05 / GB",
+        human: "~4.5 Months"
+      },
+      s3: {
+        name: "Cloud Object Storage (AWS S3)",
+        latency: "30 – 100 Milliseconds",
+        desc: "Remote HTTP REST calls traversing data center switches to arrays of tens of millions of spinning disks.",
+        cap: "Virtually Infinite (Exabytes)",
+        cost: "~$0.023 / GB / Mo",
+        human: "~3.5 Years"
+      }
+    };
+
+    const tierBtns = document.querySelectorAll('.tier-btn');
+    tierBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tierBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const key = btn.getAttribute('data-tier');
+        const data = tierData[key];
+        document.getElementById('tier-name').textContent = data.name;
+        document.getElementById('tier-latency').textContent = data.latency;
+        document.getElementById('tier-desc').textContent = data.desc;
+        document.getElementById('tier-cap').textContent = data.cap;
+        document.getElementById('tier-cost').textContent = data.cost;
+        document.getElementById('tier-human').textContent = data.human;
+      });
+    });
+
+    // ----------------------------------------------------
+    // LAB 5: TurboPuffer Tiered Storage Simulator
+    // ----------------------------------------------------
+    const workloadSelect = document.getElementById('workload-select');
+    const btnFireQueries = document.getElementById('btn-fire-queries');
+
+    btnFireQueries.addEventListener('click', () => {
+      const mode = workloadSelect.value;
+      let ramHits, nvmeHits, s3Misses, p50, p99, avg;
+
+      if (mode === 'skewed') {
+        ramHits = 902;
+        nvmeHits = 81;
+        s3Misses = 17;
+        p50 = '0.08 ms (DRAM)';
+        p99 = '42.1 ms (S3 Tail)';
+        avg = '1.24 ms';
+      } else if (mode === 'moderate') {
+        ramHits = 612;
+        nvmeHits = 294;
+        s3Misses = 94;
+        p50 = '0.12 ms (DRAM/NVMe)';
+        p99 = '68.4 ms (S3 Tail)';
+        avg = '5.82 ms';
+      } else {
+        ramHits = 104;
+        nvmeHits = 148;
+        s3Misses = 748;
+        p50 = '48.2 ms (S3 Dominant)';
+        p99 = '94.5 ms (Network Thrash)';
+        avg = '41.60 ms';
+      }
+
+      document.getElementById('stat-ram').textContent = `RAM Hits: ${ramHits}`;
+      document.getElementById('stat-nvme').textContent = `NVMe Hits: ${nvmeHits}`;
+      document.getElementById('stat-s3').textContent = `S3 Misses: ${s3Misses}`;
+      document.getElementById('stat-p50').textContent = p50;
+      document.getElementById('stat-p99').textContent = p99;
+      document.getElementById('stat-avg').textContent = avg;
+    });
+
+    // ----------------------------------------------------
+    // LAB 6: Concept Flashcards
+    // ----------------------------------------------------
+    const flashcards = [
+      { term: "Seek Time", ans: "The mechanical time required for an HDD actuator arm to radially accelerate and settle over the target cylinder (3–10 ms)." },
+      { term: "Rotational Latency", ans: "The duration an HDD must wait for the spinning platter to bring the target sector beneath the read/write head (averaging 2–4 ms at 7200–15000 RPM)." },
+      { term: "Elevator (SCAN) Scheduling", ans: "An I/O scheduling algorithm that reorders queued disk requests into a sweeping unidirectional pass across tracks to minimize mechanical head travel." },
+      { term: "NAND Erase Block Mismatch", ans: "In SSDs, reads and writes occur at the page level (4–16KB), but erasures can only occur across entire blocks (2–8MB), requiring out-of-place writes and garbage collection." },
+      { term: "Write Amplification Factor (WAF)", ans: "The ratio of physical bytes written to NAND flash compared to logical bytes sent by the OS host, elevated by background garbage collection page migrations." },
+      { term: "Instance Store Ephemerality", ans: "Direct-attached server NVMe drives that deliver extreme microsecond performance but lose all stored data upon virtual machine reboot, termination, or host failure." }
+    ];
+
+    let currentCardIdx = 0;
+    const cardInner = document.getElementById('card-inner');
+    const cardFrontText = document.getElementById('card-front-text');
+    const cardBackText = document.getElementById('card-back-text');
+    const cardIndexEl = document.getElementById('card-index');
+    const cardTotalEl = document.getElementById('card-total');
+
+    cardTotalEl.textContent = flashcards.length;
+
+    function renderCard() {
+      cardInner.classList.remove('flipped');
+      setTimeout(() => {
+        cardFrontText.textContent = flashcards[currentCardIdx].term;
+        cardBackText.textContent = flashcards[currentCardIdx].ans;
+        cardIndexEl.textContent = currentCardIdx + 1;
+      }, 150);
+    }
+
+    document.getElementById('flashcard').addEventListener('click', () => {
+      cardInner.classList.toggle('flipped');
+    });
+
+    document.getElementById('btn-prev-card').addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentCardIdx = (currentCardIdx - 1 + flashcards.length) % flashcards.length;
+      renderCard();
+    });
+
+    document.getElementById('btn-next-card').addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentCardIdx = (currentCardIdx + 1) % flashcards.length;
+      renderCard();
+    });
+
+    // ----------------------------------------------------
+    // LAB 7: Drag & Drop Matcher
+    // ----------------------------------------------------
+    const dragItems = document.querySelectorAll('.drag-item');
+    const dropSlots = document.querySelectorAll('.drop-slot');
+    let matchesCount = 0;
+
+    dragItems.forEach(item => {
+      item.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', item.getAttribute('data-term'));
+        item.classList.add('dragging');
+      });
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+      });
+    });
+
+    dropSlots.forEach(slot => {
+      slot.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        slot.classList.add('drag-over');
+      });
+      slot.addEventListener('dragleave', () => {
+        slot.classList.remove('drag-over');
+      });
+      slot.addEventListener('drop', (e) => {
+        e.preventDefault();
+        slot.classList.remove('drag-over');
+        const term = e.dataTransfer.getData('text/plain');
+        const expected = slot.getAttribute('data-accept');
+
+        if (term === expected) {
+          slot.classList.add('matched');
+          const draggedEl = document.querySelector(`.drag-item[data-term="${term}"]`);
+          slot.querySelector('.slot-content').innerHTML = `<strong>Matched:</strong> ${draggedEl.textContent}`;
+          draggedEl.style.display = 'none';
+          matchesCount++;
+          if (matchesCount === 4) {
+            document.getElementById('matcher-feedback').style.display = 'block';
+          }
+        }
+      });
+    });
+
+    // ----------------------------------------------------
+    // Mini-Quiz Handler
+    // ----------------------------------------------------
+    const quizOpts = document.querySelectorAll('.quiz-opt');
+    const quizFb = document.getElementById('quiz-fb');
+
+    quizOpts.forEach(opt => {
+      opt.addEventListener('click', () => {
+        const isCorrect = opt.getAttribute('data-correct') === 'true';
+        quizOpts.forEach(o => {
+          o.disabled = true;
+          if (o.getAttribute('data-correct') === 'true') {
+            o.classList.add('correct');
+          } else {
+            o.classList.add('incorrect');
+          }
+        });
+
+        quizFb.style.display = 'block';
+        if (isCorrect) {
+          quizFb.innerHTML = '<span style="color: var(--teal); font-weight: 600;">Correct!</span> Sequential I/O allows the mechanical actuator arm to stay locked over adjacent tracks while the platter spins continuously, saturating transfer bandwidth. Random I/O forces physical radial seeks and rotational waits for every tiny read.';
+        } else {
+          quizFb.innerHTML = '<span style="color: var(--rose); font-weight: 600;">Incorrect.</span> Throughput collapses because random reads require physical actuator seeks (3–10ms each) and platter rotation delays, keeping the drive busy moving hardware rather than transferring data.';
+        }
+      });
+    });
+
+    // ----------------------------------------------------
+    // Definitions Search & Filter Handler
+    // ----------------------------------------------------
+    const defSearchInput = document.getElementById('def-search-input');
+    const defCatPills = document.querySelectorAll('.def-cat-pill');
+    const defCards = document.querySelectorAll('.def-card');
+    let activeCategory = 'all';
+
+    function filterDefinitions() {
+      const query = (defSearchInput ? defSearchInput.value : '').toLowerCase().trim();
+      defCards.forEach(card => {
+        const cat = card.getAttribute('data-category');
+        const terms = (card.getAttribute('data-terms') || '').toLowerCase();
+        const text = card.textContent.toLowerCase();
+
+        const matchesCat = activeCategory === 'all' || cat === activeCategory;
+        const matchesQuery = query === '' || terms.includes(query) || text.includes(query);
+
+        if (matchesCat && matchesQuery) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    if (defSearchInput) {
+      defSearchInput.addEventListener('input', filterDefinitions);
+    }
+
+    defCatPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        defCatPills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        activeCategory = pill.getAttribute('data-cat');
+        filterDefinitions();
+      });
+    });
+  </script>
+</body>
+</html>

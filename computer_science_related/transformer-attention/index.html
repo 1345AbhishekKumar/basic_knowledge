@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Self-Attention &amp; the Transformer — an interactive lesson</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="hero">
+  <p class="eyebrow">Interactive lesson · AI engineering</p>
+  <h1>Self-attention: how transformers make words talk to each other</h1>
+  <p class="lede">
+    Every modern large language model is built from transformer blocks, and the engine
+    inside each block is <strong>self-attention</strong>. It is the mechanism that lets the
+    word <em>"it"</em> find the word <em>"animal"</em>. This lesson shows you that mechanism
+    — the query, key and value vectors, the score, and the weighted sum — and lets you
+    point a word at a sentence to watch it happen.
+  </p>
+  <p class="meta">No install, no server — opens in your browser. Sources: <a href="sources.md">sources.md</a>.</p>
+</header>
+
+<main>
+
+  <!-- ============ HOOK ============ -->
+  <section class="card" aria-labelledby="hook-h">
+    <p class="section-tag">Part 1 · The hook</p>
+    <h2 id="hook-h">Why a single word needs the whole sentence</h2>
+    <p>
+      Read this: <em>"The animal didn't cross the street because <strong>it</strong> was too tired."</em>
+      What does <em>it</em> refer to? You knew instantly: the animal. Now think about what a
+      computer would need to answer that — it has to look at every other word and figure out
+      which one <em>it</em> points back to. That word isn't stored "inside" <em>it</em>;
+      the meaning has to be assembled from context.
+    </p>
+    <p>
+      Older models (RNNs) did this by reading left to right and carrying a running memory —
+      which meant word 1's meaning had to survive a long chain of steps to reach word 10, and
+      every step waited for the one before it. The transformer does something radically
+      simpler: <strong>it processes all words in parallel, and lets each word look directly at
+      every other word</strong>, in one step, with a learned sense of what deserves attention.
+      That one idea — <em>attention</em> — is why transformers train so fast and why the
+      models you use today are all transformers.
+    </p>
+    <p class="note">
+      Common confusion: attention is not a "search box" over a fixed memory of facts. The model
+      has no lookup table of meanings. It has <em>learned vectors</em> per word, and attention
+      is arithmetic on those vectors — which you're about to see.
+    </p>
+  </section>
+
+  <!-- ============ BUILD UP ============ -->
+  <section class="card" aria-labelledby="build-h">
+    <p class="section-tag">Part 2 · The build-up</p>
+    <h2 id="build-h">One mechanism, four moves</h2>
+
+    <div class="step">
+      <h3><span class="step-no">1</span> Every word gets three roles: Query, Key, Value</h3>
+      <p>
+        Start with the word's embedding — a vector that encodes its meaning (512 numbers in the
+        original 2017 model, learned during training). Before attention runs, the embedding is
+        multiplied by three learned matrices, producing three smaller vectors (64 numbers each)
+        that give the word three roles in the conversation:
+      </p>
+      <div class="diagram roleflow">
+        <div class="tok">"animal"</div>
+        <span class="arr">→ × W<sup>Q</sup></span><div class="qvk q">Query&nbsp;q</div>
+        <span class="arr">→ × W<sup>K</sup></span><div class="qvk k">Key&nbsp;k</div>
+        <span class="arr">→ × W<sup>V</sup></span><div class="qvk v">Value&nbsp;v</div>
+      </div>
+      <ul class="roles">
+        <li><span class="chip q">Query</span> — "what am I looking for?" Each word asks this of the whole sentence.</li>
+        <li><span class="chip k">Key</span> — "what I advertise / what category am I?" Keys are what queries get matched against.</li>
+        <li><span class="chip v">Value</span> — "my actual content." If a query matches my key, my value gets passed along.</li>
+      </ul>
+      <p class="note">
+        Analogy that sticks: query = the word you type into a search engine, key = the titles of
+        the pages, value = the page content. Attention scores titles against your query, then
+        blends the content of the best matches.
+      </p>
+    </div>
+
+    <div class="step">
+      <h3><span class="step-no">2</span> Score every word against the query: the dot product</h3>
+      <p>
+        For the word being processed (the <em>query</em> word), take its query vector <code>q</code>
+        and dot it with every word's key vector <code>k</code>. The dot product measures how well
+        aligned the two vectors are — the raw <em>attention score</em>. It can be any real number:
+        big and positive for "this is what I need", near zero or negative for "not relevant".
+      </p>
+      <div class="formula">score(<em>it</em>, <em>animal</em>)&nbsp;=&nbsp;q<sub>it</sub> · k<sub>animal</sub></div>
+      <p>
+        If <em>it</em>'s query happens to point in the same direction as <em>animal</em>'s key,
+        the dot product is large, and <em>it</em> "notices" <em>animal</em>. Nothing knows yet —
+        these are just numbers.
+      </p>
+    </div>
+
+    <div class="step">
+      <h3><span class="step-no">3</span> Scale, then soften: ÷√dₖ and softmax</h3>
+      <p>
+        Long vectors produce large dot products, and huge numbers push the softmax (step 4) into
+        a region where its gradients are tiny and learning stalls. So scores are divided by
+        <code>√dₖ</code> — the square root of the key-vector dimension. In the 2017 model,
+        dₖ = 64, so scores are divided by 8.
+      </p>
+      <div class="formula">softmax scores&nbsp;=&nbsp;softmax( scores ÷ √dₖ )</div>
+      <p>
+        Then <strong>softmax</strong> squashes each row of scores into <em>attention weights</em>:
+        positive numbers that sum to 1. A word that scores 5× higher than its rivals ends up with
+        most of the probability mass; a word that scores near zero gets almost nothing. This is
+        where "how much do I care about each word" becomes a clean distribution.
+      </p>
+    </div>
+
+    <div class="step">
+      <h3><span class="step-no">4</span> Blend: the output is a weighted sum of <em>values</em></h3>
+      <p>
+        Multiply each word's <em>value</em> vector by its attention weight and add them all up.
+        The result is a single new vector for the query word — its <em>context-aware</em>
+        representation. If <em>it</em> gave 55% of its attention to <em>animal</em>, then
+        <em>it</em>'s new vector is mostly <em>animal</em>'s content with the rest of the sentence
+        mixed in quietly. Downstream layers can now read the referent straight out of <em>it</em>.
+      </p>
+      <div class="formula">
+        output(it)&nbsp;=&nbsp;0.55·v<sub>animal</sub>&nbsp;+&nbsp;0.05·v<sub>it</sub>&nbsp;+&nbsp;…
+      </div>
+      <p class="note">
+        Common confusion: the output is <strong>not</strong> the value of the single best-matching
+        word. It is a weighted blend of <em>every</em> word's value. The best match simply
+        dominates the blend.
+      </p>
+    </div>
+
+    <div class="step">
+      <h3><span class="step-no">5</span> Many heads, order, and the rest of the block</h3>
+      <div class="diagram row">
+        <div class="sub-block"><div class="diagram-label">Repeat the whole thing 8× in parallel</div>
+          <div class="heads">
+            <span class="head">h₁</span><span class="head">h₂</span><span class="head">h₃</span>
+            <span class="head">h₄</span><span class="head">h₅</span><span class="head">h₆</span>
+            <span class="head">h₇</span><span class="head">h₈</span>
+          </div>
+          <p class="caption">Each head has its own Q/K/V projections, so it can learn a different
+          notion of relevance — one head may track <em>coreference</em> ("it" → "animal"), another
+          syntactic position. Outputs are concatenated and projected back.</p>
+        </div>
+      </div>
+      <ul>
+        <li>
+          <strong>Order matters — but attention doesn't know it.</strong> Swap "the dog bit the
+          man" into "the man bit the dog" and the words are the same set, so the attention
+          pattern would be identical. That's why the model adds a <em>positional encoding</em> —
+          a pattern added to each word's embedding that tells the model where the word sits.
+        </li>
+        <li>
+          <strong>The rest of the block:</strong> each attention result is added back to its input
+          (residual connection) and normalized, then pushed through a small feed-forward network,
+          also residual + normalized. Stack six such blocks and you have the original encoder.
+        </li>
+        <li>
+          <strong>Decoders differ slightly:</strong> when generating, a word may only attend to
+          words before it — future positions are masked out (set to −∞ before softmax, so they
+          get zero weight).
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ PLAYGROUND ============ -->
+  <section class="card playground-card" aria-labelledby="play-h">
+    <p class="section-tag">Part 3 · The playground</p>
+    <h2 id="play-h">Point a word at a sentence</h2>
+    <p class="intro">
+      Each grid row is a <em>query</em> word. A bright cell means that word pays a lot of
+      attention to the column word. Click any cell to read the full math for that pair — score,
+      scaling, softmax and the blended output.
+    </p>
+
+    <div class="controls" role="group" aria-label="lesson controls">
+      <div class="control-group">
+        <span class="control-label">Sentence</span>
+        <div class="btn-row" id="sentenceBtns"></div>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Heads shown</span>
+        <div class="btn-row" id="headBtns"></div>
+      </div>
+    </div>
+
+    <div class="legend" id="legend">
+      <span class="legend-swatch"></span> brighter = more attention · rows sum to 100%
+    </div>
+
+    <p class="m-label" style="margin: 0 0 6px;">Pick the word you're reading (rows):</p>
+    <div class="tok-chip-row" id="tokenChips" role="group" aria-label="words in the sentence"></div>
+
+    <div id="gridArea"></div>
+
+    <div class="readout card-inset" id="readout" aria-live="polite">
+      <!-- filled by viz.js -->
+    </div>
+
+    <div class="math card-inset" id="mathPanel" aria-live="polite">
+      <!-- filled by viz.js -->
+    </div>
+
+    <p class="caption-note">
+      The toy vectors behind these grids are illustrative stand-ins tuned for teaching — the
+      arithmetic (dot product → ÷√dₖ → softmax → weighted sum) is the real operation. The two
+      heads illustrate the <em>kinds</em> of patterns real models learn; a real model has 8 of
+      them per layer, each with weights learned from data.
+    </p>
+  </section>
+
+  <!-- ============ QUIZ ============ -->
+  <section class="card" aria-labelledby="quiz-h">
+    <p class="section-tag">Part 4 · Check yourself</p>
+    <h2 id="quiz-h">Check yourself</h2>
+
+    <div class="quiz" data-question="q1">
+      <p class="q-text">1. Why does the formula divide the dot-product scores by √dₖ before softmax?</p>
+      <div class="answers">
+        <button class="ans">To turn scores into probabilities</button>
+        <button class="ans" data-correct>So large dot products don't push softmax into the region where its gradients are tiny</button>
+        <button class="ans">To make every token get equal attention</button>
+        <button class="ans">To speed up matrix multiplication on a GPU</button>
+      </div>
+      <p class="feedback" hidden></p>
+    </div>
+
+    <div class="quiz" data-question="q2">
+      <p class="q-text">2. For the word "it", the output of self-attention is…</p>
+      <div class="answers">
+        <button class="ans">The value vector of the word "it" refers to</button>
+        <button class="ans" data-correct>A weighted sum of the value vectors of every word in the sentence</button>
+        <button class="ans">The query vector of "it"</button>
+        <button class="ans">The key that scored highest</button>
+      </div>
+      <p class="feedback" hidden></p>
+    </div>
+
+    <div class="quiz" data-question="q3">
+      <p class="q-text">3. What problem does the positional encoding solve?</p>
+      <div class="answers">
+        <button class="ans" data-correct>Attention alone can't tell "the dog bit the man" from "the man bit the dog" — it treats the words as an unordered set</button>
+        <button class="ans">Embeddings are too large to store in order</button>
+        <button class="ans">Softmax needs sorted input to work</button>
+        <button class="ans">It stops the model from attending to stop words</button>
+      </div>
+      <p class="feedback" hidden></p>
+    </div>
+
+    <div class="quiz" data-question="q4">
+      <p class="q-text">4. In the original 2017 transformer, how many attention heads run in parallel, and how wide is each key vector?</p>
+      <div class="answers">
+        <button class="ans">4 heads · keys of width 128</button>
+        <button class="ans" data-correct>8 heads · keys of width 64</button>
+        <button class="ans">6 heads · keys of width 512</button>
+        <button class="ans">64 heads · keys of width 8</button>
+      </div>
+      <p class="feedback" hidden></p>
+    </div>
+  </section>
+
+  <!-- ============ SUMMARY ============ -->
+  <section class="card" aria-labelledby="summary-h">
+    <p class="section-tag">Part 5 · Summary</p>
+    <h2 id="summary-h">Summary</h2>
+    <ul class="takeaways">
+      <li>Self-attention lets every word look directly at every other word in one parallel step — no sequential chain, which is why transformers train fast.</li>
+      <li>Each word is projected into three vectors: <strong>Query</strong> (what it's looking for), <strong>Key</strong> (what it offers), <strong>Value</strong> (its content).</li>
+      <li>Attention = <code>softmax(Q·Kᵀ ÷ √dₖ)·V</code>: dot queries with keys to score relevance, scale to keep gradients healthy, softmax into weights that sum to 1, then blend values.</li>
+      <li>The output for a word is a weighted blend of the whole sentence's values — "it" comes out carrying "animal".</li>
+      <li>Order isn't free: positional encoding adds it back in. And 8 parallel heads give the model 8 different ideas of relevance at once.</li>
+    </ul>
+    <p>
+      Go back to the playground and try it: click <em>it</em> in the first sentence and watch its
+      row light up <em>animal</em>. Then switch to the position head and see how different
+      "relevance" can look.
+    </p>
+  </section>
+
+  <!-- ============ SOURCES ============ -->
+  <section class="card" aria-labelledby="sources-h">
+    <h2 id="sources-h">Sources &amp; further reading</h2>
+    <p class="sources-intro">
+      Full fact-by-fact sources: <a href="sources.md">sources.md</a>.
+    </p>
+    <ul class="sources-list">
+      <li>Vaswani et al., <em>Attention Is All You Need</em> (the original paper) — <a href="https://arxiv.org/abs/1706.03762">arxiv.org/abs/1706.03762</a></li>
+      <li>Jay Alammar, <em>The Illustrated Transformer</em> — <a href="https://jalammar.github.io/illustrated-transformer/">jalammar.github.io/illustrated-transformer</a></li>
+      <li>Harvard NLP, <em>The Annotated Transformer</em> — <a href="http://nlp.seas.harvard.edu/annotated-transformer/">nlp.seas.harvard.edu/annotated-transformer</a></li>
+      <li>d2l.ai, <em>Self-Attention and Positional Encoding</em> — <a href="https://d2l.ai/chapter_attention-mechanisms-and-transformers/self-attention-and-positional-encoding.html">d2l.ai</a></li>
+      <li>Wikipedia, <em>Attention Is All You Need</em> — <a href="https://en.wikipedia.org/wiki/Attention_Is_All_You_Need">en.wikipedia.org</a></li>
+    </ul>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <p>Interactive lesson — open <code>index.html</code> in any browser. Works fully offline.</p>
+</footer>
+
+<script src="js/viz.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

@@ -297,7 +297,7 @@
 
         <div class="grid-2">
           <div class="info-card">
-            <p class="info-tag">Core Principle</p>
+            <p class="info-tag">Core Principle · The Monolith Trap</p>
             <h3 class="info-title">Not All Context Belongs in One Agent</h3>
             <p class="info-text">
               In complex observability tasks (such as filtering 500 execution spans to diagnose a latency bug), loading all spans into the main conversation pollutes the token window. When the user later asks a simple follow-up question, the model is forced to re-read all 500 historical spans.
@@ -305,12 +305,95 @@
           </div>
 
           <div class="info-card focal">
-            <p class="info-tag">Subagent Solution</p>
-            <h3 class="info-title">Ephemeral Context Offloading</h3>
+            <p class="info-tag">Architectural Solution</p>
+            <h3 class="info-title">Context Firewalling via Subagents</h3>
             <p class="info-text">
-              By spinning up an ephemeral subagent specifically for the trace search, the raw spans exist only in the subagent's temporary context. Once the subagent distills the findings into a two-sentence summary, the subagent is terminated and the raw span noise is purged—keeping the main agent fast, cheap, and responsive.
+              By spinning up an ephemeral child agent specifically for heavy data crunching, the raw spans exist only in the subagent's temporary context. Once the subagent distills the findings into a concise summary, the subagent process terminates and the raw telemetry is permanently purged from memory—keeping the main agent fast, cheap, and responsive.
             </p>
           </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2rem 0 1rem;">1. Core Component Definitions (Labels in Figure 3.0)</h3>
+
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Panel 1 · Left</p>
+            <h3 class="info-title">Monolithic Context Pollution</h3>
+            <p class="info-text">
+              <strong>Monolithic Agent:</strong> An architecture where a single agent attempts to handle both conversational dialogue with the user and deep data queries.<br>
+              <strong>Context Pollution:</strong> When verbose intermediate logs (JSON blobs, call stacks, trace spans) remain in the conversation history forever, inflating downstream latency and pushing the model near its 128k token ceiling (118,000 tokens used).
+            </p>
+          </div>
+
+          <div class="info-card focal">
+            <p class="info-tag">Panel 2 · Right</p>
+            <h3 class="info-title">Main Agent + Ephemeral Subagent</h3>
+            <p class="info-text">
+              <strong>Main Agent (Lean):</strong> Preserves the primary dialogue, user preferences, and goal states. Operates comfortably at ~4,500 tokens.<br>
+              <strong>Ephemeral Subagent:</strong> A short-lived child worker instantiated with a clean context. It ingests 500 spans, performs multiple search iterations, extracts the root cause, and is destroyed after execution.<br>
+              <strong>Delegation &amp; Return Protocol:</strong> The structured contract where the main agent passes a specific search mandate and receives back only a clean 1-paragraph summary and key IDs.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2.5rem 0 1rem;">2. Step-by-Step Flow: Following the Visual Architecture</h3>
+        <p>Follow the visual comparison between the Monolith (Left) and the Isolated Pattern (Right):</p>
+
+        <div style="background:#ffffff; border:1px solid var(--color-rule); border-radius:8px; padding:1.5rem; margin:1.5rem 0;">
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-ink);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-ink); text-transform:uppercase;">Phase 1 &bull; The Monolithic Context Failure (Panel 1)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The user asks the agent to investigate a database delay. In Panel 1, the single agent runs a query returning 100s of raw spans. All raw JSON metadata is dumped into the main context. The token count surges to 118,000 tokens. When the user asks a subsequent question, the agent must pay for and re-read 118k tokens, leading to sluggish responses and frequent context window exhaustion.
+            </p>
+          </div>
+
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Phase 2 &bull; Delegation to Subagent (Panel 2, Delegate Arrow)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              In the isolated architecture, the Main Agent recognizes a heavy trace search task. Instead of executing the tool in its own thread, it calls <code>delegate_task(task="Find slow database query in checkout traces")</code>. The orange <strong>DELEGATE</strong> arrow spawns an Ephemeral Subagent in a fresh context sandbox.
+            </p>
+          </div>
+
+          <div style="padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Phase 3 &bull; Distillation, Purge &amp; Return (Panel 2, Return Arrow)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The Subagent ingests the 500 raw spans inside its private sandbox, identifies that query <code>SELECT * FROM orders</code> took 4.2 seconds, and synthesizes a concise 2-sentence summary. The subagent process is terminated and its raw telemetry is discarded. The black <strong>RETURN</strong> arrow delivers only the clean summary back to the Main Agent, keeping main context usage at ~4,500 tokens.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; color: var(--color-ink); margin: 2rem 0 1rem;">Implementation: Subagent Delegation Pattern</h3>
+
+        <div class="code-block">
+# SUBAGENT CONTEXT ISOLATION BLUEPRINT
+class MainAgent:
+    def __init__(self, model):
+        self.model = model
+        self.context = [{"role": "system", "content": "You are a customer-facing support agent."}]
+
+    def handle_heavy_task(self, query: str):
+        # Delegate heavy data task to an ephemeral subagent
+        subagent = TraceAnalyzerSubagent()
+        distilled_summary = subagent.execute(query)
+
+        # Append only the clean summary to main context
+        self.context.append({
+            "role": "assistant",
+            "content": f"Subagent investigation completed: {distilled_summary}"
+        })
+        # Raw search data was destroyed with the subagent; main context remains under 5k tokens!
+        return self.model.generate(self.context)
+
+
+class TraceAnalyzerSubagent:
+    def execute(self, task: str) -> str:
+        # Runs in an isolated, disposable context
+        isolated_context = [{"role": "system", "content": "Analyze trace data and return concise summary."}]
+        raw_spans = observability_api.fetch_500_spans()
+        
+        isolated_context.append({"role": "user", "content": f"Task: {task}\nData: {raw_spans}"})
+        summary = cheap_model.generate(isolated_context)
+        return summary
         </div>
       </section>
     </main>

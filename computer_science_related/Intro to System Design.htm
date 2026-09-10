@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A beginner-friendly system design lesson: load balancers, caching, replicas and shards — added one at a time, with the price tag attached.">
+<title>Break It on Purpose — System Design for Absolute Beginners</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   THEME VARIABLES — light (default) and dark
+   ============================================================ */
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --surface-2:#eef0f4;
+  --text:#1c2128; --muted:#5a6472; --border:#e2e6ed;
+  --accent:#4f46e5; --accent-strong:#4338ca; --accent-soft:#eef0fe; --on-accent:#ffffff;
+  --tip-bg:#e9f7ef;  --tip-line:#1e8e5a;  --tip-title:#14683f;
+  --warn-bg:#fdf3e4; --warn-line:#d97706; --warn-title:#92400e;
+  --note-bg:#e9f1fd; --note-line:#2563eb; --note-title:#1e40af;
+  --demo-bg:#f3f6ff;
+  --code-bg:#0f172a; --code-bar:#1c2740; --code-text:#e6edf6;
+  --shadow:0 1px 2px rgba(16,24,40,.05), 0 10px 30px rgba(16,24,40,.07);
+}
+body.dark{
+  --bg:#0e1319; --surface:#151c25; --surface-2:#1b2431;
+  --text:#e7ebf2; --muted:#98a2b3; --border:#2a3442;
+  --accent:#7c7cf7; --accent-strong:#a5a5ff; --accent-soft:#232645; --on-accent:#0d0f1a;
+  --tip-bg:#122a1d;  --tip-line:#3fbf7f;  --tip-title:#7ee2a8;
+  --warn-bg:#2d2010; --warn-line:#e5a04c; --warn-title:#f3c07e;
+  --note-bg:#12233c; --note-line:#4d8ef0; --note-title:#8ab6f8;
+  --demo-bg:#182038;
+  --code-bg:#0b1220; --code-bar:#18213a; --code-text:#e6edf6;
+  --shadow:none;
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*,*::before,*::after{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  line-height:1.7; font-size:1.02rem;
+  transition:background-color .25s ease, color .25s ease;
+}
+body.dark{ color-scheme:dark; }
+.page{ max-width:920px; margin:0 auto; padding:0 1.25rem 4rem; }
+p{ margin:.75rem 0; max-width:68ch; }
+strong{ font-weight:700; }
+a{ color:var(--accent); }
+a:focus-visible,button:focus-visible,input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+code{
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:.88em;
+  background:var(--surface-2); padding:.1em .35em; border-radius:.35em;
+}
+.skip-link{ position:absolute; left:-999px; top:0; background:var(--accent); color:var(--on-accent); padding:.5rem 1rem; border-radius:0 0 .5rem 0; z-index:99; text-decoration:none; }
+.skip-link:focus{ left:0; }
+
+/* ============================================================
+   HEADER + THEME TOGGLE
+   ============================================================ */
+.site-header{
+  position:sticky; top:0; z-index:50;
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+  padding:.7rem 1.25rem;
+  background:var(--bg);
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--border);
+}
+.brand{ font-weight:700; font-size:.95rem; }
+.brand small{ display:block; font-weight:500; color:var(--muted); font-size:.78rem; }
+.theme-toggle{
+  font:inherit; font-size:.85rem; font-weight:600;
+  border:1px solid var(--border); background:var(--surface); color:var(--text);
+  padding:.45rem .85rem; border-radius:999px; cursor:pointer;
+}
+.theme-toggle:hover{ border-color:var(--accent); }
+
+/* ============================================================
+   LESSON HEADER + META CARDS
+   ============================================================ */
+.lesson-header{ padding:2.5rem 0 0; }
+.lesson-kicker{ color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:.12em; font-size:.8rem; }
+h1{ font-size:clamp(1.7rem,4vw,2.4rem); line-height:1.25; margin:.4rem 0 .6rem; font-weight:800; letter-spacing:-.01em; }
+.subtitle{ color:var(--muted); font-size:1.05rem; margin:0 0 1.5rem; max-width:60ch; }
+
+.meta-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:.9rem; margin:0 0 2rem; }
+.meta-card{ background:var(--surface); border:1px solid var(--border); border-radius:.9rem; padding:1rem 1.1rem; box-shadow:var(--shadow); }
+.meta-card h2{ margin:0 0 .35rem; font-size:.75rem; text-transform:uppercase; letter-spacing:.09em; color:var(--accent); }
+.meta-card p{ margin:0; font-size:.9rem; line-height:1.55; }
+@media (max-width:720px){ .meta-grid{ grid-template-columns:1fr; } }
+
+/* ============================================================
+   TABLE OF CONTENTS
+   ============================================================ */
+.toc{ background:var(--surface); border:1px solid var(--border); border-radius:.9rem; padding:1rem 1.4rem; margin:0 0 2rem; box-shadow:var(--shadow); }
+.toc h2{ margin:0 0 .5rem; font-size:.85rem; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); }
+.toc ol{ margin:0; padding-left:1.2rem; columns:2; column-gap:2rem; font-size:.93rem; }
+.toc li{ margin:.18rem 0; break-inside:avoid; }
+.toc a{ color:var(--text); text-decoration:none; border-bottom:1px dotted var(--border); }
+.toc a:hover{ color:var(--accent); border-color:var(--accent); }
+@media (max-width:720px){ .toc ol{ columns:1; } }
+
+/* ============================================================
+   SECTIONS
+   ============================================================ */
+section{ margin:2.6rem 0; scroll-margin-top:4.5rem; }
+h2{ font-size:1.45rem; margin:.1rem 0 .8rem; letter-spacing:-.01em; line-height:1.3; }
+h3{ font-size:1.08rem; margin:1.4rem 0 .5rem; }
+.badge{
+  display:inline-block; background:var(--accent-soft); color:var(--accent);
+  font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  padding:.25rem .6rem; border-radius:999px; margin-bottom:.55rem;
+}
+ul,ol{ padding-left:1.4rem; }
+li{ margin:.3rem 0; }
+
+/* ============================================================
+   CALLOUTS (best practice / pitfall / note)
+   ============================================================ */
+.callout{
+  border:1px solid var(--border);
+  border-left:4px solid var(--callout-line,var(--accent));
+  background:var(--callout-bg,var(--surface));
+  border-radius:.6rem; padding:.85rem 1.1rem; margin:1.3rem 0; box-shadow:var(--shadow);
+}
+.callout-title{ margin:0 0 .3rem; font-weight:700; font-size:.8rem; text-transform:uppercase; letter-spacing:.07em; color:var(--callout-title,var(--accent)); }
+.callout p{ margin:.2rem 0; font-size:.95rem; }
+.callout--tip { --callout-bg:var(--tip-bg);  --callout-line:var(--tip-line);  --callout-title:var(--tip-title); }
+.callout--warn{ --callout-bg:var(--warn-bg); --callout-line:var(--warn-line); --callout-title:var(--warn-title); }
+.callout--note{ --callout-bg:var(--note-bg); --callout-line:var(--note-line); --callout-title:var(--note-title); }
+
+/* ============================================================
+   DIAGRAMS (Mermaid)
+   ============================================================ */
+figure.diagram{
+  margin:1.4rem 0; background:var(--surface); border:1px solid var(--border);
+  border-radius:.9rem; padding:1.1rem 1rem .8rem; box-shadow:var(--shadow); overflow-x:auto;
+}
+figure.diagram pre.mermaid{
+  margin:0; text-align:center; overflow-x:auto; padding:.4rem;
+  font-family:"JetBrains Mono",monospace; font-size:.85rem; line-height:1.4;
+}
+figure.diagram pre.mermaid svg{ max-width:100%; height:auto; }
+figcaption{ margin-top:.7rem; padding-top:.6rem; border-top:1px dashed var(--border); color:var(--muted); font-size:.83rem; line-height:1.5; }
+.diagram-grid{ display:grid; grid-template-columns:1fr 1fr; gap:1rem; align-items:stretch; }
+.diagram-grid figure{ margin:0; }
+@media (max-width:780px){ .diagram-grid{ grid-template-columns:1fr; } }
+
+/* ============================================================
+   CODE BLOCKS (always-dark code theme)
+   ============================================================ */
+.code-block{ margin:1.3rem 0; border-radius:.8rem; overflow:hidden; border:1px solid #1d2a45; box-shadow:var(--shadow); }
+.code-bar{
+  display:flex; justify-content:space-between; align-items:center; gap:1rem;
+  background:var(--code-bar); padding:.5rem .9rem; color:#9db0d0;
+  font-family:"JetBrains Mono",monospace; font-size:.78rem;
+}
+.copy-btn{
+  font:inherit; font-size:.72rem; color:#c7d5ee; background:#233252;
+  border:1px solid #33456e; border-radius:.4rem; padding:.25rem .6rem; cursor:pointer;
+}
+.copy-btn:hover{ background:#2c3e66; }
+.code-block pre{
+  margin:0; background:var(--code-bg); color:var(--code-text);
+  padding:1rem 1.1rem; overflow-x:auto;
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-size:.85rem; line-height:1.65; tab-size:2;
+}
+.code-block code{ font:inherit; background:none; padding:0; font-size:inherit; }
+/* syntax tokens (GitHub-dark inspired) */
+.t{color:#7ee787}.a{color:#79c0ff}.s{color:#a5d6ff}
+.k{color:#ff7b72}.f{color:#d2a8ff}.n{color:#ffa657}.c{color:#8b949e;font-style:italic}
+
+/* ============================================================
+   LIVE DEMO
+   ============================================================ */
+.live-demo{ border:2px dashed var(--accent); background:var(--demo-bg); border-radius:.9rem; padding:1.2rem 1.3rem; margin:1.3rem 0; }
+.live-demo-label{ margin:0 0 1rem; font-weight:700; color:var(--accent); font-size:.82rem; text-transform:uppercase; letter-spacing:.08em; }
+.demo-grid{ display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+@media (max-width:640px){ .demo-grid{ grid-template-columns:1fr; } }
+.demo-grid label{ display:block; font-size:.85rem; font-weight:600; color:var(--muted); }
+.demo-grid input{
+  width:100%; margin-top:.3rem; font:inherit; padding:.5rem .7rem;
+  border:1px solid var(--border); border-radius:.5rem; background:var(--surface); color:var(--text);
+}
+.btn{
+  font:inherit; font-weight:600; background:var(--accent); color:var(--on-accent);
+  border:none; border-radius:.6rem; padding:.6rem 1.1rem; cursor:pointer; margin-top:.9rem;
+}
+.btn:hover{ background:var(--accent-strong); }
+.demo-output{ margin-top:1rem; background:var(--surface); border:1px solid var(--border); border-radius:.6rem; padding:.8rem 1rem; font-size:.95rem; min-height:1.4rem; }
+.chips{ display:flex; flex-wrap:wrap; gap:.45rem; margin-top:.8rem; }
+.chip{
+  font-family:"JetBrains Mono",monospace; font-size:.75rem; padding:.3rem .6rem;
+  border-radius:999px; border:1px solid var(--border); background:var(--surface-2); color:var(--muted);
+}
+.chip--active{ background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:700; }
+.demo-neighbours{ margin:.6rem 0 0; font-size:.83rem; color:var(--muted); }
+
+/* ============================================================
+   CHALLENGE + SOLUTION
+   ============================================================ */
+.challenge-card{ background:var(--surface); border:1px solid var(--border); border-radius:.9rem; padding:1.3rem 1.4rem; box-shadow:var(--shadow); }
+#solution{ margin-top:1.2rem; }
+#solution[hidden]{ display:none; }
+
+/* ============================================================
+   TABLES + FOOTER
+   ============================================================ */
+.table-wrap{ overflow-x:auto; margin:1.2rem 0; border:1px solid var(--border); border-radius:.8rem; }
+table{ border-collapse:collapse; width:100%; font-size:.9rem; background:var(--surface); }
+th,td{ text-align:left; padding:.65rem .9rem; border-bottom:1px solid var(--border); vertical-align:top; }
+th{ font-size:.75rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); background:var(--surface-2); }
+tr:last-child td{ border-bottom:none; }
+
+.site-footer{ border-top:1px solid var(--border); margin-top:3rem; padding-top:1.2rem; color:var(--muted); font-size:.85rem; }
+.site-footer p{ margin:.3rem 0; }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to lesson content</a>
+
+<header class="site-header">
+  <div class="brand">🎓 Intro to System Design
+    <small>Lesson 01 · built from a video transcript</small>
+  </div>
+  <button id="themeToggle" class="theme-toggle" aria-pressed="false">🌙 Dark mode</button>
+</header>
+
+<div class="page">
+<main id="main">
+<article class="lesson">
+
+  <!-- ================= LESSON HEADER ================= -->
+  <header class="lesson-header">
+    <p class="lesson-kicker">System design for absolute beginners</p>
+    <h1>Break It on Purpose: How One Server Grows into a Real System</h1>
+    <p class="subtitle">Load balancers, caches, replicas and shards — added one at a time, only when something actually breaks, and always with the price tag attached.</p>
+
+    <div class="meta-grid">
+      <div class="meta-card">
+        <h2>🎯 Objective</h2>
+        <p>By the end, you'll be able to explain — in plain English — what each piece of a scaled-up web app does, <em>why</em> it gets added, and <em>what it costs</em>: load balancer, stateless servers, shared sessions, connection pools, read replicas, caching, queues &amp; workers, and sharding. You'll also run and modify a small working program that implements the sharding rule.</p>
+      </div>
+      <div class="meta-card">
+        <h2>🧰 Prerequisites</h2>
+        <p>Basic computer literacy — you can use a browser, save a file, and open it. No coding knowledge is assumed; every term is defined the moment it appears.</p>
+      </div>
+      <div class="meta-card">
+        <h2>⏱️ Est. time</h2>
+        <p>10–15 minutes of reading, plus about 10 more if you do the code challenge at the end.</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= TABLE OF CONTENTS ================= -->
+  <nav class="toc" aria-label="Lesson contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#big-idea">The big idea</a></li>
+      <li><a href="#start-simple">Start simple: one server, one database</a></li>
+      <li><a href="#the-break">The moment it breaks</a></li>
+      <li><a href="#scaling">Fix #1 — Bigger box vs. more boxes</a></li>
+      <li><a href="#load-balancer">Fix #2 — The load balancer</a></li>
+      <li><a href="#sessions">Fix #3 — Sessions &amp; stateless servers</a></li>
+      <li><a href="#connections">Fix #4 — The connection pool</a></li>
+      <li><a href="#replicas">Fix #5 — Read replicas</a></li>
+      <li><a href="#caching">Fix #6 — Caching</a></li>
+      <li><a href="#queues">Fix #7 — Queues &amp; workers</a></li>
+      <li><a href="#sharding">Fix #8 — Sharding (last resort)</a></li>
+      <li><a href="#summary">What we built</a></li>
+      <li><a href="#html-note">A note about HTML</a></li>
+      <li><a href="#code-example">Runnable code example</a></li>
+      <li><a href="#challenge">Code challenge</a></li>
+      <li><a href="#glossary">Glossary</a></li>
+    </ol>
+  </nav>
+
+  <!-- ================= 1. THE BIG IDEA ================= -->
+  <section id="big-idea">
+    <span class="badge">The big idea</span>
+    <h2>Building Was Never the Hard Part</h2>
+    <p>Anyone can build a full application these days — front end, backend, database, deployed and online — and with AI, faster than ever. So here is the uncomfortable question the source video asks: <em>if anyone can build the app, what's left that makes you a good engineer?</em></p>
+    <p>The answer: building the thing was never the hard part. The hard part is what happens when the app you built <strong>gets popular</strong> — when one server isn't enough, when the database can't keep up, when it's slow and you don't know why. That subject is called <strong>system design</strong>: deciding how the pieces of an app fit together so it stays fast and alive under real traffic.</p>
+    <p>Most tutorials teach it as a pile of scary words — load balancers, replicas, sharding, caching — thrown at you all at once, on day one, for an app that has 50 users. We'll do the opposite. We start with <strong>one server and one database</strong>, then we break it on purpose, over and over. Every time it breaks, we fix <em>exactly one thing</em> — so by the end, you know why every piece is there, and what it costs to add.</p>
+  </section>
+
+  <!-- ================= 2. START SIMPLE ================= -->
+  <section id="start-simple">
+    <span class="badge">The setup</span>
+    <h2>Start Simple: One Server, One Database</h2>
+    <p>This is your app — two boxes:</p>
+    <ul>
+      <li>A <strong>server</strong>: a computer that runs your code and answers your visitors.</li>
+      <li>A <strong>database</strong>: the place where your data (users, orders, tickets) is stored.</li>
+    </ul>
+    <p>If you've built anything and put it online, this is what you have. And here's a point worth repeating: <strong>this setup is enough for thousands of users — not dozens, thousands.</strong> Most applications alive right now look exactly like this and will never need to look like anything else. That is not a failure, and it's not something you have to grow out of.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-1">
+<pre class="mermaid">flowchart LR
+    U(["👥 Users"]) --> S["🖥️ Server&lt;br/&gt;runs your app code"]
+    S --> D[("🗄️ Database&lt;br/&gt;holds your data")]</pre>
+      <figcaption id="cap-1"><strong>Diagram 1.</strong> Alt text: A flow diagram with three parts — users send requests to one server, and the server reads and writes a single database. This two-box setup is the starting point for almost every app.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= 3. THE BREAK ================= -->
+  <section id="the-break">
+    <span class="badge">The break</span>
+    <h2>The Moment It Breaks: Everyone Shows Up at Once</h2>
+    <p>Say you built an app for buying concert tickets — the real thing, like Ticketmaster, StubHub or SeatGeek. You deploy it (put it online), you test it, everything works perfectly. Then a big show goes on sale at 10:00 in the morning — or, if you're unlucky, 5 p.m. on a Friday — and tens of thousands of people open your site <em>at the exact same moment</em>.</p>
+    <p>Your app falls over: slow to a crawl, requests hanging, some never finishing at all. And here's the thing — <strong>nothing is wrong with your code.</strong> No bad queries, no bugs. The problem is simpler: a single server can only do so many things at once. When thousands of <strong>requests</strong> (each "hey, give me this page" message from a browser) arrive together, they pile up in a <strong>queue</strong>, waiting their turn. The queue gets so long that requests <strong>time out</strong> — they give up and die before the server ever reaches them.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-2">
+<pre class="mermaid">flowchart LR
+    A(["👥 Thousands of requests&lt;br/&gt;arrive at the same moment"]) --> Q[/"⏳ Queue: requests line up&lt;br/&gt;waiting for their turn"/]
+    Q --> S["🖥️ One server&lt;br/&gt;can only do so many things at once"]
+    S --> G(["🐢 Slow, crawling responses"])
+    S --> T(["❌ Requests that time out&lt;br/&gt;before they are ever reached"])</pre>
+      <figcaption id="cap-2"><strong>Diagram 2.</strong> Alt text: A flowchart of a traffic spike — thousands of requests arrive at the same moment, line up in a queue, and the single server grinds through them one at a time, producing slow responses and requests that time out before they are ever reached.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= 4. SCALING ================= -->
+  <section id="scaling">
+    <span class="badge">Fix #1</span>
+    <h2>Bigger Box vs. More Boxes</h2>
+    <p>You have two ways to handle thousands of people at once — and one day you'll genuinely choose between them.</p>
+
+    <h3>Option A — vertical scaling: one bigger box</h3>
+    <p><strong>Vertical scaling</strong> means getting a bigger server: more processing power, more memory — the same single machine, just stronger and larger. This is the right first move almost every time: you change <em>nothing</em> about your code, you pay for a bigger machine, and you're done for the afternoon. To put a number on it: a $20-a-month server handles <strong>hundreds of requests per second</strong> for a typical app — millions of requests a day on one cheap box.</p>
+    <p>But it runs out. There is a biggest machine you can rent, and it gets very expensive long before you reach it. <strong>A bigger box buys you time — it doesn't buy you forever.</strong></p>
+
+    <h3>Option B — horizontal scaling: more ordinary boxes</h3>
+    <p><strong>Horizontal scaling</strong> means running several ordinary servers and splitting the people between them. And be very clear about what those servers are, because it trips people up: they are <strong>not different parts of your app</strong> — not one server for payments, one for messaging. They are <strong>identical copies of your whole app</strong>, the same code running three times, and each copy can handle any request on its own.</p>
+    <p>You still ship your app once — you just tell your platform to run three <strong>instances</strong> of it. (If you're on something like Vercel, it's quietly already doing this for you.) And this approach keeps going: too much traffic again next year? Add more copies. There's no ceiling in the same way, because you're not depending on one machine being big enough.</p>
+
+    <div class="diagram-grid">
+      <figure class="diagram" role="figure" aria-labelledby="cap-3">
+<pre class="mermaid">flowchart LR
+    U(["Users"]) --> B["💪 ONE bigger server&lt;br/&gt;more CPU · more memory&lt;br/&gt;same single box"]
+    B --> D[("Database")]</pre>
+        <figcaption id="cap-3"><strong>Diagram 3.</strong> Alt text: Vertical scaling — the users' traffic goes to one bigger, stronger server (more CPU, more memory, still a single machine), which talks to one database.</figcaption>
+      </figure>
+      <figure class="diagram" role="figure" aria-labelledby="cap-4">
+<pre class="mermaid">flowchart LR
+    U(["Users"]) --> S1["Server 1&lt;br/&gt;identical copy"]
+    U --> S2["Server 2&lt;br/&gt;identical copy"]
+    U --> S3["Server 3&lt;br/&gt;identical copy"]
+    S1 --> D[("Database")]
+    S2 --> D
+    S3 --> D</pre>
+        <figcaption id="cap-4"><strong>Diagram 4.</strong> Alt text: Horizontal scaling — the users' traffic is split across three identical copies of the whole app, each of which talks to the same single database.</figcaption>
+      </figure>
+    </div>
+
+    <aside class="callout callout--tip" role="note">
+      <p class="callout-title">✅ Best practice</p>
+      <p>If a bigger server fixes your problem, buy the bigger server and get back to work. Scaling out (adding machines) is for when scaling up (buying a bigger one) genuinely stops working — not before.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 5. LOAD BALANCER ================= -->
+  <section id="load-balancer">
+    <span class="badge">Fix #2</span>
+    <h2>The Referee: Load Balancer</h2>
+    <p>The moment you have more than one server, you face a question you didn't have before: a request comes in from a user — <em>which server does it go to?</em> Something has to stand in front of your servers and hand each incoming request to one of them, spreading the people out evenly so no single server gets overwhelmed while the others sit idle.</p>
+    <p>That thing is a <strong>load balancer</strong>. A request comes in → the load balancer picks a server → the server does the work. If one server is busy, send the next request to a different one. Add a fourth server next month? The load balancer starts using it. The users never know how many servers there are or which one they got. Nginx is a classic one — and if you deploy on Vercel or Railway, you already have a load balancer; you just never had to set it up or think about it.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-5">
+<pre class="mermaid">flowchart LR
+    U(["👥 Users"]) --> LB{{"⚖️ Load balancer&lt;br/&gt;picks a server for each request"}}
+    LB --> S1["Server 1"]
+    LB --> S2["Server 2"]
+    LB --> S3["Server 3"]
+    S1 --> D[("Database")]
+    S2 --> D
+    S3 --> D</pre>
+      <figcaption id="cap-5"><strong>Diagram 5.</strong> Alt text: A load balancer sits between the users and three servers. Each incoming request is handed to one server so the work is spread evenly; all servers share one database. If a fourth server is added, the load balancer simply starts using it.</figcaption>
+    </figure>
+
+    <p>But we have to talk about cost, because everything we add from here has one:</p>
+    <ul>
+      <li><strong>It's a new single point of failure.</strong> A <strong>single point of failure</strong> is any one piece whose death takes the whole system down. If the load balancer goes down, it doesn't matter that you have three healthy servers behind it — nobody can reach them. In real systems, the load balancer itself also has a backup, which is more stuff to run.</li>
+      <li><strong>Quieter, and sneakier: your servers must become interchangeable.</strong> For the load balancer to send <em>any</em> request to <em>any</em> server, every server has to be able to handle every request. Right now, they aren't. The next section is where that bites.</li>
+    </ul>
+
+    <aside class="callout callout--warn" role="note">
+      <p class="callout-title">⚠️ Common pitfall</p>
+      <p>Forgetting the load balancer itself can die. Three healthy servers behind one dead load balancer equal zero working app. Real systems keep a second load balancer waiting — which is exactly the kind of "invisible cost" this lesson keeps score of.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 6. SESSIONS ================= -->
+  <section id="sessions">
+    <span class="badge">Fix #3</span>
+    <h2>Who Am I? Sessions and Stateless Servers</h2>
+
+    <h3>The mystery of the random logout</h3>
+    <p>You're now running multiple instances, and a brand-new problem appears. A user logs in on Server A, browses, picks a ticket, hits <em>Buy</em> — and that request goes to Server B, which immediately says "you're not logged in," even though they logged in a second ago. Nothing is broken. This happens the moment you run more than one server and don't handle <strong>sessions</strong> properly.</p>
+    <p>First: what does <em>being logged in</em> even mean? When you log in, the server checks your password, then needs to remember "it's you" on every request after that — so you don't retype your password on every click. So it makes a note: <em>this person is logged in as Bob</em>. It hands you a <strong>session ID</strong> — a random string that points at that note. Your browser sends the session ID with every request, and the server checks the note to know it's you.</p>
+    <p>The question that matters: <strong>where does the server keep that note?</strong> By default, the easy answer is: in the server's own memory. Now combine that with three servers. You log in, and the load balancer happens to send that request to Server 1 — so the note "Bob is logged in" lives in <em>Server 1's memory</em>. A moment later you click something — that's a new request — and the load balancer sends it to Server 2. Server 2 has never heard of you: the note is on Server 1. Server 2 looks in its own memory, finds nothing, and does the only thing it can — asks you to log in again. That's the "random logout." You're not being kicked out; you're being sent to a server that doesn't have your note. With three servers, roughly <strong>two out of every three clicks</strong> land on a server that doesn't know you.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-6">
+<pre class="mermaid">sequenceDiagram
+    participant Y as You
+    participant LB as Load balancer
+    participant S1 as Server 1
+    participant S2 as Server 2
+    Y->>LB: Log in (password)
+    LB->>S1: request happens to land on Server 1
+    Note right of S1: Server 1 writes a note in its OWN memory:&lt;br/&gt;Bob is logged in
+    S1-->>Y: Here is your session ID
+    Y->>LB: Click Buy ticket (a brand-new request)
+    LB->>S2: this one lands on Server 2
+    Note right of S2: Server 2's memory has no note.&lt;br/&gt;It has never heard of you.
+    S2-->>Y: Please log in again</pre>
+      <figcaption id="cap-6"><strong>Diagram 6.</strong> Alt text: A sequence diagram of the random-logout bug. The user logs in and the load balancer routes that request to Server 1, which stores the "Bob is logged in" note in its own memory. The user's next click is routed to Server 2, whose memory holds no note, so Server 2 asks the user to log in again.</figcaption>
+    </figure>
+
+    <h3>The fix: stateless servers + one shared note</h3>
+    <p>The fix is a rule: <strong>servers are not allowed to remember anything about you between requests.</strong> No server keeps a note in its own memory. Instead, the note goes somewhere all of them can reach — a separate place off to the side that every server can read from and write to. Now it doesn't matter where you land: you log in, the note is written to the shared place, and on your next click — whichever server the load balancer picks — that server reads the same shared place, finds your note, and knows it's you.</p>
+    <p>A server that keeps nothing about you in its own memory is called <strong>stateless</strong>. Every server is now interchangeable — exactly like the load balancer needed. Any server can handle any request, because none of them are keeping secrets the others can't see.</p>
+    <p>That shared place is very often <strong>Redis</strong> — an <em>in-memory</em> storage (it keeps data in RAM), which is extremely fast to read from. That matters because you're hitting it on every single request. Hold on to that name — Redis comes back later for two completely different jobs.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-7">
+<pre class="mermaid">flowchart LR
+    U(["Users"]) --> LB{{"Load balancer"}}
+    LB --> S1["Server 1&lt;br/&gt;stateless"]
+    LB --> S2["Server 2&lt;br/&gt;stateless"]
+    LB --> S3["Server 3&lt;br/&gt;stateless"]
+    S1 <-.-> R[("💾 Shared store — Redis&lt;br/&gt;every server reads and writes the same notes")]
+    S2 <-.-> R
+    S3 <-.-> R</pre>
+      <figcaption id="cap-7"><strong>Diagram 7.</strong> Alt text: The load balancer still spreads requests across three stateless servers, but all three now read and write their login notes to one shared Redis store — so any server can recognize any logged-in user.</figcaption>
+    </figure>
+
+    <p>The cost: every request now does one extra thing — it reaches out to that shared store to find your note before it can do anything else. That's a little time added to <em>every single request</em>, and one more piece of infrastructure that has to stay up: if the shared store goes down, nobody can be logged in at all.</p>
+
+    <aside class="callout callout--warn" role="note">
+      <p class="callout-title">⚠️ Common pitfall</p>
+      <p>Users getting randomly logged out right after you added a second server? That's not a bug in your login code — it's session notes living in each server's own memory. Move them to a shared store and the "bug" disappears.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 7. CONNECTION POOL ================= -->
+  <section id="connections">
+    <span class="badge">Fix #4</span>
+    <h2>The Database, Part 1: Too Many Open Doors (Connection Pool)</h2>
+    <p>So the front of the system is solid: load balancer, several stateless servers, everyone gets served. And all of them are talking to <strong>one</strong> database. You can probably guess where this is going.</p>
+    <p>New symptom: the app is slow again — but this time every server is healthy, none is at capacity, no bad queries, nothing seems broken. Confusing, until you notice the thing all servers have in common: they're all talking to the same single database. <strong>We scaled the servers, but we never scaled the thing behind them.</strong> Two separate problems hide here — let's take them one at a time.</p>
+
+    <h3>Problem 1 — the database only has so many open connections</h3>
+    <p>Here's a fact about databases many people don't know: a database will only hold so many <strong>open connections</strong> at the same time. Each connection — each open line from a server to the database — costs it memory and attention, so there's a hard limit on how many it'll accept at once. And that limit is lower than you'd guess: not millions — often just <strong>a few hundred</strong> on smaller hosted plans, sometimes even a few dozen.</p>
+    <p>Now count how many things are trying to connect: three servers, and each server opens several connections so it can handle several requests at once. That adds up fast. And if you're on <strong>serverless</strong> — where the platform spins up a fresh copy of your code for each request that arrives, like Vercel does — it gets worse in a way that surprises people: a big traffic spike means hundreds of fresh copies appearing at once, each grabbing its own new connections, filling every slot in seconds.</p>
+    <p>And here's the tell that makes this recognizable fast: <strong>the symptom isn't slowness — it's errors.</strong> Your ticket app was completely fine, then a popular show went on sale, traffic spiked, and suddenly: database <em>connection errors</em>, right at the moment things were going well. That's this.</p>
+
+    <h3>The fix — a connection pool</h3>
+    <p>The fix sits between your servers and the database, and it's almost boring how simple the idea is. Instead of every server opening and closing its own connections whenever it likes, you keep <strong>a small, fixed set of connections open at all times — and everything shares them.</strong> A request needs the database → it borrows one from the set → uses it → hands it straight back for the next request. This is a <strong>connection pool</strong>. The database only ever sees that small, fixed number of connections, no matter how many servers or requests you have. You've stopped overwhelming it with the sheer number of open lines. PgBouncer is a common one for Postgres, and most managed databases now ship a pooler you can simply switch on.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-8">
+<pre class="mermaid">flowchart LR
+    subgraph servers ["Your servers — however many"]
+        S1["Server 1"]
+        S2["Server 2"]
+        S3["Server 3"]
+        S4["fresh serverless copy…"]
+    end
+    servers --> P{{"🔌 Connection pool&lt;br/&gt;a small fixed set of open connections&lt;br/&gt;borrow → use → hand back"}}
+    P --> D[("Database&lt;br/&gt;only ever sees the fixed few")]</pre>
+      <figcaption id="cap-8"><strong>Diagram 8.</strong> Alt text: However many servers your app runs — including freshly spawned serverless copies — they all go through one connection pool: a small, fixed set of shared database connections that requests borrow and return. The database only ever sees that fixed number of connections.</figcaption>
+    </figure>
+
+    <aside class="callout callout--warn" role="note">
+      <p class="callout-title">⚠️ Common pitfall</p>
+      <p>Seeing <em>errors</em> (not slowness) exactly when traffic spikes, then hunting for bugs in your own code? Count your database connections first — a few hundred open lines is a common ceiling, and serverless platforms multiply them fast.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 8. READ REPLICAS ================= -->
+  <section id="replicas">
+    <span class="badge">Fix #5</span>
+    <h2>The Database, Part 2: Genuinely Out of Capacity (Read Replicas)</h2>
+    <p>That first fix handles the errors — but not the other problem, the one people usually mean when they say "the database can't keep up." Connections are under control, and the database is still maxed out: it's genuinely doing more work than one machine can do.</p>
+    <p><strong>Before doing anything clever, do one quick free check: are your common queries actually using indexes?</strong> An <strong>index</strong> works like the index at the back of a book — it lets the database jump straight to the row you want instead of reading the whole table. If your app looks users up by email on every login and there's no index on the email column, the database is scanning <em>every row</em> to find one person, every single time. That one missing index looks exactly like a capacity problem — but it isn't one. Add the index, and the load can just disappear. Check that first: it's free.</p>
+    <p>But say you've checked, the indexes are there, and the database is simply out of room. Now look at what it's spending all its effort on. Think about how you actually use an app: you open any social app and scroll — you <em>read</em> post after post after post, and once in a while you <em>write</em> something. For every one thing you write, you read hundreds. That's true of almost any app — TikTok is you "reading" videos as you scroll. <strong>Reads massively outnumber writes</strong>, which means the database spends nearly all its effort answering reads. Take the reading load off it, and you fix nearly all of the problem.</p>
+
+    <h3>The fix — make copies of the database</h3>
+    <p>One database stays the original — the only one you're allowed to write to; everything you add or change goes there. Call it the <strong>primary</strong>. Then you make copies: read-only, you can't write to them, but you can read from them all day. Whenever something changes on the primary, it sends that change out to the copies so they stay up to date. These copies are <strong>read replicas</strong>.</p>
+    <p>Now the work is spread out: writes go to the primary; reads — the huge majority of your traffic — get shared across the replicas. Each machine is doing a fraction of what one machine was drowning under.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-9">
+<pre class="mermaid">flowchart LR
+    W["✍️ Writes (the few)&lt;br/&gt;new posts · purchases · signups"] --> P[("👑 Primary database&lt;br/&gt;the only one you may write to")]
+    P -. "copies every change out&lt;br/&gt;(tiny delay = replication lag)" .-> R1[("📖 Read replica 1&lt;br/&gt;read-only")]
+    P -.-> R2[("📖 Read replica 2&lt;br/&gt;read-only")]
+    RR["👀 Reads (the huge majority)&lt;br/&gt;feeds · profiles · pages"] --> R1
+    RR --> R2</pre>
+      <figcaption id="cap-9"><strong>Diagram 9.</strong> Alt text: Read replication — the few writes go to the primary database, which copies every change out to two read-only replicas after a tiny delay (replication lag). The huge majority of reads are spread across the replicas.</figcaption>
+    </figure>
+
+    <p>And this one has a cost that's different from the others: it doesn't just cost you money or a moving part — <strong>it quietly makes your app a little wrong.</strong> When you write something to the primary, it takes a moment — usually tiny, but not zero — for that change to reach the copies. Picture this: you post something, the write goes to the primary, and immediately your app loads your feed — that read goes to a replica that hasn't received your new post yet. You look at your own feed right after posting, and your post isn't there. You refresh, and there it is. Nothing was broken; the copy was just half a second behind. That gap has a name: <strong>replication lag</strong>, and it's the price of read replicas.</p>
+    <p>Your data is now slightly out of date on the copies for a moment, sometimes — which is usually completely fine (somebody seeing a post half a second late doesn't matter). But sometimes it does matter: <em>you</em> seeing your own post missing feels broken. For those specific cases, apps deliberately read from the primary instead of a replica.</p>
+    <p>And that's the real lesson, the one worth taking over everything else: <strong>you just made your app faster and slightly wrong — on purpose</strong> — and you chose which parts are allowed to be slightly wrong, and which are not.</p>
+
+    <aside class="callout callout--warn" role="note">
+      <p class="callout-title">⚠️ Common pitfall</p>
+      <p>Replication lag looks like a bug ("my post disappeared, then reappeared after refresh!"). It isn't — it's a trade-off you chose. The fix for "my own writes must be visible to me" is to read those specific queries from the primary, not to panic.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 9. CACHING ================= -->
+  <section id="caching">
+    <span class="badge">Fix #6</span>
+    <h2>Stop Recomputing: Caching</h2>
+    <p>The database is handled now: writes to the primary, reads spread across replicas, connections pooled. But some of those reads are still expensive. There's one particular kind of question we ask the database over and over — thousands of times — and get almost the same answer every time. Computing the same answer thousands of times is just wasteful.</p>
+    <p>Take the follower count on a profile. To get it, the database has to count every follower record for that person. If someone has 2 million followers, that's the database counting through 2 million rows to produce one number. And that number sits on their profile — meaning <em>every single person who opens that profile</em> makes the database count all 2 million again. Thousands of times an hour: the same expensive count, for a number that barely moves. Wasteful.</p>
+    <p>So instead of computing it every time: <strong>compute it once, and keep the answer somewhere fast.</strong> The next person who asks gets the saved answer, and the database is never touched. A saved answer, kept somewhere fast and close, is a <strong>cache</strong>.</p>
+    <p>The flow is simple. A request comes in asking for the follower count. First, check the cache: is the answer already sitting there? If yes — hand it straight back, never go near the database. If no — ask the database, and here's the important part: <strong>put it in the cache on the way back</strong>, so the next person gets it for free.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-10">
+<pre class="mermaid">flowchart TD
+    A(["Request:&lt;br/&gt;'How many followers does Bob have?'"]) --> B{"Is the answer already&lt;br/&gt;sitting in the cache?"}
+    B -- "YES — cache hit 🎉" --> C["Return the saved answer instantly&lt;br/&gt;the database is never touched"]
+    B -- "NO — cache miss" --> D[("Ask the database&lt;br/&gt;(count 2,000,000 rows…)")]
+    D --> E["Save the answer in the cache&lt;br/&gt;on the way back"]
+    E --> F["Return the answer —&lt;br/&gt;the next person gets it free"]</pre>
+      <figcaption id="cap-10"><strong>Diagram 10.</strong> Alt text: A flowchart of a cache lookup. A request for Bob's follower count first checks the cache; on a hit, the saved answer is returned instantly. On a miss, the database is asked, the answer is saved into the cache on the way back, and then returned.</figcaption>
+    </figure>
+
+    <p>A cache is fast in a way a database can't be, because it keeps its data <strong>in memory</strong> rather than reading from disk — the answer comes back in a fraction of the time. And this is very often Redis again: the same Redis you already run for login sessions. Same piece of tech, doing a second job — worth noticing, because you didn't add a whole new system to your stack. (It gets a third job in the next section.)</p>
+
+    <div class="code-block">
+      <div class="code-bar">
+        <span>cache-check.js — illustrative pseudocode</span>
+        <button class="copy-btn" data-copy-target="#code-cache" aria-label="Copy cache pseudocode">Copy</button>
+      </div>
+<pre><code id="code-cache"><span class="c">// Pseudocode — the cache-check flow from the lesson.</span>
+<span class="c">// (Illustrative only: it needs a real Redis and a real database to run.)</span>
+
+<span class="k">async function</span> <span class="f">getFollowerCount</span>(userId) {
+  <span class="c">// 1. ALWAYS check the cache first — it lives in memory, so it is fast.</span>
+  <span class="k">const</span> cached = <span class="k">await</span> redis.<span class="f">get</span>(<span class="s">"followers:"</span> + userId);
+  <span class="k">if</span> (cached !== <span class="k">null</span>) <span class="k">return</span> cached;   <span class="c">// cache HIT: the database is never touched</span>
+
+  <span class="c">// 2. Cache MISS: ask the database (the expensive part).</span>
+  <span class="k">const</span> count = <span class="k">await</span> db.<span class="f">countFollowers</span>(userId);
+
+  <span class="c">// 3. The important step: save it on the way back,</span>
+  <span class="c">//    so the next person gets the answer for free.</span>
+  <span class="k">await</span> redis.<span class="f">set</span>(<span class="s">"followers:"</span> + userId, count);
+  <span class="k">return</span> count;
+}</code></pre>
+    </div>
+
+    <p>The cost of caching is the sharpest in the whole lesson: <strong>the moment you save a copy of an answer, that copy can go out of date.</strong> Someone gets a new follower — the real count in the database is now one higher, but the cache is still holding the old number, and everyone opening that profile sees the old count until the cache is updated or thrown away. Deciding <em>when</em> to throw away that saved answer, so it doesn't stay wrong for too long, is genuinely one of the harder problems in the whole field. There's an old joke among engineers: the two hardest things in computing are naming things and knowing when to clear your cache.</p>
+    <p>So here's the real skill, and it isn't really technical: <strong>caching trades correctness for speed, on purpose</strong> — and you have to decide which pieces of your app are allowed to be a little wrong for a little while, and which are not. A follower count 30 seconds out of date? Nobody will ever notice, nobody is harmed — cache it hard. The balance in somebody's bank account? That can never be even slightly out of date — you do not cache that, ever.</p>
+    <p>And it's worth stopping on that decision for a second, because it's the whole point. An AI will happily write that caching code for you, and write it well — but it will not make that call, because the call isn't about code. It's about your product, your users, and what they will and won't accept. <strong>You can outsource the typing, but not the decision-making.</strong> That's the part of the job that isn't going anywhere.</p>
+
+    <aside class="callout callout--warn" role="note">
+      <p class="callout-title">⚠️ Common pitfall</p>
+      <p>Caching by reflex — including data that must never be stale, like account balances or "is this ticket still available?" during checkout. Rule of thumb: cache hard what nobody minds being 30 seconds old; never cache anything where "slightly wrong" costs money or trust.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 10. QUEUES ================= -->
+  <section id="queues">
+    <span class="badge">Fix #7</span>
+    <h2>Don't Make Users Wait: Queues and Workers</h2>
+    <p>The expensive reads are cached, the database is doing far less work, and the app is quick front to back. But there's one more kind of slow — and it's a strange one, because it has nothing to do with reading data at all.</p>
+    <p>Think about a typical signup flow. A user fills out the form, clicks <em>Sign up</em>, and expects the account to be created right away. But creating the account might not be the only thing your server has to do: you might also need to send a verification email, track the signup in your analytics, and set up some initial data. Do all of that <em>before</em> sending the response, and the user is just sitting there, staring at a loading spinner.</p>
+    <p>And it's more than just slow — because sending that verification email isn't something your server does itself. It hands the email to an outside service and waits for that service to say "sent." Your signup is now only as fast as that email service: if it's having a slow day, your signup is slow today; if it's down, your signup <em>fails</em> too. You've tied whether someone can even join your app to whether some separate email company happens to be up right now. That's a bad thing to tie together.</p>
+    <p>You've already seen this pattern — you just didn't know it. When you sign up for something and the verification email takes a few seconds to land, or you upload a video and it says "processing" and lets you carry on: that delay is not the app being slow. <strong>It's the app being built correctly.</strong></p>
+
+    <h3>The fix — split the work</h3>
+    <p>Creating the account is the only part the user actually needs to happen before you answer them. The verification email doesn't have to happen in that same moment — it just has to happen <em>soon</em>. So you split the work: the instant the account is created, you answer the user — "You're signed up!" — and you <em>don't</em> send the email right then. Instead, you write down a note ("send a verification email to this person") and drop it onto a list. That list is a <strong>queue</strong>: just a line of jobs waiting to be done, in order. Then something separate — not the server handling the user's request, but a different process whose only job is working through that list — picks up the note and sends the email a moment later, while the user is already happily looking at their logged-in homepage. That separate process is a <strong>worker</strong>.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-11">
+<pre class="mermaid">flowchart LR
+    U(["👤 User clicks Sign Up"]) --> S["Server creates the account,&lt;br/&gt;then replies instantly:&lt;br/&gt;'You are signed up!' ✅"]
+    S -. "drops a note on the list" .-> Q[/"📨 Queue&lt;br/&gt;jobs waiting in order"/]
+    Q --> W["👷 Worker&lt;br/&gt;a separate background process"]
+    W --> E["Send the verification email —&lt;br/&gt;later: password resets, receipts,&lt;br/&gt;notifications, video processing…"]</pre>
+      <figcaption id="cap-11"><strong>Diagram 11.</strong> Alt text: A signup flow with a queue — the server creates the account and replies to the user immediately, then drops a note onto a queue. A separate worker process picks the note off the queue and sends the verification email in the background.</figcaption>
+    </figure>
+
+    <p>And it isn't just verification emails: password resets, notifications, receipts, video processing — any slow job you don't want a user waiting on goes on the same queue, and the worker quietly chews through it in the background. For a lot of apps, this is a tool called <strong>BullMQ</strong>, and it runs on Redis — <em>the same Redis</em> you already have for sessions and your cache. Three jobs now in a single piece of technology.</p>
+    <p>That's the whole win: the signup becomes instant, and it no longer cares whether the email service is even up. If it's down, the note just waits in the queue until it comes back — the account was already created either way.</p>
+    <p>But let's not forget the costs. First, the work now happens <em>later</em> — which is exactly why that verification email takes a few seconds to show up. For a verification email, nobody cares; just know that "done" now means <em>we have promised to do this</em>, not <em>this is finished</em>. Second, you have two more things to run, and you have to keep both the queue and the worker alive. Third — jobs can fail. The worker tries to send the email and the email service is down, so plan for it: try again in a minute, and if it keeps failing, put it somewhere a human can look at later.</p>
+
+    <aside class="callout callout--warn" role="note">
+      <p class="callout-title">⚠️ Common pitfall</p>
+      <p>"Fire and forget." A job you dropped on a queue and never checked on is a job you're quietly not doing. Every real queue setup needs retries and a "dead letter" pile that a human eventually reads.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 11. SHARDING ================= -->
+  <section id="sharding">
+    <span class="badge">Fix #8 · last resort</span>
+    <h2>When the Data Itself Won't Fit: Sharding</h2>
+    <p>Everything we've fixed so far was about handling more <em>people</em>. This last one isn't about people — it's about how much <em>data</em> you have. Remember the read replicas? Every one of them is a full copy of your database, which quietly assumes your whole database fits on one machine in the first place. But what if it doesn't? What if the data just keeps growing until it's too big for any single machine to hold? A copy can't save you now — there's no machine big enough to copy it onto.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-12">
+<pre class="mermaid">flowchart LR
+    subgraph current ["What we had until now: one primary + full-copy replicas"]
+        P[("🗄️ Primary database&lt;br/&gt;ALL the data — and it keeps growing")]
+        P -.-> R1[("📖 Replica 1&lt;br/&gt;must also hold ALL of it")]
+        P -.-> R2[("📖 Replica 2&lt;br/&gt;must also hold ALL of it")]
+    end
+    current --> X(["💥 The data no longer fits on any single machine —&lt;br/&gt;so there is nothing big enough to copy it onto.&lt;br/&gt;Replicas cannot save you now."])</pre>
+      <figcaption id="cap-12"><strong>Diagram 12.</strong> Alt text: The read-replica setup from earlier — a primary database holding all the data, with two full-copy replicas that must each also hold all of it. An arrow leads to the problem: the data no longer fits on any single machine, so there is nothing big enough to copy it onto, and replicas cannot save you now.</figcaption>
+    </figure>
+
+    <p>So you do the one thing we've avoided all lesson: <strong>stop keeping all your data in one place.</strong> You split it across several databases, and each one holds only part of it. That immediately raises a problem: if your data is spread across, say, three databases, how does your app know which one to put a new user in — and later, which one to find them in again? You can't drop them anywhere: if you saved users randomly, you'd have to search all three databases every time, which is slower than the one database you started with.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-13">
+<pre class="mermaid">flowchart TD
+    A["🆕 New user signs up —&lt;br/&gt;saved at RANDOM"] --> S["🎲 No rule:&lt;br/&gt;drop them anywhere"]
+    S --> D1[("Database 1")]
+    S --> D2[("Database 2")]
+    S --> D3[("Database 3")]
+    L["🕒 Later: find that user again"] --> Q["Which database do they live in?&lt;br/&gt;Nobody knows…"]
+    Q --> F1["Search Database 1 ❌ not here"]
+    Q --> F2["Search Database 2 ❌ not here"]
+    Q --> F3["Search Database 3 ✅ found — last"]
+    F1 --> W(["⚠️ Every lookup searches every database —&lt;br/&gt;slower than the single database you started with.&lt;br/&gt;This is why placement needs a RULE."])
+    F2 --> W
+    F3 --> W</pre>
+      <figcaption id="cap-13"><strong>Diagram 13.</strong> Alt text: A flowchart of naive random placement — a new user is saved in a randomly chosen database because there is no rule. Later, when the app needs to find that user, it doesn't know which database they live in, so it must search Database 1, Database 2, and Database 3 one by one. The result: every lookup searches every database, which is slower than the single database you started with.</figcaption>
+    </figure>
+
+    <h3>The rule</h3>
+    <p>You need a rule, built on one <strong>column</strong> — a property every record has. For users, the obvious choice is the user ID. The simplest possible rule: <strong>take the user ID, divide it by the number of databases you have, and the remainder tells you where they go.</strong> Three databases: remainder 0 → Database 1, remainder 1 → Database 2, remainder 2 → Database 3. Your users end up spread evenly, each database holding roughly a third.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-14">
+<pre class="mermaid">flowchart LR
+    U["👥 All your users"] --> RULE["THE RULE:&lt;br/&gt;user ID ÷ number of databases —&lt;br/&gt;the remainder decides"]
+    RULE -- "remainder 0" --> S1[("Shard 1&lt;br/&gt;users 3, 6, 9…&lt;br/&gt;~⅓ of all users")]
+    RULE -- "remainder 1" --> S2[("Shard 2&lt;br/&gt;users 1, 4, 7…&lt;br/&gt;~⅓ of all users")]
+    RULE -- "remainder 2" --> S3[("Shard 3&lt;br/&gt;users 2, 5, 8…&lt;br/&gt;~⅓ of all users")]
+    S1 --> OK(["✅ No single machine has to hold everyone anymore —&lt;br/&gt;each shard holds only a fraction of the data"])
+    S2 --> OK
+    S3 --> OK</pre>
+      <figcaption id="cap-14"><strong>Diagram 14.</strong> Alt text: The sharding rule as a distribution diagram — all users pass through one rule (user ID divided by the number of databases; the remainder decides), sending remainder-0 users (3, 6, 9…) to Shard 1, remainder-1 users (1, 4, 7…) to Shard 2, and remainder-2 users (2, 5, 8…) to Shard 3. Each shard ends up holding roughly one third of all users, so no single machine has to hold everyone anymore.</figcaption>
+    </figure>
+
+    <p>Quick note: if your IDs have letters in them, like a UUID, you first run them through a <strong>hash function</strong> — which turns any value into a number, the <em>same</em> number every time — and then the exact same divide-by-remainder rule applies.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-15">
+<pre class="mermaid">flowchart LR
+    ID["🔑 An ID with letters in it —&lt;br/&gt;a UUID: 'f81d4fae-7dec'"] --> H["#️⃣ Hash function&lt;br/&gt;turns ANY value into a number —&lt;br/&gt;the SAME number every time"]
+    H --> N["847120394&lt;br/&gt;(now it is just a number)"]
+    N --> D["÷ 3 → remainder 1"]
+    D --> S2[("Shard 2 — every time&lt;br/&gt;same input → same shard 🎯")]</pre>
+      <figcaption id="cap-15"><strong>Diagram 15.</strong> Alt text: Routing an ID that contains letters, such as a UUID — the ID first passes through a hash function that turns any value into a number (the same number every time), then the divide-by-remainder rule applies as usual, routing it to the same shard every time.</figcaption>
+    </figure>
+
+    <p>Each of these databases is called a <strong>shard</strong>, and the whole approach — splitting your database across shards by a rule — is called <strong>sharding</strong>.</p>
+    <p>And here's the part that makes it actually click. A request comes in for user number 5. The app runs the same exact rule: 5 ÷ 3 leaves remainder 2 → Database 3. <strong>It goes straight there.</strong> It doesn't search. It doesn't check the other two. It just knows — because the rule is consistent, the same user always lands on the same shard, and writing data and finding it again both use the same rule. You've essentially split your lookup, read, and write time by three.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-16">
+<pre class="mermaid">flowchart TD
+    A["Request for User ID 5"] --> R["Run the same rule as always:&lt;br/&gt;5 ÷ 3 leaves remainder 2"]
+    R --> M{"remainder = ?"}
+    M -- "0" --> S1[("Shard 1&lt;br/&gt;IDs 3, 6, 9…")]
+    M -- "1" --> S2[("Shard 2&lt;br/&gt;IDs 1, 4, 7…")]
+    M -- "2 — user 5 goes here" --> S3[("Shard 3&lt;br/&gt;IDs 2, 5, 8…&lt;br/&gt;straight there, no searching 🎯")]</pre>
+      <figcaption id="cap-16"><strong>Diagram 16.</strong> Alt text: The sharding rule in action — a request for user ID 5 runs the rule "5 divided by 3," which leaves remainder 2, so the app goes straight to Shard 3 (the shard holding IDs 2, 5, 8, and so on) with no searching of the other shards.</figcaption>
+    </figure>
+
+    <h3>The cost — cross-shard queries</h3>
+    <p>As long as a question is about one user, everything's fine: one shard, fast. But some questions are not about one user. Say you want to count how many users you have in total. There is no single shard that knows the answer — no shard has all the users. You have to ask all three, get their separate counts, and add them up yourself. A question that used to be one simple query is now three queries plus some assembly — and it gets worse the more shards you have: 10 shards means asking 10 databases and combining 10 answers. Anything that has to look across all your data — counting, sorting everything by date, searching everyone — now touches every shard.</p>
+    <p>These are called <strong>cross-shard queries</strong>, and avoiding them is the whole art of sharding. It's why choosing the rule — which column you split on — is such a big decision. Pick well, and almost every query stays on one shard. Pick badly, and all your common queries have to hit every machine: you've built something slower than what you started with. Oh, and one more thing — once your data is split like this and all your code is written around it, going back is its own painful migration.</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-17">
+<pre class="mermaid">flowchart LR
+    Q["Question: how many users&lt;br/&gt;do we have in total?"] --> S1[("Shard 1&lt;br/&gt;count = 4,001")]
+    Q --> S2[("Shard 2&lt;br/&gt;count = 3,998")]
+    Q --> S3[("Shard 3&lt;br/&gt;count = 4,010")]
+    S1 --> T["Your app must ask every shard,&lt;br/&gt;then add the answers up itself —&lt;br/&gt;3 queries plus math instead of 1"]
+    S2 --> T
+    S3 --> T</pre>
+      <figcaption id="cap-17"><strong>Diagram 17.</strong> Alt text: A cross-shard query — the question "how many users in total?" must be sent to all three shards, each returns its own count, and the app adds the three answers together: three queries plus assembly instead of one.</figcaption>
+    </figure>
+
+    <p>So this is the most powerful tool in the whole lesson — and still the one you reach for <strong>last</strong>, by a long way. Teams put it off for years, and they're right to: you do it only when the data simply will not fit any other way. (For a sense of real-world scale: Notion went from one database to sharded at over 200 billion rows while the whole product stayed alive.)</p>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-18">
+<pre class="mermaid">flowchart TD
+    subgraph three ["TODAY — 3 shards, the rule is ÷ 3"]
+        S1[("Shard 1&lt;br/&gt;users 3, 6, 9… (remainder 0)")]
+        S2[("Shard 2&lt;br/&gt;users 1, 4, 7… (remainder 1)")]
+        S3[("Shard 3&lt;br/&gt;users 2, 5, 8… (remainder 2)")]
+    end
+    subgraph four ["TOMORROW — 4 shards, the rule becomes ÷ 4"]
+        T1[("Shard 1&lt;br/&gt;users 4, 8… (remainder 0)")]
+        T2[("Shard 2&lt;br/&gt;users 1, 5, 9… (remainder 1)")]
+        T3[("Shard 3&lt;br/&gt;users 2, 6… (remainder 2)")]
+        T4[("Shard 4&lt;br/&gt;users 3, 7… (remainder 3)")]
+    end
+    three -- "add a 4th database → the rule becomes ÷ 4" --> four
+    four --> P(["🚚 Almost every user changes home shard,&lt;br/&gt;so the data must MOVE while the app stays alive —&lt;br/&gt;the painful migration teams put off for years."])</pre>
+      <figcaption id="cap-18"><strong>Diagram 18.</strong> Alt text: A before-and-after of re-sharding. Today, with three shards, the rule is divide by 3, so users 3, 6, 9… live in Shard 1, users 1, 4, 7… in Shard 2, and users 2, 5, 8… in Shard 3. Tomorrow, after adding a fourth database, the rule becomes divide by 4, and almost every user's home shard changes — meaning all that data must physically move while the app stays alive, which is the painful migration teams put off for years.</figcaption>
+    </figure>
+
+    <aside class="callout callout--tip" role="note">
+      <p class="callout-title">✅ Best practice</p>
+      <p>Shard only when the data won't fit on one machine — never "to be ready for scale." One extra consequence of the remainder rule: change the number of shards, and every user's home database changes. That's exactly why the transcript calls un-sharding (or re-sharding) a painful migration.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 12. SUMMARY ================= -->
+  <section id="summary">
+    <span class="badge">The whole system</span>
+    <h2>What We Built (and What It Cost)</h2>
+    <p>We started with one server and one database. Then, one fix at a time:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>It broke because…</th><th>…we added</th><th>…and paid with</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Thousands of users at once; requests queued until they timed out</td><td>More servers (horizontal scaling) + a load balancer</td><td>A new single point of failure (it needs a backup); servers must become interchangeable</td></tr>
+          <tr><td>Random logouts — login notes lived in one server's memory</td><td>A shared session store (Redis); servers became stateless</td><td>One extra lookup on every request; one more piece that must stay alive</td></tr>
+          <tr><td>Database connection errors during traffic spikes</td><td>A connection pool</td><td>Not spelled out in the transcript — generically: one more moving part between your app and the database</td></tr>
+          <tr><td>Database genuinely maxed out, mostly by reads</td><td>(Free fix first: indexes.) Then a primary + read replicas</td><td>Replication lag — data slightly out of date on copies for a moment</td></tr>
+          <tr><td>The same expensive answer computed thousands of times</td><td>A cache (Redis again)</td><td>Stale answers — you must decide what may be wrong, and for how long</td></tr>
+          <tr><td>Users waiting on slow side-jobs like emails</td><td>A queue + a worker</td><td>Work happens later; two more things to keep alive; jobs can fail (plan retries)</td></tr>
+          <tr><td>Data too big for any single machine</td><td>Sharding, by the user-ID remainder rule</td><td>Cross-shard queries; very hard to reverse; a painful migration</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure class="diagram" role="figure" aria-labelledby="cap-19">
+<pre class="mermaid">flowchart LR
+    U(["Thousands of users"]) --> LB{{"⚖️ Load balancer&lt;br/&gt;(with its own backup)"}}
+    LB --> S1["Server 1&lt;br/&gt;stateless"]
+    LB --> S2["Server 2&lt;br/&gt;stateless"]
+    LB --> S3["Server 3&lt;br/&gt;stateless"]
+    S1 --> R[("💾 Redis&lt;br/&gt;sessions · cache · queue")]
+    S2 --> R
+    S3 --> R
+    R -. "background jobs" .-> W["👷 Worker"]
+    S1 --> CP{{"🔌 Connection pool"}}
+    S2 --> CP
+    S3 --> CP
+    CP --> P[("👑 Primary database")]
+    P -.-> RP1[("📖 Read replica")]
+    P -.-> RP2[("📖 Read replica")]</pre>
+      <figcaption id="cap-19"><strong>Diagram 19.</strong> Alt text: The complete system built during the lesson — users reach a load balancer (which has its own backup), which spreads requests across stateless servers. The servers share Redis for sessions, cache, and the job queue; a worker handles queued background jobs; all database traffic flows through a connection pool to a primary database, which replicates to read replicas.</figcaption>
+    </figure>
+
+    <p>That's a real system — genuinely how a huge number of apps are built. And AI can build every one of these boxes for you. <strong>Knowing which ones you actually need, and what they cost, is the part it can't do.</strong> Anyone can name these things; the one who gets hired says <em>why</em> they'd pick one over the other, and what it costs. System design isn't the boxes — it's the order, and the trades.</p>
+  </section>
+
+  <!-- ================= 13. HTML NOTE ================= -->
+  <section id="html-note">
+    <span class="badge">Housekeeping</span>
+    <h2>A Quick Note About HTML in This Lesson</h2>
+
+    <aside class="callout callout--note" role="note">
+      <p class="callout-title">📋 Editor's note — what about the HTML tags?</p>
+      <p>The transcript this lesson is built from is a system-design talk. It never mentions any specific HTML tags or attributes, so there is no HTML syntax from it to highlight — and we won't invent any. Instead, here's the generic, industry-standard best practice for writing HTML, demonstrated by the very page you're reading.</p>
+    </aside>
+
+    <p>Best practice: when you write any HTML page, use <strong>semantic tags</strong> — tags whose names say what the content <em>is</em>, not how it looks. Screen readers, search engines, and future-you all benefit. This lesson is built exactly that way:</p>
+
+    <div class="code-block">
+      <div class="code-bar">
+        <span>this-lesson's-skeleton.html</span>
+        <button class="copy-btn" data-copy-target="#code-semantic" aria-label="Copy semantic HTML skeleton">Copy</button>
+      </div>
+<pre><code id="code-semantic">&lt;<span class="t">article</span>&gt;                              <span class="c">&lt;!-- one complete, self-contained lesson --&gt;</span>
+  &lt;<span class="t">header</span>&gt; … &lt;/<span class="t">header</span>&gt;
+  &lt;<span class="t">nav</span> <span class="a">aria-label</span>=<span class="s">"Lesson contents"</span>&gt; … &lt;/<span class="t">nav</span>&gt;
+  &lt;<span class="t">section</span> <span class="a">id</span>=<span class="s">"load-balancer"</span>&gt;          <span class="c">&lt;!-- each concept gets its own section --&gt;</span>
+    &lt;<span class="t">h2</span>&gt;Fix #2 — The Load Balancer&lt;/<span class="t">h2</span>&gt;
+    &lt;<span class="t">figure</span>&gt;                          <span class="c">&lt;!-- diagram + text description --&gt;</span>
+      &lt;<span class="t">pre</span> <span class="a">class</span>=<span class="s">"mermaid"</span>&gt; … &lt;/<span class="t">pre</span>&gt;
+      &lt;<span class="t">figcaption</span>&gt;Alt text: requests flow from users…&lt;/<span class="t">figcaption</span>&gt;
+    &lt;/<span class="t">figure</span>&gt;
+    &lt;<span class="t">aside</span> <span class="a">role</span>=<span class="s">"note"</span>&gt;               <span class="c">&lt;!-- a best-practice callout --&gt;</span>
+      &lt;<span class="t">p</span>&gt;&lt;<span class="t">strong</span>&gt;Best practice:&lt;/<span class="t">strong</span>&gt; …&lt;/<span class="t">p</span>&gt;
+    &lt;/<span class="t">aside</span>&gt;
+  &lt;/<span class="t">section</span>&gt;
+  &lt;<span class="t">footer</span>&gt; … &lt;/<span class="t">footer</span>&gt;
+&lt;/<span class="t">article</span>&gt;</code></pre>
+    </div>
+
+    <aside class="callout callout--tip" role="note">
+      <p class="callout-title">✅ Best practice</p>
+      <p>Rule of thumb: reach for <code>&lt;article&gt;</code>, <code>&lt;section&gt;</code>, <code>&lt;nav&gt;</code>, <code>&lt;header&gt;</code>, <code>&lt;footer&gt;</code>, and <code>&lt;figure&gt;</code> before you reach for a plain <code>&lt;div&gt;</code>. The tag name should describe what the content <em>is</em>.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 14. CODE EXAMPLE ================= -->
+  <section id="code-example">
+    <span class="badge">Hands-on</span>
+    <h2>Runnable Example: The Sharding Rule</h2>
+    <p>The most concrete idea in the whole lesson is the sharding rule, so let's build it. Below is a complete, self-contained HTML page with a few lines of JavaScript. You can <strong>try it live right here</strong> first, then copy the code and run it in your own browser.</p>
+
+    <div class="live-demo">
+      <p class="live-demo-label">▶ Try it live — runs right on this page</p>
+      <div class="demo-grid">
+        <label for="demoUserId">User ID
+          <input id="demoUserId" type="number" value="5" min="0">
+        </label>
+        <label for="demoShards">Number of databases (shards)
+          <input id="demoShards" type="number" value="3" min="1" max="12">
+        </label>
+      </div>
+      <button id="demoRoute" class="btn">Where does this user live?</button>
+      <div class="demo-output" id="demoOutput" role="status" aria-live="polite"></div>
+      <div class="chips" id="demoShardVis" aria-hidden="true"></div>
+      <p class="demo-neighbours" id="demoNeighbours"></p>
+    </div>
+
+    <h3>How to run it yourself</h3>
+    <ol>
+      <li>Copy the code below (button in the corner of the code block).</li>
+      <li>Paste it into any text editor — Notepad, TextEdit, or VS Code.</li>
+      <li>Save it as <code>sharding.html</code> — the <code>.html</code> ending tells the browser it's a web page.</li>
+      <li>Double-click the saved file. It opens in your browser and just works — no installs, no server needed.</li>
+    </ol>
+
+    <div class="code-block">
+      <div class="code-bar">
+        <span>sharding.html — complete, runnable</span>
+        <button class="copy-btn" data-copy-target="#code-shard" aria-label="Copy the sharding calculator code">Copy</button>
+      </div>
+<pre><code id="code-shard">&lt;!DOCTYPE html&gt;
+&lt;<span class="t">html</span> <span class="a">lang</span>=<span class="s">"en"</span>&gt;
+&lt;<span class="t">head</span>&gt;
+  &lt;<span class="t">meta</span> <span class="a">charset</span>=<span class="s">"UTF-8"</span>&gt;
+  &lt;<span class="t">meta</span> <span class="a">name</span>=<span class="s">"viewport"</span> <span class="a">content</span>=<span class="s">"width=device-width, initial-scale=1"</span>&gt;
+  &lt;<span class="t">title</span>&gt;Sharding Rule Calculator&lt;/<span class="t">title</span>&gt;
+  &lt;<span class="t">style</span>&gt;
+    <span class="c">/* a tiny bit of styling so it looks friendly */</span>
+    body   { <span class="a">font-family</span>: system-ui, sans-serif; <span class="a">max-width</span>: <span class="n">30rem</span>; <span class="a">margin</span>: <span class="n">2rem</span> auto; }
+    input  { <span class="a">font</span>: inherit; <span class="a">padding</span>: <span class="n">.5rem</span>; <span class="a">width</span>: <span class="n">100%</span>; }
+    button { <span class="a">font</span>: inherit; <span class="a">padding</span>: <span class="n">.5rem 1rem</span>; <span class="a">margin-top</span>: <span class="n">1rem</span>; <span class="a">cursor</span>: pointer; }
+    #result{ <span class="a">background</span>: <span class="s">#eef2ff</span>; <span class="a">padding</span>: <span class="n">.75rem 1rem</span>; <span class="a">border-radius</span>: <span class="n">.5rem</span>; }
+  &lt;/<span class="t">style</span>&gt;
+&lt;/<span class="t">head</span>&gt;
+&lt;<span class="t">body</span>&gt;
+  &lt;<span class="t">h1</span>&gt;Which database holds this user?&lt;/<span class="t">h1</span>&gt;
+
+  &lt;<span class="t">label</span>&gt;User ID
+    &lt;<span class="t">input</span> <span class="a">id</span>=<span class="s">"userId"</span> <span class="a">type</span>=<span class="s">"number"</span> <span class="a">value</span>=<span class="s">"5"</span> <span class="a">min</span>=<span class="s">"0"</span>&gt;
+  &lt;/<span class="t">label</span>&gt;
+
+  &lt;<span class="t">label</span>&gt;Number of databases
+    &lt;<span class="t">input</span> <span class="a">id</span>=<span class="s">"dbCount"</span> <span class="a">type</span>=<span class="s">"number"</span> <span class="a">value</span>=<span class="s">"3"</span> <span class="a">min</span>=<span class="s">"2"</span> <span class="a">max</span>=<span class="s">"10"</span>&gt;
+  &lt;/<span class="t">label</span>&gt;
+
+  &lt;<span class="t">button</span> <span class="a">id</span>=<span class="s">"routeBtn"</span>&gt;Where does this user live?&lt;/<span class="t">button</span>&gt;
+
+  &lt;<span class="t">p</span> <span class="a">id</span>=<span class="s">"result"</span>&gt;Click the button to run the rule.&lt;/<span class="t">p</span>&gt;
+
+  &lt;<span class="t">script</span>&gt;
+    <span class="c">// THE SHARDING RULE from the lesson:
+    // divide the user ID by the number of databases.
+    // The REMAINDER decides which database to use.</span>
+    <span class="k">function</span> <span class="f">shardFor</span>(userId, dbCount) {
+      <span class="k">const</span> remainder = userId % dbCount;   <span class="c">// e.g. 5 % 3 = 2</span>
+      <span class="k">return</span> remainder + <span class="n">1</span>;                 <span class="c">// 0 → DB 1, 1 → DB 2, 2 → DB 3…</span>
+    }
+
+    <span class="k">function</span> <span class="f">route</span>() {
+      <span class="k">const</span> id    = <span class="f">Number</span>(document.<span class="f">getElementById</span>(<span class="s">"userId"</span>).value);
+      <span class="k">const</span> count = <span class="f">Number</span>(document.<span class="f">getElementById</span>(<span class="s">"dbCount"</span>).value);
+
+      <span class="k">if</span> (!<span class="f">Number</span>.isInteger(id) || count &lt; <span class="n">2</span>) {
+        document.<span class="f">getElementById</span>(<span class="s">"result"</span>).textContent = <span class="s">"Please enter valid numbers."</span>;
+        <span class="k">return</span>;
+      }
+
+      <span class="k">const</span> db = <span class="f">shardFor</span>(id, count);
+      document.<span class="f">getElementById</span>(<span class="s">"result"</span>).textContent =
+        <span class="s">"User "</span> + id + <span class="s">" → "</span> + id + <span class="s">" ÷ "</span> + count +
+        <span class="s">" leaves remainder "</span> + (id % count) + <span class="s">" → Database "</span> + db;
+    }
+
+    document.<span class="f">getElementById</span>(<span class="s">"routeBtn"</span>).<span class="f">addEventListener</span>(<span class="s">"click"</span>, route);
+  &lt;/<span class="t">script</span>&gt;
+&lt;/<span class="t">body</span>&gt;
+&lt;/<span class="t">html</span>&gt;</code></pre>
+    </div>
+
+    <aside class="callout callout--warn" role="note">
+      <p class="callout-title">⚠️ Common pitfall</p>
+      <p>This is a <em>simulator</em> of the routing rule, not a real database. And notice what happens if you change the shard count mid-flight: every user's home database changes. In a real system that means moving data — the painful migration the lesson warns about. Real teams pick their shard count and rule very carefully, once.</p>
+    </aside>
+  </section>
+
+  <!-- ================= 15. CHALLENGE ================= -->
+  <section id="challenge">
+    <span class="badge">Your turn</span>
+    <h2>Code Challenge 🏋️</h2>
+    <div class="challenge-card">
+      <p>Open your copy of <code>sharding.html</code> and modify it. <strong>Predict each answer before you run the code</strong> — that prediction muscle is the real skill.</p>
+      <ol>
+        <li><strong>Task 1 — add capacity:</strong> change the number of databases from 3 to 5 (edit the <code>value</code> of the second input). Before clicking: which database will user 7 land on now?</li>
+        <li><strong>Task 2 — feel the cross-shard cost:</strong> add a second button, "Count all users", that simulates the total-user-count question. It should show <em>how many shards had to be queried</em> to answer it. (Hint: the answer should always be <em>all of them</em>.)</li>
+        <li><strong>Task 3 — bonus, UUIDs:</strong> add a tiny hash function so that IDs with letters in them, like <code>"f81d4fae-7dec"</code>, also route to a consistent database. The same input must always give the same shard.</li>
+      </ol>
+      <button id="solutionBtn" class="btn" aria-expanded="false" aria-controls="solution">💡 Show solution</button>
+
+      <div id="solution" hidden>
+        <h3>Solution — what you should have done</h3>
+        <p><strong>Task 1:</strong> <code>7 ÷ 5 = 1</code> remainder <code>2</code> → <strong>Database 3</strong>. Notice you only changed the input's <code>value</code> — the rule itself never changes. That's the whole trick: one consistent rule, applied everywhere, forever.</p>
+        <p><strong>Task 2:</strong> the key realization is that a total count <strong>cannot skip any shard</strong> — no single shard knows the whole answer, so the loop is forced to visit every one:</p>
+
+        <div class="code-block">
+          <div class="code-bar">
+            <span>solution.js</span>
+            <button class="copy-btn" data-copy-target="#code-solution" aria-label="Copy solution code">Copy</button>
+          </div>
+<pre><code id="code-solution"><span class="c">// Task 1 — User 7 with 5 databases:</span>
+<span class="c">//   7 % 5 = 2  →  Database 3. Only the input changed, not the rule.</span>
+
+<span class="c">// Task 2 — the cross-shard "count everyone" query:</span>
+<span class="k">function</span> <span class="f">countAllUsers</span>(shardCounts) {
+  <span class="k">let</span> total = <span class="n">0</span>;
+  <span class="k">for</span> (<span class="k">const</span> count <span class="k">of</span> shardCounts) {   <span class="c">// must visit EVERY shard — no skipping</span>
+    total += count;
+  }
+  <span class="k">return</span> { total: total, shardsQueried: shardCounts.length };
+}
+<span class="c">// countAllUsers([4001, 3998, 4010])
+//   → { total: 12009, shardsQueried: 3 }  ← the cost of a cross-shard query</span>
+
+<span class="c">// Task 3 (bonus) — a simple deterministic hash for UUID-style IDs:</span>
+<span class="c">// same input → same number, every single time (that is the whole point).</span>
+<span class="k">function</span> <span class="f">simpleHash</span>(str) {
+  <span class="k">let</span> h = <span class="n">0</span>;
+  <span class="k">for</span> (<span class="k">let</span> i = <span class="n">0</span>; i &lt; str.length; i++) {
+    h = (h * <span class="n">31</span> + str.charCodeAt(i)) % <span class="n">1000000007</span>;
+  }
+  <span class="k">return</span> h;
+}
+<span class="c">// shard = simpleHash("f81d4fae-7dec") % dbCount + 1;</span></code></pre>
+        </div>
+
+        <p><strong>Task 3 (bonus):</strong> the hash must be <em>deterministic</em> — same input, same number, every time — or users would silently move between databases. Any simple loop over the characters (like <code>simpleHash</code> above) works; then the remainder rule applies exactly as before.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 16. GLOSSARY ================= -->
+  <section id="glossary">
+    <span class="badge">Reference</span>
+    <h2>Glossary: The "Scary Words" in Plain English</h2>
+    <p>Every term from the lesson, defined in one line — so the scary pile of words never scares you again:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Term</th><th>Plain-English meaning</th></tr></thead>
+        <tbody>
+          <tr><td>System design</td><td>Deciding how the pieces of an app fit together so it stays fast and alive under real traffic.</td></tr>
+          <tr><td>Server</td><td>A computer that runs your code and answers visitors' requests.</td></tr>
+          <tr><td>Database</td><td>Where your app's data is stored.</td></tr>
+          <tr><td>Request</td><td>One message from a browser to a server ("show me this page", "buy this ticket").</td></tr>
+          <tr><td>Queue (traffic sense)</td><td>Requests lining up, waiting for a busy server's turn.</td></tr>
+          <tr><td>Time out</td><td>A request giving up because it waited too long.</td></tr>
+          <tr><td>Vertical scaling</td><td>Buying one bigger, stronger server — same single machine.</td></tr>
+          <tr><td>Horizontal scaling</td><td>Running several identical copies of your app and splitting people between them.</td></tr>
+          <tr><td>Instance</td><td>One running copy of your app.</td></tr>
+          <tr><td>Load balancer</td><td>The box in front of your servers that hands each incoming request to one of them, evenly.</td></tr>
+          <tr><td>Single point of failure</td><td>Any one piece whose death takes the whole system down.</td></tr>
+          <tr><td>Session ID</td><td>A random string the server gives you at login; your browser sends it with every request so you don't retype your password.</td></tr>
+          <tr><td>Stateless</td><td>A server that remembers nothing about you between requests — notes live in a shared store instead.</td></tr>
+          <tr><td>Redis</td><td>A very fast in-memory store; often used for sessions, cache, and job queues — three jobs, one technology.</td></tr>
+          <tr><td>Connection pool</td><td>A small, fixed set of database connections that every request borrows and hands back.</td></tr>
+          <tr><td>Serverless</td><td>A platform that spins up a fresh copy of your code for each incoming request (e.g. Vercel).</td></tr>
+          <tr><td>Index</td><td>A lookup structure that lets a database jump straight to a row instead of scanning the whole table.</td></tr>
+          <tr><td>Primary database</td><td>The one copy you're allowed to write to.</td></tr>
+          <tr><td>Read replica</td><td>A read-only copy of the primary that answers reads.</td></tr>
+          <tr><td>Replication lag</td><td>The tiny delay before a write on the primary reaches the replicas.</td></tr>
+          <tr><td>Cache</td><td>A saved answer kept somewhere fast, so the database isn't asked the same expensive question again.</td></tr>
+          <tr><td>Stale</td><td>A saved answer that has fallen behind the truth.</td></tr>
+          <tr><td>Queue (job sense)</td><td>A list of slow jobs ("send this email") waiting to be done, in order.</td></tr>
+          <tr><td>Worker</td><td>A separate background process that works through the job queue.</td></tr>
+          <tr><td>BullMQ</td><td>A common tool for job queues, running on Redis.</td></tr>
+          <tr><td>Shard</td><td>One database holding only part of your data, chosen by a rule.</td></tr>
+          <tr><td>Sharding</td><td>Splitting your database across shards.</td></tr>
+          <tr><td>Hash function</td><td>Turns any value into a number — the same number every time.</td></tr>
+          <tr><td>Cross-shard query</td><td>A question that must touch every shard and stitch the answers together.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</article>
+</main>
+
+<footer class="site-footer">
+  <p><strong>Source:</strong> built from a video transcript by Adrian ("so let's break some things"). The source video ends with a promo for a related course — that part isn't needed for this lesson.</p>
+  <p><strong>Diagrams:</strong> drawn with Mermaid.js, loaded from a CDN. If you're viewing this offline, diagrams appear as plain text — everything else works without a connection.</p>
+  <p>💡 <strong>Practice idea:</strong> cover the right-hand column of the summary table and re-explain each cost out loud. If you can say <em>why</em> each piece exists and what it costs, you already think like a system designer.</p>
+</footer>
+</div>
+
+<!-- Mermaid.js for the diagrams -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- 1. Capture diagram sources + render helper ---------- */
+  var diagrams = [];
+  document.querySelectorAll("pre.mermaid").forEach(function (el) {
+    diagrams.push({ el: el, src: el.textContent });
+  });
+
+  function renderMermaid(theme) {
+    if (!window.mermaid) { return; } /* CDN failed → raw text stays visible */
+    try {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: theme,
+        fontFamily: "Inter, system-ui, sans-serif"
+      });
+      diagrams.forEach(function (d) {
+        d.el.removeAttribute("data-processed");
+        d.el.textContent = d.src; /* restore source so it can re-render */
+      });
+      mermaid.run({ nodes: diagrams.map(function (d) { return d.el; }) });
+    } catch (e) {
+      console.warn("Mermaid could not render:", e);
+    }
+  }
+  window.__renderMermaid = renderMermaid;
+
+  /* ---------- 2. Light / dark mode toggle ---------- */
+  var themeBtn = document.getElementById("themeToggle");
+
+  function applyTheme(dark, save) {
+    document.body.classList.toggle("dark", dark);
+    themeBtn.textContent = dark ? "☀️ Light mode" : "🌙 Dark mode";
+    themeBtn.setAttribute("aria-pressed", String(dark));
+    if (save) {
+      try { localStorage.setItem("sd-lesson-theme", dark ? "dark" : "light"); }
+      catch (e) { /* private browsing — ignore */ }
+    }
+    renderMermaid(dark ? "dark" : "default");
+  }
+
+  themeBtn.addEventListener("click", function () {
+    applyTheme(!document.body.classList.contains("dark"), true);
+  });
+
+  var initialDark = false;
+  try { initialDark = localStorage.getItem("sd-lesson-theme") === "dark"; } catch (e) {}
+  if (!initialDark && window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    initialDark = true;
+  }
+  applyTheme(initialDark, false); /* also triggers the first diagram render */
+
+  /* ---------- 3. Live demo: the sharding rule ---------- */
+  function $(id) { return document.getElementById(id); }
+
+  function updateDemo() {
+    var id = Number($("demoUserId").value);
+    var count = Number($("demoShards").value);
+    var out = $("demoOutput");
+    var vis = $("demoShardVis");
+
+    if (!Number.isInteger(id) || count < 1 || count > 12) {
+      out.textContent = "Enter a whole-number user ID and 1–12 databases.";
+      vis.innerHTML = "";
+      $("demoNeighbours").textContent = "";
+      return;
+    }
+
+    var remainder = ((id % count) + count) % count; /* safe for negatives too */
+    var db = remainder + 1;
+
+    out.innerHTML = "User " + id + " → " + id + " ÷ " + count +
+      " leaves remainder " + remainder + " → <strong>Database " + db + "</strong> 🎯";
+
+    vis.innerHTML = "";
+    for (var i = 1; i <= count; i++) {
+      var chip = document.createElement("span");
+      chip.className = "chip" + (i === db ? " chip--active" : "");
+      chip.textContent = "DB " + i;
+      vis.appendChild(chip);
+    }
+
+    var neighbours = [];
+    for (var n = 1; n <= 15; n++) { if (n % count === remainder) { neighbours.push(n); } }
+    $("demoNeighbours").textContent =
+      "Also stored in Database " + db + ": " + neighbours.join(", ") +
+      " — same rule, every time.";
+  }
+
+  ["demoUserId", "demoShards"].forEach(function (id) {
+    $(id).addEventListener("input", updateDemo);
+  });
+  $("demoRoute").addEventListener("click", updateDemo);
+  updateDemo();
+
+  /* ---------- 4. Copy buttons ---------- */
+  document.querySelectorAll(".copy-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var target = document.querySelector(btn.getAttribute("data-copy-target"));
+      if (!target) { return; }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(target.innerText).then(function () {
+          btn.textContent = "Copied ✓";
+          setTimeout(function () { btn.textContent = "Copy"; }, 1600);
+        }, function () { btn.textContent = "Select + copy manually"; });
+      } else {
+        btn.textContent = "Select + copy manually";
+      }
+    });
+  });
+
+  /* ---------- 5. Solution reveal ---------- */
+  var solBtn = document.getElementById("solutionBtn");
+  var solBox = document.getElementById("solution");
+  solBtn.addEventListener("click", function () {
+    var show = solBox.hidden;
+    solBox.hidden = !show;
+    solBtn.setAttribute("aria-expanded", String(show));
+    solBtn.textContent = show ? "🙈 Hide solution" : "💡 Show solution";
+  });
+})();
+</script>
+</body>
+</html>

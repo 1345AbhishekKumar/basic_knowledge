@@ -297,20 +297,97 @@
 
         <div class="grid-2">
           <div class="info-card">
-            <p class="info-tag">Evaluation Pattern</p>
-            <h3 class="info-title">The Turn-11 Evaluation Pattern</h3>
+            <p class="info-tag">Core Tenet 01 · Testing Reality</p>
+            <h3 class="info-title">Why Single-Turn Evals Deceive</h3>
             <p class="info-text">
-              Standard unit tests only evaluate Turn 1. However, in production applications, users traverse multiple pages, causing sessions to extend beyond 20 turns. The <strong>Turn-11 Eval</strong> loads 10 realistic historical turns (filled with tool calls, middle truncations, and conversation shifts) and tests whether Turn 11 accurately recalls critical facts from Turn 2.
+              90% of AI agent benchmarks test single-turn prompts (e.g., prompt &rarr; tool &rarr; answer). In production, however, users converse over dozens of turns while navigating complex applications. An agent that scores 98% on Turn 1 can suffer severe memory decay by Turn 8. <strong>Long-Session Evaluations</strong> explicitly benchmark an agent's reasoning under heavy context load.
             </p>
           </div>
 
           <div class="info-card focal">
-            <p class="info-tag">Cost &amp; Latency</p>
-            <h3 class="info-title">Cache-Aware Context Layout</h3>
+            <p class="info-tag">Core Tenet 02 · Economics &amp; Latency</p>
+            <h3 class="info-title">The Economics of Prompt Caching</h3>
             <p class="info-text">
-              Modern frontier providers (Anthropic Claude, Google Gemini) offer prompt caching discounts (up to 80-90% cheaper for cached prefixes). If an agent modifies its system prompt or inserts dynamic timestamps at the beginning of the context, it invalidates the entire cache. Keeping a deterministic static prefix ensures high cache hit rates across long multi-turn sessions.
+              Frontier models (Claude 3.5 Sonnet, Gemini 1.5/2.0 Pro) store the Key-Value (KV) attention tensors of static prompt prefixes in GPU memory. When subsequent calls reuse that identical prefix, providers discount input tokens by up to 80-90% and slash Time-to-First-Token (TTFT) by up to 80%. A stable context layout turns expensive multi-turn sessions into fast, low-cost interactions.
             </p>
           </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2rem 0 1rem;">1. Core Component Definitions (Labels in Figure 4.0)</h3>
+
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Panel 1 · Left</p>
+            <h3 class="info-title">Long-Session Evaluation Concepts</h3>
+            <p class="info-text">
+              <strong>Synthetic 10-Turn Preload (T1 &rarr; T10):</strong> A scripted sequence of historical messages and tool calls simulating realistic user interaction, including database queries, errors, and topic switches.<br>
+              <strong>Test Turn 11 Probe:</strong> An assertion prompt injected at the end of the 10 preloaded turns (e.g., <em>"What was the span ID diagnosed in Turn 2?"</em>) to verify that middle truncation did not accidentally erase crucial historical variables.<br>
+              <strong>Late-Stage Memory Decay:</strong> The degradation where an agent begins hallucinating or contradicting its earlier conclusions as context depth increases.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <p class="info-tag">Panel 2 · Right</p>
+            <h3 class="info-title">Prompt Caching Architecture</h3>
+            <p class="info-text">
+              <strong>Static System Prompt (Cached):</strong> The immutable prefix containing base agent instructions, role definitions, and tool definitions. Placed at the very top of the context.<br>
+              <strong>Append-Only Turns (Dynamic Tail):</strong> New user queries and agent observations appended strictly to the bottom of the prompt.<br>
+              <strong>Cache Invalidation Trap:</strong> Inserting dynamic variables (such as <code>Current Time: 14:32:05</code> or random session tokens) into the system prompt, which completely invalidates the KV-cache on every turn and forfeits discounts.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2.5rem 0 1rem;">2. Step-by-Step Flow: How Evals &amp; Caching Operate</h3>
+        <p>Follow the two distinct systems depicted in Figure 4.0:</p>
+
+        <div style="background:#ffffff; border:1px solid var(--color-rule); border-radius:8px; padding:1.5rem; margin:1.5rem 0;">
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-ink);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-ink); text-transform:uppercase;">Flow 1 &bull; Executing the Turn-11 Evaluation Harness (Left Panel)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The evaluation script loads synthetic turns <strong>T1 through T10</strong> into the agent's context pipeline. Intermediate tool responses are processed through Smart Truncation. Arrow 1 transitions into <strong>Test Turn 11</strong>, injecting a targeted verification question. The test asserts that the model's output contains the exact historical ID from Turn 2, confirming that context compaction preserved critical state.
+            </p>
+          </div>
+
+          <div style="padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Flow 2 &bull; Maintaining Prefix Stability for Prompt Caching (Right Panel)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The harness structures every API call with strict prefix ordering: (1) Fixed System Instructions &rarr; (2) Tool Schemas &rarr; (3) Pinned Goal (Head). The model provider caches this block once. As new messages arrive, they are appended to the <strong>Dynamic Tail</strong>. When middle messages are truncated, they use fixed-length placeholder strings. The provider reuses the cached KV-tensors, yielding ~90% cost savings.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; color: var(--color-ink); margin: 2rem 0 1rem;">Implementation: Turn-11 CI/CD Test &amp; Cache-Stable Builder</h3>
+
+        <div class="code-block">
+# 1. CACHE-STABLE PROMPT BUILDER
+STATIC_SYSTEM_PREFIX = """You are Alex, an expert telemetry agent.
+Always adhere to the provided tool definitions and output structured JSON."""
+
+def build_cache_friendly_context(history: list, new_turn: str) -> list:
+    # Prefix remains 100% byte-for-byte identical to leverage provider prompt cache
+    context = [
+        {"role": "system", "content": STATIC_SYSTEM_PREFIX},
+        *history,
+        {"role": "user", "content": new_turn}
+    ]
+    return context
+
+
+# 2. TURN-11 CI/CD EVALUATION HARNESS
+def test_long_session_context_retention():
+    # Preload 10 realistic turns
+    turns = [
+        {"role": "user", "content": "Analyze trace for order #9921"},
+        {"role": "tool", "content": "Found span_id=0x9921ab in checkout DB"},
+        *generate_filler_turns(count=8)  # 8 turns of intermediate work
+    ]
+    
+    # Inject Turn 11 verification probe
+    harness = AgentHarness()
+    response = harness.ask(turns, "What was the span ID found for order #9921?")
+    
+    # Assert historical key survived middle truncation
+    assert "0x9921ab" in response, "FAILURE: Turn 11 failed to recall Turn 2 span ID!"
         </div>
       </section>
     </main>

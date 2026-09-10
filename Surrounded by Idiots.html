@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Surrounded by Idiots — The DISA Model, Interactively</title>
+<style>
+:root{
+  --bg:#0b1020; --surface:#141b31; --surface2:#1c2440; --ink:#e8edf9; --muted:#8b97b8;
+  --border:rgba(255,255,255,.09); --shadow:rgba(0,0,0,.5);
+  --red:#ff4d5e; --yellow:#ffc531; --green:#2ed47a; --blue:#3d9bff;
+  --redbg:rgba(255,77,94,.13); --yellowbg:rgba(255,197,49,.13);
+  --greenbg:rgba(46,212,122,.13); --bluebg:rgba(61,155,255,.13);
+  --good:#2ed47a; --bad:#ff4d5e;
+}
+[data-theme="light"]{
+  --bg:#f4f6fc; --surface:#ffffff; --surface2:#eef2fb; --ink:#0e1526; --muted:#5a6580;
+  --border:rgba(14,21,38,.12); --shadow:rgba(20,30,60,.10);
+  --red:#e11d3c; --yellow:#c88a00; --green:#0f9d58; --blue:#1c6fd6;
+  --redbg:rgba(225,29,60,.09); --yellowbg:rgba(200,138,0,.11);
+  --greenbg:rgba(15,157,88,.09); --bluebg:rgba(28,111,214,.09);
+  --good:#0f9d58; --bad:#e11d3c;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  line-height:1.65; transition:background .3s,color .3s;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace}
+h1,h2,h3,h4{line-height:1.18; margin:0 0 .5em; letter-spacing:-.02em; font-weight:800}
+a{color:var(--blue)}
+.wrap{max-width:980px; margin:0 auto; padding:0 20px 90px}
+
+/* ---- progress ---- */
+#progressbar{position:fixed; top:0; left:0; height:3px; width:0%; z-index:1000;
+  background:linear-gradient(90deg,var(--red),var(--yellow),var(--green),var(--blue));
+  transition:width .45s cubic-bezier(.4,0,.2,1)}
+
+/* ---- topbar ---- */
+.topbar{position:sticky; top:0; z-index:900; backdrop-filter:blur(12px);
+  background:color-mix(in srgb, var(--bg) 82%, transparent);
+  border-bottom:1px solid var(--border); padding:12px 20px;
+  display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap}
+.brand{display:flex; align-items:center; gap:10px; font-weight:800; font-size:.92rem; letter-spacing:-.01em}
+.dots{display:flex; gap:4px}
+.dots i{width:9px;height:9px;border-radius:3px;display:block}
+.dots i:nth-child(1){background:var(--red)} .dots i:nth-child(2){background:var(--yellow)}
+.dots i:nth-child(3){background:var(--green)} .dots i:nth-child(4){background:var(--blue)}
+.tools{display:flex; gap:8px; align-items:center}
+button,.btn{font:inherit; cursor:pointer; border:1px solid var(--border); background:var(--surface);
+  color:var(--ink); padding:8px 14px; border-radius:10px; font-size:.88rem; font-weight:600;
+  transition:transform .15s, border-color .2s, background .2s}
+button:hover{border-color:var(--blue); transform:translateY(-1px)}
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--blue); outline-offset:2px}
+button.primary{background:var(--blue); color:#fff; border-color:var(--blue)}
+button.primary:hover{background:color-mix(in srgb,var(--blue) 85%, white)}
+#progress-label{font-size:.78rem}
+
+/* ---- hero ---- */
+header.hero{padding:64px 0 34px; position:relative; overflow:hidden}
+header.hero::before{content:""; position:absolute; inset:-40% -20% auto -20%; height:420px;
+  background:radial-gradient(circle at 20% 40%, var(--red) 0%, transparent 42%),
+             radial-gradient(circle at 45% 20%, var(--yellow) 0%, transparent 40%),
+             radial-gradient(circle at 68% 45%, var(--green) 0%, transparent 42%),
+             radial-gradient(circle at 88% 20%, var(--blue) 0%, transparent 40%);
+  opacity:.16; filter:blur(30px); pointer-events:none}
+header.hero .inner{position:relative}
+.kicker{font-size:.72rem; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); font-weight:700}
+header.hero h1{font-size:clamp(2.1rem,5.5vw,3.5rem); margin-top:.35em}
+header.hero h1 em{font-style:normal; background:linear-gradient(90deg,var(--red),var(--yellow),var(--green),var(--blue));
+  -webkit-background-clip:text; background-clip:text; color:transparent}
+header.hero p.lede{font-size:1.1rem; color:var(--muted); max-width:700px}
+.pill{display:inline-block; background:var(--surface); border:1px solid var(--border);
+  border-radius:999px; padding:5px 13px; font-size:.78rem; margin:5px 5px 0 0; font-weight:600}
+
+/* ---- sections ---- */
+section{margin:52px 0}
+.section-title{display:flex; align-items:center; gap:14px; margin-bottom:20px}
+.section-title .tag{font-size:.7rem; font-weight:800; letter-spacing:.16em; color:var(--muted);
+  border:1px solid var(--border); border-radius:6px; padding:3px 8px}
+.section-title h2{font-size:1.6rem; margin:0}
+
+/* ---- knowledge map ---- */
+.km-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px}
+.km-card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px;
+  text-align:left; cursor:pointer; position:relative; overflow:hidden; transition:transform .2s, box-shadow .2s}
+.km-card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--blue)}
+.km-card[data-c="red"]::before{background:var(--red)}
+.km-card[data-c="yellow"]::before{background:var(--yellow)}
+.km-card[data-c="green"]::before{background:var(--green)}
+.km-card[data-c="blue"]::before{background:var(--blue)}
+.km-card:hover{transform:translateY(-4px); box-shadow:0 14px 34px var(--shadow)}
+.km-card .n{position:absolute; top:12px; right:16px; font-size:1.5rem; font-weight:800; opacity:.14; font-family:ui-monospace,monospace}
+.km-card h4{margin:0 0 6px; font-size:1rem}
+.km-card p{margin:0; font-size:.85rem; color:var(--muted); line-height:1.5}
+.km-card.done{border-color:var(--green)}
+.km-card.done::after{content:"✓"; position:absolute; bottom:10px; right:14px; color:var(--green); font-weight:800}
+
+/* ---- module ---- */
+.module{background:var(--surface); border:1px solid var(--border); border-radius:20px;
+  padding:30px 28px; margin:36px 0; scroll-margin-top:90px; box-shadow:0 6px 28px var(--shadow);
+  position:relative; overflow:hidden}
+.module::after{content:""; position:absolute; top:0; left:0; right:0; height:3px;
+  background:var(--blue); opacity:.8}
+.module[data-accent="red"]::after{background:var(--red)}
+.module[data-accent="yellow"]::after{background:var(--yellow)}
+.module[data-accent="green"]::after{background:var(--green)}
+.module[data-accent="blue"]::after{background:var(--blue)}
+.module.done{border-color:color-mix(in srgb, var(--green) 55%, var(--border))}
+.mod-title{font-size:1.45rem; display:flex; gap:12px; align-items:baseline; margin-bottom:2px; flex-wrap:wrap}
+.mod-title .mt-num{font-size:.7rem; letter-spacing:.16em; font-weight:800; color:var(--muted);
+  border:1px solid var(--border); border-radius:6px; padding:3px 8px; position:relative; top:-2px}
+.mod-sub{color:var(--muted); font-style:italic; margin:0 0 20px; font-size:.95rem}
+.label{display:block; font-size:.68rem; text-transform:uppercase; letter-spacing:.16em;
+  font-weight:800; color:var(--muted); margin:22px 0 8px}
+.label::before{content:"▸ "; color:var(--blue)}
+.expl{font-size:1rem}
+.expl p{margin:.7em 0}
+.expl strong{color:var(--ink)}
+
+/* analogy */
+.analogy{border:1px solid var(--border); border-radius:16px; padding:16px 18px; margin:16px 0;
+  background:linear-gradient(135deg, var(--surface2), var(--surface))}
+.analogy .label{margin-top:0}
+.analogy p{margin:.3em 0 0; font-size:.95rem}
+.analogy .label::before{content:"◆ "; color:var(--yellow)}
+
+/* diagram */
+.diagram{background:var(--bg); border:1px solid var(--border); border-radius:16px;
+  padding:16px; margin:18px 0; text-align:center}
+.diagram svg{max-width:100%; height:auto}
+.diagram figcaption{font-size:.8rem; color:var(--muted); margin-top:10px; font-style:italic}
+
+/* examples */
+.examples{display:grid; gap:12px}
+.ex{background:var(--surface2); border-radius:12px; padding:12px 16px; border-left:4px solid var(--blue)}
+.ex .ex-tag{font-size:.66rem; text-transform:uppercase; letter-spacing:.14em; font-weight:800; color:var(--blue)}
+.ex.counter{border-left-color:var(--yellow)} .ex.counter .ex-tag{color:var(--yellow)}
+.ex.edge{border-left-color:var(--red)} .ex.edge .ex-tag{color:var(--red)}
+.ex p{margin:.3em 0 0; font-size:.92rem}
+
+/* misconception */
+details.mis{border:1px solid var(--border); border-radius:14px; margin:16px 0; background:var(--surface2)}
+details.mis summary{cursor:pointer; padding:13px 16px; font-weight:700; list-style:none;
+  display:flex; gap:10px; align-items:flex-start; font-size:.95rem}
+details.mis summary::-webkit-details-marker{display:none}
+details.mis summary::before{content:"?"; flex:0 0 22px; height:22px; border-radius:6px;
+  background:var(--redbg); color:var(--red); font-weight:800; font-size:.78rem;
+  display:flex; align-items:center; justify-content:center}
+details.mis[open] summary::before{content:"!"; background:var(--greenbg); color:var(--green)}
+details.mis .mis-body{padding:0 16px 15px 48px; font-size:.93rem; color:var(--muted)}
+
+/* why */
+.why{background:var(--surface2); border:1px solid var(--border); border-radius:14px;
+  padding:14px 18px; margin:16px 0; font-size:.94rem}
+.why strong{color:var(--green)}
+
+/* scenario */
+.scenario{background:var(--surface2); border:1px solid var(--border); border-radius:16px; padding:18px; margin:16px 0}
+.scenario h4{margin:0 0 10px; font-size:1.02rem}
+.scenario .step{margin:12px 0; padding-left:16px; border-left:2px solid var(--border)}
+.scenario .step p{margin:.25em 0; font-size:.9rem}
+.scenario .step .consequence{font-size:.84rem; color:var(--muted)}
+.scenario .step .consequence::before{content:"→ "; color:var(--yellow)}
+
+/* quiz */
+.quiz{background:var(--surface2); border:1px solid var(--border); border-radius:16px; padding:18px; margin:18px 0}
+.quiz h4{margin:0 0 4px; font-size:1.02rem}
+.quiz .qsub{font-size:.82rem; color:var(--muted); margin:0 0 12px}
+.q{margin:14px 0}
+.q .qtext{font-weight:700; margin:.2em 0 .6em; font-size:.93rem}
+.q label{display:block; padding:9px 12px; border:1px solid var(--border); border-radius:10px;
+  margin:6px 0; cursor:pointer; font-size:.89rem; transition:background .15s, border-color .15s}
+.q label:hover{background:var(--surface)}
+.q label.correct{border-color:var(--good); background:color-mix(in srgb, var(--good) 14%, transparent)}
+.q label.wrong{border-color:var(--bad); background:color-mix(in srgb, var(--bad) 14%, transparent)}
+.q .fb{font-size:.84rem; margin-top:8px; display:none; padding:9px 12px; border-radius:10px;
+  background:var(--bg); border:1px solid var(--border); color:var(--muted)}
+.q .fb.show{display:block}
+.quiz-actions{display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap}
+.score{font-weight:800; font-size:.88rem}
+
+/* flashcards */
+.flashcards{display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:14px}
+.flip{perspective:1000px; height:158px; cursor:pointer; background:none; border:none; padding:0}
+.flip-inner{position:relative; width:100%; height:100%; transition:transform .6s cubic-bezier(.4,0,.2,1);
+  transform-style:preserve-3d}
+.flip.flipped .flip-inner{transform:rotateY(180deg)}
+.flip-face{position:absolute; inset:0; backface-visibility:hidden; border-radius:16px;
+  display:flex; align-items:center; justify-content:center; text-align:center; padding:16px;
+  border:1px solid var(--border); font-size:.88rem; line-height:1.45}
+.flip-front{background:var(--surface); font-weight:700}
+.flip-back{background:var(--surface2); transform:rotateY(180deg); color:var(--ink); font-size:.84rem;
+  border-color:var(--blue)}
+
+/* drag & drop */
+.pool{display:flex; flex-wrap:wrap; gap:6px; margin:14px 0; padding:12px;
+  border:1px dashed var(--border); border-radius:14px; background:var(--surface2); min-height:56px}
+.chip{display:inline-block; background:var(--surface); border:1px solid var(--border);
+  border-radius:999px; padding:6px 14px; font-size:.84rem; cursor:grab; font-weight:600;
+  transition:transform .15s, border-color .2s}
+.chip:hover{border-color:var(--blue)}
+.chip[aria-pressed="true"]{background:var(--blue); color:#fff; border-color:var(--blue)}
+.chip.locked{cursor:default; opacity:.92}
+.buckets{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px}
+.bucket{min-height:120px; border:2px dashed var(--border); border-radius:14px; padding:12px;
+  background:var(--surface); transition:background .2s, border-color .2s}
+.bucket h5{margin:0 0 8px; font-size:.72rem; text-transform:uppercase; letter-spacing:.14em; font-weight:800}
+.bucket[data-kind="red"]{border-color:color-mix(in srgb,var(--red) 45%, var(--border))}
+.bucket[data-kind="red"] h5{color:var(--red)}
+.bucket[data-kind="yellow"]{border-color:color-mix(in srgb,var(--yellow) 45%, var(--border))}
+.bucket[data-kind="yellow"] h5{color:var(--yellow)}
+.bucket[data-kind="green"]{border-color:color-mix(in srgb,var(--green) 45%, var(--border))}
+.bucket[data-kind="green"] h5{color:var(--green)}
+.bucket[data-kind="blue"]{border-color:color-mix(in srgb,var(--blue) 45%, var(--border))}
+.bucket[data-kind="blue"] h5{color:var(--blue)}
+.bucket.drop{background:var(--surface2); transform:scale(1.02)}
+#dndFeedback{font-weight:700; margin-top:12px; min-height:24px; font-size:.9rem}
+
+/* hotspot */
+.hotspot{position:relative; display:inline-block; max-width:100%}
+.hotspot .dot{position:absolute; width:32px; height:32px; border-radius:50%;
+  border:3px solid var(--bg); cursor:pointer; font-size:.78rem; font-weight:800; color:#0b1020;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,.4);
+  transition:transform .15s}
+.hotspot .dot:hover{transform:scale(1.15)}
+.hotspot .dot[data-h="red"]{background:var(--red); color:#fff}
+.hotspot .dot[data-h="yellow"]{background:var(--yellow)}
+.hotspot .dot[data-h="green"]{background:var(--green)}
+.hotspot .dot[data-h="blue"]{background:var(--blue); color:#fff}
+.hot-info{margin-top:14px; font-size:.9rem; background:var(--surface2); border:1px solid var(--border);
+  border-radius:12px; padding:13px 16px; min-height:56px; text-align:left}
+
+/* stress dial */
+.dial{max-width:460px; margin:14px auto 0; text-align:left}
+.dial input[type=range]{width:100%; accent-color:var(--red); height:6px}
+.dial .meter{height:10px; border-radius:999px; background:var(--surface2); overflow:hidden; margin-top:8px; border:1px solid var(--border)}
+.dial .meter span{display:block; height:100%; width:12%;
+  background:linear-gradient(90deg,var(--green),var(--yellow),var(--red)); transition:width .2s}
+.stress-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-top:16px}
+.stress-card{border:1px solid var(--border); border-radius:12px; padding:11px 13px; font-size:.84rem; background:var(--surface)}
+.stress-card b{display:block; font-size:.72rem; text-transform:uppercase; letter-spacing:.12em; margin-bottom:4px}
+.stress-card[data-c="red"] b{color:var(--red)} .stress-card[data-c="yellow"] b{color:var(--yellow)}
+.stress-card[data-c="green"] b{color:var(--green)} .stress-card[data-c="blue"] b{color:var(--blue)}
+
+/* cheat sheet */
+.cheat{background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:8px; overflow-x:auto}
+table.cheat-table{width:100%; border-collapse:collapse; font-size:.88rem; min-width:620px}
+table.cheat-table th,table.cheat-table td{padding:11px 13px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top}
+table.cheat-table th{font-size:.68rem; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); font-weight:800}
+table.cheat-table td:first-child{font-weight:800; white-space:nowrap}
+table.cheat-table tr[data-c="red"] td:first-child{color:var(--red)}
+table.cheat-table tr[data-c="yellow"] td:first-child{color:var(--yellow)}
+table.cheat-table tr[data-c="green"] td:first-child{color:var(--green)}
+table.cheat-table tr[data-c="blue"] td:first-child{color:var(--blue)}
+.one-liner{font-size:1.05rem; font-weight:800; margin:14px 4px 4px; letter-spacing:-.01em}
+
+/* faq */
+.faq details{border-bottom:1px solid var(--border); padding:14px 0}
+.faq summary{cursor:pointer; font-weight:700; font-size:.96rem}
+.faq p{color:var(--muted); font-size:.93rem; margin:.6em 0 0}
+
+/* next steps */
+.steps{display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.step-card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px}
+.step-card h4{margin:0 0 6px; font-size:.98rem}
+.step-card p{margin:0; font-size:.86rem; color:var(--muted)}
+
+/* misc */
+.mark-done{display:flex; justify-content:flex-end; margin-top:20px}
+.mod-links{font-size:.84rem; color:var(--muted); margin-top:12px}
+.mod-links a{color:var(--blue); font-weight:600}
+footer{text-align:center; color:var(--muted); font-size:.8rem; padding:34px 0 10px; border-top:1px solid var(--border)}
+@media (max-width:560px){
+  .module{padding:24px 18px}
+  .hotspot .dot{width:26px;height:26px;font-size:.68rem}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important; animation:none!important; scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+<div id="progressbar" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span class="mono">DISA / SURROUNDED BY IDIOTS</span>
+  </div>
+  <div class="tools">
+    <span id="progress-label" class="mono" style="color:var(--muted)">0 / 6</span>
+    <button id="themeBtn" aria-label="Toggle light mode">☀️ Light</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="inner">
+    <div class="kicker mono">Interactive lesson · Thomas Erikson's four-colour model</div>
+    <h1>Surrounded by <em>Idiots</em></h1>
+    <p class="lede">You are not surrounded by idiots. You are surrounded by people whose brains
+    process information differently — and who are just as baffled by you. This lesson turns
+    Erikson's DISA model into something you can actually use on Monday morning.</p>
+    <div>
+      <span class="pill">⏱ ~30 min</span>
+      <span class="pill">🎨 6 modules</span>
+      <span class="pill">🕹 8 interactions</span>
+      <span class="pill">💾 progress saved locally</span>
+    </div>
+  </div>
+</header>
+
+<!-- WHAT YOU'LL LEARN -->
+<section id="learn">
+  <div class="section-title"><span class="tag mono">00</span><h2>What You'll Learn</h2></div>
+  <ul>
+    <li>Why "everyone else is an idiot" is a <strong>decoding error</strong>, not a fact about other people.</li>
+    <li>The <strong>DISA model</strong>: four behaviour patterns — Red, Yellow, Green, Blue — and what each one actually wants.</li>
+    <li>Why <strong>no colour is better than another</strong>, and what each one is genuinely good at.</li>
+    <li>The single most useful skill in the book: <strong>adaptation</strong> — communicating on the listener's terms.</li>
+    <li>What <strong>stress</strong> does to each colour, and how to read the warning signs before a team blows up.</li>
+    <li>How to read <strong>body language</strong> and group dynamics through the colour lens.</li>
+  </ul>
+</section>
+
+<!-- KNOWLEDGE MAP -->
+<section id="map">
+  <div class="section-title"><span class="tag mono">01</span><h2>Knowledge Map</h2></div>
+  <p style="color:var(--muted); margin-top:0">Tap a card to jump. Completed modules get a green check.</p>
+  <div class="km-grid" id="kmGrid">
+    <button class="km-card" data-goto="m1" data-c="red">
+      <span class="n mono">01</span>
+      <h4>Why Everyone Seems Like an Idiot</h4>
+      <p>The origin story — and the reframe that starts everything: difference, not stupidity.</p></button>
+    <button class="km-card" data-goto="m2" data-c="yellow">
+      <span class="n mono">02</span>
+      <h4>The DISA Model</h4>
+      <p>Four colours, two axes, one compass. Your first map of human behaviour.</p></button>
+    <button class="km-card" data-goto="m3" data-c="red">
+      <span class="n mono">03</span>
+      <h4>Red &amp; Yellow — The Fast Lane</h4>
+      <p>Dominance and Influence: results-driven and people-driven, both moving quickly.</p></button>
+    <button class="km-card" data-goto="m4" data-c="blue">
+      <span class="n mono">04</span>
+      <h4>Green &amp; Blue — The Deep End</h4>
+      <p>Steadiness and Conscientiousness: harmony and accuracy, both taking their time.</p></button>
+    <button class="km-card" data-goto="m5" data-c="green">
+      <span class="n mono">05</span>
+      <h4>Adaptation</h4>
+      <p>Communication happens on the listener's terms. Here's how to change yours.</p></button>
+    <button class="km-card" data-goto="m6" data-c="yellow">
+      <span class="n mono">06</span>
+      <h4>Stress &amp; Group Dynamics</h4>
+      <p>What each colour becomes under pressure — and how leaders prevent the blow-up.</p></button>
+  </div>
+</section>
+
+<!-- ============ MODULE 1 ============ -->
+<section class="module" id="m1" data-module="m1" data-accent="red">
+  <h3 class="mod-title"><span class="mt-num mono">MODULE 01</span> Why Everyone Seems Like an Idiot</h3>
+  <p class="mod-sub">The problem isn't their intelligence. It's your decoder and theirs.</p>
+
+  <span class="label">A · Core Explanation</span>
+  <div class="expl">
+    <p>Thomas Erikson opens his book with a confession. He found himself in a stretch of life where he felt surrounded by idiots. People misread his words, took offence at things he hadn't meant as insults, and seemed unable to grasp a point he considered obvious. His first instinct was to assume bad luck, or bad colleagues, or a general decline in human competence. Eventually he asked a better question: <strong>what if the problem is a mismatch, not a deficiency?</strong></p>
+    <p>That question changed everything. What Erikson discovered is that most communication failures have nothing to do with intelligence. They come from <em>differences in how people process information and express themselves</em>. Two people can hear the exact same sentence and receive two completely different messages — one hears a straightforward request, the other hears an attack. Neither is lying, and neither is stupid. They're running different decoding software.</p>
+    <p>Erikson also argues that behaviour is not random. It's shaped by genetics, upbringing, life experience and culture — but underneath all that variation, <strong>there are patterns</strong>. Some people are naturally assertive and direct; others are naturally accommodating and indirect. Some are detail-obsessed; others genuinely cannot see the details. These patterns repeat reliably enough that they can be sorted into categories. That's the whole premise of the book: not that people are simple, but that people are <em>predictably different</em> in specific, learnable ways.</p>
+    <p>Once you accept that, the emotional charge drains out of a lot of daily frustration. The colleague who steamrollered your idea wasn't being malicious — she was moving fast because that's her default. The one who "never has an opinion" wasn't being useless — he was waiting for a safe moment that never came. The work is not to fix them. It's to learn their language. That's the promise of everything that follows.</p>
+  </div>
+
+  <span class="label">B · Diagram</span>
+  <figure class="diagram">
+    <svg viewBox="0 0 640 300" role="img" aria-label="One identical message splits into two very different interpretations inside two different people.">
+      <rect width="640" height="300" fill="none"/>
+      <!-- sender -->
+      <circle cx="70" cy="150" r="34" fill="var(--surface2)" stroke="var(--muted)" stroke-width="2"/>
+      <text x="70" y="155" text-anchor="middle" font-size="11" fill="var(--muted)" font-weight="700">SENDER</text>
+      <text x="70" y="205" text-anchor="middle" font-size="10" fill="var(--muted)">same words</text>
+      <text x="70" y="220" text-anchor="middle" font-size="10" fill="var(--muted)">same tone</text>
+      <!-- wire -->
+      <line x1="106" y1="150" x2="250" y2="150" stroke="var(--muted)" stroke-width="2"/>
+      <path d="M170 143 l0 14 M160 150 l10 0" stroke="var(--muted)" stroke-width="2"/>
+      <rect x="240" y="126" width="120" height="48" rx="8" fill="var(--surface2)" stroke="var(--border)"/>
+      <text x="300" y="150" text-anchor="middle" font-size="11" fill="var(--ink)" font-family="ui-monospace,monospace">"Can we look at this?"</text>
+      <text x="300" y="168" text-anchor="middle" font-size="9" fill="var(--muted)">one message out</text>
+      <!-- split -->
+      <line x1="360" y1="150" x2="410" y2="80" stroke="var(--red)" stroke-width="2"/>
+      <line x1="360" y1="150" x2="410" y2="220" stroke="var(--green)" stroke-width="2"/>
+      <!-- red receiver -->
+      <rect x="410" y="46" width="200" height="76" rx="12" fill="var(--redbg)" stroke="var(--red)" stroke-width="2"/>
+      <text x="424" y="70" font-size="11" fill="var(--red)" font-weight="800">DECODED AS: CHALLENGE</text>
+      <text x="424" y="90" font-size="10.5" fill="var(--ink)">"She thinks I did it wrong."</text>
+      <text x="424" y="107" font-size="10.5" fill="var(--ink)">Reaction: defend, push back.</text>
+      <!-- green receiver -->
+      <rect x="410" y="182" width="200" height="76" rx="12" fill="var(--greenbg)" stroke="var(--green)" stroke-width="2"/>
+      <text x="424" y="206" font-size="11" fill="var(--green)" font-weight="800">DECODED AS: CHECK-IN</text>
+      <text x="424" y="226" font-size="10.5" fill="var(--ink)">"She wants to understand it."</text>
+      <text x="424" y="243" font-size="10.5" fill="var(--ink)">Reaction: explain, cooperate.</text>
+      <!-- footer -->
+      <text x="320" y="288" text-anchor="middle" font-size="10.5" fill="var(--muted)" font-style="italic">Same signal. Different decoding software. Neither person is an idiot.</text>
+    </svg>
+    <figcaption>Communication breakdowns are usually decoding errors, not intelligence gaps.</figcaption>
+  </figure>
+
+  <span class="label">C · Visual Analogy</span>
+  <div class="analogy">
+    <span class="label">Analogy</span>
+    <p><strong>Two radios, one broadcast.</strong> A station transmits on FM. One radio is tuned to FM and plays the song perfectly. The other is tuned to AM and produces nothing but static. The static isn't evidence that the broadcast is bad, or that the second radio is broken — it's evidence that they're on <em>different frequencies</em>. Most of what we call "difficult people" is just this: a good signal received on the wrong band.</p>
+  </div>
+
+  <span class="label">D · Three Real-World Examples</span>
+  <div class="examples">
+    <div class="ex"><span class="ex-tag">Obvious</span><p><strong>The blunt email.</strong> A manager writes a three-line email with no greeting. Half the team reads it as efficient; the other half reads it as furious. Nothing in the text changed — only the receiver.</p></div>
+    <div class="ex counter"><span class="ex-tag">Counter-intuitive</span><p><strong>The "difficult" person is often the most predictable one.</strong> The colleague who always pushes back in meetings isn't erratic — she's consistent. Once you know her pattern, she becomes the <em>easiest</em> person on the team to work with, because you can prepare for her exactly.</p></div>
+    <div class="ex edge"><span class="ex-tag">Edge case</span><p><strong>Two people who both think the other is the problem.</strong> The fast, direct person thinks the slow, careful one is obstructive. The slow, careful one thinks the fast one is reckless. Both are describing the same behaviour from opposite sides of the same mismatch.</p></div>
+  </div>
+
+  <span class="label">E · Common Misconception</span>
+  <details class="mis"><summary>"If people just tried harder / were smarter, they'd understand me."</summary>
+    <div class="mis-body">This assumes understanding is a matter of effort or intelligence. Erikson's whole point is that it's a matter of <em>style</em>. A highly intelligent person can completely miss your meaning if your delivery style doesn't match how they process. Trying harder on your end, without adapting your style, usually just means repeating the same message louder. The fix is not more effort — it's a different frequency.</div>
+  </details>
+
+  <span class="label">F · Why It Matters</span>
+  <div class="why"><strong>Why it matters:</strong> If the problem is other people's stupidity, you are powerless — you can't fix everyone. If the problem is a decoding mismatch, you have leverage: you can learn the code. This single reframe converts a permanent complaint into a learnable skill, and it's the foundation the next five modules build on.</div>
+
+  <span class="label">G · Practical Application</span>
+  <div class="scenario">
+    <h4>Scenario: You keep clashing with a colleague and have started avoiding them.</h4>
+    <div class="step"><p><strong>Decision 1:</strong> Conclude they're unreasonable and route around them.</p><p class="consequence">→ Consequence: The clash returns with the next person who shares their style. Nothing is learned.</p></div>
+    <div class="step"><p><strong>Decision 2:</strong> Ask: "What does this person seem to want in a conversation — speed, warmth, safety, or accuracy?"</p><p class="consequence">→ Consequence: You get a hypothesis you can test next time, instead of a verdict you can't act on.</p></div>
+    <div class="step"><p><strong>Decision 3:</strong> Change one thing about your delivery — not your message — and observe.</p><p class="consequence">→ Consequence: Small adjustments produce disproportionate improvements, and you now have a repeatable method.</p></div>
+  </div>
+
+  <div class="mod-links">Related: <a href="#m2">The DISA Model</a> · <a href="#m5">Adaptation</a></div>
+  <div class="mark-done"><button class="primary" data-complete="m1">Mark module complete</button></div>
+</section>
+
+<!-- ============ MODULE 2 ============ -->
+<section class="module" id="m2" data-module="m2" data-accent="yellow">
+  <h3 class="mod-title"><span class="mt-num mono">MODULE 02</span> The DISA Model</h3>
+  <p class="mod-sub">Four colours, two axes, one compass. Your first map.</p>
+
+  <span class="label">A · Core Explanation</span>
+  <div class="expl">
+    <p>The DISA model sorts behaviour into four patterns, each given a colour. <strong>D</strong> is Dominance (Red), <strong>I</strong> is Influence (Yellow), <strong>S</strong> is Steadiness (Green), and the fourth — Conscientiousness — is Blue. (You'll also see this family of models called DISC; the colour-and-letter scheme is the same idea.)</p>
+    <p>Erikson is careful about one thing: <em>everyone is a mix</em>. Nobody is a pure colour. Most people lean more heavily on one or two, and that lean shapes their default behaviour — how fast they talk, how much detail they want, how they react when things go wrong. The colours are not boxes to put people in. They're a vocabulary for describing tendencies you've already noticed but couldn't name.</p>
+    <p>The four types sit on two axes, which is what makes the model memorable rather than just a list. The first axis is <strong>task versus people</strong>: what gets your attention — the result, or the relationship? The second is <strong>fast versus careful</strong>: how do you move — quickly and outward, or slowly and inward? Cross those two axes and you get exactly four quadrants: Red (task + fast), Yellow (people + fast), Green (people + careful), Blue (task + careful).</p>
+    <p>The most important claim in this module is the one Erikson repeats throughout the book: <strong>no colour is inherently better or worse</strong>. Each has genuine strengths and real weaknesses, and each is essential to a functioning team. The goal is not to change who you are, or to convert anyone else. The goal is to recognise the pattern, understand the motivation underneath it, and adjust how you communicate so the message actually lands.</p>
+  </div>
+
+  <span class="label">B · Diagram — tap the colour dots</span>
+  <figure class="diagram">
+    <div class="hotspot">
+      <svg viewBox="0 0 640 420" role="img" aria-label="A four-quadrant compass: Red top-left, Yellow top-right, Green bottom-right, Blue bottom-left, with axes for task versus people and fast versus careful.">
+        <rect width="640" height="420" fill="none"/>
+        <!-- quadrant fills -->
+        <rect x="70" y="40" width="250" height="170" fill="var(--redbg)"/>
+        <rect x="320" y="40" width="250" height="170" fill="var(--yellowbg)"/>
+        <rect x="320" y="210" width="250" height="170" fill="var(--greenbg)"/>
+        <rect x="70" y="210" width="250" height="170" fill="var(--bluebg)"/>
+        <!-- frame -->
+        <rect x="70" y="40" width="500" height="340" fill="none" stroke="var(--border)" stroke-width="2"/>
+        <line x1="320" y1="40" x2="320" y2="380" stroke="var(--border)" stroke-width="2" stroke-dasharray="6 6"/>
+        <line x1="70" y1="210" x2="570" y2="210" stroke="var(--border)" stroke-width="2" stroke-dasharray="6 6"/>
+        <!-- axis labels -->
+        <text x="320" y="24" text-anchor="middle" font-size="11" fill="var(--muted)" font-weight="800" letter-spacing="1.5">FAST / OUTWARD</text>
+        <text x="320" y="404" text-anchor="middle" font-size="11" fill="var(--muted)" font-weight="800" letter-spacing="1.5">CAREFUL / INWARD</text>
+        <text x="34" y="215" text-anchor="middle" font-size="10" fill="var(--muted)" font-weight="800" transform="rotate(-90 34 215)" letter-spacing="1.5">TASK</text>
+        <text x="608" y="215" text-anchor="middle" font-size="10" fill="var(--muted)" font-weight="800" transform="rotate(90 608 215)" letter-spacing="1.5">PEOPLE</text>
+        <!-- quadrant text -->
+        <text x="195" y="120" text-anchor="middle" font-size="30" fill="var(--red)" font-weight="800">RED</text>
+        <text x="195" y="146" text-anchor="middle" font-size="12" fill="var(--ink)">Dominance</text>
+        <text x="195" y="168" text-anchor="middle" font-size="10" fill="var(--muted)">"Let's go. What's the result?"</text>
+
+        <text x="445" y="120" text-anchor="middle" font-size="30" fill="var(--yellow)" font-weight="800">YELLOW</text>
+        <text x="445" y="146" text-anchor="middle" font-size="12" fill="var(--ink)">Influence</text>
+        <text x="445" y="168" text-anchor="middle" font-size="10" fill="var(--muted)">"This is exciting! Who's in?"</text>
+
+        <text x="445" y="285" text-anchor="middle" font-size="30" fill="var(--green)" font-weight="800">GREEN</text>
+        <text x="445" y="311" text-anchor="middle" font-size="12" fill="var(--ink)">Steadiness</text>
+        <text x="445" y="333" text-anchor="middle" font-size="10" fill="var(--muted)">"Let's keep everyone steady."</text>
+
+        <text x="195" y="285" text-anchor="middle" font-size="30" fill="var(--blue)" font-weight="800">BLUE</text>
+        <text x="195" y="311" text-anchor="middle" font-size="12" fill="var(--ink)">Conscientiousness</text>
+        <text x="195" y="333" text-anchor="middle" font-size="10" fill="var(--muted)">"Show me the data first."</text>
+        <!-- centre -->
+        <circle cx="320" cy="210" r="7" fill="var(--ink)"/>
+      </svg>
+      <button class="dot" style="left:30%; top:22%" data-h="red" aria-label="About Red">R</button>
+      <button class="dot" style="left:69%; top:22%" data-h="yellow" aria-label="About Yellow">Y</button>
+      <button class="dot" style="left:69%; top:68%" data-h="green" aria-label="About Green">G</button>
+      <button class="dot" style="left:30%; top:68%" data-h="blue" aria-label="About Blue">B</button>
+    </div>
+    <div class="hot-info" id="hotInfo">Tap a colour letter to reveal what defines that quadrant.</div>
+    <figcaption>Two axes — task↔people and fast↔careful — produce exactly four behaviour quadrants.</figcaption>
+  </figure>
+
+  <span class="label">C · Visual Analogy</span>
+  <div class="analogy">
+    <span class="label">Analogy</span>
+    <p><strong>A compass, not a box.</strong> A compass doesn't tell you that north is good and south is bad. It tells you which way you're facing, so you can navigate. The DISA colours work the same way: they're bearings, not verdicts. "My colleague is Blue" should feel like "my colleague is facing west" — useful, neutral, and actionable.</p>
+  </div>
+
+  <span class="label">D · Three Real-World Examples</span>
+  <div class="examples">
+    <div class="ex"><span class="ex-tag">Obvious</span><p><strong>The meeting with four people.</strong> One pushes for a decision (Red), one pitches a wild new idea (Yellow), one checks that everyone's comfortable (Green), one asks what the data says (Blue). A balanced team, and also a potential traffic jam.</p></div>
+    <div class="ex counter"><span class="ex-tag">Counter-intuitive</span><p><strong>A strong Yellow can be a bad listener.</strong> The most socially skilled person in the room is often the one who talks over everyone. Warmth and dominance are not opposites — enthusiasm can drown out quieter voices just as effectively as aggression.</p></div>
+    <div class="ex edge"><span class="ex-tag">Edge case</span><p><strong>The same person, two colours.</strong> A manager who is Red at work and Green at home. The colour isn't a soul — it's a pattern that responds to context, stakes, and who's watching.</p></div>
+  </div>
+
+  <span class="label">E · Common Misconception</span>
+  <details class="mis"><summary>"This is just astrology with extra steps — I don't fit neatly into one colour."</summary>
+    <div class="mis-body">You're not supposed to fit neatly into one colour. Erikson says explicitly that everyone is a mix, and that people change with context, stress, and life stage. The model isn't a claim about your essence; it's a claim about <em>tendencies</em> — and tendencies are testable. If you lean Red and someone gives you a long, detailed, emotionally warm explanation, notice whether you get impatient. That impatience is data. The value isn't the label; it's the prediction.</div>
+  </details>
+
+  <span class="label">F · Why It Matters</span>
+  <div class="why"><strong>Why it matters:</strong> Without shared vocabulary, "she's difficult" is where the conversation ends. With the model, "she's Red and I'm Blue, so we're clashing on pace and detail" is where the conversation <em>starts</em>. Naming a pattern makes it adjustable.</div>
+
+  <span class="label">G · Practical Application</span>
+  <div class="scenario">
+    <h4>Scenario: You're about to run a project kickoff with a mixed team.</h4>
+    <div class="step"><p><strong>Decision 1:</strong> Run it the way you'd want it run.</p><p class="consequence">→ Consequence: Roughly a quarter of the room is engaged; the rest quietly disengage.</p></div>
+    <div class="step"><p><strong>Decision 2:</strong> Open with the outcome (for Reds), the vision (for Yellows), the reassurance (for Greens), and the data (for Blues).</p><p class="consequence">→ Consequence: Everyone hears their own language in the first ten minutes and stays in the room.</p></div>
+    <div class="step"><p><strong>Decision 3:</strong> Assign follow-ups that match strengths — Red leads, Yellow presents, Green coordinates, Blue verifies.</p><p class="consequence">→ Consequence: Fewer bottlenecks, less friction, and nobody is being asked to do the thing they're worst at.</p></div>
+  </div>
+
+  <div class="mod-links">Related: <a href="#m1">Why Everyone Seems Like an Idiot</a> · <a href="#m3">Red &amp; Yellow</a> · <a href="#m4">Green &amp; Blue</a></div>
+  <div class="mark-done"><button class="primary" data-complete="m2">Mark module complete</button></div>
+</section>
+
+<!-- INTERACTION: DRAG & DROP -->
+<section id="dnd-section">
+  <div class="section-title"><span class="tag mono">02</span><h2>Practice: Sort the Behaviour</h2></div>
+  <p style="color:var(--muted)">Drag each behaviour into the colour it belongs to — or click a chip, then click a bucket.
+  Keyboard: focus a chip, press Enter to select, tab to a bucket, press Enter to drop.</p>
+  <div class="pool" id="chipPool" aria-label="Behaviour chips to sort"></div>
+  <div class="buckets">
+    <div class="bucket" data-kind="red" tabindex="0"><h5>🔴 Red · Dominance</h5></div>
+    <div class="bucket" data-kind="yellow" tabindex="0"><h5>🟡 Yellow · Influence</h5></div>
+    <div class="bucket" data-kind="green" tabindex="0"><h5>🟢 Green · Steadiness</h5></div>
+    <div class="bucket" data-kind="blue" tabindex="0"><h5>🔵 Blue · Conscientiousness</h5></div>
+  </div>
+  <p id="dndFeedback" role="status"></p>
+</section>
+
+<!-- ============ MODULE 3 ============ -->
+<section class="module" id="m3" data-module="m3" data-accent="red">
+  <h3 class="mod-title"><span class="mt-num mono">MODULE 03</span> Red &amp; Yellow — The Fast Lane</h3>
+  <p class="mod-sub">Both move quickly. One is chasing the result; the other is chasing the room.</p>
+
+  <span class="label">A · Core Explanation</span>
+  <div class="expl">
+    <p><strong>Red (Dominance)</strong> is the colour of control. Reds are action-oriented, decisive and assertive. They thrive where they can take charge and make things happen, which is why they so often end up in leadership whether or not anyone appointed them. Their communication is direct and blunt: they cut to the chase, they don't sugarcoat, and they'd rather hear a hard truth in ten words than a soft one in a hundred. To a Red, <em>results matter more than process or feelings</em>. That is a genuine asset in a crisis and a genuine liability in a sensitive conversation.</p>
+    <p>The cost of Red is impatience. A Red who is pushing for a decision can overlook details, rush past objections, and alienate the people who needed thirty more seconds to think. They can read as domineering or insensitive — especially to Greens and Blues, who experience that pace as pressure rather than momentum. And they lose respect for people they perceive as hesitant, which is worth knowing if you're the hesitant one.</p>
+    <p><strong>Yellow (Influence)</strong> is the colour of energy. Yellows are optimistic, charismatic, and full of ideas — the person who makes a room lighter and generates three new possibilities before anyone has finished the first one. They excel wherever imagination and enthusiasm carry the day: marketing, sales, the arts, anywhere the human connection <em>is</em> the product. They are natural networkers and natural motivators, and their optimism can restart a project that was losing momentum.</p>
+    <p>The cost of Yellow is follow-through. Excitement about a new idea is not the same as commitment to it, and Yellows can lose interest the moment the novelty fades. They can overlook details, miss deadlines, and — without meaning any harm — dominate conversations so thoroughly that quieter people never get to speak. Under stress, both Reds and Yellows get <em>faster and louder</em>, which is exactly why pairing them without a Green or Blue nearby tends to produce motion without completion.</p>
+  </div>
+
+  <span class="label">B · Diagram</span>
+  <figure class="diagram">
+    <svg viewBox="0 0 640 290" role="img" aria-label="Two panels: Red as a straight arrow driving to a single target; Yellow as a firework of many branches, several unfinished.">
+      <rect width="640" height="290" fill="none"/>
+      <!-- divider -->
+      <line x1="320" y1="20" x2="320" y2="270" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="5 5"/>
+      <!-- RED panel -->
+      <rect x="20" y="20" width="280" height="250" rx="14" fill="var(--redbg)" stroke="var(--red)" stroke-width="2"/>
+      <text x="160" y="50" text-anchor="middle" font-size="13" fill="var(--red)" font-weight="800" letter-spacing="1.5">RED · ONE TARGET</text>
+      <line x1="60" y1="150" x2="230" y2="150" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+      <path d="M230 150 l-16 -10 l0 20 z" fill="var(--red)"/>
+      <circle cx="260" cy="150" r="14" fill="none" stroke="var(--red)" stroke-width="3"/>
+      <circle cx="260" cy="150" r="5" fill="var(--red)"/>
+      <text x="160" y="192" text-anchor="middle" font-size="10.5" fill="var(--ink)">Straight line. Full speed.</text>
+      <text x="160" y="212" text-anchor="middle" font-size="10.5" fill="var(--ink)">Decision made. Moving on.</text>
+      <text x="160" y="244" text-anchor="middle" font-size="10" fill="var(--muted)" font-style="italic">cost: what did we run past?</text>
+      <!-- YELLOW panel -->
+      <rect x="340" y="20" width="280" height="250" rx="14" fill="var(--yellowbg)" stroke="var(--yellow)" stroke-width="2"/>
+      <text x="480" y="50" text-anchor="middle" font-size="13" fill="var(--yellow)" font-weight="800" letter-spacing="1.5">YELLOW · MANY SPARKS</text>
+      <g stroke="var(--yellow)" stroke-width="3" fill="none" stroke-linecap="round">
+        <path d="M480 150 L480 90"/>
+        <path d="M480 150 L420 110"/>
+        <path d="M480 150 L540 110"/>
+        <path d="M480 150 L410 180"/>
+        <path d="M480 150 L552 185"/>
+        <path d="M480 150 L480 205"/>
+      </g>
+      <g fill="var(--yellow)">
+        <circle cx="480" cy="90" r="6"/><circle cx="420" cy="110" r="6"/><circle cx="540" cy="110" r="6"/>
+        <circle cx="410" cy="180" r="6"/><circle cx="552" cy="185" r="6"/>
+      </g>
+      <circle cx="480" cy="205" r="6" fill="none" stroke="var(--yellow)" stroke-width="2.5" stroke-dasharray="3 3"/>
+      <circle cx="480" cy="150" r="9" fill="var(--yellow)"/>
+      <text x="480" y="244" text-anchor="middle" font-size="10" fill="var(--muted)" font-style="italic">cost: dashed spark never finished</text>
+    </svg>
+    <figcaption>Red converts energy into a single decision. Yellow converts energy into many possibilities — and sometimes loses the thread.</figcaption>
+  </figure>
+
+  <span class="label">C · Visual Analogy</span>
+  <div class="analogy">
+    <span class="label">Analogy</span>
+    <p><strong>An arrow and a firework.</strong> A Red is an arrow: one direction, high speed, arrives. A Yellow is a firework: spectacular, illuminating, and gone in eight seconds — leaving a sky full of sparks, some of which are genuinely brilliant ideas and some of which nobody ever wrote down. Teams need both, but a team of <em>only</em> arrows and fireworks is a team with no one doing the follow-up.</p>
+  </div>
+
+  <span class="label">D · Three Real-World Examples</span>
+  <div class="examples">
+    <div class="ex"><span class="ex-tag">Obvious</span><p><strong>The Red who ends the meeting.</strong> Forty minutes of circular discussion, then: "OK — we do X by Friday. Anything else?" Everyone leaves with a decision. Some leave feeling run over.</p></div>
+    <div class="ex counter"><span class="ex-tag">Counter-intuitive</span><p><strong>The Yellow's weakness is not laziness.</strong> Yellows don't fail to follow through because they don't care — they fail because the <em>novelty</em> was the fuel, and novelty is perishable. Understanding this lets you design around it: give them the launch, not the maintenance.</p></div>
+    <div class="ex edge"><span class="ex-tag">Edge case</span><p><strong>The Red who is wrong, confidently.</strong> Reds trust their instincts, which is an advantage right up until the instinct is bad. Because they project certainty, nobody challenges them — and the room follows the arrow off a cliff.</p></div>
+  </div>
+
+  <span class="label">E · Common Misconception</span>
+  <details class="mis"><summary>"Reds are just aggressive, and Yellows are just flaky."</summary>
+    <div class="mis-body">Both descriptions confuse a strength with its failure mode. Red's directness is what makes a stuck project move; it only becomes "aggression" when it costs them the room. Yellow's enthusiasm is what makes people want to join; it only becomes "flakiness" when nothing is ever finished. The behaviour is identical in both readings — what changes is whether the strength is being used well or leaking. Erikson's point is that you can't remove the trait without removing the strength, so you manage the leak instead.</div>
+  </details>
+
+  <span class="label">F · Why It Matters</span>
+  <div class="why"><strong>Why it matters:</strong> Reds and Yellows are usually the most visible people in any organisation — the ones who set the pace and get heard. If you can't communicate with them, you can't influence the direction of anything. And if you <em>are</em> one, knowing your failure mode is the difference between being seen as a leader and being seen as a problem.</div>
+
+  <span class="label">G · Practical Application</span>
+  <div class="scenario">
+    <h4>Scenario: You need a Red's approval and a Yellow's buy-in, in the same conversation.</h4>
+    <div class="step"><p><strong>Decision 1:</strong> Give one combined pitch — context, philosophy, data, feelings.</p><p class="consequence">→ Consequence: The Red checks out at minute two; the Yellow never gets to the exciting part.</p></div>
+    <div class="step"><p><strong>Decision 2:</strong> Lead with the bottom line and the date (Red), then the vision and the possibility (Yellow).</p><p class="consequence">→ Consequence: Both are engaged within sixty seconds. The detail can come after the yes.</p></div>
+    <div class="step"><p><strong>Decision 3:</strong> Give the Red a decision to make and the Yellow a launch to own.</p><p class="consequence">→ Consequence: The Red gets closure, the Yellow gets momentum, and the follow-through lands on someone else — where it belongs.</p></div>
+  </div>
+
+  <div class="mod-links">Related: <a href="#m2">The DISA Model</a> · <a href="#m4">Green &amp; Blue</a> · <a href="#m5">Adaptation</a></div>
+  <div class="mark-done"><button class="primary" data-complete="m3">Mark module complete</button></div>
+</section>
+
+<!-- QUIZ A -->
+<section id="quizA">
+  <div class="section-title"><span class="tag mono">03</span><h2>Check: Red &amp; Yellow</h2></div>
+  <div class="quiz" data-quiz="A">
+    <h4>Three quick questions</h4>
+    <p class="qsub">Answer, then reveal the feedback. Nothing is saved as a grade — this is for calibration.</p>
+    <div class="q" data-correct="2" data-fb="Reds prize closure above all. Leading with process and feelings reads to them as delay. Give the bottom line first, then negotiate the how.">
+      <p class="qtext">1. A Red colleague asks "so what are we doing?" before you've finished your second sentence. Best move?</p>
+      <label><input type="radio" name="qA1" value="0"> Slow down and give the full context — they'll appreciate it once they understand.</label>
+      <label><input type="radio" name="qA1" value="1"> Mirror their impatience and push back on being interrupted.</label>
+      <label><input type="radio" name="qA1" value="2"> Give the bottom line in one sentence, then offer the detail if they want it.</label>
+    </div>
+    <div class="q" data-correct="1" data-fb="Yellow's fuel is novelty. The launch is where their energy is highest-value; handing them the long maintenance tail sets them up to fail — and to look flaky.">
+      <p class="qtext">2. You have a Yellow teammate bursting with ideas. Where do they create most value?</p>
+      <label><input type="radio" name="qA2" value="0"> Maintaining the recurring monthly reporting process.</label>
+      <label><input type="radio" name="qA2" value="1"> Launching the new initiative and generating early momentum.</label>
+      <label><input type="radio" name="qA2" value="2"> Auditing the compliance documentation.</label>
+    </div>
+    <div class="q" data-correct="0" data-fb="Both Red and Yellow move fast and outward — one toward results, one toward people. The real complement to both is the careful, inward half of the compass: Green and Blue.">
+      <p class="qtext">3. What do Red and Yellow genuinely have in common?</p>
+      <label><input type="radio" name="qA3" value="0"> Both are fast and outward-facing; both need a Green or Blue to catch what they drop.</label>
+      <label><input type="radio" name="qA3" value="1"> Both are detail-oriented and cautious decision-makers.</label>
+      <label><input type="radio" name="qA3" value="2"> Both prioritise harmony and avoid confrontation.</label>
+    </div>
+    <div class="quiz-actions">
+      <button class="primary" data-check="A">Check answers</button>
+      <span class="score mono" data-score="A"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 4 ============ -->
+<section class="module" id="m4" data-module="m4" data-accent="blue">
+  <h3 class="mod-title"><span class="mt-num mono">MODULE 04</span> Green &amp; Blue — The Deep End</h3>
+  <p class="mod-sub">Both take their time. One is protecting the people; the other is protecting the accuracy.</p>
+
+  <span class="label">A · Core Explanation</span>
+  <div class="expl">
+    <p><strong>Green (Steadiness)</strong> is the colour of stability. Greens value harmony, calm and predictability. They are the reason teams don't tear themselves apart: patient, dependable, loyal, and genuinely good at listening. They are the emotional glue of a group — the person who notices that someone's been quiet and asks, gently, outside the meeting. Greens commit for the long haul; once they're in, they're in. They are also, for the same reasons, resistant to change, uncomfortable with confrontation, and prone to going along with a decision they privately disagree with rather than risk a scene.</p>
+    <p>That last trait is the one to watch. A Green's silence is not agreement. It's often the sound of someone calculating whether speaking up is worth the discomfort. Left unaddressed, that silence curdles into resentment — and because Greens avoid direct conflict, it tends to come out sideways: passive resistance, quiet withdrawal, or a sudden resignation that shocks everyone.</p>
+    <p><strong>Blue (Conscientiousness)</strong> is the colour of precision. Blues are analytical, methodical and detail-focused, and they care about being <em>correct</em> in a way that goes beyond mere tidiness. They want the structure, the facts, the source, the edge cases. In any team, they're the ones who catch the mistake nobody else saw — the error in the contract, the number that doesn't reconcile, the assumption that everyone else waved through. Blues are invaluable in research, finance, engineering, and anywhere the cost of being wrong is high.</p>
+    <p>The cost of Blue is speed. Blues can become perfectionists who slow decisions past the point of usefulness, and their focus on logic can read as coldness to more emotionally driven people. They also struggle without clear instructions or in environments that demand improvisation — which, to a Red, looks like obstruction. So the two careful colours share something important: <strong>they are the ones most often misread as "the problem" by the fast colours</strong>, when in fact they are doing the work the fast colours skip.</p>
+  </div>
+
+  <span class="label">B · Diagram</span>
+  <figure class="diagram">
+    <svg viewBox="0 0 640 290" role="img" aria-label="Two panels: Green as a deep anchor holding steady; Blue as a detailed checklist with a magnifier over one item.">
+      <rect width="640" height="290" fill="none"/>
+      <line x1="320" y1="20" x2="320" y2="270" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="5 5"/>
+      <!-- GREEN panel -->
+      <rect x="20" y="20" width="280" height="250" rx="14" fill="var(--greenbg)" stroke="var(--green)" stroke-width="2"/>
+      <text x="160" y="50" text-anchor="middle" font-size="13" fill="var(--green)" font-weight="800" letter-spacing="1.5">GREEN · HOLDS STEADY</text>
+      <!-- waterline -->
+      <path d="M40 120 Q100 108 160 120 Q220 132 280 120" stroke="var(--green)" stroke-width="3" fill="none"/>
+      <path d="M40 140 Q100 128 160 140 Q220 152 280 140" stroke="var(--green)" stroke-width="2" fill="none" opacity=".5"/>
+      <!-- anchor -->
+      <line x1="160" y1="120" x2="160" y2="170" stroke="var(--green)" stroke-width="4"/>
+      <path d="M130 170 Q160 205 190 170" stroke="var(--green)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <line x1="130" y1="170" x2="190" y2="170" stroke="var(--green)" stroke-width="4"/>
+      <circle cx="160" cy="115" r="7" fill="none" stroke="var(--green)" stroke-width="3"/>
+      <text x="160" y="232" text-anchor="middle" font-size="10.5" fill="var(--ink)">Calm under pressure.</text>
+      <text x="160" y="250" text-anchor="middle" font-size="10" fill="var(--muted)" font-style="italic">cost: silence is not agreement</text>
+      <!-- BLUE panel -->
+      <rect x="340" y="20" width="280" height="250" rx="14" fill="var(--bluebg)" stroke="var(--blue)" stroke-width="2"/>
+      <text x="480" y="50" text-anchor="middle" font-size="13" fill="var(--blue)" font-weight="800" letter-spacing="1.5">BLUE · VERIFIES</text>
+      <g stroke="var(--blue)" stroke-width="2" fill="none">
+        <rect x="372" y="70" width="16" height="16" rx="3"/>
+        <rect x="372" y="102" width="16" height="16" rx="3"/>
+        <rect x="372" y="134" width="16" height="16" rx="3"/>
+        <rect x="372" y="166" width="16" height="16" rx="3"/>
+        <rect x="372" y="198" width="16" height="16" rx="3"/>
+      </g>
+      <g stroke="var(--muted)" stroke-width="2.5" stroke-linecap="round">
+        <line x1="398" y1="78" x2="470" y2="78"/>
+        <line x1="398" y1="110" x2="540" y2="110"/>
+        <line x1="398" y1="142" x2="500" y2="142"/>
+        <line x1="398" y1="174" x2="530" y2="174"/>
+        <line x1="398" y1="206" x2="455" y2="206"/>
+      </g>
+      <path d="M376 74 l5 6 l9 -11" stroke="var(--blue)" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M376 106 l5 6 l9 -11" stroke="var(--blue)" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- magnifier -->
+      <circle cx="470" cy="142" r="30" fill="none" stroke="var(--blue)" stroke-width="4"/>
+      <line x1="492" y1="164" x2="516" y2="188" stroke="var(--blue)" stroke-width="6" stroke-linecap="round"/>
+      <text x="480" y="232" text-anchor="middle" font-size="10.5" fill="var(--ink)">Nothing ships unchecked.</text>
+      <text x="480" y="250" text-anchor="middle" font-size="10" fill="var(--muted)" font-style="italic">cost: analysis paralysis</text>
+    </svg>
+    <figcaption>Green absorbs pressure so the group stays together. Blue absorbs complexity so the group stays correct.</figcaption>
+  </figure>
+
+  <span class="label">C · Visual Analogy</span>
+  <div class="analogy">
+    <span class="label">Analogy</span>
+    <p><strong>An anchor and a checklist.</strong> A Green is the anchor: invisible when the sea is calm, absolutely decisive when the storm arrives. A Blue is the pre-flight checklist: tedious right up until the moment it catches the thing that would have brought the plane down. Both are boring in good times and irreplaceable in bad ones — which is precisely why they get undervalued until it's too late.</p>
+  </div>
+
+  <span class="label">D · Three Real-World Examples</span>
+  <div class="examples">
+    <div class="ex"><span class="ex-tag">Obvious</span><p><strong>The Blue who saves the contract.</strong> Everyone is ready to sign; the Blue asks about the clause on page eleven. It's wrong. The deal would have been legally exposed. Nobody thanks them, because nothing happened.</p></div>
+    <div class="ex counter"><span class="ex-tag">Counter-intuitive</span><p><strong>A Green's silence is the loudest warning in the room.</strong> When the most agreeable person on the team goes quiet and stops volunteering, that's not contentment — it's a decision being made internally that you're about to find out about the hard way.</p></div>
+    <div class="ex edge"><span class="ex-tag">Edge case</span><p><strong>The Blue who can't start.</strong> Given no clear brief and told to "just improvise," a Blue doesn't become flexible — they freeze. The trait that makes them excellent with structure makes them helpless without it.</p></div>
+  </div>
+
+  <span class="label">E · Common Misconception</span>
+  <details class="mis"><summary>"If they'd just speak up / just decide / just be more flexible, we'd be fine."</summary>
+    <div class="mis-body">Each of those demands asks a careful person to act against their grain in the exact moment they feel least safe. A Green asked to "just decide" in a tense meeting is being asked to do the one thing their whole style is organised to avoid. A Blue asked to "just improvise" is being asked to abandon the verification that makes them valuable. The productive move isn't demanding the trait change — it's changing the conditions: give the Green advance notice and a private channel; give the Blue a brief and a deadline.</div>
+  </details>
+
+  <span class="label">F · Why It Matters</span>
+  <div class="why"><strong>Why it matters:</strong> Fast colours get the credit because their contribution is visible. Careful colours prevent disasters, and prevention is invisible by definition. If you only reward the visible half of the team, you'll eventually lose the half that was quietly keeping you out of trouble.</div>
+
+  <span class="label">G · Practical Application</span>
+  <div class="scenario">
+    <h4>Scenario: You need a decision from a room that includes a Green and a Blue.</h4>
+    <div class="step"><p><strong>Decision 1:</strong> Push for a vote in the meeting to keep momentum.</p><p class="consequence">→ Consequence: The Green agrees to avoid conflict and resents it; the Blue withholds because the data isn't ready. You get a decision that quietly doesn't hold.</p></div>
+    <div class="step"><p><strong>Decision 2:</strong> Send the material 48 hours ahead and invite written concerns before the meeting.</p><p class="consequence">→ Consequence: The Blue arrives prepared and the Green arrives with concerns already on paper — where they're safe to raise.</p></div>
+    <div class="step"><p><strong>Decision 3:</strong> Explicitly ask the Green for objections in private, and thank them for raising them.</p><p class="consequence">→ Consequence: You surface the real objection before it becomes passive resistance, and you've taught the Green that speaking up is safe.</p></div>
+  </div>
+
+  <div class="mod-links">Related: <a href="#m3">Red &amp; Yellow</a> · <a href="#m5">Adaptation</a> · <a href="#m6">Stress &amp; Group Dynamics</a></div>
+  <div class="mark-done"><button class="primary" data-complete="m4">Mark module complete</button></div>
+</section>
+
+<!-- QUIZ B -->
+<section id="quizB">
+  <div class="section-title"><span class="tag mono">04</span><h2>Check: Green &amp; Blue</h2></div>
+  <div class="quiz" data-quiz="B">
+    <h4>Three quick questions</h4>
+    <p class="qsub">Same drill — answer, then check.</p>
+    <div class="q" data-correct="1" data-fb="A Green's silence is usually conflict-avoidance, not consent. If you want their real view, create a safe channel — often written, or one-to-one, before the meeting.">
+      <p class="qtext">1. Your Green colleague says nothing when you float a risky plan. What does the silence most likely mean?</p>
+      <label><input type="radio" name="qB1" value="0"> Full agreement — Greens are easy-going.</label>
+      <label><input type="radio" name="qB1" value="1"> Possible disagreement they don't feel safe voicing yet.</label>
+      <label><input type="radio" name="qB1" value="2"> They weren't listening.</label>
+    </div>
+    <div class="q" data-correct="2" data-fb="Blues are motivated by clarity and precision. Ambiguity isn't freedom to them — it's a missing brief. Give structure, a deadline, and the data.">
+      <p class="qtext">2. A Blue teammate seems paralysed on a task. Most likely cause?</p>
+      <label><input type="radio" name="qB2" value="0"> They don't care about the outcome.</label>
+      <label><input type="radio" name="qB2" value="1"> They need more social encouragement.</label>
+      <label><input type="radio" name="qB2" value="2"> The brief was vague and they lack the structure to proceed.</label>
+    </div>
+    <div class="q" data-correct="0" data-fb="Prevention is invisible. The Blue who caught the clause and the Green who calmed the room both look like nothing happened — which is exactly why the fast colours get the credit.">
+      <p class="qtext">3. Why do Green and Blue contributions get under-credited?</p>
+      <label><input type="radio" name="qB3" value="0"> Because their value is preventive, and prevention produces no visible event.</label>
+      <label><input type="radio" name="qB3" value="1"> Because they're less intelligent than Reds and Yellows.</label>
+      <label><input type="radio" name="qB3" value="2"> Because they don't care about recognition.</label>
+    </div>
+    <div class="quiz-actions">
+      <button class="primary" data-check="B">Check answers</button>
+      <span class="score mono" data-score="B"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 5 ============ -->
+<section class="module" id="m5" data-module="m5" data-accent="green">
+  <h3 class="mod-title"><span class="mt-num mono">MODULE 05</span> Adaptation — On the Listener's Terms</h3>
+  <p class="mod-sub">The single most useful skill in the book: change your delivery, not your message.</p>
+
+  <span class="label">A · Core Explanation</span>
+  <div class="expl">
+    <p>The central practical claim of Erikson's book is short: <strong>communication happens on the listener's terms</strong>. What that means is that you don't get to decide what your message was — the person receiving it does. If your perfectly reasonable sentence lands as an attack, then as far as the conversation is concerned, an attack is what happened. You can argue about intent afterwards, but you've already lost the room.</p>
+    <p>Adaptation is the fix, and Erikson is emphatic about what it is <em>not</em>. It is not changing your personality, compromising your values, or becoming fake. It's adjusting your <em>delivery</em> — pace, structure, warmth, level of detail — to match how the other person actually processes. A Red needs the bottom line first; a Yellow needs the vision and the energy; a Green needs reassurance and time; a Blue needs facts and structure. Same message, four different envelopes.</p>
+    <p>It starts with self-awareness. You cannot adapt deliberately if you don't know your own default setting, because your default is invisible to you — it just feels like "normal." If you're Red, your directness feels efficient; it may land as harsh. If you're Yellow, your enthusiasm feels generous; it may land as overwhelming. If you're Blue, your precision feels responsible; it may land as cold. If you're Green, your accommodation feels kind; it may land as evasive.</p>
+    <p>The reason adaptation is worth the effort is that it's the only lever you actually control. You can't make someone else more patient, faster, warmer, or more logical. You <em>can</em> change how you open a conversation. Erikson also makes a deeper point: real growth comes from interacting with people who are <em>not</em> like you. Staying inside your own colour is comfortable and stagnant. The stretch is where the skill develops.</p>
+  </div>
+
+  <span class="label">B · Diagram</span>
+  <figure class="diagram">
+    <svg viewBox="0 0 660 320" role="img" aria-label="One message routed through four different delivery formats to four colour receivers.">
+      <rect width="660" height="320" fill="none"/>
+      <!-- source -->
+      <rect x="20" y="126" width="130" height="66" rx="12" fill="var(--surface2)" stroke="var(--muted)" stroke-width="2"/>
+      <text x="85" y="152" text-anchor="middle" font-size="11" fill="var(--ink)" font-weight="800">YOUR MESSAGE</text>
+      <text x="85" y="172" text-anchor="middle" font-size="10" fill="var(--muted)">(unchanged)</text>
+      <!-- fan out -->
+      <g stroke-width="2.5" fill="none" stroke-linecap="round">
+        <path d="M150 159 C200 159 210 45 250 45" stroke="var(--red)"/>
+        <path d="M150 159 C200 159 210 122 250 122" stroke="var(--yellow)"/>
+        <path d="M150 159 C200 159 210 198 250 198" stroke="var(--green)"/>
+        <path d="M150 159 C200 159 210 275 250 275" stroke="var(--blue)"/>
+      </g>
+      <!-- adapters -->
+      <g font-size="9.5" font-weight="700">
+        <rect x="250" y="28" width="160" height="34" rx="8" fill="var(--redbg)" stroke="var(--red)"/>
+        <text x="330" y="50" text-anchor="middle" fill="var(--red)">BOTTOM LINE + DEADLINE</text>
+        <rect x="250" y="105" width="160" height="34" rx="8" fill="var(--yellowbg)" stroke="var(--yellow)"/>
+        <text x="330" y="127" text-anchor="middle" fill="var(--yellow)">VISION + ENERGY</text>
+        <rect x="250" y="181" width="160" height="34" rx="8" fill="var(--greenbg)" stroke="var(--green)"/>
+        <text x="330" y="203" text-anchor="middle" fill="var(--green)">REASSURANCE + TIME</text>
+        <rect x="250" y="258" width="160" height="34" rx="8" fill="var(--bluebg)" stroke="var(--blue)"/>
+        <text x="330" y="280" text-anchor="middle" fill="var(--blue)">FACTS + STRUCTURE</text>
+      </g>
+      <!-- receivers -->
+      <g>
+        <circle cx="470" cy="45" r="26" fill="var(--red)"/>
+        <text x="470" y="51" text-anchor="middle" font-size="13" fill="#fff" font-weight="800">RED</text>
+        <circle cx="470" cy="122" r="26" fill="var(--yellow)"/>
+        <text x="470" y="128" text-anchor="middle" font-size="11" fill="#0b1020" font-weight="800">YELLOW</text>
+        <circle cx="470" cy="198" r="26" fill="var(--green)"/>
+        <text x="470" y="204" text-anchor="middle" font-size="11" fill="#0b1020" font-weight="800">GREEN</text>
+        <circle cx="470" cy="275" r="26" fill="var(--blue)"/>
+        <text x="470" y="281" text-anchor="middle" font-size="12" fill="#fff" font-weight="800">BLUE</text>
+      </g>
+      <!-- landed -->
+      <text x="600" y="50" text-anchor="middle" font-size="22" fill="var(--green)">✓</text>
+      <text x="600" y="127" text-anchor="middle" font-size="22" fill="var(--green)">✓</text>
+      <text x="600" y="203" text-anchor="middle" font-size="22" fill="var(--green)">✓</text>
+      <text x="600" y="280" text-anchor="middle" font-size="22" fill="var(--green)">✓</text>
+      <text x="600" y="20" text-anchor="middle" font-size="9" fill="var(--muted)" font-weight="700">LANDED</text>
+    </svg>
+    <figcaption>Same message, four envelopes. Adapting the delivery is the only variable you control.</figcaption>
+  </figure>
+
+  <span class="label">C · Visual Analogy</span>
+  <div class="analogy">
+    <span class="label">Analogy</span>
+    <p><strong>Four different power sockets.</strong> The electricity is identical. The plug shape is not. You can have the most reliable current in the world, but if you push a UK plug into a European socket, nothing charges — and blaming the socket is not a strategy. Adaptation is carrying an adaptor. The message never changes; the connector does.</p>
+  </div>
+
+  <span class="label">D · Three Real-World Examples</span>
+  <div class="examples">
+    <div class="ex"><span class="ex-tag">Obvious</span><p><strong>Leading with the ask.</strong> To a Red: "I need a decision by Thursday — here's the one-line recommendation." Same request to a Blue: "Here are the three options, the data behind each, and my recommendation."</p></div>
+    <div class="ex counter"><span class="ex-tag">Counter-intuitive</span><p><strong>Being clearer can make it worse with a Yellow.</strong> A crisp, bulleted, formal brief that would delight a Blue can drain all the energy out of a Yellow and kill their engagement. Clarity isn't universally good — it's colour-dependent.</p></div>
+    <div class="ex edge"><span class="ex-tag">Edge case</span><p><strong>Adapting to a Green in a crisis.</strong> The instinct is to raise urgency. But pressure makes a Green withdraw — so the adaptive move is to slow your voice down, name the concern explicitly, and give them a private channel. Urgency communicated calmly.</p></div>
+  </div>
+
+  <span class="label">E · Common Misconception</span>
+  <details class="mis"><summary>"Adapting my style means being fake / manipulative."</summary>
+    <div class="mis-body">Adaptation is only manipulative if the underlying message is something the other person wouldn't endorse. If your message is honest and your goal is mutual understanding, then choosing the format most likely to be understood is just competence — the same as speaking more slowly to someone learning your language. The opposite of adapting isn't authenticity; it's laziness dressed up as authenticity. "This is just how I am" usually means "I'd rather not adjust than be understood."</div>
+  </details>
+
+  <span class="label">F · Why It Matters</span>
+  <div class="why"><strong>Why it matters:</strong> Adaptation is the mechanism that converts everything else in this lesson into results. Knowing the four colours changes nothing until you change what you do on Monday. And it's the one variable entirely under your control — you don't need anyone's permission or cooperation to start.</div>
+
+  <span class="label">G · Practical Application</span>
+  <div class="scenario">
+    <h4>Scenario: You're about to send a difficult message to someone whose colour you've figured out.</h4>
+    <div class="step"><p><strong>Decision 1:</strong> Write it the way you'd want to receive it — it's clear to you.</p><p class="consequence">→ Consequence: It lands well with people who share your colour. Everyone else misreads it.</p></div>
+    <div class="step"><p><strong>Decision 2:</strong> Rewrite the delivery: headline first for Red, warmth and possibility for Yellow, reassurance and a private channel for Green, evidence and structure for Blue.</p><p class="consequence">→ Consequence: The message survives contact with a different brain.</p></div>
+    <div class="step"><p><strong>Decision 3:</strong> Check the landing — ask "does that land the way I meant it?"</p><p class="consequence">→ Consequence: You find out whether your adaptation worked, instead of assuming it did. That's how the skill improves.</p></div>
+  </div>
+
+  <div class="mod-links">Related: <a href="#m3">Red &amp; Yellow</a> · <a href="#m4">Green &amp; Blue</a> · <a href="#m6">Stress &amp; Group Dynamics</a></div>
+  <div class="mark-done"><button class="primary" data-complete="m5">Mark module complete</button></div>
+</section>
+
+<!-- INTERACTION: ADAPTATION QUIZ -->
+<section id="quizC">
+  <div class="section-title"><span class="tag mono">05</span><h2>Practice: Adapt the Delivery</h2></div>
+  <div class="quiz" data-quiz="C">
+    <h4>Pick the right envelope</h4>
+    <p class="qsub">Three scenarios. Choose the delivery that fits the listener, not the one that fits you.</p>
+    <div class="q" data-correct="1" data-fb="Blue wants evidence and structure before emotion. Send the material ahead with the data attached — then the relationship can be built on top of a foundation of credibility.">
+      <p class="qtext">1. You need to tell a Blue colleague their report has an error, and you also want to repair a strained relationship.</p>
+      <label><input type="radio" name="qC1" value="0"> Lead with warmth and a compliment, then mention the error casually at the end.</label>
+      <label><input type="radio" name="qC1" value="1"> Send the specific data and the correction in writing first; raise the relationship separately once the facts are settled.</label>
+      <label><input type="radio" name="qC1" value="2"> Raise it in the team meeting so it's handled transparently.</label>
+    </div>
+    <div class="q" data-correct="2" data-fb="Greens need safety and a private channel. Public pressure produces agreement and resentment, not honesty. A one-to-one, pre-agreed conversation is where real objections surface.">
+      <p class="qtext">2. A Green team member has been quietly disengaging. What's the adaptive move?</p>
+      <label><input type="radio" name="qC2" value="0"> Call it out directly in the next team meeting to show you take it seriously.</label>
+      <label><input type="radio" name="qC2" value="1"> Increase the urgency of your messages so they understand the stakes.</label>
+      <label><input type="radio" name="qC2" value="2"> Have a private, unhurried one-to-one and explicitly invite objections.</label>
+    </div>
+    <div class="q" data-correct="0" data-fb="Yellow's currency is energy, possibility and recognition. Give them the big picture and public credit for the idea, then hand the follow-through to a Blue — that's where it will actually get done.">
+      <p class="qtext">3. A Yellow teammate has proposed a genuinely good idea. How do you get it implemented?</p>
+      <label><input type="radio" name="qC3" value="0"> Celebrate it publicly and give them the launch; assign a Blue to own the follow-through.</label>
+      <label><input type="radio" name="qC3" value="1"> Send them a detailed 12-step implementation plan to work through alone.</label>
+      <label><input type="radio" name="qC3" value="2"> Ask them to keep a detailed weekly log of progress.</label>
+    </div>
+    <div class="quiz-actions">
+      <button class="primary" data-check="C">Check answers</button>
+      <span class="score mono" data-score="C"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 6 ============ -->
+<section class="module" id="m6" data-module="m6" data-accent="yellow">
+  <h3 class="mod-title"><span class="mt-num mono">MODULE 06</span> Stress &amp; Group Dynamics</h3>
+  <p class="mod-sub">Stress doesn't create new behaviour. It exaggerates what was already there.</p>
+
+  <span class="label">A · Core Explanation</span>
+  <div class="expl">
+    <p>Erikson's most practically useful insight is that <strong>stress amplifies personality</strong>. It doesn't turn a Green into a Red or a Blue into a Yellow. It takes whatever was already the dominant trait and turns the dial up — usually past the point where the strength becomes a liability. In other words, the moment you most need someone's strengths is the moment their weaknesses are most likely to show.</p>
+    <p>A stressed <strong>Red</strong> becomes more controlling and more impatient. They push harder, dismiss alternative views faster, and make snap decisions without weighing the fallout. They stop listening, because listening feels like delay. A stressed <strong>Yellow</strong> becomes scattered and impulsive: talking more, jumping between tasks, leaving a trail of half-finished things. Sometimes their humour still lightens the room — but often it just adds noise to a situation that needed less.</p>
+    <p>A stressed <strong>Green</strong> retreats further inward. They go quiet, avoid decisions, and agree to things they don't agree with rather than risk friction. To the fast colours this reads as apathy or stubbornness, when it's actually overwhelm. A stressed <strong>Blue</strong> becomes more critical and more perfectionist: fixating on minor details, demanding more analysis, refusing to sign off until everything is flawless. To everyone else this looks like obstruction; to the Blue it looks like due diligence.</p>
+    <p>Notice what happens when you put stressed colours together. A stressed Red pushing for a decision meets a stressed Blue demanding more data — and both experience the other as the reason the project is failing. A stressed Yellow's chaos meets a stressed Green's withdrawal, and the Green silently absorbs the mess. <strong>Nobody is behaving badly. Everybody is behaving predictably.</strong> Which is good news, because predictable problems have predictable interventions. Leaders who know the pattern can give a Red autonomy and a clear goal, a Yellow freedom and company, a Green reassurance and safety, and a Blue structure and time — before the blow-up rather than after it.</p>
+  </div>
+
+  <span class="label">B · Diagram — move the stress dial</span>
+  <figure class="diagram">
+    <div class="dial">
+      <label for="stressRange" class="mono" style="font-size:.74rem; letter-spacing:.14em; color:var(--muted); text-transform:uppercase">Stress level</label>
+      <input type="range" id="stressRange" min="0" max="100" value="10" aria-label="Stress level slider" aria-valuetext="low stress">
+      <div class="meter"><span id="stressMeter"></span></div>
+      <div class="mono" id="stressLabel" style="font-size:.82rem; margin-top:10px; font-weight:700; color:var(--green)">CALM — traits at baseline</div>
+    </div>
+    <div class="stress-cards" id="stressCards">
+      <div class="stress-card" data-c="red"><b>🔴 Red</b><span></span></div>
+      <div class="stress-card" data-c="yellow"><b>🟡 Yellow</b><span></span></div>
+      <div class="stress-card" data-c="green"><b>🟢 Green</b><span></span></div>
+      <div class="stress-card" data-c="blue"><b>🔵 Blue</b><span></span></div>
+    </div>
+    <figcaption>Stress doesn't change the colour — it turns the volume up until the strength becomes the weakness.</figcaption>
+  </figure>
+
+  <span class="label">C · Visual Analogy</span>
+  <div class="analogy">
+    <span class="label">Analogy</span>
+    <p><strong>A fader on a mixing desk.</strong> Every colour is already on the track. Stress doesn't add a new instrument — it pushes the fader up on the loudest channel until it clips and distorts the whole mix. A distorted Red sounds like aggression. A distorted Blue sounds like obstruction. Same musician, same instrument, too much gain.</p>
+  </div>
+
+  <span class="label">D · Three Real-World Examples</span>
+  <div class="examples">
+    <div class="ex"><span class="ex-tag">Obvious</span><p><strong>Deadline week.</strong> The Red becomes dictatorial, the Yellow becomes chaotic, the Green goes silent, the Blue asks for one more week. Every one of those is the normal trait, amplified.</p></div>
+    <div class="ex counter"><span class="ex-tag">Counter-intuitive</span><p><strong>The stressed Green looks like the calm one.</strong> Withdrawal is easily mistaken for composure. The quietest person in a crisis may be the most overloaded — they've simply stopped signalling, which is the opposite of what their team assumes.</p></div>
+    <div class="ex edge"><span class="ex-tag">Edge case</span><p><strong>Two stressed people blaming each other accurately.</strong> The Red says the Blue is blocking progress. The Blue says the Red is cutting corners. Both statements are true, and neither is the problem. The problem is the pressure, and the fix is upstream of both of them.</p></div>
+  </div>
+
+  <span class="label">E · Common Misconception</span>
+  <details class="mis"><summary>"Once things calm down, everyone will go back to normal."</summary>
+    <div class="mis-body">The traits don't reset just because the deadline passes. What stress does is reveal the failure mode permanently enough that colleagues start to believe it <em>is</em> the person. "He's impossible under pressure" becomes the story, and the story outlives the deadline. This is why Erikson emphasises early intervention: catch the stress behaviour while it's still situational, before it calcifies into a reputation. Relief arrives; the label tends to stay.</div>
+  </details>
+
+  <span class="label">F · Why It Matters</span>
+  <div class="why"><strong>Why it matters:</strong> Almost every "difficult person" story at work is a stress story. If you can recognise the amplified pattern, you can intervene on the <em>pressure</em> instead of on the person — which is both more effective and considerably kinder.</div>
+
+  <span class="label">G · Practical Application</span>
+  <div class="scenario">
+    <h4>Scenario: Your team is under pressure and the mood is deteriorating.</h4>
+    <div class="step"><p><strong>Decision 1:</strong> Push harder and repeat the deadline. Urgency is the motivator.</p><p class="consequence">→ Consequence: Every colour amplifies. The Red escalates, the Yellow scatters, the Green withdraws, the Blue digs in. The team is now working against itself.</p></div>
+    <div class="step"><p><strong>Decision 2:</strong> De-escalate by colour: give the Red control and a clear goal, the Yellow an audience, the Green safety and a private channel, the Blue structure and time.</p><p class="consequence">→ Consequence: Each person's failure mode loses its fuel. The strengths come back online first.</p></div>
+    <div class="step"><p><strong>Decision 3:</strong> Name the pressure out loud: "We're all in the exaggerated version of ourselves right now."</p><p class="consequence">→ Consequence: The behaviour gets reframed as situational rather than personal — which stops it becoming a permanent label.</p></div>
+  </div>
+
+  <div class="mod-links">Related: <a href="#m4">Green &amp; Blue</a> · <a href="#m5">Adaptation</a></div>
+  <div class="mark-done"><button class="primary" data-complete="m6">Mark module complete</button></div>
+</section>
+
+<!-- FLASHCARDS -->
+<section id="flashcards-section">
+  <div class="section-title"><span class="tag mono">06</span><h2>Memory Flashcards</h2></div>
+  <p style="color:var(--muted)">Click or press Enter to flip. Answer out loud <em>before</em> you flip — that's the recall that makes it stick.</p>
+  <div class="flashcards" id="flashcards"></div>
+</section>
+
+<!-- MEMORY TECHNIQUES -->
+<section id="memory">
+  <div class="section-title"><span class="tag mono">07</span><h2>Memory Techniques</h2></div>
+  <p><strong>1. The traffic-light-plus-water mnemonic.</strong> <span style="color:var(--red);font-weight:800">Red = stop-and-go leader</span> (fast, task).
+  <span style="color:var(--yellow);font-weight:800">Yellow = sunshine</span> (fast, people).
+  <span style="color:var(--green);font-weight:800">Green = grass</span> (steady, people).
+  <span style="color:var(--blue);font-weight:800">Blue = deep water</span> (steady, task). Two are warm and fast; two are cool and slow.</p>
+  <p><strong>2. Two questions, four quadrants.</strong> When you meet someone, ask only: <em>"Fast or careful?"</em> and <em>"Task or people?"</em> Those two answers place them on the compass. You don't need a test — you need two questions.</p>
+  <p><strong>3. The strength/failure pairing.</strong> Memorise each colour as a pair, never alone: Red = decisive/impatient. Yellow = inspiring/scattered. Green = loyal/avoidant. Blue = accurate/paralysed. The pair <em>is</em> the colour — you can't have one half without the other.</p>
+  <p><strong>4. Spaced recall.</strong> Re-read one module tonight, one tomorrow, one next week. The module checkmarks are saved in your browser, so you can see which quadrants you've already walked.</p>
+</section>
+
+<!-- CHEAT SHEET -->
+<section id="cheat">
+  <div class="section-title"><span class="tag mono">08</span><h2>Summary / Cheat Sheet</h2></div>
+  <div class="cheat">
+    <p class="one-liner">Fast or careful. Task or people. Adapt the envelope, not the message.</p>
+    <table class="cheat-table">
+      <thead>
+        <tr><th>Colour</th><th>Wants</th><th>Strength</th><th>Failure mode</th><th>Talk to them by…</th><th>Under stress</th></tr>
+      </thead>
+      <tbody>
+        <tr data-c="red">
+          <td>🔴 Red<br><span class="mono" style="font-size:.72rem;color:var(--muted)">Dominance</span></td>
+          <td>Control, results, speed</td>
+          <td>Decisive, drives action</td>
+          <td>Impatient, steamrolls</td>
+          <td>Bottom line first; be brief; hold your ground</td>
+          <td>More controlling, stops listening</td>
+        </tr>
+        <tr data-c="yellow">
+          <td>🟡 Yellow<br><span class="mono" style="font-size:.72rem;color:var(--muted)">Influence</span></td>
+          <td>Recognition, energy, ideas</td>
+          <td>Inspiring, creative, social</td>
+          <td>Scattered, no follow-through</td>
+          <td>Match energy; give the vision; then steer to task</td>
+          <td>Chaotic, impulsive, talks more</td>
+        </tr>
+        <tr data-c="green">
+          <td>🟢 Green<br><span class="mono" style="font-size:.72rem;color:var(--muted)">Steadiness</span></td>
+          <td>Harmony, safety, predictability</td>
+          <td>Loyal, patient, great listener</td>
+          <td>Avoids conflict, resists change</td>
+          <td>Slow down; reassure; invite objections privately</td>
+          <td>Withdraws, agrees falsely</td>
+        </tr>
+        <tr data-c="blue">
+          <td>🔵 Blue<br><span class="mono" style="font-size:.72rem;color:var(--muted)">Conscientiousness</span></td>
+          <td>Accuracy, structure, evidence</td>
+          <td>Precise, thorough, catches errors</td>
+          <td>Perfectionist, analysis paralysis</td>
+          <td>Give facts, structure, and time to process</td>
+          <td>More critical, demands more data</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:.86rem;color:var(--muted);padding:0 6px 8px;margin:6px 0 0">
+      <strong style="color:var(--ink)">The three rules:</strong> (1) No colour is better than another. (2) Communication happens on the listener's terms.
+      (3) Stress amplifies the trait until the strength becomes the weakness.
+    </p>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="faq">
+  <div class="section-title"><span class="tag mono">09</span><h2>Still Confused? FAQ</h2></div>
+
+  <details><summary>Is this just a horoscope for colleagues?</summary>
+    <p>It becomes a horoscope the moment you use it to <em>explain away</em> behaviour instead of to <em>predict</em> it. The test is simple: does the model give you a falsifiable expectation? If you conclude your colleague is Blue, you should now be able to predict that a vague, urgent, emotionally-framed request will produce resistance, while a structured one with data will produce cooperation. If that prediction fails repeatedly, your read is wrong and you should update it. Astrology doesn't ask you to update. A useful model does. Erikson is also careful to say everyone is a mix, people shift with context, and no one is a pure type — which is exactly the humility that keeps a framework from hardening into a stereotype.</p>
+  </details>
+
+  <details><summary>What if I genuinely don't know what colour I am?</summary>
+    <p>Start with the two axes rather than the four colours. Ask yourself: when a decision is on the table, do I move fast or do I want more time? And when I'm in a group, is my attention on the outcome or on the people? Your answers put you in a quadrant. Then check the failure mode — that's usually the fastest diagnostic. Do you get told you're too blunt (Red), too scattered (Yellow), too quiet (Green), or too critical (Blue)? People rarely report their strengths accurately but they almost always remember their criticism. And if you truly feel like two colours at once, that's normal and expected: most people have a primary and a secondary, and the secondary often shows up in a different context, like home versus work.</p>
+  </details>
+
+  <details><summary>How do I deal with someone who is a different colour and senior to me?</summary>
+    <p>Adaptation doesn't require authority — it only requires you to change your own delivery, which you can always do. With a senior Red, lead with the recommendation and the deadline, never with the journey. With a senior Yellow, open with the possibility and the energy, then anchor it to a concrete next step before the meeting ends. With a senior Green, slow your pace, avoid surprise, and give them room to raise concerns without an audience. With a senior Blue, send the material in advance with sources and be ready for detail questions. Note that seniority often amplifies whatever the person's colour already is, because senior people get less feedback and more reinforcement. That makes the pattern stronger, not subtler — which actually makes it easier to work with once you've seen it.</p>
+  </details>
+
+  <details><summary>What if the other person is under heavy stress and their colour seems to have changed?</summary>
+    <p>It hasn't changed — it's been amplified. That's the core of module six. A stressed Green can look like a stubborn wall, a stressed Blue can look like a saboteur, a stressed Red can look like a bully, and a stressed Yellow can look like they've stopped caring. In every case, the underlying trait is the same one you already knew; the volume is just past the point of distortion. The practical implication is that you should adapt to the <em>amplified</em> version, not the baseline version. Give more reassurance, more structure, more autonomy or more company than you normally would — and, crucially, name the pressure out loud. People behave less extremely when they believe the extremity is situational rather than a verdict on their character.</p>
+  </details>
+
+  <details><summary>Can a team be all one colour? Should it be?</summary>
+    <p>It can, and it usually looks great right up until it doesn't. A team of all Reds moves at extraordinary speed and never checks anything. A team of all Yellows generates dazzling ideas and ships none of them. A team of all Greens is harmonious and paralysed by change. A team of all Blues is impeccable and far too slow to compete. The value of a mixed team isn't diversity for its own sake — it's that each colour's failure mode is another colour's strength. The Red's recklessness is caught by the Blue; the Blue's paralysis is broken by the Red; the Yellow's chaos is contained by the Green; the Green's inertia is disturbed by the Yellow. The catch is that a mixed team only gets this benefit if the members <em>understand the model</em>. Without that shared vocabulary, the same mix produces friction instead of complementarity — which is, more or less, the whole argument of the book.</p>
+  </details>
+
+  <details><summary>What's the single thing to take away if I forget everything else?</summary>
+    <p>Communication happens on the listener's terms. Everything else in the book is downstream of that one sentence. The colours give you a vocabulary for figuring out what those terms are; adaptation is what you do with the answer; and the stress section tells you when to expect the terms to shift. But if you only remember one thing, remember that you do not get to decide what your message was — the person receiving it does. That single reframe turns a hundred daily frustrations from moral judgments ("why is this person like this?") into engineering problems ("what delivery would land with this person?"). Engineering problems are solvable. Moral judgments are not. That's why the book works.</p>
+  </details>
+</section>
+
+<!-- NEXT STEPS -->
+<section id="next">
+  <div class="section-title"><span class="tag mono">10</span><h2>Next Steps</h2></div>
+  <div class="steps">
+    <div class="step-card"><h4>Read the source</h4><p><em>Surrounded by Idiots</em> by Thomas Erikson — the four-colour model in full, with the workplace case studies this lesson compressed.</p></div>
+    <div class="step-card"><h4>Colour three people you know</h4><p>Pick one person you find difficult, one you find easy, and one you're related to. Place each on the compass using the two questions.</p></div>
+    <div class="step-card"><h4>Rewrite one message</h4><p>Take your next difficult email and rewrite the <em>delivery</em> four ways. Send the version that matches the receiver.</p></div>
+    <div class="step-card"><h4>Name your own failure mode</h4><p>Ask someone who knows you well: "when I'm under pressure, what do I become?" Compare it to the cheat sheet.</p></div>
+    <div class="step-card"><h4>Map your team</h4><p>Plot everyone on the compass. Look for the two colours you're missing — that's where your blind spot is.</p></div>
+    <div class="step-card"><h4>Watch the stress dial</h4><p>Next deadline, notice which colour each person amplifies into. Predict it before it happens.</p></div>
+  </div>
+</section>
+
+<footer>
+  Interactive lesson built from a detailed summary of Thomas Erikson's <em>Surrounded by Idiots</em>. Progress and theme are stored in your browser via localStorage. Not affiliated with the author or publisher.
+</footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const MODULES = ["m1","m2","m3","m4","m5","m6"];
+  const KEY = "disa.lesson.state.v1";
+
+  /* ---------- state ---------- */
+  let state = { done:{}, theme:"dark" };
+  try { const raw = localStorage.getItem(KEY); if(raw) state = Object.assign(state, JSON.parse(raw)); } catch(e){}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} };
+
+  /* ---------- theme ---------- */
+  const themeBtn = document.getElementById("themeBtn");
+  function applyTheme(){
+    document.documentElement.setAttribute("data-theme", state.theme);
+    themeBtn.textContent = state.theme === "dark" ? "☀️ Light" : "🌙 Dark";
+  }
+  themeBtn.addEventListener("click", () => {
+    state.theme = state.theme === "dark" ? "light" : "dark";
+    applyTheme(); save();
+  });
+  applyTheme();
+
+  /* ---------- progress ---------- */
+  const bar = document.getElementById("progressbar");
+  const plabel = document.getElementById("progress-label");
+  function renderProgress(){
+    const n = MODULES.filter(m => state.done[m]).length;
+    const pct = Math.round(n / MODULES.length * 100);
+    bar.style.width = pct + "%";
+    bar.setAttribute("aria-valuenow", pct);
+    plabel.textContent = n + " / " + MODULES.length;
+    MODULES.forEach(id => {
+      const mod = document.querySelector('.module[data-module="' + id + '"]');
+      if(mod){
+        mod.classList.toggle("done", !!state.done[id]);
+        const b = mod.querySelector("[data-complete]");
+        if(b) b.textContent = state.done[id] ? "✓ Completed" : "Mark module complete";
+      }
+    });
+    document.querySelectorAll(".km-card").forEach(c => {
+      c.classList.toggle("done", !!state.done[c.dataset.goto]);
+    });
+  }
+  document.querySelectorAll("[data-complete]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.complete;
+      state.done[id] = !state.done[id];
+      save(); renderProgress();
+    });
+  });
+  renderProgress();
+
+  /* ---------- knowledge map nav ---------- */
+  document.querySelectorAll("[data-goto]").forEach(card => {
+    card.addEventListener("click", () => {
+      const el = document.getElementById(card.dataset.goto);
+      if(el) el.scrollIntoView({ behavior:"smooth", block:"start" });
+    });
+  });
+
+  /* ---------- hotspot ---------- */
+  const hotInfo = document.getElementById("hotInfo");
+  const hotData = {
+    red:   "<strong style='color:var(--red)'>🔴 Red · Dominance.</strong> Fast and task-focused. Wants control, results and momentum. Talks in short declaratives; loses patience with process and feelings. Thrives in a crisis; creates one in peacetime. Adapt by leading with the bottom line and holding your ground.",
+    yellow:"<strong style='color:var(--yellow)'>🟡 Yellow · Influence.</strong> Fast and people-focused. Wants recognition, energy and possibility. Generates ideas faster than anyone can execute them. Superb at starting things, unreliable at finishing them. Adapt by matching their enthusiasm, then gently anchoring to a next step.",
+    green: "<strong style='color:var(--green)'>🟢 Green · Steadiness.</strong> Careful and people-focused. Wants harmony, safety and predictability. Loyal, patient, an exceptional listener. Will agree to avoid conflict and resent it quietly. Adapt by slowing down, reassuring, and giving them a private channel for objections.",
+    blue:  "<strong style='color:var(--blue)'>🔵 Blue · Conscientiousness.</strong> Careful and task-focused. Wants accuracy, structure and evidence. Catches the errors everyone else waves through. Can slow a decision past usefulness. Adapt by providing facts, structure, and unhurried time to process."
+  };
+  document.querySelectorAll(".hotspot .dot").forEach(dot => {
+    dot.addEventListener("click", () => {
+      hotInfo.innerHTML = hotData[dot.dataset.h] || "";
+    });
+  });
+
+  /* ---------- flashcards ---------- */
+  const cards = [
+    { q:"What does DISA stand for?", a:"Dominance (Red), Influence (Yellow), Steadiness (Green), Conscientiousness (Blue)." },
+    { q:"The two axes of the compass?", a:"Fast ↔ Careful, and Task ↔ People." },
+    { q:"Red's strength and failure mode?", a:"Decisive and action-oriented / impatient, overlooks feelings and details." },
+    { q:"Yellow's strength and failure mode?", a:"Inspiring, creative, social / scattered, no follow-through." },
+    { q:"Green's strength and failure mode?", a:"Loyal, patient, great listener / avoids conflict, resists change." },
+    { q:"Blue's strength and failure mode?", a:"Precise, thorough, catches errors / perfectionism, analysis paralysis." },
+    { q:"One-sentence core of the book?", a:"Communication happens on the listener's terms — adapt the delivery, not the message." },
+    { q:"What does stress do to a colour?", a:"Amplifies it. The trait turns up until the strength becomes the weakness." },
+    { q:"Why do Green and Blue get under-credited?", a:"Their value is preventive, and prevention produces no visible event." },
+    { q:"What is adaptation NOT?", a:"Not changing your personality or values, and not being fake — it's changing the envelope, not the letter." }
+  ];
+  const fc = document.getElementById("flashcards");
+  cards.forEach(c => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "flip";
+    b.setAttribute("aria-label", "Flashcard: " + c.q);
+    b.innerHTML = '<div class="flip-inner">' +
+      '<div class="flip-face flip-front">' + c.q + '</div>' +
+      '<div class="flip-face flip-back">' + c.a + '</div></div>';
+    const flip = () => b.classList.toggle("flipped");
+    b.addEventListener("click", flip);
+    b.addEventListener("keydown", e => {
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); flip(); }
+    });
+    fc.appendChild(b);
+  });
+
+  /* ---------- drag & drop ---------- */
+  const items = [
+    { t:"Decides in 10 seconds", k:"red" },
+    { t:"Domineers the meeting", k:"red" },
+    { t:"Results over feelings", k:"red" },
+    { t:"Brainstorms 12 ideas", k:"yellow" },
+    { t:"Forgets the deadline", k:"yellow" },
+    { t:"Life of the party", k:"yellow" },
+    { t:"Agrees to avoid a scene", k:"green" },
+    { t:"Never misses a listening", k:"green" },
+    { t:"Hates sudden change", k:"green" },
+    { t:"Checks every number twice", k:"blue" },
+    { t:"Wants the data first", k:"blue" },
+    { t:"Stuck in analysis", k:"blue" }
+  ];
+  const pool = document.getElementById("chipPool");
+  const feedback = document.getElementById("dndFeedback");
+  const buckets = {};
+  document.querySelectorAll(".bucket").forEach(b => { buckets[b.dataset.kind] = b; });
+  let selected = null, correct = 0;
+
+  const shuffled = items.slice().sort(() => Math.random() - 0.5);
+  shuffled.forEach(it => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = it.t;
+    chip.dataset.kind = it.k;
+    chip.draggable = true;
+    chip.tabIndex = 0;
+    chip.setAttribute("aria-pressed", "false");
+    chip.setAttribute("role", "button");
+    chip.addEventListener("dragstart", e => {
+      e.dataTransfer.setData("text/plain", it.t);
+      e.dataTransfer.effectAllowed = "move";
+    });
+    chip.addEventListener("click", () => {
+      if(selected === chip){ chip.setAttribute("aria-pressed","false"); selected = null; return; }
+      if(selected) selected.setAttribute("aria-pressed","false");
+      selected = chip; chip.setAttribute("aria-pressed","true");
+    });
+    chip.addEventListener("keydown", e => {
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); chip.click(); }
+    });
+    pool.appendChild(chip);
+  });
+
+  function place(chip, bucketEl){
+    const target = bucketEl.dataset.kind;
+    if(chip.dataset.kind === target){
+      bucketEl.appendChild(chip);
+      chip.draggable = false;
+      chip.classList.add("locked");
+      chip.style.cursor = "default";
+      chip.tabIndex = -1;
+      chip.setAttribute("aria-pressed","false");
+      if(selected === chip) selected = null;
+      correct++;
+      feedback.style.color = "var(--green)";
+      if(correct === items.length){
+        feedback.textContent = "✓ All sorted. Notice the pattern: each colour's behaviour is the same trait seen from a different angle.";
+      } else {
+        feedback.textContent = "";
+      }
+    } else {
+      feedback.style.color = "var(--red)";
+      feedback.textContent = "✕ \"" + chip.textContent + "\" isn't " + target.toUpperCase() + " — try another bucket.";
+      setTimeout(() => {
+        if(correct < items.length && feedback.textContent.indexOf("✕") === 0) feedback.textContent = "";
+      }, 2000);
+    }
+  }
+
+  Object.values(buckets).forEach(b => {
+    b.addEventListener("dragover", e => { e.preventDefault(); b.classList.add("drop"); });
+    b.addEventListener("dragleave", () => b.classList.remove("drop"));
+    b.addEventListener("drop", e => {
+      e.preventDefault(); b.classList.remove("drop");
+      const txt = e.dataTransfer.getData("text/plain");
+      const chip = Array.from(pool.querySelectorAll(".chip")).find(c => c.textContent === txt);
+      if(chip) place(chip, b);
+    });
+    b.addEventListener("click", () => {
+      if(selected && selected.parentElement === pool) place(selected, b);
+    });
+    b.addEventListener("keydown", e => {
+      if((e.key === "Enter" || e.key === " ") && selected && selected.parentElement === pool){
+        e.preventDefault(); place(selected, b);
+      }
+    });
+  });
+
+  /* ---------- quizzes ---------- */
+  document.querySelectorAll("[data-check]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.check;
+      const quiz = document.querySelector('.quiz[data-quiz="' + key + '"]');
+      if(!quiz) return;
+      let score = 0;
+      const qs = quiz.querySelectorAll(".q");
+      qs.forEach(q => {
+        const correctIdx = parseInt(q.dataset.correct, 10);
+        const labels = q.querySelectorAll("label");
+        const chosen = q.querySelector("input:checked");
+        labels.forEach(l => l.classList.remove("correct","wrong"));
+        labels.forEach((l, i) => {
+          if(i === correctIdx) l.classList.add("correct");
+          if(chosen && +chosen.value === i && i !== correctIdx) l.classList.add("wrong");
+        });
+        if(chosen && +chosen.value === correctIdx) score++;
+        const fb = q.querySelector(".fb");
+        if(!fb){
+          const p = document.createElement("p");
+          p.className = "fb";
+          p.textContent = q.dataset.fb || "";
+          q.appendChild(p);
+        }
+        q.querySelector(".fb").classList.add("show");
+      });
+      const out = quiz.querySelector('[data-score="' + key + '"]');
+      out.textContent = score + " / " + qs.length + (score === qs.length ? " ✓" : "");
+      out.style.color = score === qs.length ? "var(--green)" : "var(--yellow)";
+    });
+  });
+
+  /* ---------- stress dial ---------- */
+  const range = document.getElementById("stressRange");
+  const meter = document.getElementById("stressMeter");
+  const slabel = document.getElementById("stressLabel");
+  const stressCards = document.getElementById("stressCards");
+  const stressText = {
+    red:    ["Direct and decisive.", "Pushing harder, cutting discussion short.", "Controlling. Dismissing alternatives. Making snap decisions nobody can challenge."],
+    yellow: ["Enthusiastic and social.", "Talking more, jumping between tasks.", "Scattered and impulsive. Starting everything, finishing nothing. Adding noise."],
+    green:  ["Calm, supportive, steady.", "Quieter than usual. Deferring more.", "Withdrawn. Agreeing falsely. Silently absorbing what should be said out loud."],
+    blue:   ["Analytical and thorough.", "Asking for more detail than usual.", "Critical and perfectionist. Demanding more data. Refusing to sign off. Analysis paralysis."]
+  };
+  function updateStress(){
+    const v = +range.value;
+    meter.style.width = Math.max(6, v) + "%";
+    let band, name, colour;
+    if(v < 30){ band = 0; name = "CALM — traits at baseline"; colour = "var(--green)"; }
+    else if(v < 70){ band = 1; name = "ELEVATED — traits amplifying"; colour = "var(--yellow)"; }
+    else { band = 2; name = "HIGH — traits distorted"; colour = "var(--red)"; }
+    slabel.textContent = name;
+    slabel.style.color = colour;
+    range.setAttribute("aria-valuetext", name);
+    stressCards.querySelectorAll(".stress-card").forEach(card => {
+      const k = card.dataset.c;
+      card.querySelector("span").textContent = stressText[k][band];
+    });
+  }
+  range.addEventListener("input", updateStress);
+  updateStress();
+
+})();
+</script>
+</body>
+</html>

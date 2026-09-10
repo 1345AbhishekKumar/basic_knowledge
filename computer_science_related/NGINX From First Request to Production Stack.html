@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NGINX: From First Request to Production Stack</title>
+<style>
+:root{
+  --washi:#F5F2ED; --sumi:#1C1C1C; --ai:#2B4565; --rikyu:#B0B7A8;
+  --ink:#1C1C1C; --tint:rgba(43,69,101,.08); --line:#D8D3C8; --card:#FBFAF6;
+  --font-heading:Georgia,'Times New Roman',serif;
+  --font-body:Inter,-apple-system,'Segoe UI',sans-serif;
+  --space-1:8px; --space-2:16px; --space-3:32px; --space-4:64px; --measure:70ch;
+  --dur-fade:.9s; --ease-organic:cubic-bezier(.25,.1,.25,1);
+}
+body.dark{
+  --washi:#000000; --sumi:#EDEAE4; --ai:#7C97B8; --rikyu:#6E7566;
+  --ink:#EDEAE4; --tint:rgba(124,151,184,.16); --line:#2A2A28; --card:#0A0A0A;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--washi); color:var(--sumi);
+  font-family:var(--font-body); font-weight:400; line-height:1.7;
+  transition:background var(--dur-fade) var(--ease-organic), color var(--dur-fade) var(--ease-organic);
+}
+body::after{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:80; opacity:.035;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");
+}
+#pbar{position:fixed; top:0; left:0; height:2px; background:var(--ai); width:0; z-index:100}
+#themeToggle{
+  position:fixed; top:var(--space-2); right:var(--space-2); z-index:100;
+  background:var(--card); border:1px solid var(--line); color:var(--sumi);
+  width:38px; height:38px; border-radius:50%; cursor:pointer; font-size:15px;
+  transition:border-color .3s var(--ease-organic);
+}
+#themeToggle:hover{border-color:var(--ai)}
+main{max-width:1060px; margin:0 auto; padding:var(--space-4) var(--space-3) var(--space-3)}
+h1{font-family:var(--font-heading); font-weight:400; font-size:clamp(1.9rem,4vw,2.7rem); line-height:1.2; max-width:24ch}
+h2{font-family:var(--font-heading); font-weight:400; font-size:1.55rem; line-height:1.3}
+h3{font-family:var(--font-heading); font-weight:400; font-size:1.1rem}
+.kicker{font-size:.72rem; letter-spacing:.18em; text-transform:uppercase; color:var(--rikyu)}
+.goal-note{
+  border-left:2px solid var(--ai); padding:var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  margin:var(--space-3) 0; max-width:var(--measure); color:var(--sumi); font-size:.95rem;
+}
+.wins{list-style:none; max-width:var(--measure); margin:var(--space-3) 0}
+.wins li{padding:var(--space-1) 0; padding-left:1.6em; position:relative}
+.wins li::before{content:"—"; position:absolute; left:0; color:var(--ai)}
+.source-note{font-size:.85rem; color:var(--rikyu); max-width:var(--measure); margin:var(--space-3) 0}
+.source-note a{color:var(--ai)}
+.kmap-wrap{margin:var(--space-4) 0 var(--space-3)}
+.kmap-wrap svg{width:100%; height:auto; display:block}
+g.node{cursor:pointer}
+g.node rect{transition:stroke .3s var(--ease-organic)}
+g.node:hover rect, g.node.current rect{stroke:var(--ai); stroke-width:2}
+section.module{border-top:1px solid var(--line); margin-top:var(--space-4); padding-top:var(--space-3)}
+.lab-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--space-2); margin-bottom:var(--space-2)}
+.mod-no{font-size:.72rem; letter-spacing:.18em; text-transform:uppercase; color:var(--ai); white-space:nowrap}
+.spec{font-family:ui-monospace,'Cascadia Mono',Menlo,monospace; font-size:.74rem; color:var(--rikyu); margin-left:auto}
+.lab-grid{display:grid; grid-template-columns:minmax(0,1fr) 350px; gap:var(--space-3)}
+@media (max-width:900px){.lab-grid{grid-template-columns:1fr}}
+.core{max-width:var(--measure)}
+.core p{margin-bottom:var(--space-2)}
+.term{border-bottom:1px dotted var(--rikyu); cursor:help}
+.tag{font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--rikyu); margin:var(--space-3) 0 var(--space-1)}
+ol.proc{list-style:none; counter-reset:st; max-width:var(--measure)}
+ol.proc li{counter-increment:st; padding:var(--space-1) 0 var(--space-1) 2.4em; position:relative}
+ol.proc li::before{
+  content:counter(st,decimal-leading-zero); position:absolute; left:0; top:.5em;
+  font-family:ui-monospace,Menlo,monospace; font-size:.72rem; color:var(--ai);
+}
+ul.ex{list-style:none; max-width:var(--measure)}
+ul.ex li{padding:var(--space-1) 0; border-top:1px solid var(--line); font-size:.93rem}
+ul.ex li:first-child{border-top:none}
+ul.ex b{font-weight:600; color:var(--ai)}
+pre{
+  font-family:ui-monospace,'Cascadia Mono',Menlo,monospace; font-size:.8rem; line-height:1.6;
+  background:var(--tint); border:1px solid var(--line); padding:var(--space-2); overflow-x:auto;
+  max-width:var(--measure); margin:var(--space-1) 0 var(--space-2);
+}
+code{font-family:ui-monospace,'Cascadia Mono',Menlo,monospace; font-size:.86em; background:var(--tint); padding:0 .35em}
+pre code{background:none; padding:0}
+.bench{display:flex; flex-direction:column; gap:var(--space-2)}
+.card{background:var(--card); border:1px solid var(--line); padding:var(--space-2) var(--space-2) var(--space-2) var(--space-3); font-size:.9rem}
+.card .tag{margin:0 0 var(--space-1); display:block}
+.card.analogy{border-left:2px solid var(--ai)}
+.mnem{font-family:var(--font-heading); font-style:italic; color:var(--ai)}
+figure{margin:var(--space-2) 0; max-width:var(--measure)}
+figcaption{font-size:.78rem; color:var(--rikyu); margin-top:var(--space-1); max-width:60ch}
+svg.diag{width:100%; height:auto; display:block}
+.ik{stroke:var(--ink); fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round}
+.ik-thin{stroke:var(--rikyu); fill:none; stroke-width:1.5; stroke-linecap:round}
+.lbl{font:12.5px var(--font-body); fill:var(--ink)}
+.lbl-m{font:11px var(--font-body); fill:var(--rikyu)}
+.lbl-a{font:12.5px var(--font-body); fill:var(--ai)}
+.flow{stroke:var(--ai); fill:none; stroke-width:1.5; stroke-dasharray:5 4; stroke-linecap:round}
+.anim-controls{display:flex; gap:var(--space-1); margin-top:var(--space-1)}
+.anim-controls button{
+  font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; background:none;
+  border:1px solid var(--line); color:var(--sumi); padding:.35em .9em; cursor:pointer;
+}
+.anim-controls button:hover{border-color:var(--ai); color:var(--ai)}
+details.fallback{margin-top:var(--space-1); font-size:.82rem; max-width:var(--measure)}
+details.fallback summary{cursor:pointer; color:var(--rikyu)}
+.quiz .opts{display:flex; flex-direction:column; gap:6px; margin-top:var(--space-1)}
+.quiz .opts button{
+  text-align:left; background:none; border:1px solid var(--line); color:var(--sumi);
+  padding:.5em .8em; font-size:.85rem; font-family:var(--font-body); cursor:pointer; line-height:1.45;
+}
+.quiz .opts button:hover:not(:disabled){border-color:var(--ai)}
+.quiz .opts button.chosen{border-color:var(--ai); background:var(--tint)}
+.quiz .opts button.ok{border-color:var(--ai); background:var(--tint)}
+.quiz .opts button.no{opacity:.5; text-decoration:line-through}
+.quiz .opts button:disabled{cursor:default}
+.quiz select{
+  font-family:var(--font-body); font-size:.82rem; background:var(--card); color:var(--sumi);
+  border:1px solid var(--line); padding:.3em .5em; max-width:100%;
+}
+.quiz select.ok{border-color:var(--ai)} .quiz select.no{opacity:.55}
+.feedback{display:none; margin-top:var(--space-1); font-size:.82rem; color:var(--ai); border-top:1px dashed var(--line); padding-top:6px}
+.feedback.show{display:block}
+details.recall{border:1px solid var(--line); background:var(--card)}
+details.recall summary{cursor:pointer; padding:var(--space-2) var(--space-2) var(--space-2) var(--space-3); font-size:.86rem; color:var(--sumi)}
+details.recall summary::marker{color:var(--ai)}
+details.recall .answer{padding:0 var(--space-2) var(--space-2) var(--space-3); font-size:.86rem; color:var(--ai)}
+.link-card{border-left:2px solid var(--rikyu); font-size:.86rem}
+.link-card .arrow{color:var(--ai)}
+.tog{
+  background:none; border:none; color:var(--sumi); font-family:var(--font-body); font-size:.86rem;
+  text-align:left; cursor:pointer; width:100%; padding:0; line-height:1.6;
+}
+.tog .flip-hint{display:block; font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:var(--rikyu); margin-top:4px}
+.tog .hidden-side{display:none; margin-top:6px; color:var(--ai)}
+.tog.on .hidden-side{display:block}
+.check-btn{
+  margin-top:var(--space-1); background:none; border:1px solid var(--ai); color:var(--ai);
+  padding:.4em 1em; font-size:.74rem; letter-spacing:.1em; text-transform:uppercase; cursor:pointer;
+}
+.check-btn:hover{background:var(--tint)}
+.summary-wrap{margin-top:var(--space-4); border-top:1px solid var(--line); padding-top:var(--space-3)}
+.cheat{width:100%; border-collapse:collapse; font-size:.86rem; max-width:var(--measure)}
+.cheat th, .cheat td{border:1px solid var(--line); padding:.5em .8em; text-align:left; vertical-align:top}
+.cheat th{font-weight:400; font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:var(--rikyu)}
+.cheat td:first-child{font-family:ui-monospace,Menlo,monospace; font-size:.78rem; color:var(--ai); white-space:nowrap}
+details.def summary{cursor:pointer; color:var(--rikyu); font-size:.8rem}
+details.def .def-body{color:var(--sumi); font-size:.84rem; padding-top:4px}
+.faq-item{border-top:1px solid var(--line); max-width:var(--measure)}
+.faq-item summary{cursor:pointer; padding:var(--space-2) 0; font-size:.95rem}
+.faq-item p{padding:0 0 var(--space-2); font-size:.9rem; color:var(--sumi); max-width:65ch}
+.next-list{list-style:none; max-width:var(--measure)}
+.next-list li{padding:var(--space-1) 0; padding-left:1.6em; position:relative; font-size:.92rem}
+.next-list li::before{content:"→"; position:absolute; left:0; color:var(--ai)}
+footer{
+  border-top:1px solid var(--line); margin-top:var(--space-4); padding:var(--space-3) var(--space-3) var(--space-4);
+  max-width:1060px; margin-left:auto; margin-right:auto; font-size:.78rem; color:var(--rikyu);
+}
+footer a{color:var(--ai)}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+</style>
+</head>
+<body>
+<div id="pbar" aria-hidden="true"></div>
+<button id="themeToggle" aria-label="Toggle dark or light mode" title="Toggle dark / light mode">◐</button>
+
+<main>
+  <!-- ============ HEADER ============ -->
+  <header>
+    <p class="kicker">A Lab Manual in Nine Modules · from the transcript, nothing else</p>
+    <h1>NGINX: From First Request to Production Stack</h1>
+    <p class="goal-note">Built for one outcome: putting nginx in front of your own full-stack app — React front end, Node.js API, database — so every request enters through a single, secure, fast door. One tangible win: by the last module you can deploy and secure that exact stack yourself.</p>
+    <h3 class="tag" style="margin-top:var(--space-3)">What You'll Learn</h3>
+    <ul class="wins">
+      <li>Explain what a web server is and why your application shouldn't face the internet alone.</li>
+      <li>Install nginx on a VPS, write your first server block, and serve a static site on any port.</li>
+      <li>Route one domain to a React app, a Node.js API, and Mongo Express with a reverse proxy.</li>
+      <li>Load-balance three backend containers and survive one of them dying mid-traffic.</li>
+      <li>Cache slow API responses, gzip big ones, and measure both improvements in dev tools.</li>
+      <li>Ship HTTPS with certbot in two environments and lock the server down with headers, rate limits, and IP blocking.</li>
+    </ul>
+    <p class="source-note">Primary source: the video course this lesson is distilled from — <a href="https://www.youtube.com/watch?v=-sY9OBgohX0" target="_blank" rel="noopener">NGINX Complete Course: Reverse Proxy, Load Balancing, HTTPS &amp; Docker (Sarvin Style Coding)</a>. Watch the exact segment shown in each module's <span style="font-family:ui-monospace,Menlo,monospace">spec</span> line when you want the live demo. This lesson teaches only what that transcript contains, and each module ends with one recall prompt — answer from memory before expanding.</p>
+  </header>
+
+  <!-- ============ KNOWLEDGE MAP ============ -->
+  <div class="kmap-wrap">
+    <p class="tag">Knowledge Map — click a node to jump</p>
+    <svg id="kmap" class="diag" viewBox="0 0 960 216" role="img" aria-label="Map of nine modules: web server, server blocks, reverse proxy, load balancing, caching, compression, security, HTTPS, production workflow" >
+      <title>Knowledge map of the nine lesson modules</title>
+      <defs>
+        <marker id="arr" markerWidth="7" markerHeight="7" refX="5.5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6" class="ik-thin"></path>
+        </marker>
+      </defs>
+      <g class="node" data-for="m1"><a href="#m1"><rect x="12" y="88" width="88" height="36" class="ik"></rect><text x="56" y="110" text-anchor="middle" class="lbl">1 · Server</text></a></g>
+      <g class="node" data-for="m2"><a href="#m2"><rect x="126" y="88" width="88" height="36" class="ik"></rect><text x="170" y="104" text-anchor="middle" class="lbl">2 · Block</text><text x="170" y="117" text-anchor="middle" class="lbl-m">first site</text></a></g>
+      <g class="node" data-for="m3"><a href="#m3"><rect x="240" y="88" width="88" height="36" class="ik"></rect><text x="284" y="104" text-anchor="middle" class="lbl">3 · Proxy</text><text x="284" y="117" text-anchor="middle" class="lbl-m">one door</text></a></g>
+      <g class="node" data-for="m4"><a href="#m4"><rect x="354" y="20" width="88" height="36" class="ik"></rect><text x="398" y="36" text-anchor="middle" class="lbl">4 · Balance</text><text x="398" y="49" text-anchor="middle" class="lbl-m">3 servers</text></a></g>
+      <g class="node" data-for="m5"><a href="#m5"><rect x="354" y="156" width="88" height="36" class="ik"></rect><text x="398" y="172" text-anchor="middle" class="lbl">5 · Cache</text><text x="398" y="185" text-anchor="middle" class="lbl-m">store reuse</text></a></g>
+      <g class="node" data-for="m6"><a href="#m6"><rect x="468" y="88" width="88" height="36" class="ik"></rect><text x="512" y="104" text-anchor="middle" class="lbl">6 · Gzip</text><text x="512" y="117" text-anchor="middle" class="lbl-m">smaller bytes</text></a></g>
+      <g class="node" data-for="m7"><a href="#m7"><rect x="582" y="88" width="88" height="36" class="ik"></rect><text x="626" y="104" text-anchor="middle" class="lbl">7 · Harden</text><text x="626" y="117" text-anchor="middle" class="lbl-m">headers · rate</text></a></g>
+      <g class="node" data-for="m8"><a href="#m8"><rect x="696" y="88" width="88" height="36" class="ik"></rect><text x="740" y="104" text-anchor="middle" class="lbl">8 · HTTPS</text><text x="740" y="117" text-anchor="middle" class="lbl-m">certbot</text></a></g>
+      <g class="node" data-for="m9"><a href="#m9"><rect x="810" y="88" width="88" height="36" class="ik"></rect><text x="854" y="104" text-anchor="middle" class="lbl">9 · Workflow</text><text x="854" y="117" text-anchor="middle" class="lbl-m">t → r → check</text></a></g>
+      <path d="M100,106 L126,106" class="ik-thin" marker-end="url(#arr)"></path>
+      <path d="M214,106 L240,106" class="ik-thin" marker-end="url(#arr)"></path>
+      <path d="M300,88 C330,60 330,45 354,40" class="ik-thin" marker-end="url(#arr)"></path>
+      <path d="M300,124 C330,152 330,167 354,172" class="ik-thin" marker-end="url(#arr)"></path>
+      <path d="M442,38 C470,55 480,70 492,88" class="ik-thin" marker-end="url(#arr)"></path>
+      <path d="M442,174 C470,157 480,142 492,124" class="ik-thin" marker-end="url(#arr)"></path>
+      <path d="M556,106 L582,106" class="ik-thin" marker-end="url(#arr)"></path>
+      <path d="M670,106 L696,106" class="ik-thin" marker-end="url(#arr)"></path>
+      <path d="M784,106 L810,106" class="ik-thin" marker-end="url(#arr)"></path>
+      <text x="480" y="14" text-anchor="middle" class="lbl-m">simple → production, left to right</text>
+    </svg>
+  </div>
+
+  <!-- ============ MODULE 1 ============ -->
+  <section class="module" id="m1">
+    <div class="lab-head"><span class="mod-no">Module 01</span><h2>What a Web Server Is</h2><span class="spec">spec: transcript 00:02:31 → 00:05:00</span></div>
+    <div class="lab-grid">
+      <div class="specimen">
+        <div class="core">
+          <p>When you type <code>google.com</code> and press enter, your browser sends an <span class="term" title="HyperText Transfer Protocol — the request/response language browsers and servers speak">HTTP request</span> to a server, the server processes it, and a response comes back for the browser to display. That part of the story everyone knows. The interesting question is the next one: should your application — Node.js, Laravel, ASP.NET — handle <em>every single request</em> directly?</p>
+          <p>For a small site, it can. But the moment thousands of users arrive at once, your application is doing two jobs at the same time: running the actual application logic, <em>and</em> managing thousands of raw network connections. The transcript's answer to that overload is the reason this lesson exists: put a <span class="term" title="Software that receives client requests and returns the appropriate response">web server</span> in front of the application. Requests go to the web server first, and it decides what to do with each one.</p>
+          <p>The decision rule is simple. A request for a <span class="term" title="Files served as-is: HTML, CSS, JavaScript, images">static file</span> — HTML, CSS, JavaScript, an image — is returned straight from disk, without waking the application at all. A request that needs processing is forwarded to the application. So a web server is software that receives client requests and returns the appropriate response, acting as the gatekeeper in front of your code.</p>
+          <p>NGINX (the transcript pronounces it "Engine-X") is a free, open-source web server — fast, lightweight, built to handle a very large number of connections on very little CPU and memory. And it is more than a web server: it can also work as a <strong>reverse proxy</strong>, <strong>load balancer</strong>, <strong>HTTP cache</strong>, and <strong>API gateway</strong>. Netflix, GitHub, Cisco, TikTok, LinkedIn and X all use it in their infrastructure. That versatility is exactly what the rest of this lab builds up, module by module.</p>
+        </div>
+        <p class="tag">Procedure — the two-path decision every request faces</p>
+        <ol class="proc">
+          <li>Browser sends an HTTP/HTTPS request to the server.</li>
+          <li>The web server receives it before any application code runs.</li>
+          <li>Static file (HTML, CSS, JS, image)? Return it directly from disk.</li>
+          <li>Needs processing? Forward it to the application behind you.</li>
+          <li>Application's response travels back through the same door.</li>
+        </ol>
+        <p class="tag">Examples from the field</p>
+        <ul class="ex">
+          <li><b>Obvious:</b> A portfolio site serves its <code>index.html</code> and stylesheet straight from the web server — no application is ever involved.</li>
+          <li><b>Counter-intuitive:</b> nginx was not created to replace Apache; it was created because modern apps needed performance, scalability and low resource use more than Apache-style flexibility.</li>
+          <li><b>Edge-case:</b> On a tiny low-traffic blog, letting the application serve everything "works fine" — the web server earns its keep only when concurrency grows.</li>
+        </ul>
+        <figure>
+          <svg class="diag" viewBox="0 0 560 170" role="img" aria-label="Diagram: one browser request reaching a web server, which either returns a static file directly or forwards the request to the application">
+            <title>Web server as gatekeeper: static files served directly, processing forwarded</title>
+            <rect x="10" y="62" width="86" height="40" class="ik"></rect>
+            <text x="53" y="86" text-anchor="middle" class="lbl">Browser</text>
+            <rect x="176" y="62" width="110" height="40" class="ik" style="stroke:var(--ai)"></rect>
+            <text x="231" y="80" text-anchor="middle" class="lbl">Web server</text>
+            <text x="231" y="94" text-anchor="middle" class="lbl-m">(nginx)</text>
+            <rect x="404" y="14" width="146" height="36" class="ik"></rect>
+            <text x="477" y="36" text-anchor="middle" class="lbl">Static files on disk</text>
+            <rect x="404" y="112" width="146" height="36" class="ik"></rect>
+            <text x="477" y="128" text-anchor="middle" class="lbl">Application</text>
+            <text x="477" y="142" text-anchor="middle" class="lbl-m">(Node.js …)</text>
+            <path d="M96,80 C130,76 140,78 172,79" class="ik-thin" marker-end="url(#arr)"></path>
+            <text x="130" y="70" text-anchor="middle" class="lbl-m">request</text>
+            <path d="M286,68 C340,50 360,38 400,33" class="flow" marker-end="url(#arr)"></path>
+            <text x="342" y="34" text-anchor="middle" class="lbl-m">static? return file</text>
+            <path d="M286,96 C340,114 360,126 400,130" class="flow" marker-end="url(#arr)"></path>
+            <text x="344" y="146" text-anchor="middle" class="lbl-m">needs work? forward</text>
+          </svg>
+          <figcaption>The one decision nginx repeats millions of times a day: serve it myself, or hand it to the app?</figcaption>
+        </figure>
+      </div>
+      <aside class="bench">
+        <div class="card analogy"><span class="tag">Visual analogy — toggle</span>
+          <button class="tog" onclick="toggleMode(this,'analogy')">A web server is the <em>host at the restaurant door</em>.<span class="flip-hint">click to see the mapping</span><span class="hidden-side">The host decides from the doorway: "water? I'll bring it" (static file) or "a custom order? — to the kitchen" (application). The kitchen never has to greet guests, manage the queue, or answer the same question twice.</span></button>
+        </div>
+        <div class="card"><span class="tag">❌ What people get wrong</span>People assume the application must face the internet directly because "the browser talks to the server." In the transcript's architecture, the browser talks to the <em>web server</em>, and the application talks only to the web server.</div>
+        <div class="card"><span class="tag">Why this matters</span>Every later module — proxy, balancing, caching, HTTPS, security headers — is this one idea stacked: nginx stands in front, and the app stands behind. Miss the front-door model and everything after it feels arbitrary.</div>
+        <div class="card quiz"><span class="tag">Quick check</span>
+          <p style="font-size:.86rem">A request for a 40 KB product image arrives. Who should serve it?</p>
+          <div class="opts">
+            <button data-correct="1" onclick="checkMCQ(this,'A static file needs no application logic, so the web server returns it straight from disk — the app never wakes up.')">The web server, from disk</button>
+            <button data-correct="0" onclick="checkMCQ(this,'That would repeat work the web server can do alone — applications are for processing, not for handing over files.')">The application, freshly built</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Files live on disk, not in the database — the database stores data, not image bytes.')">The database, as a record</button>
+            <button data-correct="0" onclick="checkMCQ(this,'A first-time visitor has nothing cached, so the browser cannot serve the file at all.')">The browser, from its cache</button>
+          </div>
+          <div class="feedback"></div>
+        </div>
+        <details class="recall"><summary>✍ Recall — write before expanding</summary><div class="answer">In one sentence: what two jobs does a web server take off the application's hands? <br><em>Model answer:</em> It manages the flood of incoming connections and serves static files directly, so the application only runs logic when a request truly needs processing.</div></details>
+        <div class="card link-card"><span class="tag">🔗 Next module</span><span class="arrow">→ Module 02:</span> knowing <em>what</em> nginx is, you'll now install it and write your first <code>server</code> block.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 2 ============ -->
+  <section class="module" id="m2">
+    <div class="lab-head"><span class="mod-no">Module 02</span><h2>Installing nginx &amp; Writing Your First Server Block</h2><span class="spec">spec: transcript 00:17:05 → 00:32:04</span></div>
+    <div class="lab-grid">
+      <div class="specimen">
+        <div class="core">
+          <p>The course installs nginx on a Linux VPS over SSH. Three commands in, and it's running: <code>sudo apt update</code>, then <code>sudo apt install nginx</code>, then verify with <code>nginx -v</code>. Because nginx runs as a Linux service, <code>sudo systemctl status nginx</code> should show it <em>active (running)</em> — and visiting your server's IP in a browser shows the default "Welcome to nginx" page. The config lives in <code>/etc/nginx/</code> (running <code>nginx -V</code> prints the exact path), and the "Welcome" page itself sits in <code>/var/www/html/</code>.</p>
+          <p>The <span class="term" title="The main nginx configuration file, holding global settings and the includes that load the rest">nginx.conf</span> file is organized into <span class="term" title="A named section of nginx configuration, like http or events, that scopes the directives inside it">contexts</span>: global settings at the top (the worker user, <code>worker_processes auto</code> so nginx matches your CPU cores), an <code>events</code> block for connection handling, and the big <code>http</code> block where all web configuration lives. At the bottom of the <code>http</code> block, <code>include</code> lines load everything in <code>conf.d</code> and <code>sites-enabled</code>. You <em>could</em> define websites directly inside <code>http</code>, but the recommended practice is one file per site.</p>
+          <p>That per-site file is a <span class="term" title="A server { } configuration that tells nginx how to handle requests for one website or application — port, domain, and file locations">server block</span>: it defines which port to <code>listen</code> on, which domain to answer (<code>server_name</code>), and where files live (<code>root</code> plus an <code>index</code>). The transcript creates one in <code>sites-available/first-site</code>, then — because nginx only reads <code>sites-enabled</code> — creates a <span class="term" title="A filesystem link (ln -s) that makes a config file in sites-available visible inside sites-enabled without copying it">symbolic link</span> between the two. Editing happens in <code>sites-available</code>; enabling happens by linking; disabling happens by removing the link — the file stays put either way.</p>
+          <p>Then the ritual that repeats in every single module of this course: check the config with <code>sudo nginx -t</code>, and apply it with <code>sudo systemctl reload nginx</code>. Note the word — <span class="term" title="Applies new configuration without stopping the service, so existing connections are not interrupted — preferred over restart after config changes">reload</span>, not restart: reload applies new configuration without dropping existing connections. That's the preferred move after every config change, and the course does it dozens of times.</p>
+        </div>
+        <p class="tag">Procedure — first static site on port 90</p>
+        <ol class="proc">
+          <li><code>sudo apt update &amp;&amp; sudo apt install nginx</code> · verify: <code>nginx -v</code>, <code>systemctl status nginx</code>.</li>
+          <li>Create content: <code>/var/www/first-site/index.html</code> with one H1.</li>
+          <li>Write the server block in <code>/etc/nginx/sites-available/first-site</code>.</li>
+          <li>Enable it: <code>sudo ln -s /etc/nginx/sites-available/first-site /etc/nginx/sites-enabled/</code></li>
+          <li><code>sudo nginx -t</code> → "syntax is ok / test is successful".</li>
+          <li><code>sudo systemctl reload nginx</code> → visit <code>http://YOUR_IP:90</code>.</li>
+        </ol>
+        <pre><code>server {
+    listen 90;
+    server_name localhost;      # your domain goes here later
+    location / {                # rules for the root of the site
+        root /var/www/first-site;
+        index index.html;
+    }
+}</code></pre>
+        <p class="tag">Examples from the field</p>
+        <ul class="ex">
+          <li><b>Obvious:</b> Serve a hand-written <code>index.html</code> from <code>/var/www/first-site</code> on port 90 — the transcript's exact exercise.</li>
+          <li><b>Counter-intuitive:</b> The config file exists but nginx ignores it until it's <em>linked</em> into sites-enabled — creating the file alone changes nothing.</li>
+          <li><b>Edge-case:</b> Miss one semicolon and <code>nginx -t</code> fails before anything breaks — the course trips on exactly this and fixes it in one line.</li>
+        </ul>
+        <figure>
+          <svg class="diag" viewBox="0 0 560 150" role="img" aria-label="Diagram of a request for localhost colon 90 matching the server block, which serves index.html from /var/www/first-site">
+            <title>A request on port 90 matches the server block and returns the index file</title>
+            <rect x="10" y="55" width="86" height="40" class="ik"></rect>
+            <text x="53" y="72" text-anchor="middle" class="lbl">Browser</text>
+            <text x="53" y="86" text-anchor="middle" class="lbl-m">:90</text>
+            <rect x="176" y="40" width="150" height="70" class="ik" style="stroke:var(--ai)"></rect>
+            <text x="251" y="62" text-anchor="middle" class="lbl">server block</text>
+            <text x="251" y="78" text-anchor="middle" class="lbl-m">listen 90</text>
+            <text x="251" y="92" text-anchor="middle" class="lbl-m">first-site</text>
+            <rect x="420" y="14" width="130" height="30" class="ik"></rect>
+            <text x="485" y="33" text-anchor="middle" class="lbl-m">index.html</text>
+            <rect x="420" y="106" width="130" height="30" class="ik"></rect>
+            <text x="485" y="125" text-anchor="middle" class="lbl-m">/var/www/first-site</text>
+            <path d="M96,73 C130,70 142,70 172,70" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M326,55 C370,42 384,34 416,30" class="flow" marker-end="url(#arr)"></path>
+            <path d="M326,95 C370,108 384,116 416,120" class="flow" marker-end="url(#arr)"></path>
+            <text x="370" y="20" text-anchor="middle" class="lbl-m">root + index</text>
+          </svg>
+          <figcaption>listen picks the port, server_name picks the domain, root + index pick the files. (Mnemonic: <span class="mnem">L · S · L · R</span> — Listen, Server_name, Location, Root.)</figcaption>
+        </figure>
+      </div>
+      <aside class="bench">
+        <div class="card analogy"><span class="tag">Visual analogy — toggle</span>
+          <button class="tog" onclick="toggleMode(this,'analogy')">A server block is a <em>shopfront lease</em>.<span class="flip-hint">click to see the mapping</span><span class="hidden-side">listen = which street door (port), server_name = the name on the sign (domain), root = the stockroom address, index = what's in the display window. Leases are filed in sites-available; only signed copies (symlinks) hang in the window at sites-enabled.</span></button>
+        </div>
+        <div class="card"><span class="tag">❌ What people get wrong</span>Two classics from the transcript: putting server blocks directly in <code>nginx.conf</code> instead of per-site files, and forgetting that <code>sites-available</code> alone does nothing — nginx loads <code>sites-enabled</code>.</div>
+        <div class="card"><span class="tag">Why this matters</span>This is your goal's first real step: a static page served from your own VPS. The identical pattern — file in sites-available, symlink, test, reload — is how every site on that server gets added.</div>
+        <div class="card quiz"><span class="tag">Quick check</span>
+          <p style="font-size:.86rem">You created a server block file in <code>sites-available</code>, reloaded nginx — and still see the default page. Why?</p>
+          <div class="opts">
+            <button data-correct="1" onclick="checkMCQ(this,'nginx only loads configuration from sites-enabled — the file must be symlinked in before a reload does anything.')">The block was never enabled</button>
+            <button data-correct="0" onclick="checkMCQ(this,'The reload did apply — but there was nothing new enabled to apply, so the default block still wins.')">The reload was too fast</button>
+            <button data-correct="0" onclick="checkMCQ(this,'The root directive is read only after the block is enabled — an unreachable root is not this symptom.')">The root path was wrong</button>
+            <button data-correct="0" onclick="checkMCQ(this,'The port has nothing to do with it yet — an unlinked block is never read at all.')">Port 90 was already taken</button>
+          </div>
+          <div class="feedback"></div>
+        </div>
+        <details class="recall"><summary>✍ Recall — write before expanding</summary><div class="answer">Name the four directives of a minimal static server block, in order. <br><em>Model answer:</em> <code>listen</code> (port) → <code>server_name</code> (domain) → <code>location /</code> (scope) → <code>root</code> + <code>index</code> (files). L·S·L·R.</div></details>
+        <div class="card link-card"><span class="tag">🔗 Next module</span><span class="arrow">→ Module 03:</span> a static file is easy — next, one door must route to a whole full-stack app.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 3 ============ -->
+  <section class="module" id="m3">
+    <div class="lab-head"><span class="mod-no">Module 03</span><h2>The Reverse Proxy — One Door for the Whole Stack</h2><span class="spec">spec: transcript 00:06:46 → 00:16:53 · 00:32:04 → 00:46:57</span></div>
+    <div class="lab-grid">
+      <div class="specimen">
+        <div class="core">
+          <p>First, the distinction the transcript draws carefully. A <span class="term" title="A server that sits between clients and destination servers, working on behalf of the client — controlling access, hiding identity">proxy</span> works on behalf of the <em>client</em>: it controls internet access and hides the client's identity. A <span class="term" title="A proxy that sits on the server side: clients send every request to it, and it decides which backend server should handle each one">reverse proxy</span> sits on the <em>server</em> side: clients send every request to it, and it decides where each request goes. Behind nginx there might be a Node.js, Django or ASP.NET application — or several. The benefits: better security (backends are hidden) and routing each request to the right service.</p>
+          <p>The course's real stack makes this concrete: a React front end on port <strong>3000</strong>, a Node.js/Express API on port <strong>3001</strong>, a database, and Mongo Express on <strong>8081</strong> — all started with <code>docker compose up --build -d</code>. Each service exposed on its own port works for testing, but in production you can't ask users to remember port numbers or hit your backend directly. The fix: <strong>one entry point</strong>. A new config file <code>/etc/nginx/sites-available/docker-demo</code> listens on port 80 and uses three <code>location</code> blocks to sort traffic.</p>
+          <p>The routing keyword is <span class="term" title="The nginx directive that forwards matching requests to another server, e.g. http://localhost:3000">proxy_pass</span>. Requests to <code>/</code> go to the React app at <code>http://localhost:3000</code>; requests starting with <code>/api/</code> go to <code>http://localhost:3001</code>; requests starting with <code>/mongo/</code> go to <code>http://localhost:8081</code>. One door, three rooms behind it.</p>
+          <p>Two debugging episodes in the transcript are worth their weight. First, enabling the new block still showed the default page — the default site's symlink in <code>sites-enabled</code> had to be removed (<code>sudo rm /etc/nginx/sites-enabled/default</code>) and nginx reloaded. Second, <code>/api/users</code> failed until a <strong>trailing slash</strong> was added: without it, nginx forwards the entire original URI (<code>localhost:3001/api/users</code>), while the Node app expected <code>localhost:3001/users</code>. And Mongo Express needed its own accommodation — an environment variable (<code>ME_CONFIG_SITE_BASEURL: /mongo/</code>) telling it to generate its links under the sub-path. Reverse proxying isn't just forwarding; it's matching what each backend expects to receive.</p>
+        </div>
+        <p class="tag">Procedure — route three services through port 80</p>
+        <ol class="proc">
+          <li>Create <code>/etc/nginx/sites-available/docker-demo</code> with a <code>server</code> block, <code>listen 80</code>.</li>
+          <li><code>location /</code> → <code>proxy_pass http://localhost:3000;</code> (React).</li>
+          <li><code>location /api/</code> → <code>proxy_pass http://localhost:3001/;</code> (Node API — trailing slash).</li>
+          <li><code>location /mongo/</code> → <code>proxy_pass http://localhost:8081/;</code> (Mongo Express).</li>
+          <li>Symlink into <code>sites-enabled</code>; remove the <code>default</code> link.</li>
+          <li><code>sudo nginx -t</code> → <code>sudo systemctl reload nginx</code> → test all three paths.</li>
+        </ol>
+        <pre><code>server {
+    listen 80;
+    server_name localhost;
+    location /        { proxy_pass http://localhost:3000;  }   # React
+    location /api/    { proxy_pass http://localhost:3001/; }   # Node API
+    location /mongo/  { proxy_pass http://localhost:8081/; }   # Mongo Express
+}</code></pre>
+        <p class="tag">Examples from the field</p>
+        <ul class="ex">
+          <li><b>Obvious:</b> One domain serves the React app at <code>/</code> and the API at <code>/api/</code> — users never see a port number.</li>
+          <li><b>Counter-intuitive:</b> <code>proxy_pass http://localhost:3001</code> (no slash) forwards <code>/api/users</code> as-is and breaks the route; the slash is the whole fix.</li>
+          <li><b>Edge-case:</b> Mongo Express was never designed to live under a sub-path — it needs its <code>ME_CONFIG_SITE_BASEURL</code> variable to agree with the proxy.</li>
+        </ul>
+        <figure>
+          <svg class="diag" viewBox="0 0 560 190" role="img" aria-label="Animation: three requests arriving at nginx on port 80 and being routed to React on 3000, the API on 3001, and Mongo Express on 8081" id="anim-flow">
+            <title>One entry point: nginx routes / , /api/ and /mongo/ to three different services</title>
+            <rect x="10" y="75" width="90" height="40" class="ik"></rect>
+            <text x="55" y="93" text-anchor="middle" class="lbl">Browser</text>
+            <rect x="180" y="70" width="110" height="50" class="ik" style="stroke:var(--ai)"></rect>
+            <text x="235" y="90" text-anchor="middle" class="lbl">nginx :80</text>
+            <text x="235" y="106" text-anchor="middle" class="lbl-m">reverse proxy</text>
+            <rect x="420" y="10" width="130" height="34" class="ik"></rect>
+            <text x="485" y="26" text-anchor="middle" class="lbl">React :3000</text>
+            <text x="485" y="39" text-anchor="middle" class="lbl-m">location /</text>
+            <rect x="420" y="78" width="130" height="34" class="ik"></rect>
+            <text x="485" y="94" text-anchor="middle" class="lbl">API :3001</text>
+            <text x="485" y="107" text-anchor="middle" class="lbl-m">location /api/</text>
+            <rect x="420" y="146" width="130" height="34" class="ik"></rect>
+            <text x="485" y="162" text-anchor="middle" class="lbl">Mongo Ex :8081</text>
+            <text x="485" y="175" text-anchor="middle" class="lbl-m">location /mongo/</text>
+            <path d="M100,90 C136,88 144,88 176,88" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M290,80 C340,55 370,35 416,29" class="flow" marker-end="url(#arr)"><animate attributeName="stroke-dashoffset" from="18" to="0" dur="1s" repeatCount="indefinite"></animate></path>
+            <path d="M290,95 C340,95 370,95 416,95" class="flow" marker-end="url(#arr)"><animate attributeName="stroke-dashoffset" from="18" to="0" dur="1s" repeatCount="indefinite"></animate></path>
+            <path d="M290,110 C340,135 370,155 416,161" class="flow" marker-end="url(#arr)"><animate attributeName="stroke-dashoffset" from="18" to="0" dur="1s" repeatCount="indefinite"></animate></path>
+          </svg>
+          <div class="anim-controls" data-target="#anim-flow"><button class="play-btn" type="button">Pause</button><button class="replay-btn" type="button">Replay</button></div>
+          <figcaption>Every request enters at :80; the location prefix decides the room. (Static fallback below.)</figcaption>
+          <details class="fallback"><summary>Static view (no animation)</summary>
+            <svg class="diag" viewBox="0 0 560 120" role="img" aria-label="Static fallback: the three routing arrows from nginx to the three services">
+              <title>Static view of the one-door routing</title>
+              <rect x="180" y="40" width="110" height="40" class="ik" style="stroke:var(--ai)"></rect><text x="235" y="64" text-anchor="middle" class="lbl">nginx :80</text>
+              <rect x="420" y="8" width="120" height="28" class="ik"></rect><text x="480" y="26" text-anchor="middle" class="lbl-m">React :3000</text>
+              <rect x="420" y="46" width="120" height="28" class="ik"></rect><text x="480" y="64" text-anchor="middle" class="lbl-m">API :3001</text>
+              <rect x="420" y="84" width="120" height="28" class="ik"></rect><text x="480" y="102" text-anchor="middle" class="lbl-m">Mongo Ex :8081</text>
+              <path d="M290,50 C340,35 370,26 416,24" class="ik-thin" marker-end="url(#arr)"></path>
+              <path d="M290,60 C340,60 370,60 416,60" class="ik-thin" marker-end="url(#arr)"></path>
+              <path d="M290,70 C340,85 370,94 416,96" class="ik-thin" marker-end="url(#arr)"></path>
+            </svg>
+          </details>
+        </figure>
+      </div>
+      <aside class="bench">
+        <div class="card analogy"><span class="tag">Visual analogy — toggle</span>
+          <button class="tog" onclick="toggleMode(this,'analogy')">A reverse proxy is a <em>hospital reception desk</em>.<span class="flip-hint">click to see the mapping</span><span class="hidden-side">Visitors see one desk, never the wards. Reception reads the slip: X-ray (React), bloodwork (API), records (Mongo Express) — and directs without exposing where the rooms actually are or letting visitors wander in.</span></button>
+        </div>
+        <div class="card"><span class="tag">❌ What people get wrong</span>"A proxy and a reverse proxy are the same thing." No — a proxy serves the <em>client</em>; a reverse proxy serves the <em>server</em>. The second classic: blaming nginx when <code>/api/users</code> 404s, when the real culprit is a missing trailing slash on <code>proxy_pass</code>.</div>
+        <div class="card"><span class="tag">Why this matters</span>This is the architecture of your goal: a full-stack app with one public address. Almost everything you'll deploy as a working developer — front end, API, admin tools — sits behind exactly this pattern.</div>
+        <div class="card quiz"><span class="tag">Quick check</span>
+          <p style="font-size:.86rem">Your React app runs in one container and your API in another. What does the reverse proxy give you?</p>
+          <div class="opts">
+            <button data-correct="1" onclick="checkMCQ(this,'One public entry point routes each path to the right container, so users never touch ports or backends directly.')">One public entry point</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Two public ports are exactly the problem the reverse proxy removes.')">Two public ports, one each</button>
+            <button data-correct="0" onclick="checkMCQ(this,'The browser never reaches the database — it stays hidden behind the proxy layer.')">Direct browser-to-database access</button>
+            <button data-correct="0" onclick="checkMCQ(this,'HTTPS is a separate configuration with certificates — proxying alone does not encrypt anything.')">Automatic HTTPS everywhere</button>
+          </div>
+          <div class="feedback"></div>
+        </div>
+        <details class="recall"><summary>✍ Recall — write before expanding</summary><div class="answer">Write the three location paths and their proxy_pass ports from memory. <br><em>Model answer:</em> <code>/</code> → 3000 (React) · <code>/api/</code> → 3001 (Node API) · <code>/mongo/</code> → 8081 (Mongo Express).</div></details>
+        <div class="card link-card"><span class="tag">🔗 Next module</span><span class="arrow">→ Module 04:</span> one door, many rooms — now make the API room three rooms and let nginx choose.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 4 ============ -->
+  <section class="module" id="m4">
+    <div class="lab-head"><span class="mod-no">Module 04</span><h2>Load Balancing — Three Backends, One Upstream</h2><span class="spec">spec: transcript 01:16:16 → 01:31:47</span></div>
+    <div class="lab-grid">
+      <div class="specimen">
+        <div class="core">
+          <p>Popularity creates two problems the transcript states plainly: a single server has limited CPU and memory, and if that one backend dies, the whole app is unavailable. The fix is running <strong>multiple instances</strong> of the backend and letting a <span class="term" title="A component that distributes incoming requests across multiple backend servers — nginx does this via upstream groups">load balancer</span> distribute incoming requests between them. Instead of making one server bigger (vertical scaling), you add more servers (horizontal scaling) — think of a Black Friday traffic spike that no single machine could absorb.</p>
+          <p>Three VPS servers would be the production shape, but for the tutorial the course simulates it with Docker: three containers from the same backend image — <code>api</code>, <code>api2</code>, <code>api3</code> — on one machine. A small testing aid makes distribution visible: each container gets an <code>API_NAME</code> environment variable that the Node app echoes in every response, so you can see exactly who handled what. Before the nginx change, though, nothing improves — nginx still sends everything to one API.</p>
+          <p>The nginx mechanism is an <span class="term" title="An nginx block that names a group of backend servers; proxy_pass can target the group name instead of a single server">upstream group</span>, declared <em>before</em> the server blocks: an <code>upstream backend_servers</code> block listing each server as <code>server api:3001;</code>, <code>server api2:3001;</code>, <code>server api3:3001;</code>. The container service names work as hostnames because all containers share one Docker network — nginx finds them by name, no IPs needed. Then the API location changes from <code>proxy_pass http://api:3001</code> to <code>proxy_pass http://backend_servers</code>. The default strategy is <span class="term" title="Default load-balancing method: requests go to each server in turn, one after another">round robin</span> — first request to api, second to api2, third to api3, then repeat.</p>
+          <p>The payoff is <span class="term" title="The ability of a system to keep serving despite individual component failures">availability</span>: the course stops container api2 with <code>docker stop</code> — and the app keeps working, requests flowing to api and api3, until api2 is started again and rejoins the rotation. The honest limitation is stated too: all three containers share one VPS, so if the VPS itself goes down, everything goes down. One honest caveat — a general proxy_cache on everything would break <code>/api/users</code>, which must always be fresh; caching choices come in Module 05.</p>
+          <p>Beyond round robin, three controls tune the distribution. <span class="term" title="Send each new request to the backend with the fewest active connections">least_conn</span> considers how busy each server is — useful when some requests take much longer than others. <span class="term" title="Give one server a larger share of traffic, e.g. weight=3 — useful when servers have unequal CPU or memory">weight</span> gives stronger machines a larger share (weight=3 gets roughly three times the traffic). <span class="term" title="A server that receives no normal traffic and is only used when the others are unavailable">backup</span> keeps a server idle until the others fail. The course doesn't demo these live — it encourages you to change the config, rebuild, and watch the behavior shift.</p>
+        </div>
+        <p class="tag">Procedure — from one API to a balanced trio</p>
+        <ol class="proc">
+          <li>Clone the API service twice in docker-compose: <code>api2</code>, <code>api3</code> (same image, same port).</li>
+          <li>Add <code>API_NAME</code> env var to each so responses identify their server.</li>
+          <li>Declare the group: <code>upstream backend_servers { server api:3001; server api2:3001; server api3:3001; }</code></li>
+          <li>Point the API location at the group: <code>proxy_pass http://backend_servers;</code></li>
+          <li>Test: <code>docker exec … nginx -t</code>, rebuild, refresh — responses rotate api → api2 → api3.</li>
+          <li>Failure drill: <code>docker stop</code> api2 → app still serves; <code>docker start</code> → rotation heals.</li>
+        </ol>
+        <pre><code>upstream backend_servers {
+    server api:3001;      # round robin by default
+    server api2:3001;     # least_conn;  → fewest active connections
+    server api3:3001;     # weight=3;    → bigger share   backup; → idle reserve
+}
+server {
+    ...
+    location /api/ { proxy_pass http://backend_servers; }
+}</code></pre>
+        <p class="tag">Examples from the field</p>
+        <ul class="ex">
+          <li><b>Obvious:</b> Three identical API containers rotating api → api2 → api3 per request, visible in the responses.</li>
+          <li><b>Counter-intuitive:</b> Adding a third backend container changes nothing on its own — nginx keeps using one until an upstream points at all three.</li>
+          <li><b>Edge-case:</b> A stopped api2 doesn't error or queue requests; traffic silently flows to the survivors until it returns.</li>
+        </ul>
+        <figure>
+          <svg class="diag" viewBox="0 0 560 200" role="img" aria-label="Animation: packets leaving nginx visit api, then api2, then api3 in round robin order" id="anim-rr">
+            <title>Round robin: requests are dealt to backends one after another</title>
+            <rect x="16" y="80" width="104" height="44" class="ik" style="stroke:var(--ai)"></rect>
+            <text x="68" y="99" text-anchor="middle" class="lbl">nginx</text>
+            <text x="68" y="113" text-anchor="middle" class="lbl-m">proxy_pass →</text>
+            <text x="68" y="126" text-anchor="middle" class="lbl-m">backend_servers</text>
+            <rect x="400" y="8" width="140" height="36" class="ik"></rect>
+            <text x="470" y="24" text-anchor="middle" class="lbl">api :3001</text>
+            <text x="470" y="38" text-anchor="middle" class="lbl-m">1st request</text>
+            <rect x="400" y="82" width="140" height="36" class="ik"></rect>
+            <text x="470" y="98" text-anchor="middle" class="lbl">api2 :3001</text>
+            <text x="470" y="112" text-anchor="middle" class="lbl-m">2nd request</text>
+            <rect x="400" y="156" width="140" height="36" class="ik"></rect>
+            <text x="470" y="172" text-anchor="middle" class="lbl">api3 :3001</text>
+            <text x="470" y="186" text-anchor="middle" class="lbl-m">3rd request</text>
+            <path d="M120,86 C240,50 320,28 396,24" class="ik-thin"></path>
+            <path d="M120,102 C240,100 320,100 396,100" class="ik-thin"></path>
+            <path d="M120,118 C240,154 320,174 396,176" class="ik-thin"></path>
+            <circle r="4" class="hl-dot" style="fill:var(--ai)">
+              <animateMotion dur="1.6s" begin="0.2s" fill="freeze" path="M120,86 C240,50 320,28 396,24"></animateMotion>
+            </circle>
+            <circle r="4" style="fill:var(--ai)">
+              <animateMotion dur="1.6s" begin="2.0s" fill="freeze" path="M120,102 C240,100 320,100 396,100"></animateMotion>
+            </circle>
+            <circle r="4" style="fill:var(--ai)">
+              <animateMotion dur="1.6s" begin="3.8s" fill="freeze" path="M120,118 C240,154 320,174 396,176"></animateMotion>
+            </circle>
+            <text x="255" y="196" text-anchor="middle" class="lbl-m">… then the cycle starts again at api</text>
+          </svg>
+          <div class="anim-controls" data-target="#anim-rr"><button class="play-btn" type="button">Pause</button><button class="replay-btn" type="button">Replay</button></div>
+          <figcaption>Default method: round robin. (Static fallback below.)</figcaption>
+          <details class="fallback"><summary>Static view (no animation)</summary>
+            <svg class="diag" viewBox="0 0 560 120" role="img" aria-label="Static fallback: nginx fan-out to three backends numbered one, two, three">
+              <title>Static view of round robin fan-out</title>
+              <rect x="16" y="42" width="104" height="40" class="ik" style="stroke:var(--ai)"></rect><text x="68" y="66" text-anchor="middle" class="lbl">nginx</text>
+              <rect x="400" y="8" width="140" height="28" class="ik"></rect><text x="470" y="26" text-anchor="middle" class="lbl-m">api · 1st</text>
+              <rect x="400" y="46" width="140" height="28" class="ik"></rect><text x="470" y="64" text-anchor="middle" class="lbl-m">api2 · 2nd</text>
+              <rect x="400" y="84" width="140" height="28" class="ik"></rect><text x="470" y="102" text-anchor="middle" class="lbl-m">api3 · 3rd</text>
+              <path d="M120,52 C240,30 330,24 396,22" class="ik-thin" marker-end="url(#arr)"></path>
+              <path d="M120,62 C240,60 330,60 396,60" class="ik-thin" marker-end="url(#arr)"></path>
+              <path d="M120,72 C240,94 330,100 396,98" class="ik-thin" marker-end="url(#arr)"></path>
+            </svg>
+          </details>
+        </figure>
+      </div>
+      <aside class="bench">
+        <div class="card analogy"><span class="tag">Visual analogy — toggle</span>
+          <button class="tog" onclick="toggleMode(this,'analogy')">An upstream group is a <em>bank of checkout lanes</em>.<span class="flip-hint">click to see the mapping</span><span class="hidden-side">Round robin = the usher sends shoppers lane by lane. least_conn = "next lane with the shortest queue." weight = a wide lane takes more shoppers. backup = lane 3 opens only when 1 and 2 close. One door in, shoppers never pick the lane.</span></button>
+        </div>
+        <div class="card"><span class="tag">❌ What people get wrong</span>"One backend is enough if it's powerful." The transcript's second problem isn't capacity — it's availability: with one instance, any crash takes the app offline. Also: container names like <code>api2</code> work in upstream because of the shared Docker network — they're not magic hostnames.</div>
+        <div class="card"><span class="tag">Why this matters</span>Availability is the property users actually notice: they don't see which server answered, they see whether the app answered. For your full-stack app, this is the difference between a crash being an outage and a non-event. (Mnemonic: <span class="mnem">R · L · W · B</span> — Robin, Least, Weight, Backup.)</div>
+        <div class="card quiz"><span class="tag">Quick check</span>
+          <p style="font-size:.86rem">Three identical API containers sit behind an upstream group. One is stopped for maintenance. What happens?</p>
+          <div class="opts">
+            <button data-correct="1" onclick="checkMCQ(this,'nginx routes around the dead container and the remaining two keep serving — availability was the whole point.')">Traffic flows to the other two</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Multiple instances exist precisely so one failure does not stop the stack.')">The whole stack stops serving</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Requests do not wait — nginx steers them to servers that are actually alive.')">Requests queue until it returns</button>
+            <button data-correct="0" onclick="checkMCQ(this,'The survivors are identical — there is no slowest server to pin traffic to.')">All traffic pins to one server</button>
+          </div>
+          <div class="feedback"></div>
+        </div>
+        <details class="recall"><summary>✍ Recall — write before expanding</summary><div class="answer">Write an upstream group for your three API containers from memory. <br><em>Model answer:</em> <code>upstream backend_servers { server api:3001; server api2:3001; server api3:3001; }</code> then <code>proxy_pass http://backend_servers;</code> in the location.</div></details>
+        <div class="card link-card"><span class="tag">🔗 Next module</span><span class="arrow">→ Module 05:</span> spreading load helps capacity — caching attacks the repeat work itself.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 5 ============ -->
+  <section class="module" id="m5">
+    <div class="lab-head"><span class="mod-no">Module 05</span><h2>HTTP Caching — Serve It Once, Reuse It Many</h2><span class="spec">spec: transcript 01:31:53 → 01:45:32</span></div>
+    <div class="lab-grid">
+      <div class="specimen">
+        <div class="core">
+          <p>Without caching, every identical request walks the whole road: nginx → backend application → database query → response back through all of it. If a thousand users ask for the same product page, the application repeats the same work a thousand times. <span class="term" title="Storing a response temporarily so identical later requests can be served without reaching the backend again">Caching</span> means nginx stores the response the first time and serves it directly to everyone after. Fewer requests reach the backend and database — faster responses, lower load.</p>
+          <p>The demo makes the benefit visceral: a <code>process-data</code> API endpoint that <em>deliberately takes 7 seconds</em> to respond. Click it once — seven seconds. Click it again — another seven. After enabling the proxy cache, the first request still takes seven seconds; the second returns almost instantly, because nginx hands back its stored copy without asking the backend at all.</p>
+          <p>Configuration lives in three lines (mnemonic: <span class="mnem">define the zone, use the zone, time the zone</span>). First, an <span class="term" title="The directive that creates the cache storage location and a shared memory zone holding cache metadata">proxy_cache_path</span> at the top of the config: <code>proxy_cache_path /data/cache/nginx keys_zone=api_cache:10m max_size=1g inactive=30m use_temp_path=off;</code> — the path where responses are stored, a 10 MB shared-memory zone named <code>api_cache</code> for cache metadata, a 1 GB disk cap, a 30-minute eviction rule for untouched items, and temp files written directly into the cache directory. Second, inside the API location: <code>proxy_cache api_cache;</code> turns it on. Third: <code>proxy_cache_valid 200 10m;</code> — a successful (200) response stays valid for ten minutes. Because nginx runs in a container, a Docker volume maps the cache directory out so the cache survives container recreation.</p>
+          <p>Then the transcript shows the trap that makes caching a judgment call. A user named Sara is created; the page refreshes — and she's <em>missing</em>, because the user list is being served from the cache while the database has already changed. The lesson: don't cache every endpoint. Frequently-changing data should <span class="term" title="Skip the cache and always fetch fresh from the backend">bypass the cache</span>. The fix shown: split <code>/api</code> into two locations — an exact-match <code>location = /api/process-data { proxy_cache api_cache; … }</code> that keeps caching, and a general <code>location /api { … }</code> with no cache directive at all. After rebuilding: Sara appears immediately (list uncached), while process-data is still instant (cached).</p>
+        </div>
+        <p class="tag">Procedure — cache the slow endpoint only</p>
+        <ol class="proc">
+          <li>Top of config: <code>proxy_cache_path /data/cache/nginx keys_zone=api_cache:10m max_size=1g inactive=30m use_temp_path=off;</code></li>
+          <li>Exact-match location for the slow endpoint: <code>location = /api/process-data</code> → <code>proxy_cache api_cache;</code> + <code>proxy_cache_valid 200 10m;</code></li>
+          <li>General API location without any cache directive, so <code>/api/users</code> stays fresh.</li>
+          <li>docker-compose: mount a volume for the cache directory so it survives rebuilds.</li>
+          <li>Test: first click ~7 s, second click instant; create a user → appears immediately.</li>
+        </ol>
+        <pre><code>proxy_cache_path /data/cache/nginx keys_zone=api_cache:10m
+                 max_size=1g inactive=30m use_temp_path=off;
+
+location = /api/process-data {     # cache ONLY this endpoint
+    proxy_pass http://backend_servers;
+    proxy_cache api_cache;
+    proxy_cache_valid 200 10m;
+}
+location /api {                    # everything else: always fresh
+    proxy_pass http://backend_servers;
+}</code></pre>
+        <p class="tag">Examples from the field</p>
+        <ul class="ex">
+          <li><b>Obvious:</b> The 7-second <code>process-data</code> call becomes instant on every repeat within 10 minutes.</li>
+          <li><b>Counter-intuitive:</b> Success can hide a bug — Sara is saved in the database yet vanishes from a cached user list.</li>
+          <li><b>Edge-case:</b> <code>location = /api/process-data</code> is an <em>exact</em> match: it caches that one endpoint while the broader <code>/api</code> stays uncached.</li>
+        </ul>
+        <figure>
+          <svg class="diag" viewBox="0 0 560 190" role="img" aria-label="Animation: first request travels through nginx to the backend to the database, second identical request is answered directly from the cache" id="anim-cache">
+            <title>First request fills the cache; the identical second request is served from it</title>
+            <rect x="10" y="75" width="86" height="40" class="ik"></rect>
+            <text x="53" y="93" text-anchor="middle" class="lbl">Client</text>
+            <rect x="166" y="75" width="96" height="40" class="ik" style="stroke:var(--ai)"></rect>
+            <text x="214" y="93" text-anchor="middle" class="lbl">nginx</text>
+            <rect x="330" y="14" width="150" height="34" class="ik"></rect>
+            <text x="405" y="30" text-anchor="middle" class="lbl">Cache store</text>
+            <text x="405" y="43" text-anchor="middle" class="lbl-m">/data/cache/nginx</text>
+            <rect x="330" y="140" width="150" height="34" class="ik"></rect>
+            <text x="405" y="156" text-anchor="middle" class="lbl">Backend → DB</text>
+            <text x="405" y="169" text-anchor="middle" class="lbl-m">7 s of work</text>
+            <path d="M96,90 C126,88 136,88 162,88" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M262,82 C292,58 306,42 326,34" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M262,100 C292,126 306,144 326,152" class="ik-thin" marker-end="url(#arr)"></path>
+            <rect x="334" y="18" width="142" height="26" style="fill:var(--tint); stroke:none">
+              <animate attributeName="opacity" values="0;1" begin="1.6s" dur="0.6s" fill="freeze"></animate>
+            </rect>
+            <text x="405" y="35" text-anchor="middle" class="lbl-a" style="opacity:0">stored ✓
+              <animate attributeName="opacity" values="0;1" begin="2.2s" dur="0.4s" fill="freeze"></animate>
+            </text>
+            <text x="214" y="140" text-anchor="middle" class="lbl-m">2nd identical request → served from cache, instantly</text>
+            <path d="M100,140 C150,132 180,124 208,118" class="flow" marker-end="url(#arr)"><animate attributeName="stroke-dashoffset" from="18" to="0" dur="1s" repeatCount="indefinite"></animate></path>
+          </svg>
+          <div class="anim-controls" data-target="#anim-cache"><button class="play-btn" type="button">Pause</button><button class="replay-btn" type="button">Replay</button></div>
+          <figcaption>1st request: full road, response stored. 2nd request: answered at the door. (Static fallback below.)</figcaption>
+          <details class="fallback"><summary>Static view (no animation)</summary>
+            <svg class="diag" viewBox="0 0 560 120" role="img" aria-label="Static fallback: cached request answered at nginx, uncached request continuing to backend and database">
+              <title>Static view of the cache shortcut</title>
+              <rect x="10" y="40" width="86" height="36" class="ik"></rect><text x="53" y="62" text-anchor="middle" class="lbl">Client</text>
+              <rect x="166" y="40" width="96" height="36" class="ik" style="stroke:var(--ai)"></rect><text x="214" y="62" text-anchor="middle" class="lbl">nginx</text>
+              <rect x="350" y="8" width="150" height="28" class="ik"></rect><text x="425" y="26" text-anchor="middle" class="lbl-m">cache: instant ✓</text>
+              <rect x="350" y="82" width="150" height="28" class="ik"></rect><text x="425" y="100" text-anchor="middle" class="lbl-m">backend: 7 s</text>
+              <path d="M96,56 C126,40 160,26 346,22" class="ik-thin" marker-end="url(#arr)"></path>
+              <path d="M262,68 C300,80 320,90 346,94" class="ik-thin" marker-end="url(#arr)"></path>
+            </svg>
+          </details>
+        </figure>
+      </div>
+      <aside class="bench">
+        <div class="card analogy"><span class="tag">Visual analogy — toggle</span>
+          <button class="tog" onclick="toggleMode(this,'analogy')">The proxy cache is a <em>coffee-shop prep jug</em>.<span class="flip-hint">click to see the mapping</span><span class="hidden-side">First customer orders a slow pour-over (7 s). The barista brews a jug and keeps it warm. Everyone ordering the same drink this hour is served instantly — until the jug expires (10 min) or goes untouched too long (inactive=30m). Custom orders (new users) still get made fresh.</span></button>
+        </div>
+        <div class="card"><span class="tag">❌ What people get wrong</span>"Turn caching on for the whole API." The Sara episode is the counterexample: cached lists show stale data. Cache responses that can be <em>safely reused</em>; let changing data bypass the cache.</div>
+        <div class="card"><span class="tag">Why this matters</span>Caching is the cheapest performance you'll ever buy: a few config lines turn a 7-second endpoint into a millisecond one and take load off both app and database — with a staleness trade-off you now know how to control.</div>
+        <div class="card quiz"><span class="tag">Quick check</span>
+          <p style="font-size:.86rem">Your <code>/api/users</code> list is cached for 10 minutes. A new user registers. What do visitors see?</p>
+          <div class="opts">
+            <button data-correct="1" onclick="checkMCQ(this,'nginx serves the stored copy without asking the backend, so the new user appears only when the cached copy expires.')">The old list until expiry</button>
+            <button data-correct="0" onclick="checkMCQ(this,'The proxy never re-checks a valid cached entry — that is exactly where the speed comes from.')">The updated list immediately</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Stale data is not an error state — it is the known trade-off of caching.')">An error until the cache clears</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Caching has nothing to do with authentication — no prompt appears.')">A login prompt for fresh data</button>
+          </div>
+          <div class="feedback"></div>
+        </div>
+        <details class="recall"><summary>✍ Recall — write before expanding</summary><div class="answer">Name the three directives that turn proxy caching on, and where each lives. <br><em>Model answer:</em> <code>proxy_cache_path</code> (top of config — the zone), <code>proxy_cache</code> (location — use the zone), <code>proxy_cache_valid</code> (location — time the zone).</div></details>
+        <div class="card link-card"><span class="tag">🔗 Next module</span><span class="arrow">→ Module 06:</span> caching avoids repeating work; compression shrinks the work that still has to travel.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 6 ============ -->
+  <section class="module" id="m6">
+    <div class="lab-head"><span class="mod-no">Module 06</span><h2>Gzip Compression — Fewer Bytes, Same Data</h2><span class="spec">spec: transcript 01:45:38 → 01:56:18</span></div>
+    <div class="lab-grid">
+      <div class="specimen">
+        <div class="core">
+          <p>A browser requesting a page or an API response receives HTML, CSS, JavaScript — or a big JSON payload. The transcript's demo has a "Big Data" button returning a response over <strong>9,000 KB</strong> that takes several seconds to arrive. The data itself is fine; the transfer is the problem. <span class="term" title="Reducing the size of HTTP responses before sending them over the network; the browser decompresses transparently">HTTP compression</span> shrinks responses before they cross the network, and nginx can do the compressing.</p>
+          <p>The negotiation is already built into HTTP: the browser sends an <code>Accept-Encoding</code> header listing formats it supports (the demo shows gzip and br among others), and the server answers with a <code>Content-Encoding</code> header naming the format it used. Before configuration, the demo response has <em>no</em> Content-Encoding — uncompressed. From the application's point of view nothing changes at any point: nginx compresses, the browser decompresses automatically, and the app keeps working with the same data.</p>
+          <p>Three gzip directives matter. <code>gzip on;</code> enables compression. <code>gzip_min_length 1000;</code> skips responses under about a kilobyte — compressing tiny responses costs more than it saves. <code>gzip_types text/css application/json application/javascript application/xml image/svg+xml;</code> lists which content types are fair game (text formats; you don't re-compress already-compressed images). After enabling and rebuilding, the 9,000+ KB response drops to about <strong>1,600 KB</strong> — with <code>Content-Encoding: gzip</code> confirming it in dev tools, and not one line of application code changed.</p>
+          <p>One more dial: <code>gzip_comp_level</code>, from 1 to 9. Level 1 (the default) favors speed and low CPU; level 9 squeezes hardest — the demo got down to ~1,000 KB — but spends more CPU and time on every response. Level 9 doesn't necessarily mean a faster <em>experience</em>; production usually picks a moderate balance. The course settles on <strong>level 5</strong>.</p>
+        </div>
+        <p class="tag">Procedure — compress in three lines</p>
+        <ol class="proc">
+          <li><code>gzip on;</code> — enable compression in nginx.</li>
+          <li><code>gzip_min_length 1000;</code> — don't bother under ~1 KB.</li>
+          <li><code>gzip_types …;</code> — CSS, JSON, JavaScript, XML, SVG.</li>
+          <li>Optional: <code>gzip_comp_level 5;</code> — a production-friendly balance.</li>
+          <li>Verify in dev tools: <code>Content-Encoding: gzip</code>, and watch the size drop.</li>
+        </ol>
+        <pre><code>gzip on;
+gzip_min_length 1000;
+gzip_types text/css application/json application/javascript
+           application/xml image/svg+xml;
+gzip_comp_level 5;   # 1 = fastest, 9 = smallest; 5 = balanced</code></pre>
+        <p class="tag">Examples from the field</p>
+        <ul class="ex">
+          <li><b>Obvious:</b> A 10 MB JSON response compressed to ~1.6 MB transfers in a fraction of the time.</li>
+          <li><b>Counter-intuitive:</b> Pushing to level 9 made the response smaller (~1,000 KB) — but costs CPU on every request, so production often prefers a middle level.</li>
+          <li><b>Edge-case:</b> Responses under 1,000 bytes are left alone by <code>gzip_min_length</code> — compressing them would add overhead without meaningful savings.</li>
+        </ul>
+        <figure>
+          <svg class="diag" viewBox="0 0 560 170" role="img" aria-label="Animation: a 9,000 KB response bar from the backend shrinks to 1,600 KB as it passes through nginx gzip compression" id="anim-gz">
+            <title>Gzip: the same data crosses the wire at a fraction of the size</title>
+            <rect x="20" y="40" width="120" height="90" class="ik"></rect>
+            <text x="80" y="30" text-anchor="middle" class="lbl">Backend</text>
+            <rect x="60" y="56" width="40" height="58" class="ik"></rect>
+            <text x="80" y="150" text-anchor="middle" class="lbl-m">9,000 KB</text>
+            <rect x="220" y="30" width="110" height="110" class="ik" style="stroke:var(--ai)"></rect>
+            <text x="275" y="92" text-anchor="middle" class="lbl">nginx</text>
+            <text x="275" y="108" text-anchor="middle" class="lbl-m">gzip on</text>
+            <rect x="430" y="40" width="110" height="90" class="ik"></rect>
+            <text x="485" y="30" text-anchor="middle" class="lbl">Browser</text>
+            <rect x="460" y="97" width="50" height="17" class="ik">
+              <animate attributeName="width" from="0" to="50" dur="1.4s" begin="0.6s" fill="freeze"></animate>
+            </rect>
+            <text x="485" y="150" text-anchor="middle" class="lbl-m">1,600 KB</text>
+            <path d="M140,85 C166,85 194,85 216,85" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M330,85 C362,85 398,85 426,85" class="ik-thin" marker-end="url(#arr)"></path>
+            <text x="180" y="74" text-anchor="middle" class="lbl-m">full size</text>
+            <text x="380" y="74" text-anchor="middle" class="lbl-m">compressed</text>
+            <text x="485" y="108" text-anchor="middle" class="lbl-m" style="opacity:0">Content-Encoding: gzip
+              <animate attributeName="opacity" values="0;1" begin="2.0s" dur="0.4s" fill="freeze"></animate>
+            </text>
+          </svg>
+          <div class="anim-controls" data-target="#anim-gz"><button class="play-btn" type="button">Pause</button><button class="replay-btn" type="button">Replay</button></div>
+          <figcaption>Same JSON, ~6× fewer bytes on the wire. (Static fallback below.)</figcaption>
+          <details class="fallback"><summary>Static view (no animation)</summary>
+            <svg class="diag" viewBox="0 0 560 100" role="img" aria-label="Static fallback: a large bar labeled 9,000 KB beside a small bar labeled 1,600 KB">
+              <title>Static before/after of gzip sizes</title>
+              <rect x="60" y="20" width="180" height="40" class="ik"></rect>
+              <text x="150" y="80" text-anchor="middle" class="lbl-m">before: 9,000 KB</text>
+              <rect x="330" y="48" width="32" height="12" class="ik"></rect>
+              <text x="404" y="80" text-anchor="middle" class="lbl-m">after gzip: ~1,600 KB</text>
+            </svg>
+          </details>
+        </figure>
+      </div>
+      <aside class="bench">
+        <div class="card analogy"><span class="tag">Visual analogy — toggle</span>
+          <button class="tog" onclick="toggleMode(this,'analogy')">Gzip is <em>vacuum-sealing before shipping</em>.<span class="flip-hint">click to see the mapping</span><span class="hidden-side">Same jacket (data), a third of the box (bytes), cheaper postage (bandwidth), and the recipient unseals it without thinking (automatic decompression). Sealing a sock (tiny response) costs more than the space you save — hence gzip_min_length.</span></button>
+        </div>
+        <div class="card"><span class="tag">❌ What people get wrong</span>"Highest compression is fastest for users." Level 9 shrinks most but burns CPU per response; the transcript deliberately picks level 5 as the working balance. And compression belongs to text formats — not to images that are already compressed.</div>
+        <div class="card"><span class="tag">Why this matters</span>This is the rare optimization where three lines of config deliver a ~6× reduction with zero application changes — bandwidth saved, pages faster, users happier.</div>
+        <div class="card quiz"><span class="tag">Quick check</span>
+          <p style="font-size:.86rem">A 10 MB JSON response becomes 1.6 MB with gzip. Who unpacks it?</p>
+          <div class="opts">
+            <button data-correct="1" onclick="checkMCQ(this,'The browser reads Content-Encoding: gzip and decompresses automatically before your code sees the data.')">The browser, automatically</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Decompression happens below your JavaScript — the React app receives plain data as always.')">The React app, manually</button>
+            <button data-correct="0" onclick="checkMCQ(this,'The database never touches HTTP responses — it only answers the backend.')">The database, on next query</button>
+            <button data-correct="0" onclick="checkMCQ(this,'The browser must decompress to render — it cannot use data it cannot read.')">Nobody, it stays compressed</button>
+          </div>
+          <div class="feedback"></div>
+        </div>
+        <details class="recall"><summary>✍ Recall — write before expanding</summary><div class="answer">Write the three gzip directives that matter, with the values used here. <br><em>Model answer:</em> <code>gzip on;</code> · <code>gzip_min_length 1000;</code> · <code>gzip_types text/css application/json application/javascript application/xml image/svg+xml;</code> (and optionally <code>gzip_comp_level 5;</code>).</div></details>
+        <div class="card link-card"><span class="tag">🔗 Next module</span><span class="arrow">→ Module 07:</span> fast is not safe — now close the information leaks and throttle abuse.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 7 ============ -->
+  <section class="module" id="m7">
+    <div class="lab-head"><span class="mod-no">Module 07</span><h2>Hardening — Headers, Rate Limits, and a Locked Front Door</h2><span class="spec">spec: transcript 01:56:23 → 02:07:49</span></div>
+    <div class="lab-grid">
+      <div class="specimen">
+        <div class="core">
+          <p>Security at the nginx layer follows the course's four-move pattern: <span class="mnem">Hide, Guard, Throttle, Refuse</span>. First, <strong>hide</strong>: response headers can leak your exact nginx version in the <code>Server</code> header. Knowing the version doesn't mean you're in danger — but there's no reason to share it. One line, <code>server_tokens off;</code>, keeps the header while dropping the version.</p>
+          <p>Second, <strong>guard</strong> with <span class="term" title="Response headers that tell the browser how to handle your site and its resources, adding a protective layer between browser and application">security headers</span> — nginx sitting in front of the app makes it the perfect place to add them (they complement, not replace, a firewall). <code>X-Content-Type-Options: nosniff</code> stops the browser from guessing file types — a .txt that actually contains JavaScript won't get executed. <code>X-Frame-Options: DENY</code> (or <code>SAMEORIGIN</code> if you embed your own pages) blocks your site being framed elsewhere — the anti-clickjacking move. <code>Referrer-Policy: strict-origin-when-cross-origin</code> limits how much of the previous page's URL leaks to other sites. <code>Permissions-Policy: geolocation=(), microphone=(), camera=()</code> — empty parentheses mean <em>no origin</em> may use those features; disable what a blog doesn't need, keep what your app genuinely uses. And <code>Content-Security-Policy: default-src 'self'</code> allows only same-origin resources — where the transcript hits a live lesson: the demo loaded Bootstrap from a CDN, the page broke, and the header had to be removed. Build CSP around what your app <em>actually</em> loads.</p>
+          <p>Third, <strong>throttle</strong>. A <span class="term" title="A named memory zone that tracks requests per client IP at a set rate, applied to a location with limit_req">rate limit zone</span> is defined in the http context — <code>limit_req_zone $binary_remote_addr zone=api_limit:10m rate=5r/s;</code> — tracking requests by client IP in 10 MB of memory at five requests per second. Applying it in the API location with <code>limit_req zone=api_limit;</code> means each IP gets five requests per second; beyond that, nginx blocks the excess. This curbs abuse and simple HTTP floods while shedding needless load.</p>
+          <p>Fourth, <strong>refuse</strong> direct IP access. The demo site was reachable via the raw server IP; that's not a disaster, but nginx shouldn't serve your main site to unknown hostnames. A <span class="term" title="A catch-all server block that handles requests whose Host header matches no configured server_name — used here to reject them">default server</span> block — <code>listen 80 default_server;</code> with <code>server_name _;</code> (the underscore matches nothing real) and <code>return 444;</code> — closes the connection without any response. And a gotcha the transcript demonstrates: the IP was still reachable over HTTPS, because a second default block on <code>listen 443 ssl</code> was needed too. Remember the boundary: this is nginx-level restriction — a firewall is still the tool for fully sealing the server.</p>
+        </div>
+        <p class="tag">Procedure — the four moves</p>
+        <ol class="proc">
+          <li>Hide: <code>server_tokens off;</code></li>
+          <li>Guard: add the five security headers with <code>add_header … always;</code></li>
+          <li>Throttle: define <code>limit_req_zone</code> in http context, apply <code>limit_req</code> in the API location.</li>
+          <li>Refuse: default_server blocks on 80 <em>and</em> 443 returning 444.</li>
+          <li>Rebuild, reload, and test each one (headers in dev tools; 6th request in a second → blocked; IP → connection closed).</li>
+        </ol>
+        <pre><code>server_tokens off;
+
+add_header X-Content-Type-Options nosniff always;
+add_header X-Frame-Options DENY always;                # or SAMEORIGIN
+add_header Referrer-Policy strict-origin-when-cross-origin always;
+add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+# Content-Security-Policy default-src 'self'  — only if you allow no external resources!
+
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=5r/s;  # http context
+
+server {                                    # catch-all: refuse unknown hosts
+    listen 80 default_server;
+    server_name _;
+    return 444;                             # close connection, no response
+}</code></pre>
+        <p class="tag">Examples from the field</p>
+        <ul class="ex">
+          <li><b>Obvious:</b> After <code>server_tokens off;</code> the Server header reads just "nginx" — no version.</li>
+          <li><b>Counter-intuitive:</b> The well-meant CSP header broke the demo site — its CDN-loaded Bootstrap was now forbidden, so the header came back out.</li>
+          <li><b>Edge-case:</b> Blocking the IP on port 80 still left HTTPS access working — the same refusal needed a second block on 443.</li>
+        </ul>
+        <figure>
+          <svg class="diag" viewBox="0 0 560 200" role="img" aria-label="Diagram of nginx as a gate with four controls: hide version, guard with headers, throttle requests per IP, and refuse unknown hosts with return 444">
+            <title>The four security moves at the nginx gate</title>
+            <rect x="230" y="76" width="100" height="48" class="ik" style="stroke:var(--ai)"></rect>
+            <text x="280" y="96" text-anchor="middle" class="lbl">nginx gate</text>
+            <text x="280" y="112" text-anchor="middle" class="lbl-m">all traffic enters here</text>
+            <rect x="20" y="14" width="120" height="30" class="ik"></rect>
+            <text x="80" y="33" text-anchor="middle" class="lbl-m">1 · Hide — server_tokens off</text>
+            <rect x="20" y="56" width="120" height="30" class="ik"></rect>
+            <text x="80" y="75" text-anchor="middle" class="lbl-m">2 · Guard — headers</text>
+            <rect x="20" y="98" width="120" height="30" class="ik"></rect>
+            <text x="80" y="117" text-anchor="middle" class="lbl-m">3 · Throttle — 5 r/s / IP</text>
+            <rect x="20" y="140" width="120" height="30" class="ik"></rect>
+            <text x="80" y="159" text-anchor="middle" class="lbl-m">4 · Refuse — return 444</text>
+            <rect x="430" y="14" width="110" height="30" class="ik"></rect>
+            <text x="485" y="33" text-anchor="middle" class="lbl-m">app stays hidden</text>
+            <rect x="430" y="140" width="110" height="30" class="ik"></rect>
+            <text x="485" y="159" text-anchor="middle" class="lbl-m">attacker: closed ✓</text>
+            <path d="M140,29 C190,50 214,64 228,74" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M140,71 C180,78 200,82 226,86" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M140,113 C180,106 200,102 226,98" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M140,155 C190,134 214,120 228,110" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M330,86 C370,66 396,44 426,32" class="flow" marker-end="url(#arr)"></path>
+            <path d="M330,110 C370,130 396,152 426,156" class="flow" marker-end="url(#arr)"></path>
+          </svg>
+          <figcaption>Hide · Guard · Throttle · Refuse — the gate does the guarding so the app doesn't have to.</figcaption>
+        </figure>
+      </div>
+      <aside class="bench">
+        <div class="card analogy"><span class="tag">Visual analogy — toggle</span>
+          <button class="tog" onclick="toggleMode(this,'analogy')">The hardening layer is a <em>building lobby</em>.<span class="flip-hint">click to see the mapping</span><span class="hidden-side">No directory sign listing the floors' tenants (hide), a visitor badge policy (guard), one elevator trip per resident per second (throttle), and no entry for anyone who can't name who they're visiting (refuse → 444). Apartments (backends) are never reached directly.</span></button>
+        </div>
+        <div class="card"><span class="tag">❌ What people get wrong</span>"Adding security headers makes the site secure." The transcript is explicit: they add a layer — they don't replace a firewall. And CSP set to <code>'self'</code> will break any page that loads fonts, CSS or scripts from elsewhere unless those origins are allowed.</div>
+        <div class="card"><span class="tag">Why this matters</span>Your full-stack app will be scanned by bots within hours of going live. These four moves cost a dozen config lines and remove the loudest low-hanging fruit — version disclosure, clickjacking, flooding, and IP-level prowling.</div>
+        <div class="card quiz"><span class="tag">Quick check — two rows</span>
+          <p style="font-size:.86rem">Match each move to its one-line fix:</p>
+          <div class="opts">
+            <button data-q="0" data-correct="1" onclick="choose(this)">server_tokens off;</button>
+            <button data-q="0" data-correct="0" onclick="choose(this)">return 444;</button>
+            <button data-q="0" data-correct="0" onclick="choose(this)">limit_req zone=api_limit;</button>
+            <button data-q="0" data-correct="0" onclick="choose(this)">add_header X-Frame-Options DENY;</button>
+            <button data-q="1" data-correct="0" onclick="choose(this)">server_tokens off;</button>
+            <button data-q="1" data-correct="1" onclick="choose(this)">return 444;</button>
+            <button data-q="1" data-correct="0" onclick="choose(this)">limit_req zone=api_limit;</button>
+            <button data-q="1" data-correct="0" onclick="choose(this)">add_header X-Frame-Options DENY;</button>
+          </div>
+          <p style="font-size:.82rem; margin-top:var(--space-1)">Row 1: hide the nginx version · Row 2: refuse direct-IP requests</p>
+          <button class="check-btn" type="button" onclick="checkMulti(this.closest('.quiz'))">Check</button>
+          <div class="feedback"></div>
+        </div>
+        <details class="recall"><summary>✍ Recall — write before expanding</summary><div class="answer">Write the rate limit zone line and the location line that applies it, from memory. <br><em>Model answer:</em> http context: <code>limit_req_zone $binary_remote_addr zone=api_limit:10m rate=5r/s;</code> · location: <code>limit_req zone=api_limit;</code></div></details>
+        <div class="card link-card"><span class="tag">🔗 Next module</span><span class="arrow">→ Module 08:</span> the gate is guarded — now encrypt everything crossing it with HTTPS.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 8 ============ -->
+  <section class="module" id="m8">
+    <div class="lab-head"><span class="mod-no">Module 08</span><h2>HTTPS with Let's Encrypt — Two Environments, One Client</h2><span class="spec">spec: transcript 00:15:18 → 00:16:53 · 00:59:44 → 01:16:12</span></div>
+    <div class="lab-grid">
+      <div class="specimen">
+        <div class="core">
+          <p>Users send usernames, passwords, payment details. Unencrypted, others may see or alter that data. <span class="term" title="Encrypted HTTP; SSL/TLS turns the data into a protected format only client and server can read">HTTPS</span> uses SSL/TLS to turn the traffic into a protected format only client and server can read. When nginx is the reverse proxy, it should be the one handling HTTPS — managing certificates once, centrally, instead of on every app server. The client makes a secure connection to nginx, nginx handles the SSL/TLS work, then forwards the request onward. That pattern is called <span class="term" title="Handling SSL/TLS at the proxy: encrypted traffic stops at nginx, which forwards plain HTTP internally">SSL termination</span> — easier certificate management, centralized security config, less work for app servers.</p>
+          <p>Before any certificate: DNS. The course creates two A records — for <code>sarvinstylecoding.com</code> and <code>www.sarvinstylecoding.com</code> — pointing at the VPS IP through Cloudflare's nameservers, then updates <code>server_name</code> to the real domain. The site is now reachable by name; the browser still warns it's "not secure."</p>
+          <p><span class="term" title="The official Let's Encrypt client; requests, installs, and can auto-configure certificates">Certbot</span>, the official Let's Encrypt client, then does the heavy lifting. Approach one — nginx installed directly on the VPS: install <code>certbot python3-certbot-nginx</code>, run <code>sudo certbot --nginx</code>, answer the prompts (email for expiry notices, accept terms, pick your domains — space- or comma-separated, choose the redirect option), and certbot detects your nginx config, issues the certificate, and <em>rewrites the config itself</em>. Opening the file afterward shows what it added: a second server block listening on <code>443 ssl</code>, the <code>ssl_certificate</code> and <code>ssl_certificate_key</code> paths pointing into <code>/etc/letsencrypt/</code>, recommended SSL settings via <code>options-ssl-nginx.conf</code>, and an HTTP→HTTPS redirect so everyone arrives encrypted. Test with <code>curl -I https://…</code>, then watch the padlock appear.</p>
+          <p>Approach two — nginx in a Docker container: the host's certbot can't reach inside it, so the certificates must come to nginx. The compose service exposes <code>443:443</code>, mounts <code>/etc/letsencrypt</code> read-only (<code>ro</code>) into the container, and the project's own config gains two server blocks: the port-80 block reduced to a redirect — <code>return 301 https://$host$request_uri;</code> where <code>$host</code> is the domain and <code>$request_uri</code> the original path — and the 443 block carrying the certificate paths and all the proxying. After <code>docker compose down</code> and <code>up --build -d</code>, verify config inside the container (<code>docker exec … nginx -t</code>) and confirm HTTP now redirects to HTTPS. One operational nuance the transcript demonstrates twice: when switching between the two setups, stop and <em>disable</em> the host nginx service first — port 80 can only have one owner.</p>
+        </div>
+        <p class="tag">Procedure — certbot on a VPS (approach one)</p>
+        <ol class="proc">
+          <li>DNS first: A records for your domain and www → server IP.</li>
+          <li><code>sudo apt install certbot python3-certbot-nginx -y</code></li>
+          <li><code>sudo certbot --nginx</code> → email → terms → domains → redirect.</li>
+          <li>Inspect the rewritten config: 443 ssl block + certificate paths + redirect.</li>
+          <li><code>sudo nginx -t</code> → reload → <code>curl -I https://yourdomain</code> → padlock.</li>
+        </ol>
+        <pre><code># approach two: nginx inside Docker Compose
+nginx:
+  image: nginx:1.27-alpine
+  ports:
+    - "80:80"
+    - "443:443"
+  volumes:
+    - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    - /etc/letsencrypt:/etc/letsencrypt:ro   # certs, read-only
+
+# in default.conf:
+server {
+    listen 80;
+    server_name yourdomain.com www.yourdomain.com;
+    return 301 https://$host$request_uri;    # $host = domain, $request_uri = path
+}
+server {
+    listen 443 ssl;
+    server_name yourdomain.com www.yourdomain.com;
+    ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    location /       { proxy_pass http://web:3000;  }
+    location /api/   { proxy_pass http://backend_servers; }
+    location /mongo/ { proxy_pass http://express:8081; }
+}</code></pre>
+        <p class="tag">Examples from the field</p>
+        <ul class="ex">
+          <li><b>Obvious:</b> One certbot run converts the whole site to HTTPS and sets up the redirect automatically.</li>
+          <li><b>Counter-intuitive:</b> Certificates issued on the host are useless to a containerized nginx until the <code>/etc/letsencrypt</code> volume is mounted in.</li>
+          <li><b>Edge-case:</b> Even with the 80 default_server refusing IP access, HTTPS-IP access persisted until the same refusal was added on 443.</li>
+        </ul>
+        <figure>
+          <svg class="diag" viewBox="0 0 560 180" role="img" aria-label="Diagram of SSL termination: an encrypted browser connection to nginx on 443, and plain HTTP forwarding from nginx to internal backends">
+            <title>SSL termination: encryption stops at nginx</title>
+            <rect x="14" y="66" width="92" height="44" class="ik"></rect>
+            <text x="60" y="84" text-anchor="middle" class="lbl">Browser</text>
+            <text x="60" y="99" text-anchor="middle" class="lbl-m">https 🔒</text>
+            <rect x="182" y="60" width="118" height="56" class="ik" style="stroke:var(--ai)"></rect>
+            <text x="241" y="80" text-anchor="middle" class="lbl">nginx :443 ssl</text>
+            <text x="241" y="95" text-anchor="middle" class="lbl-m">ssl_certificate</text>
+            <text x="241" y="109" text-anchor="middle" class="lbl-m">/etc/letsencrypt</text>
+            <rect x="400" y="14" width="146" height="36" class="ik"></rect>
+            <text x="473" y="30" text-anchor="middle" class="lbl">Backends</text>
+            <text x="473" y="44" text-anchor="middle" class="lbl-m">internal network</text>
+            <rect x="400" y="116" width="146" height="36" class="ik"></rect>
+            <text x="473" y="132" text-anchor="middle" class="lbl">Port 80</text>
+            <text x="473" y="146" text-anchor="middle" class="lbl-m">301 → https</text>
+            <path d="M106,84 C136,82 148,80 178,80" class="ik-thin" marker-end="url(#arr)"></path>
+            <text x="142" y="70" text-anchor="middle" class="lbl-m">encrypted</text>
+            <path d="M300,76 C340,58 360,42 396,34" class="ik-thin" marker-end="url(#arr)"></path>
+            <text x="350" y="42" text-anchor="middle" class="lbl-m">plain http inside</text>
+            <path d="M106,106 C160,128 300,140 396,136" class="flow" marker-end="url(#arr)"><animate attributeName="stroke-dashoffset" from="18" to="0" dur="1s" repeatCount="indefinite"></animate></path>
+            <text x="250" y="158" text-anchor="middle" class="lbl-m">http request → redirected to https</text>
+          </svg>
+          <figcaption>SSL termination: one certificate, one place, and every internal hop stays simple HTTP.</figcaption>
+        </figure>
+      </div>
+      <aside class="bench">
+        <div class="card analogy"><span class="tag">Visual analogy — toggle</span>
+          <button class="tog" onclick="toggleMode(this,'analogy')">SSL termination is an <em>armored delivery van</em>.<span class="flip-hint">click to see the mapping</span><span class="hidden-side">Parcels travel armored through the streets (public internet), but inside the warehouse (your Docker network) staff pass them by hand. One armored vehicle to maintain (central certs), not one per courier (per-app SSL).</span></button>
+        </div>
+        <div class="card"><span class="tag">❌ What people get wrong</span>"HTTPS means configuring SSL on every backend." With SSL termination, encryption ends at nginx — backends keep speaking plain HTTP on the internal network, and certificates are managed in exactly one place.</div>
+        <div class="card"><span class="tag">Why this matters</span>For your full-stack app, HTTPS is table stakes: logins over plain HTTP are indefensible, and browsers now shame unencrypted sites. Certbot turns a chore into a five-minute prompt-driven step.</div>
+        <div class="card quiz"><span class="tag">Quick check</span>
+          <p style="font-size:.86rem">Certbot just finished on your VPS. What did it change?</p>
+          <div class="opts">
+            <button data-correct="1" onclick="checkMCQ(this,'Certbot added an HTTPS server block on 443, wired the certificate paths, and set the HTTP→HTTPS redirect in your nginx config.')">A second server block on 443</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Certificates never touch application code — the React build is untouched.')">The React build inside the container</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Certbot edits nginx configuration, not Docker Compose service definitions.')">The Docker Compose service names</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Database credentials are unrelated to SSL certificates.')">The database connection string</button>
+          </div>
+          <div class="feedback"></div>
+        </div>
+        <details class="recall"><summary>✍ Recall — write before expanding</summary><div class="answer">List the four things a certbot HTTPS run gives you. <br><em>Model answer:</em> the SSL certificate + private key under /etc/letsencrypt, a new 443 ssl server block wired to them, recommended SSL settings via options-ssl-nginx.conf, and an HTTP→HTTPS redirect.</div></details>
+        <div class="card link-card"><span class="tag">🔗 Next module</span><span class="arrow">→ Module 09:</span> the pieces are all built — now the working rhythm that assembles and verifies them every time.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ MODULE 9 ============ -->
+  <section class="module" id="m9">
+    <div class="lab-head"><span class="mod-no">Module 09</span><h2>The Working Rhythm — Test, Reload, Verify</h2><span class="spec">spec: transcript 00:31:50 → 00:32:04 · throughout</span></div>
+    <div class="lab-grid">
+      <div class="specimen">
+        <div class="core">
+          <p>Watch the course closely and a rhythm emerges that outlasts any single directive. Edit the config. Then — always — <code>sudo nginx -t</code> (inside a container: <code>docker exec &lt;container&gt; nginx -t</code>): "syntax is ok / test is successful." Only then <code>systemctl reload nginx</code> — or <code>docker compose up --build -d</code> when the change includes image or compose edits. Then verify in the browser or with <code>curl -I</code>.</p>
+          <p>The reload choice is deliberate: <span class="term" title="Applies new configuration without stopping the service — existing connections are never interrupted">reload</span> applies new configuration without stopping the service, so existing connections are never interrupted — that's why it's the preferred move after every config change. A full <code>restart</code> is for service-level operations like stopping and disabling nginx when a container takes over port 80. The transcript saves this test-first habit from embarrassment repeatedly: the forgotten semicolon, the 404 until the trailing slash, the CSP-broken page, the Sara cache — every one was caught by the same short loop.</p>
+          <p>And the deeper pattern underneath: configuration belongs in <span class="term" title="Keeping config files in the project repository so changes are versioned and deployable with the code">version control</span>. Moving nginx config into the project (an <code>nginx/default.conf</code> file mounted into the container) was called out as "a very important improvement" — nginx becomes just another service in compose, and every fix ships with the code. Combined with the stack — React, Node.js, database, Mongo Express, nginx — you have the production shape this course promised from minute one: a VPS or Docker setup, one entry point, and a calm verification loop.</p>
+          <p>That's the whole arc, assembled: the front door (M1–M2), the router (M3), the traffic cop (M4), the memory (M5), the packer (M6), the guard (M7), the vault (M8) — and this rhythm (M9) keeping all of it honest.</p>
+        </div>
+        <p class="tag">Procedure — the loop, every time</p>
+        <ol class="proc">
+          <li>Edit config (ideally in the project, version-controlled).</li>
+          <li><code>nginx -t</code> — or <code>docker exec &lt;container&gt; nginx -t</code> in Docker.</li>
+          <li>Apply: <code>systemctl reload nginx</code>, or <code>docker compose up --build -d</code>.</li>
+          <li>Verify in browser / <code>curl -I</code> — the exact path and header you changed.</li>
+        </ol>
+        <p class="tag">Examples from the field</p>
+        <ul class="ex">
+          <li><b>Obvious:</b> Every course edit — proxy, cache, gzip, headers — is followed by <code>nginx -t</code> then reload, dozens of times.</li>
+          <li><b>Counter-intuitive:</b> A missed semicolon doesn't corrupt a running server — <code>nginx -t</code> catches it <em>before</em> reload, which is exactly why the test comes first.</li>
+          <li><b>Edge-case:</b> Switching nginx from host to container needs <code>systemctl stop</code> <em>and</em> <code>disable</code> — otherwise the old service grabs port 80 again on reboot.</li>
+        </ul>
+        <figure>
+          <svg class="diag" viewBox="0 0 560 150" role="img" aria-label="Animation: five stages light up in sequence — edit config, test with nginx -t, apply with reload, verify with curl or browser, back to edit" id="anim-tl">
+            <title>The verification loop: edit → test → apply → verify</title>
+            <text x="280" y="24" text-anchor="middle" class="lbl-m">the loop that catches every mistake in this course</text>
+            <g><rect x="20" y="50" width="96" height="52" class="ik" style="opacity:.15"><animate attributeName="opacity" values=".15;1" begin="0.2s" dur="0.3s" fill="freeze"></animate></rect><text x="68" y="72" text-anchor="middle" class="lbl">1 · Edit</text><text x="68" y="88" text-anchor="middle" class="lbl-m">conf file</text></g>
+            <g><rect x="146" y="50" width="96" height="52" class="ik" style="opacity:.15"><animate attributeName="opacity" values=".15;1" begin="1.2s" dur="0.3s" fill="freeze"></animate></rect><text x="194" y="72" text-anchor="middle" class="lbl">2 · Test</text><text x="194" y="88" text-anchor="middle" class="lbl-m">nginx -t</text></g>
+            <g><rect x="272" y="50" width="96" height="52" class="ik" style="opacity:.15"><animate attributeName="opacity" values=".15;1" begin="2.2s" dur="0.3s" fill="freeze"></animate></rect><text x="320" y="72" text-anchor="middle" class="lbl">3 · Apply</text><text x="320" y="88" text-anchor="middle" class="lbl-m">reload</text></g>
+            <g><rect x="398" y="50" width="96" height="52" class="ik" style="opacity:.15"><animate attributeName="opacity" values=".15;1" begin="3.2s" dur="0.3s" fill="freeze"></animate></rect><text x="446" y="72" text-anchor="middle" class="lbl">4 · Verify</text><text x="446" y="88" text-anchor="middle" class="lbl-m">curl · browser</text></g>
+            <g><rect x="484" y="40" width="62" height="72" class="ik-thin" style="opacity:.15"><animate attributeName="opacity" values=".15;1" begin="4.2s" dur="0.3s" fill="freeze"></animate></rect><text x="515" y="80" text-anchor="middle" class="lbl-m">↺</text></g>
+            <path d="M116,76 L142,76" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M242,76 L268,76" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M368,76 L394,76" class="ik-thin" marker-end="url(#arr)"></path>
+            <path d="M494,110 C420,140 180,140 96,112" class="flow" marker-end="url(#arr)"><animate attributeName="stroke-dashoffset" from="18" to="0" dur="1s" repeatCount="indefinite"></animate></path>
+            <text x="300" y="138" text-anchor="middle" class="lbl-m">…until the check passes, then edit again</text>
+          </svg>
+          <div class="anim-controls" data-target="#anim-tl"><button class="play-btn" type="button">Pause</button><button class="replay-btn" type="button">Replay</button></div>
+          <figcaption>Edit → test → apply → verify. (Static fallback below.)</figcaption>
+          <details class="fallback"><summary>Static view (no animation)</summary>
+            <svg class="diag" viewBox="0 0 560 80" role="img" aria-label="Static fallback: the four steps edit, test, apply, verify in a row">
+              <title>Static view of the verification loop</title>
+              <rect x="30" y="22" width="110" height="36" class="ik"></rect><text x="85" y="44" text-anchor="middle" class="lbl-m">1 · Edit</text>
+              <rect x="170" y="22" width="110" height="36" class="ik"></rect><text x="225" y="44" text-anchor="middle" class="lbl-m">2 · Test -t</text>
+              <rect x="310" y="22" width="110" height="36" class="ik"></rect><text x="365" y="44" text-anchor="middle" class="lbl-m">3 · Reload</text>
+              <rect x="450" y="22" width="100" height="36" class="ik"></rect><text x="500" y="44" text-anchor="middle" class="lbl-m">4 · Verify</text>
+            </svg>
+          </details>
+        </figure>
+      </div>
+      <aside class="bench">
+        <div class="card analogy"><span class="tag">Visual analogy — toggle</span>
+          <button class="tog" onclick="toggleMode(this,'analogy')">The loop is a <em>chef's taste-and-season</em>.<span class="flip-hint">click to see the mapping</span><span class="hidden-side">Taste before serving (nginx -t), adjust gently rather than relighting the stove (reload, not restart), and taste the plate as the guest receives it (curl / browser). No dish leaves the kitchen untested — no config reaches reload untested.</span></button>
+        </div>
+        <div class="card"><span class="tag">❌ What people get wrong</span>"Edit, restart, hope." Skipping <code>nginx -t</code> means the first evidence of a bad config is a broken server; the transcript's forgotten semicolon was caught in seconds precisely because the test came first. And reload ≠ restart: reload never drops connections.</div>
+        <div class="card"><span class="tag">Why this matters</span>This rhythm is what makes all eight earlier modules safe to practice on a live server — the habit is the safety net while you learn, and the professional workflow once you ship.</div>
+        <div class="card quiz"><span class="tag">Quick check</span>
+          <p style="font-size:.86rem">You've edited default.conf inside the Dockerized nginx. What is the correct sequence?</p>
+          <div class="opts">
+            <button data-correct="1" onclick="checkMCQ(this,'Test inside the container with docker exec … nginx -t, then rebuild with docker compose up --build -d, then verify — test before apply, always.')">Test, rebuild, then verify</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Rebuilding before testing can ship a broken config into fresh containers — the test exists to run first.')">Rebuild, then test the result</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Verification is not application — the running containers still hold the old config until rebuilt.')">Verify, then apply the config</button>
+            <button data-correct="0" onclick="checkMCQ(this,'Order is everything in this loop — edit is the step that has already happened before any of these.')">Reload, edit, then test</button>
+          </div>
+          <div class="feedback"></div>
+        </div>
+        <details class="recall"><summary>✍ Recall — write before expanding</summary><div class="answer">Write the full check-and-apply sequence from memory: test, reload, and the HTTP check. <br><em>Model answer:</em> <code>nginx -t</code> (or <code>docker exec … nginx -t</code>) → <code>systemctl reload nginx</code> (or <code>docker compose up --build -d</code>) → verify with <code>curl -I https://…</code> or the browser.</div></details>
+        <div class="card link-card"><span class="tag">🔗 Loop back</span><span class="arrow">→ Summary:</span> every module's key line is waiting in the Cheat Sheet below — recall-first.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ SUMMARY & CHEAT SHEET ============ -->
+  <div class="summary-wrap" id="summary">
+    <h2>Summary &amp; Cheat Sheet</h2>
+    <p style="max-width:var(--measure); margin:var(--space-2) 0; font-size:.92rem">Recall-first: read the left column, say the definition <em>from memory</em>, then click to reveal and check yourself. These are the canonical terms — same words used in every module above.</p>
+    <table class="cheat">
+      <thead><tr><th>Term / directive</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>web server</td><td><details class="def"><summary>reveal</summary><div class="def-body">Software that receives client requests and returns the appropriate response — serving static files itself and forwarding processing to the application. (M1)</div></details></td></tr>
+        <tr><td>server block</td><td><details class="def"><summary>reveal</summary><div class="def-body">A <code>server { }</code> config for one site: <code>listen</code> port, <code>server_name</code> domain, <code>location</code> + <code>root</code>/<code>index</code> files. L·S·L·R. (M2)</div></details></td></tr>
+        <tr><td>sites-available / sites-enabled</td><td><details class="def"><summary>reveal</summary><div class="def-body">Edit configs in sites-available; symlink into sites-enabled to activate; remove the link to disable. (M2)</div></details></td></tr>
+        <tr><td>nginx -t · reload</td><td><details class="def"><summary>reveal</summary><div class="def-body">Test the config ("syntax is ok"), then apply it without dropping connections — the preferred apply after every change. (M2, M9)</div></details></td></tr>
+        <tr><td>reverse proxy</td><td><details class="def"><summary>reveal</summary><div class="def-body">A proxy on the server side: all requests enter nginx, which routes each to the right backend — hiding backends and giving one entry point. (M3)</div></details></td></tr>
+        <tr><td>proxy_pass</td><td><details class="def"><summary>reveal</summary><div class="def-body">Forwards matching location requests to another server, e.g. <code>http://localhost:3001/</code> — the trailing slash changes what path the backend receives. (M3)</div></details></td></tr>
+        <tr><td>upstream</td><td><details class="def"><summary>reveal</summary><div class="def-body">A named group of backends; <code>proxy_pass http://backend_servers;</code> lets nginx distribute across them. (M4)</div></details></td></tr>
+        <tr><td>round robin · least_conn · weight · backup</td><td><details class="def"><summary>reveal</summary><div class="def-body">Deal requests in turn · to fewest active connections · bigger share to stronger servers · idle reserve for failures. R·L·W·B. (M4)</div></details></td></tr>
+        <tr><td>proxy_cache_path / proxy_cache / proxy_cache_valid</td><td><details class="def"><summary>reveal</summary><div class="def-body">Define the zone (top of config) · use the zone (location) · time the zone (e.g. <code>200 10m</code>). Cache only safely-reusable endpoints. (M5)</div></details></td></tr>
+        <tr><td>gzip on · gzip_min_length · gzip_types · gzip_comp_level</td><td><details class="def"><summary>reveal</summary><div class="def-body">Enable · skip under ~1000 bytes · compress text types (CSS/JSON/JS/XML/SVG) · effort 1–9, level 5 = balance. 10 MB → ~1.6 MB. (M6)</div></details></td></tr>
+        <tr><td>server_tokens off</td><td><details class="def"><summary>reveal</summary><div class="def-body">Hide the nginx version from the Server response header — Hide, the first of the four security moves. (M7)</div></details></td></tr>
+        <tr><td>add_header (security headers)</td><td><details class="def"><summary>reveal</summary><div class="def-body">nosniff (no MIME guessing) · X-Frame-Options DENY (anti-clickjacking) · Referrer-Policy · Permissions-Policy (disable camera/mic/location) · CSP default-src 'self' (mind external resources!). (M7)</div></details></td></tr>
+        <tr><td>limit_req_zone · limit_req</td><td><details class="def"><summary>reveal</summary><div class="def-body">Define a per-IP rate zone (e.g. <code>rate=5r/s</code>, 10m) in http context; apply in a location — throttles abuse and floods. (M7)</div></details></td></tr>
+        <tr><td>default_server · return 444</td><td><details class="def"><summary>reveal</summary><div class="def-body">Catch-all block (80 <em>and</em> 443) with <code>server_name _</code> that closes the connection with no response — blocks direct-IP access. (M7)</div></details></td></tr>
+        <tr><td>certbot --nginx · SSL termination</td><td><details class="def"><summary>reveal</summary><div class="def-body">Free Let's Encrypt certificate, auto-configured: 443 ssl block + cert paths + HTTP→HTTPS redirect; TLS stops at nginx, backends stay internal. (M8)</div></details></td></tr>
+        <tr><td>return 301 https://$host$request_uri</td><td><details class="def"><summary>reveal</summary><div class="def-body">The port-80 block redirect: <code>$host</code> = requested domain, <code>$request_uri</code> = original path. (M8)</div></details></td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:var(--space-3)">FAQ — from the transcript's own confusion points</h3>
+    <details class="faq-item"><summary>Do I still need nginx if my app already listens on a port?</summary><p>Yes — that's the course's starting problem: React on 3000, API on 3001, Mongo Express on 8081 means users must remember port numbers and backends are exposed directly. nginx gives you one entry point that routes by path, hides the backends, and later adds caching, compression, security, and HTTPS in the same place.</p></details>
+    <details class="faq-item"><summary>Why did /api/users fail until I added a trailing slash?</summary><p>Without the trailing slash, <code>proxy_pass http://localhost:3001</code> forwards the entire original URI — <code>localhost:3001/api/users</code> — while the Node app expected <code>localhost:3001/users</code>. With the slash, nginx strips the matched prefix. One character, whole route.</p></details>
+    <details class="faq-item"><summary>Why did my site break after adding Content-Security-Policy?</summary><p><code>default-src 'self'</code> allows only same-origin resources — and the demo loaded Bootstrap CSS from a CDN, so the browser refused it. Either allow the external origins your app actually uses, or drop the header until you've mapped your resources.</p></details>
+    <details class="faq-item"><summary>My cached endpoint shows stale data — how do I fix it?</summary><p>That's the Sara episode: the user list was cached while the database changed. Keep caching for safely-reusable endpoints (exact-match location for <code>/api/process-data</code>) and let frequently-changing paths (<code>/api/users</code>) bypass the cache in a separate location.</p></details>
+    <details class="faq-item"><summary>Reload or restart after a config change?</summary><p>Reload. It applies the new configuration without stopping the service, so existing connections are never interrupted. Reserve stop/start/disable for service-level changes — like freeing port 80 when a Dockerized nginx takes over.</p></details>
+
+    <h3 style="margin-top:var(--space-3)">Next Steps</h3>
+    <ul class="next-list">
+      <li>Do the transcript's first exercise on a real VPS: install nginx, serve a static page on port 90, symlink, test, reload (00:17:05 → 00:32:04).</li>
+      <li>Containerize a small React + Node project, run nginx as a compose service, and route <code>/</code> and <code>/api/</code> through it with service names (00:46:57 → 00:59:33).</li>
+      <li>Point a real domain at your server, run certbot once, and confirm the HTTP→HTTPS redirect with <code>curl -I</code> (00:59:44 → 01:16:12).</li>
+      <li>Practice wisdom: explain the request path — browser → nginx → location match → proxy_pass → container — out loud to someone, no notes. The pauses tell you exactly which module to reread.</li>
+    </ul>
+  </div>
+</main>
+
+<footer>
+  <p>Source: <a href="https://www.youtube.com/watch?v=-sY9OBgohX0" target="_blank" rel="noopener">NGINX Complete Course: Reverse Proxy, Load Balancing, HTTPS &amp; Docker — Sarvin Style Coding (YouTube)</a> · recommended as the primary source; each module's spec line points to its segment.</p>
+  <p>Stuck? Ask the agent a follow-up question about any module.</p>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  /* ---------- progress bar ---------- */
+  var bar=document.getElementById('pbar');
+  function updBar(){
+    var h=document.documentElement;
+    var max=h.scrollHeight-h.clientHeight;
+    bar.style.width=(max>0?(h.scrollTop/max)*100:0)+'%';
+  }
+  addEventListener('scroll',updBar,{passive:true}); updBar();
+
+  /* ---------- theme toggle ---------- */
+  var tgl=document.getElementById('themeToggle');
+  var stored=null;
+  try{stored=localStorage.getItem('nginx-lesson-theme');}catch(e){}
+  if(stored==='dark'||(!stored&&matchMedia('(prefers-color-scheme: dark)').matches)){document.body.classList.add('dark');}
+  tgl.addEventListener('click',function(){
+    document.body.classList.toggle('dark');
+    try{localStorage.setItem('nginx-lesson-theme',document.body.classList.contains('dark')?'dark':'light');}catch(e){}
+  });
+
+  /* ---------- knowledge map: highlight current module ---------- */
+  var map={m1:'m1',m2:'m2',m3:'m3',m4:'m4',m5:'m5',m6:'m6',m7:'m7',m8:'m8',m9:'m9'};
+  if('IntersectionObserver' in window){
+    var obs=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting){
+          document.querySelectorAll('#kmap g.node').forEach(function(n){n.classList.remove('current');});
+          var n=document.querySelector('#kmap g.node[data-for="'+e.target.id+'"]');
+          if(n)n.classList.add('current');
+        }
+      });
+    },{rootMargin:'-35% 0px -55% 0px'});
+    document.querySelectorAll('section.module').forEach(function(s){obs.observe(s);});
+  }
+
+  /* ---------- toggles (flashcards / analogies) ---------- */
+  window.toggleMode=function(btn,kind){ btn.classList.toggle('on'); };
+
+  /* ---------- single-answer MCQ ---------- */
+  window.checkMCQ=function(btn,why){
+    var box=btn.closest('.quiz');
+    var opts=Array.prototype.slice.call(box.querySelectorAll('.opts button'));
+    if(opts[0].disabled)return;
+    opts.forEach(function(o){o.disabled=true; if(o.dataset.correct==='1')o.classList.add('ok');});
+    if(btn.dataset.correct!=='1')btn.classList.add('no');
+    var fb=box.querySelector('.feedback');
+    fb.textContent=(btn.dataset.correct==='1'?'Correct. ':'Not quite. ')+why;
+    fb.classList.add('show');
+  };
+
+  /* ---------- two-question matching MCQ (module 7) ---------- */
+  window.choose=function(btn){
+    var q=btn.dataset.q;
+    btn.closest('.opts').querySelectorAll('button[data-q="'+q+'"]').forEach(function(b){b.classList.remove('chosen');});
+    btn.classList.add('chosen');
+  };
+  window.checkMulti=function(box){
+    var groups={};
+    box.querySelectorAll('.opts button').forEach(function(b){
+      (groups[b.dataset.q]=groups[b.dataset.q]||[]).push(b);
+    });
+    var allOk=true, anyChosen=false;
+    Object.keys(groups).forEach(function(q){
+      var gs=groups[q];
+      var chosen=gs.filter(function(b){return b.classList.contains('chosen');})[0];
+      if(chosen)anyChosen=true;
+      var good=chosen&&chosen.dataset.correct==='1';
+      if(!good)allOk=false;
+    });
+    if(!anyChosen){
+      var fb0=box.querySelector('.feedback');
+      fb0.textContent='Pick one option in each row first.';
+      fb0.classList.add('show');
+      return;
+    }
+    Object.keys(groups).forEach(function(q){
+      var gs=groups[q];
+      var chosen=gs.filter(function(b){return b.classList.contains('chosen');})[0];
+      gs.forEach(function(b){
+        b.disabled=true;
+        if(b.dataset.correct==='1')b.classList.add('ok');
+        else if(b===chosen)b.classList.add('no');
+      });
+    });
+    var fb=box.querySelector('.feedback');
+    fb.textContent=
+      (allOk?'Correct. server_tokens hides version detail (hide); return 444 in a default_server block closes direct-IP connections (refuse).'
+            :'Not quite — the correct rows are marked. server_tokens off hides the version; return 444 in the default_server block refuses unknown hosts.');
+    fb.classList.add('show');
+  };
+
+  /* ---------- animation controls ---------- */
+  document.querySelectorAll('.anim-controls').forEach(function(c){
+    var svg=document.querySelector(c.dataset.target);
+    if(!svg)return;
+    var pb=c.querySelector('.play-btn');
+    pb.addEventListener('click',function(){
+      if(svg.isAnimationsPaused&&svg.isAnimationsPaused()){svg.unpauseAnimations();pb.textContent='Pause';}
+      else{svg.pauseAnimations();pb.textContent='Play';}
+    });
+    c.querySelector('.replay-btn').addEventListener('click',function(){
+      try{svg.setCurrentTime(0);}catch(e){}
+      svg.unpauseAnimations();pb.textContent='Pause';
+    });
+  });
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){
+    document.querySelectorAll('svg.anim, svg.diag').forEach(function(s){
+      if(s.pauseAnimations)s.pauseAnimations();
+    });
+    document.querySelectorAll('.play-btn').forEach(function(b){b.textContent='Play';});
+  }
+})();
+</script>
+</body>
+</html>

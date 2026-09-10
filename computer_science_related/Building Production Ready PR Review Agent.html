@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Building Production Ready PR Review Agent</title>
+<style>
+:root{
+--washi:#F5F2ED;--sumi:#1C1C1C;--ai-iro:#2B4565;--rikyushiro:#B0B7A8;
+--font-heading:Georgia,'Times New Roman',serif;--font-body:Inter,-apple-system,'Segoe UI',sans-serif;
+--space-1:8px;--space-2:16px;--space-3:32px;--space-4:64px;--measure:70ch;
+--dur-fade:.9s;--ease-organic:cubic-bezier(.25,.1,.25,1);
+--panel:#FFFFFF;--panel-2:#EFEAE2;--node:#FFFFFF;--node-strong:#EDE8DF;
+--border:rgba(28,28,28,.14);--border-strong:rgba(28,28,28,.28);
+--text:#1C1C1C;--muted:#5A5A5E;--muted-2:#8A8A90;
+--line:rgba(28,28,28,.40);--line-dim:rgba(28,28,28,.16);--chip:#F0ECE5;
+}
+body.dark{--washi:#000000;--sumi:#EDEAE4;--ai-iro:#7C97B8;--rikyushiro:#6E7566;
+--panel:#121214;--panel-2:#17171a;--node:#151518;--node-strong:#1a1a1e;
+--border:rgba(255,255,255,.10);--border-strong:rgba(255,255,255,.16);
+--text:#f4f4f5;--muted:#a1a1aa;--muted-2:#71717a;
+--line:rgba(255,255,255,.35);--line-dim:rgba(255,255,255,.15);--chip:#111114;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:90px}
+body{margin:0;background:var(--washi);color:var(--sumi);font-family:var(--font-body);line-height:1.7;transition:background var(--dur-fade) var(--ease-organic),color var(--dur-fade) var(--ease-organic);overflow-x:hidden}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.05;background-image:radial-gradient(rgba(0,0,0,.5) 1px,transparent 1px);background-size:5px 5px}
+h1,h2,h3{font-family:var(--font-heading);font-weight:400;letter-spacing:-.02em}
+h1{font-size:clamp(32px,5vw,52px);line-height:1.05;margin:0}
+h2{font-size:clamp(28px,4vw,42px);line-height:1;margin:0 0 8px}
+p{max-width:var(--measure)}
+a{color:var(--ai-iro)}
+#progress{position:fixed;top:0;left:0;height:2px;width:0;background:var(--ai-iro);z-index:99}
+.topbar{position:sticky;top:0;height:72px;backdrop-filter:blur(12px);background:color-mix(in srgb,var(--washi) 82%,transparent);border-bottom:1px solid var(--border);z-index:50;display:flex;align-items:center;gap:16px;padding:0 20px}
+.brand{font-family:var(--font-heading);font-size:15px;white-space:nowrap}
+.topbar nav{display:flex;gap:12px;flex:1;overflow:auto}
+.topbar nav a{font-size:12px;text-decoration:none;color:var(--muted);white-space:nowrap;padding:4px 6px;border-radius:8px}
+.topbar nav a.active{color:var(--text);background:var(--chip)}
+.status{font-size:12px;color:var(--muted-2);font-family:Consolas,monospace;white-space:nowrap}
+#themeBtn{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:999px;width:34px;height:34px;cursor:pointer}
+.wrap{max-width:1060px;margin:0 auto;padding:0 22px 80px}
+.hero{padding:var(--space-4) 0 var(--space-3);display:grid;grid-template-columns:1.2fr .8fr;gap:35px}
+@media(max-width:860px){.hero{grid-template-columns:1fr}}
+.kicker{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted-2);margin-bottom:12px}
+.lede{color:var(--muted);max-width:60ch}
+.pill{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:6px 12px;font-size:12px;margin:4px 6px 0 0;background:var(--panel)}
+.card{border:1px solid var(--border);border-radius:18px;background:var(--panel);padding:26px}
+.card h3{margin:0 0 8px;font-size:20px}
+.learn{margin:var(--space-3) 0;padding:26px}
+.learn li{margin:8px 0;max-width:60ch}
+section.module{margin-top:var(--space-4);padding-top:10px}
+.section-head{display:grid;grid-template-columns:170px 1fr;gap:35px;margin-bottom:30px}
+@media(max-width:780px){.section-head{grid-template-columns:1fr}}
+.section-index{color:var(--muted-2);font-family:Consolas,monospace;font-size:12px;padding-top:8px}
+.section-label{color:var(--muted-2);font-size:11px;text-transform:uppercase;letter-spacing:.15em;margin-bottom:9px}
+.section-intro{color:var(--muted);max-width:730px}
+.manual-split{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+@media(max-width:900px){.manual-split{grid-template-columns:1fr}}
+.steps{list-style:none;padding:0;margin:14px 0}
+.steps li{border:1px solid var(--border);background:var(--panel);border-radius:14px;padding:12px 14px;margin:10px 0;font-size:14px}
+.steps b{color:var(--ai-iro)}
+.ex{border-left:2px solid var(--rikyushiro);padding:6px 12px;margin:10px 0;font-size:14px;background:var(--panel)}
+.analogy{border:1px dashed var(--border-strong);border-radius:14px;padding:12px 14px;font-size:14px;margin:14px 0;background:var(--panel-2)}
+.miss,.why,.linkline{font-size:14px;margin:8px 0}
+.diagram-wrap{border:1px solid var(--border);border-radius:20px;background:var(--panel);overflow:hidden;margin-top:20px}
+.diagram-toolbar{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap}
+.diagram-title{font-size:12px;font-weight:700;color:var(--text)}
+.diagram-subtitle{font-size:11px;color:var(--muted-2)}
+.diagram-stage{min-height:440px;padding:25px;overflow:auto}
+.diagram-stage svg{width:100%;min-width:680px;height:auto;display:block}
+.svg-node{fill:var(--node);stroke:var(--border-strong);stroke-width:1}
+.svg-node-strong{fill:var(--node-strong);stroke:var(--border-strong);stroke-width:1.2}
+.svg-text{fill:var(--text);font-size:13px;font-weight:700}
+.svg-small{fill:var(--muted);font-size:10px}
+.svg-mono{fill:var(--muted-2);font-size:10px;font-family:Consolas,monospace}
+.svg-line{stroke:var(--line);stroke-width:1.2;fill:none}
+.svg-line-dim{stroke:var(--line-dim);stroke-width:1;fill:none}
+.anim-wrap .ctrls,.ctrls{display:flex;gap:10px;margin-top:12px}
+button{border:1px solid var(--border-strong);background:var(--panel);color:var(--text);border-radius:10px;padding:8px 14px;cursor:pointer;font-size:13px}
+button:hover{border-color:var(--ai-iro)}
+.stage,.cap,.cap2{font-size:13px;color:var(--muted)}
+.recall{margin-top:16px;border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--panel)}
+.recall .ans{display:none;margin-top:8px;color:var(--muted);font-size:14px}
+.recall.open .ans{display:block}
+.quizbox,.flashwrap,.accwrap,.builder{margin-top:var(--space-3)}
+.opt{display:block;width:100%;text-align:left;margin:8px 0}
+.opt.correct{border-color:green}
+.opt.wrong{border-color:#b00020}
+.feedback{font-size:14px;color:var(--muted);min-height:22px}
+.flashgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.flash{cursor:pointer;min-height:150px;display:flex;align-items:center;justify-content:center;text-align:center}
+.flash .back{display:none}
+.flash.flip .front{display:none}
+.flash.flip .back{display:block}
+.term-card{border:1px solid var(--border);border-radius:15px;background:var(--panel);margin:10px 0}
+.term-head{padding:16px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.term-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s ease}
+.term-card.open .term-body{grid-template-rows:1fr}
+.term-inner{overflow:hidden}
+.term-inner div{padding:0 18px 16px;color:var(--muted);font-size:14px}
+.chev{transition:transform .3s}
+.term-card.open .chev{transform:rotate(90deg)}
+.flowbtns{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.flowbtns button.on{background:var(--ai-iro);color:#fff;border-color:var(--ai-iro)}
+.cheat-table{width:100%;border-collapse:separate;border-spacing:0 8px}
+.cheat-table td{border:1px solid var(--border);padding:12px 14px;font-size:14px;background:var(--panel)}
+.cheat-table td:first-child{width:180px;font-weight:700;border-radius:12px 0 0 12px}
+.cheat-table td:last-child{border-radius:0 12px 12px 0}
+.cheat-table .def{display:none;color:var(--muted)}
+.cheat-table tr.open .def{display:block}
+.photo-placeholder{margin:20px 0}
+.placeholder-box{min-height:280px;border:1.5px dashed #bbb;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:13px;text-align:center;padding:20px;background:repeating-linear-gradient(45deg,transparent 0 8px,rgba(0,0,0,.02) 8px 16px)}
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .9s cubic-bezier(.25,.1,.25,1),transform .9s cubic-bezier(.25,.1,.25,1)}
+.reveal.visible{opacity:1;transform:none}
+footer{margin-top:var(--space-4);padding-top:20px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)}
+#m2-anim g{transition:opacity .9s cubic-bezier(.25,.1,.25,1)}
+.kmap{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.kmap a{border:1px solid var(--border);border-radius:999px;padding:8px 14px;font-size:13px;text-decoration:none;color:var(--text);background:var(--panel)}
+.kmap a.active{background:var(--ai-iro);color:#fff}
+::selection{background:var(--ai-iro);color:#fff}
+:focus-visible{outline:2px solid var(--ai-iro);outline-offset:2px}
+h1{text-wrap:balance}
+button{transition:border-color .3s ease,transform .15s ease}
+button:active{transform:translateY(1px)}
+.opt:disabled{cursor:default;opacity:.9}
+.topbar nav a{transition:background .3s ease,color .3s ease}
+.steps li,.term-card,.card{transition:border-color .4s cubic-bezier(.25,.1,.25,1),transform .4s cubic-bezier(.25,.1,.25,1)}
+.steps li:hover{border-color:var(--border-strong);transform:translateY(-2px)}
+input:focus{outline:2px solid var(--ai-iro);outline-offset:1px}
+.diagram-stage{scrollbar-width:thin}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.stat{border:1px solid var(--border);background:var(--panel);border-radius:14px;padding:10px 16px;font-size:12px;color:var(--muted);min-width:150px;flex:1}
+.stat b{display:block;font-size:24px;font-family:var(--font-heading);font-weight:400;color:var(--text);line-height:1.2}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div class="topbar">
+<div class="brand">PR Agent · Lab Manual</div>
+<nav id="topnav">
+<a href="#learn">Learn</a><a href="#m1">Selectivity</a><a href="#m2">Trigger</a><a href="#m3">Grounding</a><a href="#m4">Proof</a><a href="#m5">Ship</a><a href="#practice">Practice</a><a href="#summary">Summary</a>
+</nav>
+<div class="status" id="pct">0% complete</div>
+<button id="themeBtn" aria-label="Toggle dark mode">◐</button>
+</div>
+<div class="wrap">
+<div class="hero">
+<div>
+<div class="kicker">Lab Manual · AI PR Review Agent · 5 procedures</div>
+<h1>Build a PR reviewer that saves senior attention.</h1>
+<p class="lede">Most demos stuff a code diff into a prompt and call it done. This lesson follows the transcript's harder path: be selective, ground every claim, prove every run, and ship with gates. You will trace one pull request from webhook to posted review.</p>
+<div><span class="pill">Mnemonic: Worthy Only Wins — WOW</span><span class="pill">Lab rule: verify before process</span></div>
+<div class="stats"><div class="stat"><b>10s</b>ack before GitHub times out</div><div class="stat"><b>0.6</b>confidence gate, rises with maturity</div><div class="stat"><b>4+1</b>specialists plus one aggregator</div></div>
+</div>
+<div class="card">
+<h3>How to use this lab</h3>
+<p style="font-size:14px;color:var(--muted)">Work left to right: read the short procedure, study the bench diagram, then answer the recall out loud before you expand it. Each quiz question tells you why right away.</p>
+<p style="font-size:14px;color:var(--muted)">Goal: you can explain trigger, finding shape, three memories, confidence gate, and ingress queue to a teammate without notes.</p>
+</div>
+</div>
+<section id="learn" class="card learn reveal">
+<h3>What You'll Learn</h3>
+<ul>
+<li>Explain selectivity: surface only findings worth senior time.</li>
+<li>Shape a precise trigger and structured review finding.</li>
+<li>Ground agents with three memories using one store.</li>
+<li>Gate posts by confidence and keep a full event proof.</li>
+<li>Assemble ingress, queue, agents, and Genesis build loop.</li>
+</ul>
+<h3 style="margin-top:22px">Knowledge Map</h3>
+<p style="font-size:13px;color:var(--muted)">Hover or tap a node to jump. Order is the bench order.</p>
+<svg viewBox="0 0 1000 150" role="img" aria-label="Knowledge map of five modules in order" style="width:100%;height:auto"><title>Knowledge map</title>
+<defs><marker id="arr-kmap" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path></marker></defs>
+<a href="#m1"><rect x="10" y="40" width="170" height="60" rx="12" class="svg-node-strong"></rect><text x="95" y="66" text-anchor="middle" class="svg-text">1 Selectivity</text><text x="95" y="84" text-anchor="middle" class="svg-small">worthy vs noise</text></a>
+<path d="M180 70 L212 70" class="svg-line" marker-end="url(#arr-kmap)"></path>
+<a href="#m2"><rect x="215" y="40" width="170" height="60" rx="12" class="svg-node"></rect><text x="300" y="66" text-anchor="middle" class="svg-text">2 Trigger</text><text x="300" y="84" text-anchor="middle" class="svg-small">in + out shape</text></a>
+<path d="M385 70 L417 70" class="svg-line" marker-end="url(#arr-kmap)"></path>
+<a href="#m3"><rect x="420" y="40" width="170" height="60" rx="12" class="svg-node"></rect><text x="505" y="66" text-anchor="middle" class="svg-text">3 Grounding</text><text x="505" y="84" text-anchor="middle" class="svg-small">3 memories</text></a>
+<path d="M590 70 L622 70" class="svg-line" marker-end="url(#arr-kmap)"></path>
+<a href="#m4"><rect x="625" y="40" width="170" height="60" rx="12" class="svg-node"></rect><text x="710" y="66" text-anchor="middle" class="svg-text">4 Proof</text><text x="710" y="84" text-anchor="middle" class="svg-small">gate + events</text></a>
+<path d="M795 70 L827 70" class="svg-line" marker-end="url(#arr-kmap)"></path>
+<a href="#m5"><rect x="830" y="40" width="160" height="60" rx="12" class="svg-node"></rect><text x="910" y="66" text-anchor="middle" class="svg-text">5 Ship It</text><text x="910" y="84" text-anchor="middle" class="svg-small">queue + loop</text></a>
+</svg>
+<div class="kmap"><a href="#m1">01 Selectivity</a><a href="#m2">02 Trigger</a><a href="#m3">03 Grounding</a><a href="#m4">04 Proof</a><a href="#m5">05 Ship</a></div>
+</section>
+<section class="module reveal" id="m1">
+<div class="section-head"><div class="section-index">01 / SELECTIVITY</div><div><div class="section-label">Start here · the one principle</div><h2>Post less, but matter more.</h2><p class="section-intro">A senior with 20 PRs fades by the 20th. Fatigue brings missed bugs and uneven tone. The agent exists to reclaim that attention, not to automate comments.</p></div></div>
+<div class="manual-split"><div>
+<p><b>Core explanation.</b> Without help, every pull request (a proposed code change) waits for a scarce senior. Queues grow to hours or days, and review 10 is weaker than review 1. The fix is not maximal output. It is selectivity (= choose only what deserves a senior's eyes). The L0 rule from the transcript: optimize for findings worth senior attention and defer the rest. A wrong style note is annoying. A missed SQL injection (database attack via crafted input) is dangerous. So the whole architecture filters noise and escalates doubt.</p>
+<ul class="steps"><li><b>Feel the pain:</b> remove the agent, watch queues, fatigue, inconsistency.</li><li><b>Reframe:</b> reclaim senior attention, automate the mechanical part.</li><li><b>Filter:</b> post high-value, high-confidence notes; escalate the rest.</li><li><b>Learn:</b> use disputes to get sharper next time.</li><li><b>Sort failures:</b> engineering vs model, known vs unknown (2x2).</li></ul>
+<div class="ex"><b>What:</b> You open a PR Friday, senior is on PR 19 and tired. → <b>So what:</b> Agent posts 2 solid notes, holds 1 unsure case for human.</div>
+<div class="ex"><b>What:</b> Bot posts 30 nits on spacing. → <b>So what:</b> Team mutes it; real bug hides in noise.</div>
+<div class="analogy">Analogy: a good sous-chef plates only dishes ready to serve; the rest stays back for the head chef to taste.</div>
+<p class="miss">❌ What People Get Wrong: more comments means a better reviewer.</p>
+<p class="why"><b>Why This Matters:</b> selectivity decides trust; noise kills adoption.</p>
+<p class="linkline">🔗 Leads to <a href="#m2">Module 2</a>: selectivity needs a strict output shape to enforce it.</p>
+<div class="recall"><b>Recall 1:</b> Say the L0 rule in your own words before expanding.<br><button type="button" data-recall="r1">Show answer</button><div class="ans" id="r1">Surface findings worth senior attention; defer the rest. Selective, not maximal.</div></div>
+</div><div>
+<div class="diagram-wrap"><div class="diagram-toolbar"><div><div class="diagram-title">Selectivity filter</div><div class="diagram-subtitle">Many raw notes become few posted notes plus one escalation.</div></div></div>
+<div class="diagram-stage"><svg viewBox="0 0 1000 400" role="img" aria-label="Selectivity filter diagram"><title>Selectivity filter</title><defs><marker id="arr-m1" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path></marker></defs>
+<rect x="40" y="90" width="200" height="220" rx="12" class="svg-node"></rect><text x="140" y="118" text-anchor="middle" class="svg-text">Raw notes</text><text x="140" y="140" text-anchor="middle" class="svg-small">12 drafts</text><text x="140" y="165" text-anchor="middle" class="svg-mono">style x7 · unsure x3</text><text x="140" y="185" text-anchor="middle" class="svg-mono">solid x2</text>
+<path d="M240 200 L310 200" class="svg-line" marker-end="url(#arr-m1)"></path>
+<rect x="310" y="110" width="220" height="180" rx="12" class="svg-node-strong"></rect><text x="420" y="138" text-anchor="middle" class="svg-text">Selectivity gate</text><text x="420" y="158" text-anchor="middle" class="svg-small">high value + confident?</text><text x="420" y="182" text-anchor="middle" class="svg-mono">critical always passes</text><text x="420" y="202" text-anchor="middle" class="svg-mono">low value dropped</text>
+<path d="M530 160 L610 160" class="svg-line" marker-end="url(#arr-m1)"></path>
+<path d="M530 230 L610 230" class="svg-line-dim" marker-end="url(#arr-m1)"></path>
+<rect x="610" y="90" width="160" height="110" rx="12" class="svg-node"></rect><text x="690" y="118" text-anchor="middle" class="svg-text">Posted</text><text x="690" y="138" text-anchor="middle" class="svg-small">2 findings</text><text x="690" y="158" text-anchor="middle" class="svg-mono">file + line cited</text>
+<rect x="610" y="220" width="160" height="110" rx="12" class="svg-node"></rect><text x="690" y="248" text-anchor="middle" class="svg-text">Escalated</text><text x="690" y="268" text-anchor="middle" class="svg-small">1 unsure → human</text><text x="690" y="288" text-anchor="middle" class="svg-mono">HITL queue</text>
+<rect x="810" y="140" width="150" height="120" rx="12" class="svg-node"></rect><text x="885" y="168" text-anchor="middle" class="svg-text">Dropped</text><text x="885" y="188" text-anchor="middle" class="svg-small">9 low-value nits</text><text x="885" y="208" text-anchor="middle" class="svg-mono">logged, not posted</text>
+</svg></div></div>
+<p class="cap2">Bench note: the gate is the product; the model is just the cook.</p>
+</div></div>
+</section>
+<section class="module reveal" id="m2">
+<div class="section-head"><div class="section-index">02 / TRIGGER AND TEAM</div><div><div class="section-label">Bench step · precise in, structured out</div><h2>One trigger in, four minds at work.</h2><p class="section-intro">A vague trigger fires on everything. A precise trigger fires on one event. One prompt cannot hold four expert mindsets, so the work fans out and back in.</p></div></div>
+<div class="manual-split"><div>
+<p><b>Core explanation.</b> The trigger (= what starts the run) is exact: GitHub sends a pull_request webhook when a PR opens. The output is also exact: one structured review, a list of findings each with agent_type (security, quality, testing, docs), severity plus category, file and line location, and confidence plus rationale (= why plus how sure). Linters catch style but cannot judge intent. Static analysis finds some bugs but cries wolf and cannot read docs. One big prompt judging a whole diff has one mindset for four jobs and invents facts. So four specialists run in parallel and an aggregator merges, dedups, and scores.</p>
+<ul class="steps"><li><b>Trigger:</b> PR opened → webhook → verify → queue.</li><li><b>Fan-out:</b> security, quality, testing, docs run parallel.</li><li><b>Shape:</b> every claim carries where + why + how-sure.</li><li><b>Fan-in:</b> aggregator merges and dedups to one review.</li></ul>
+<div class="ex"><b>What:</b> Teammate stars the repo; no PR opens. → <b>So what:</b> Nothing fires — trigger is PR only, not any event.</div>
+<div class="ex"><b>What:</b> Security says injection risk at line 40 with reason. → <b>So what:</b> Developer can check, dispute, or fix fast.</div>
+<div class="ex"><b>What:</b> Two agents flag the same line. → <b>So what:</b> Aggregator keeps one copy with higher score.</div>
+<div class="analogy">Analogy: four doctors read the same scan for bones, lungs, heart, skin; one head doctor writes the single report.</div>
+<p class="miss">❌ What People Get Wrong: one giant prompt can cover all four concerns well.</p>
+<p class="why"><b>Why This Matters:</b> shape makes findings testable and disputable.</p>
+<p class="linkline">🔗 Needs <a href="#m3">Module 3</a>: specialists without repo context still guess.</p>
+<div class="recall"><b>Recall 2:</b> Name the four fields of a finding before expanding.<br><button type="button" data-recall="r2">Show answer</button><div class="ans" id="r2">Agent type, severity + category, file + line, confidence + rationale.</div></div>
+</div><div>
+<div class="diagram-wrap"><div class="diagram-toolbar"><div><div class="diagram-title">Fan-out and fan-in, staged</div><div class="diagram-subtitle">Press play: trigger, parallel minds, merged review.</div></div></div>
+<div class="diagram-stage">
+<div class="anim-wrap" id="m2-anim">
+<svg viewBox="0 0 1000 400" role="img" aria-label="Fan out fan in stages"><title>Fan out stages</title><defs><marker id="arr-m2" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path></marker></defs>
+<g id="m2-s1" opacity="1"><rect x="380" y="40" width="240" height="80" rx="12" class="svg-node-strong"></rect><text x="500" y="70" text-anchor="middle" class="svg-text">PR webhook arrives</text><text x="500" y="90" text-anchor="middle" class="svg-small">pull_request opened</text><text x="500" y="106" text-anchor="middle" class="svg-mono">verify + enqueue</text></g>
+<g id="m2-s2" opacity="0.15"><rect x="60" y="180" width="200" height="70" rx="10" class="svg-node"></rect><text x="160" y="206" text-anchor="middle" class="svg-text">Security</text><text x="160" y="224" text-anchor="middle" class="svg-small">exploitable?</text><rect x="290" y="180" width="200" height="70" rx="10" class="svg-node"></rect><text x="390" y="206" text-anchor="middle" class="svg-text">Quality</text><text x="390" y="224" text-anchor="middle" class="svg-small">logic + patterns?</text><rect x="520" y="180" width="200" height="70" rx="10" class="svg-node"></rect><text x="620" y="206" text-anchor="middle" class="svg-text">Testing</text><text x="620" y="224" text-anchor="middle" class="svg-small">edges + coverage?</text><rect x="750" y="180" width="200" height="70" rx="10" class="svg-node"></rect><text x="850" y="206" text-anchor="middle" class="svg-text">Docs</text><text x="850" y="224" text-anchor="middle" class="svg-small">readable?</text><path d="M440 120 V155 H160 V180" class="svg-line-dim"></path><path d="M480 120 V165 H390 V180" class="svg-line-dim"></path><path d="M520 120 V165 H620 V180" class="svg-line-dim"></path><path d="M560 120 V150 H850 V180" class="svg-line-dim"></path></g>
+<g id="m2-s3" opacity="0.15"><rect x="360" y="290" width="280" height="80" rx="12" class="svg-node-strong"></rect><text x="500" y="318" text-anchor="middle" class="svg-text">Aggregator + gate</text><text x="500" y="338" text-anchor="middle" class="svg-small">merge · dedup · score</text><text x="500" y="354" text-anchor="middle" class="svg-mono">post or escalate</text><path d="M160 250 V270 H400 V290" class="svg-line" marker-end="url(#arr-m2)"></path><path d="M390 250 V278 H460 V290" class="svg-line" marker-end="url(#arr-m2)"></path><path d="M620 250 V278 H540 V290" class="svg-line" marker-end="url(#arr-m2)"></path><path d="M850 250 V270 H600 V290" class="svg-line" marker-end="url(#arr-m2)"></path></g>
+</svg>
+<div class="ctrls"><button type="button" id="m2-play">▶ play</button><button type="button" id="m2-replay">Replay</button></div>
+<p class="stage" id="m2-cap" aria-live="polite">Press play to step through the stages.</p>
+<div class="fallback" id="m2-fallback" hidden><svg viewBox="0 0 600 220" role="img" aria-label="Static fan out diagram"><title>Static fan out</title><defs><marker id="arr-m2f" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path></marker></defs><rect x="20" y="80" width="130" height="60" rx="10" class="svg-node-strong"></rect><text x="85" y="104" text-anchor="middle" class="svg-text">Trigger</text><text x="85" y="120" text-anchor="middle" class="svg-small">PR webhook</text><path d="M150 110 H190" class="svg-line" marker-end="url(#arr-m2f)"></path><rect x="190" y="40" width="180" height="140" rx="10" class="svg-node"></rect><text x="280" y="64" text-anchor="middle" class="svg-text">4 minds parallel</text><text x="280" y="82" text-anchor="middle" class="svg-small">security · quality</text><text x="280" y="98" text-anchor="middle" class="svg-small">testing · docs</text><text x="280" y="116" text-anchor="middle" class="svg-mono">grounded + cited</text><text x="280" y="134" text-anchor="middle" class="svg-mono">per-node timeout</text><path d="M370 110 H410" class="svg-line" marker-end="url(#arr-m2f)"></path><rect x="410" y="80" width="170" height="60" rx="10" class="svg-node-strong"></rect><text x="495" y="104" text-anchor="middle" class="svg-text">Merged review</text><text x="495" y="120" text-anchor="middle" class="svg-small">post or human</text></svg><p class="cap2">Static fallback: trigger → four parallel specialists → one merged review.</p></div>
+<noscript><p class="cap2">Static route (no script needed): trigger → four specialists → merged review.</p></noscript>
+</div>
+</div></div>
+</div></div>
+</section>
+<section class="module reveal" id="m3">
+<div class="section-head"><div class="section-index">03 / GROUNDING</div><div><div class="section-label">Bench step · give the stranger context</div><h2>Turn the stranger into a colleague.</h2><p class="section-intro">A model that sees only the diff invents the rest. Retrieval fetches the few repo slices that matter and puts only those in the prompt.</p></div></div>
+<div class="manual-split"><div>
+<p><b>Core explanation.</b> You cannot paste a whole repo into a prompt; it overflows and quality drops. Context engineering (= pick the smallest useful context) solves it. For each diff, embed it (turn code into searchable numbers), fetch nearest code plus keyword matches, merge top results, and hand them to every specialist. Three memories feed this: semantic (code, classes, conventions, past design records — vector search), episodic (past reviews: what was flagged or disputed, with time — ordered rows), procedural (how this team likes things — small rules). The transcript keeps one Tiger Cloud Postgres with pgvector, fast scale index plus disk search, and time tables, instead of three separate stores.</p>
+<ul class="steps"><li><b>Embed diff:</b> turn changed lines into a query vector.</li><li><b>Search:</b> nearest code + exact names + past reviews.</li><li><b>Merge top-k:</b> keep few best slices, drop the rest.</li><li><b>Ground:</b> each specialist reasons with citations; keep embedding dims in sync.</li></ul>
+<div class="ex"><b>What:</b> Diff touches charge(). → <b>So what:</b> Fetch charge() callers + past refund bug to judge impact.</div>
+<div class="ex"><b>What:</b> Team bans raw SQL strings. → <b>So what:</b> Procedural rule lets security flag it with reason.</div>
+<div class="analogy">Analogy: like pulling only the two recipe cards you need, not the whole cookbook shelf.</div>
+<p class="miss">❌ What People Get Wrong: bigger context always means better reviews.</p>
+<p class="why"><b>Why This Matters:</b> grounding is the main cure for confident invention.</p>
+<p class="linkline">🔗 Feeds <a href="#m4">Module 4</a>: even grounded claims need a confidence check.</p>
+<div class="recall"><b>Recall 3:</b> List the three memories without looking.<br><button type="button" data-recall="r3">Show answer</button><div class="ans" id="r3">Semantic (code), episodic (past reviews with time), procedural (team rules).</div></div>
+</div><div>
+<div class="diagram-wrap"><div class="diagram-toolbar"><div><div class="diagram-title">Retrieval bench</div><div class="diagram-subtitle">Diff in, three memories out, grounded prompt forward.</div></div></div>
+<div class="diagram-stage"><svg viewBox="0 0 1000 420" role="img" aria-label="Retrieval diagram"><title>Retrieval bench</title><defs><marker id="arr-m3" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path></marker></defs>
+<rect x="60" y="60" width="200" height="90" rx="12" class="svg-node-strong"></rect><text x="160" y="90" text-anchor="middle" class="svg-text">PR diff</text><text x="160" y="110" text-anchor="middle" class="svg-small">added + removed</text><text x="160" y="128" text-anchor="middle" class="svg-mono">embed query</text>
+<path d="M260 105 L330 105" class="svg-line" marker-end="url(#arr-m3)"></path>
+<rect x="330" y="40" width="220" height="80" rx="10" class="svg-node"></rect><text x="440" y="66" text-anchor="middle" class="svg-text">Semantic</text><text x="440" y="84" text-anchor="middle" class="svg-small">code chunks · vectors</text><text x="440" y="100" text-anchor="middle" class="svg-mono">pgvector + scale</text>
+<rect x="330" y="135" width="220" height="80" rx="10" class="svg-node"></rect><text x="440" y="161" text-anchor="middle" class="svg-text">Episodic</text><text x="440" y="179" text-anchor="middle" class="svg-small">past reviews · time</text><text x="440" y="195" text-anchor="middle" class="svg-mono">flagged · disputed</text>
+<rect x="330" y="230" width="220" height="80" rx="10" class="svg-node"></rect><text x="440" y="256" text-anchor="middle" class="svg-text">Procedural</text><text x="440" y="274" text-anchor="middle" class="svg-small">team rules · small</text><text x="440" y="290" text-anchor="middle" class="svg-mono">conventions</text>
+<path d="M550 80 L650 80 M550 175 L650 175 M550 270 L650 270" class="svg-line" marker-end="url(#arr-m3)"></path>
+<rect x="650" y="110" width="200" height="140" rx="12" class="svg-node-strong"></rect><text x="750" y="140" text-anchor="middle" class="svg-text">Grounded prompt</text><text x="750" y="160" text-anchor="middle" class="svg-small">diff + top-k slices</text><text x="750" y="180" text-anchor="middle" class="svg-mono">citations required</text><text x="750" y="200" text-anchor="middle" class="svg-mono">→ 4 specialists</text>
+<rect x="330" y="330" width="520" height="50" rx="10" class="svg-node"></rect><text x="590" y="360" text-anchor="middle" class="svg-small">One Tiger Cloud store holds all three shapes · one backup · one query</text>
+</svg></div></div>
+</div></div>
+</section>
+<section class="module reveal" id="m4">
+<div class="section-head"><div class="section-index">04 / PROOF AND GATE</div><div><div class="section-label">Bench step · trust but verify</div><h2>Confidence decides; events prove.</h2><p class="section-intro">A finding without proof cannot be defended or fixed. Every run leaves a trail, and a gate decides what the user ever sees.</p></div></div>
+<div class="manual-split"><div>
+<p><b>Core explanation.</b> Proof (= records that let you replay a decision) sits beside reasoning and grounding. Every span, model call, tool call, cost, latency, and choice is appended to an event spine (a time-ordered log you can replay). It powers three views: trace (rebuild any review), audit (defend or drop a disputed note), and cost (tokens, latency, per-PR spend with budget caps). The gate is simple: if a finding is critical, escalate at once; else if confidence is below threshold (say 0.6, rising as the system matures), send to the human approval queue; else post. Disputes are stored as feedback so future reviews improve and old, unused feedback fades.</p>
+<ul class="steps"><li><b>Log all:</b> input, retrieval, prompt version, output, cost.</li><li><b>Gate:</b> critical → escalate; unsure → human; sure → post.</li><li><b>Dispute:</b> developer flags wrong note → record + learn; decay unused feedback.</li><li><b>Watch spend + queue:</b> block over-budget runs; rank queues so humans never face thousands unranked.</li></ul>
+<div class="ex"><b>What:</b> Note says injection at 55% confidence. → <b>So what:</b> Goes to human queue, not public PR.</div>
+<div class="ex"><b>What:</b> Developer proves a note wrong. → <b>So what:</b> Trail shows bad retrieval; fix it once.</div>
+<div class="analogy">Analogy: like a lab notebook with receipts — claim, method, and price on every page.</div>
+<p class="miss">❌ What People Get Wrong: a confidence number alone guarantees safety.</p>
+<p class="why"><b>Why This Matters:</b> without proof you cannot debug, bill, or earn trust.</p>
+<p class="linkline">🔗 Needs <a href="#m5">Module 5</a>: gates fail if delivery and retries are sloppy.</p>
+<div class="recall"><b>Recall 4:</b> What three questions does the event spine answer?<br><button type="button" data-recall="r4">Show answer</button><div class="ans" id="r4">What happened, why it was decided, and what it cost.</div></div>
+</div><div>
+<div class="diagram-wrap"><div class="diagram-toolbar"><div><div class="diagram-title">Gate and spine</div><div class="diagram-subtitle">One finding, one decision, full trail underneath.</div></div></div>
+<div class="diagram-stage"><svg viewBox="0 0 1000 420" role="img" aria-label="Confidence gate diagram"><title>Gate and spine</title><defs><marker id="arr-m4" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path></marker></defs>
+<rect x="60" y="50" width="200" height="80" rx="12" class="svg-node"></rect><text x="160" y="78" text-anchor="middle" class="svg-text">Finding + score</text><text x="160" y="98" text-anchor="middle" class="svg-small">why + how sure</text><text x="160" y="114" text-anchor="middle" class="svg-mono">e.g. 0.62</text>
+<path d="M260 90 L340 90" class="svg-line" marker-end="url(#arr-m4)"></path>
+<rect x="340" y="50" width="200" height="80" rx="12" class="svg-node-strong"></rect><text x="440" y="78" text-anchor="middle" class="svg-text">Critical?</text><text x="440" y="98" text-anchor="middle" class="svg-small">security / data loss</text><text x="440" y="114" text-anchor="middle" class="svg-mono">yes → escalate</text>
+<path d="M540 90 L620 90" class="svg-line" marker-end="url(#arr-m4)"></path>
+<rect x="620" y="50" width="200" height="80" rx="12" class="svg-node"></rect><text x="720" y="78" text-anchor="middle" class="svg-text">Confidence ≥ 0.6?</text><text x="720" y="98" text-anchor="middle" class="svg-small">threshold grows</text><text x="720" y="114" text-anchor="middle" class="svg-mono">no → human queue</text>
+<rect x="340" y="180" width="200" height="80" rx="10" class="svg-node"></rect><text x="440" y="208" text-anchor="middle" class="svg-text">Post to PR</text><text x="440" y="228" text-anchor="middle" class="svg-small">sure + not critical</text>
+<rect x="620" y="180" width="200" height="80" rx="10" class="svg-node"></rect><text x="720" y="208" text-anchor="middle" class="svg-text">Human queue</text><text x="720" y="228" text-anchor="middle" class="svg-small">approve / edit</text>
+<rect x="60" y="300" width="880" height="70" rx="10" class="svg-node"></rect><text x="500" y="326" text-anchor="middle" class="svg-text">Event spine (append-only)</text><text x="500" y="346" text-anchor="middle" class="svg-small">spans · calls · cost · decisions → trace · audit · budget views</text>
+<path d="M440 130 L440 180 M720 130 L720 180 M440 260 L440 300 M720 260 L720 300" class="svg-line-dim"></path>
+</svg></div></div>
+</div></div>
+</section>
+<section class="module reveal" id="m5">
+<div class="section-head"><div class="section-index">05 / SHIP IT</div><div><div class="section-label">Bench step · fast ack, safe retry</div><h2>Acknowledge fast, reason slowly.</h2><p class="section-intro">GitHub waits about 10 seconds. Reasoning needs 30 to 90. The queue between them is what makes the system real. The bench below shows the complete wiring, every box and wire from webhook to posted review.</p></div></div>
+<div class="manual-split"><div>
+<p><b>Core explanation.</b> The ingress (= entry handler) verifies the webhook signature (proves it came from GitHub), checks the idempotency key (= once-only marker using delivery ID) to drop retries, enqueues the job in Redis with ARQ, and answers GitHub at once. A separate worker pool then runs the LangGraph orchestrator: fan-out, aggregate, gate, post. Timeouts on every node stop a hung agent from freezing the merge. Retries with backoff plus circuit breakers survive dead tools. A WorkflowEngine interface (run, resume, get_state) keeps LangGraph swappable for Temporal later. The Genesis harness builds it in milestones, each with a demo command, token budget, and a fresh verifier plus quiz so you prove you grasp each step.</p>
+<ul class="steps"><li><b>Verify then process:</b> signature first, fixed 400 on bad body.</li><li><b>Enqueue:</b> Redis holds jobs; receiver stays stateless.</li><li><b>Run:</b> LangGraph fans out, merges, gates, posts.</li><li><b>Harden:</b> dedup, timeouts, retries, eval set, RBAC, assumption log, dashboard.</li></ul>
+<div class="ex"><b>What:</b> GitHub resends the same delivery twice. → <b>So what:</b> Second copy is dropped; one review posts.</div>
+<div class="ex"><b>What:</b> One specialist hangs. → <b>So what:</b> Node times out; merger posts partial + flags gap.</div>
+<div class="analogy">Analogy: receptionist takes the order in seconds; chefs cook in the back without blocking the door.</div>
+<p class="miss">❌ What People Get Wrong: the model call is the system; queue and gates are extras.</p>
+<p class="why"><b>Why This Matters:</b> speed of ack plus safety of retry is what ships.</p>
+<p class="linkline">🔗 Returns to <a href="#m1">Module 1</a>: every hardening serves selectivity.</p>
+<div class="recall"><b>Recall 5:</b> Why must the receiver answer before reasoning?<br><button type="button" data-recall="r5">Show answer</button><div class="ans" id="r5">GitHub times out in seconds; full review takes much longer, so queue it.</div></div>
+</div><div>
+<div class="diagram-wrap"><div class="diagram-toolbar"><div><div class="diagram-title">Complete multi-agent architecture</div><div class="diagram-subtitle">Every box, wire, and store from webhook to posted review.</div></div></div>
+<div class="diagram-stage"><svg viewBox="0 0 1000 530" role="img" aria-label="Complete PR reviewer architecture"><title>Complete PR reviewer architecture</title><defs><marker id="arr-m5" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path></marker></defs>
+<text x="290" y="30" text-anchor="middle" class="svg-mono">ENTRY · seconds</text>
+<text x="500" y="430" text-anchor="middle" class="svg-mono">REMEMBER · every step logged</text>
+<rect x="30" y="50" width="150" height="84" rx="10" class="svg-node"></rect><text x="105" y="78" text-anchor="middle" class="svg-text">GitHub PR</text><text x="105" y="96" text-anchor="middle" class="svg-small">opened / updated</text><text x="105" y="112" text-anchor="middle" class="svg-mono">webhook</text>
+<rect x="210" y="50" width="170" height="84" rx="10" class="svg-node"></rect><text x="295" y="76" text-anchor="middle" class="svg-text">Ingress · FastAPI</text><text x="295" y="94" text-anchor="middle" class="svg-small">HMAC → dedup</text><text x="295" y="110" text-anchor="middle" class="svg-mono">ack in seconds</text>
+<rect x="410" y="50" width="140" height="84" rx="10" class="svg-node"></rect><text x="480" y="78" text-anchor="middle" class="svg-text">Redis + ARQ</text><text x="480" y="96" text-anchor="middle" class="svg-small">durable FIFO</text><text x="480" y="112" text-anchor="middle" class="svg-mono">delivery-ID key</text>
+<rect x="410" y="160" width="300" height="88" rx="10" class="svg-node"></rect><text x="560" y="186" text-anchor="middle" class="svg-text">4 specialists · parallel</text><text x="560" y="204" text-anchor="middle" class="svg-small">security · quality · testing · docs</text><text x="560" y="220" text-anchor="middle" class="svg-mono">grounded · cited</text><text x="560" y="234" text-anchor="middle" class="svg-mono">per-node timeout</text>
+<rect x="410" y="264" width="300" height="64" rx="10" class="svg-node"></rect><text x="560" y="290" text-anchor="middle" class="svg-text">Aggregator</text><text x="560" y="308" text-anchor="middle" class="svg-small">merge · dedup · score</text>
+<rect x="410" y="344" width="300" height="72" rx="12" class="svg-node-strong"></rect><text x="560" y="370" text-anchor="middle" class="svg-text">Confidence gate</text><text x="560" y="388" text-anchor="middle" class="svg-small">critical → escalate · unsure → human</text><text x="560" y="404" text-anchor="middle" class="svg-mono">threshold grows</text>
+<rect x="750" y="264" width="220" height="64" rx="10" class="svg-node"></rect><text x="860" y="290" text-anchor="middle" class="svg-text">Post to PR</text><text x="860" y="308" text-anchor="middle" class="svg-small">sure + not critical</text>
+<rect x="750" y="344" width="220" height="72" rx="10" class="svg-node"></rect><text x="860" y="370" text-anchor="middle" class="svg-text">Human queue</text><text x="860" y="388" text-anchor="middle" class="svg-small">unsure + critical</text><text x="860" y="404" text-anchor="middle" class="svg-mono">approve · edit</text>
+<rect x="30" y="440" width="940" height="74" rx="10" class="svg-node"></rect><text x="500" y="466" text-anchor="middle" class="svg-text">Tiger Cloud · one store</text><text x="500" y="484" text-anchor="middle" class="svg-small">memory vectors · truth reviews · time events</text><text x="500" y="500" text-anchor="middle" class="svg-mono">→ trace · audit · cost caps</text>
+<path d="M180 92 H210" class="svg-line" marker-end="url(#arr-m5)"></path>
+<path d="M380 92 H410" class="svg-line" marker-end="url(#arr-m5)"></path>
+<path d="M210 118 H180" class="svg-line-dim" marker-end="url(#arr-m5)"></path>
+<text x="195" y="110" text-anchor="middle" class="svg-mono">ack</text>
+<path d="M480 134 V160" class="svg-line" marker-end="url(#arr-m5)"></path>
+<path d="M380 440 V204 H410" class="svg-line-dim" marker-end="url(#arr-m5)"></path>
+<text x="372" y="330" text-anchor="end" class="svg-mono">ground top-k</text>
+<path d="M560 248 V264" class="svg-line" marker-end="url(#arr-m5)"></path>
+<path d="M560 328 V344" class="svg-line" marker-end="url(#arr-m5)"></path>
+<path d="M710 372 H730 V296 H750" class="svg-line" marker-end="url(#arr-m5)"></path>
+<path d="M710 390 H750" class="svg-line" marker-end="url(#arr-m5)"></path>
+<path d="M295 134 V440" class="svg-line-dim" marker-end="url(#arr-m5)"></path>
+<text x="303" y="300" text-anchor="start" class="svg-mono">log</text>
+<path d="M560 416 V440" class="svg-line-dim" marker-end="url(#arr-m5)"></path>
+<path d="M860 264 V44 H105 V50" class="svg-line" marker-end="url(#arr-m5)"></path>
+<text x="700" y="36" text-anchor="middle" class="svg-mono">posts review</text>
+</svg></div></div>
+<p class="cap2">How to read: solid wires carry the review forward; dashed wires log, ground, or acknowledge. The gate is the product — critical and unsure findings spend human time, everything else posts. Behind the workers sits a swappable WorkflowEngine interface, so LangGraph can become Temporal without rewrites.</p>
+<div class="builder card" style="margin-top:16px">
+<h3>Bench stepper: Trigger → Ship</h3>
+<div class="flowbtns"><button type="button" data-step="0" class="on">Trigger</button><button type="button" data-step="1">Context</button><button type="button" data-step="2">Think</button><button type="button" data-step="3">Verify</button><button type="button" data-step="4">Report</button></div>
+<p id="flowText" style="font-size:14px;color:var(--muted)">Trigger: PR webhook verified and queued in seconds.</p>
+</div>
+</div></div>
+</section>
+<section id="practice" class="reveal" style="margin-top:64px">
+<div class="section-head"><div class="section-index">LAB / PRACTICE</div><div><div class="section-label">Desirable difficulty · instant why</div><h2>Prove it stuck.</h2><p class="section-intro">Four tools. Every answer explains itself at once. Mnemonic WOW is tested below.</p></div></div>
+<div class="quizbox card"><h3>Module quiz (5)</h3><p style="font-size:13px;color:var(--muted)" id="qpos">Question 1 of 5</p><p id="qq" style="font-weight:700"></p><div id="qopts"></div><p class="feedback" id="qfb"></p><button type="button" id="qnext">Next</button><p style="font-size:13px;color:var(--muted)" id="qscore"></p></div>
+<div class="flashwrap card"><h3>Flashcards — tap to flip</h3><div class="flashgrid">
+<div class="flash card" tabindex="0"><div class="front"><b>WOW</b><br><span style="font-size:13px;color:var(--muted)">What does each letter demand?</span></div><div class="back" style="font-size:14px">Worthy Only Wins: post worthy, hold the unsure, drop noise.</div></div>
+<div class="flash card" tabindex="0"><div class="front"><b>Finding shape</b><br><span style="font-size:13px;color:var(--muted)">Four slots?</span></div><div class="back" style="font-size:14px">Type · severity · file+line · confidence+reason.</div></div>
+<div class="flash card" tabindex="0"><div class="front"><b>Three memories</b><br><span style="font-size:13px;color:var(--muted)">Name them.</span></div><div class="back" style="font-size:14px">Code (semantic) · past reviews (episodic) · team rules (procedural).</div></div>
+<div class="flash card" tabindex="0"><div class="front"><b>Fast ack</b><br><span style="font-size:13px;color:var(--muted)">Why queue?</span></div><div class="back" style="font-size:14px">Ack in seconds; reason over tens of seconds.</div></div>
+</div></div>
+<div class="accwrap card"><h3>Terms — expand all or filter by typing</h3><div style="display:flex;gap:10px;margin:10px 0"><input id="tsearch" placeholder="Filter terms…  ( / to focus )" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text)"><button type="button" id="texpand">Expand all</button></div><p style="font-size:12px;color:var(--muted)" id="tcount"></p>
+<div class="term-card" data-term="selectivity"><div class="term-head"><b>Selectivity</b><span class="chev">›</span></div><div class="term-body"><div class="term-inner"><div>Choose only findings worth senior time; defer the rest. Tested in quiz Q1.</div></div></div></div>
+<div class="term-card" data-term="finding shape"><div class="term-head"><b>Structured finding</b><span class="chev">›</span></div><div class="term-body"><div class="term-inner"><div>Type, severity, exact location, confidence plus reason. Makes notes disputable.</div></div></div></div>
+<div class="term-card" data-term="fan-out fan-in"><div class="term-head"><b>Fan-out / fan-in</b><span class="chev">›</span></div><div class="term-body"><div class="term-inner"><div>Four specialists run parallel; one aggregator merges and dedups.</div></div></div></div>
+<div class="term-card" data-term="event spine"><div class="term-head"><b>Event spine</b><span class="chev">›</span></div><div class="term-body"><div class="term-inner"><div>Append-only log of calls, costs, choices. Feeds trace, audit, budget.</div></div></div></div>
+<div class="term-card" data-term="idempotency"><div class="term-head"><b>Idempotency key</b><span class="chev">›</span></div><div class="term-body"><div class="term-inner"><div>Once-only marker from delivery ID; drops retried webhooks safely.</div></div></div></div>
+</div>
+</section>
+<section id="summary" class="reveal" style="margin-top:48px">
+<div class="section-head"><div class="section-index">CLOSE / SUMMARY</div><div><div class="section-label">Spacing · same ideas, second pass</div><h2>Cheat sheet, questions, next bench.</h2></div></div>
+<div class="card"><h3>Summary &amp; Cheat Sheet (tap a row to reveal)</h3>
+<table class="cheat-table"><tbody>
+<tr><td>Selectivity</td><td><button type="button" data-cheat="">Reveal</button><div class="def">Worthy Only Wins: post confident value, escalate doubt, log noise.</div></td></tr>
+<tr><td>Trigger → Output</td><td><button type="button" data-cheat="">Reveal</button><div class="def">PR webhook in; one structured review with typed, located, scored findings out.</div></td></tr>
+<tr><td>Four + One</td><td><button type="button" data-cheat="">Reveal</button><div class="def">Security, quality, testing, docs parallel; aggregator merges and dedups.</div></td></tr>
+<tr><td>Three memories</td><td><button type="button" data-cheat="">Reveal</button><div class="def">Semantic code vectors, episodic past reviews, procedural team rules; one Tiger store.</div></td></tr>
+<tr><td>Gate + Spine</td><td><button type="button" data-cheat="">Reveal</button><div class="def">Critical escalates; low confidence to human; every step logged with cost.</div></td></tr>
+<tr><td>Ingress + Queue</td><td><button type="button" data-cheat="">Reveal</button><div class="def">Verify signature, dedup delivery, ack fast, reason in workers with timeouts.</div></td></tr>
+</tbody></table></div>
+<div class="card" style="margin-top:16px"><h3>FAQ</h3>
+<p style="font-size:14px"><b>Why not just prompt the diff?</b><br><span style="color:var(--muted)">One mindset cannot do four jobs, has no repo facts, and leaves no trail.</span></p>
+<p style="font-size:14px"><b>Why one database, not three?</b><br><span style="color:var(--muted)">One store means one backup, one query for retrieve + review + cost, fewer failure seams.</span></p>
+<p style="font-size:14px"><b>When does a human step in?</b><br><span style="color:var(--muted)">Any critical, any low-confidence note, any dispute — the queue, not the thread.</span></p>
+<p style="font-size:14px"><b>What if the model invents a bug?</b><br><span style="color:var(--muted)">Citation rule plus confidence plus trail expose it; dispute teaches the next run.</span></p>
+<p style="font-size:14px"><b>What needs extra care?</b><br><span style="color:var(--muted)">Precise triggers only (a claim at one inbox with the keyword claims, not any email); big vulns in public PRs go via a private channel; money, legal, and health always keep a human; log assumptions so a 9-hour surprise never repeats.</span></p>
+</div>
+<div class="card" style="margin-top:16px"><h3>Next Steps</h3>
+<ul style="font-size:14px"><li>Sketch the five boxes for your own repo: trigger, memories, minds, gate, spine.</li><li>Write three procedural rules your team would enforce (naming, SQL, tests).</li><li>Replay the source video segments per module, then explain WOW to a teammate from memory.</li></ul>
+</div>
+</section>
+<footer>
+<div>Source: original transcript file <b>Building Production Ready PR Review Agent.txt</b> in transcripts/ — modules follow its order: selectivity (00:01), trigger/output (00:47), grounding/memories (00:54), proof/gate (01:00), architecture/Genesis (01:27+). Re-watch those segments as the primary source.</div>
+<div style="margin-top:8px">Stuck? Ask the agent a follow-up question about any module.</div>
+</footer>
+</div>
+<script>
+(function(){var bar=document.getElementById('progress'),pct=document.getElementById('pct');if(!bar||!pct)return;function u(){var h=document.documentElement;var m=h.scrollHeight-h.clientHeight;var p=m>0?(h.scrollTop/m*100):0;bar.style.width=p+'%';pct.textContent=Math.round(p)+'% complete';}document.addEventListener('scroll',u,{passive:true});u();})();
+(function(){var b=document.getElementById('themeBtn');if(!b)return;b.addEventListener('click',function(){document.body.classList.toggle('dark');});if(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){document.body.classList.add('dark');}})();
+(function(){var map={};document.querySelectorAll('#topnav a').forEach(function(a){var h=a.getAttribute('href');if(h)map[h.slice(1)]=a;});if(!('IntersectionObserver' in window))return;var obs=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){Object.values(map).forEach(function(x){x.classList.remove('active');});var a=map[e.target.id];if(a)a.classList.add('active');document.querySelectorAll('.kmap a').forEach(function(k){k.classList.toggle('active',k.getAttribute('href')==='#'+e.target.id);});}});},{rootMargin:'-20% 0px -65% 0px'});['learn','m1','m2','m3','m4','m5','practice','summary'].forEach(function(id){var el=document.getElementById(id);if(el)obs.observe(el);});})();
+(function(){var els=document.querySelectorAll('.reveal');if(!('IntersectionObserver' in window)){els.forEach(function(e){e.classList.add('visible');});return;}var o=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');o.unobserve(e.target);}});},{threshold:.08});els.forEach(function(e){o.observe(e);});})();
+(function(){document.querySelectorAll('[data-recall]').forEach(function(btn){btn.addEventListener('click',function(){var ans=document.getElementById(btn.getAttribute('data-recall'));var box=btn.closest('.recall');if(box)box.classList.toggle('open');btn.textContent=(box&&box.classList.contains('open'))?'Hide answer':'Show answer';});});})();
+(function(){var ids=['m2-s1','m2-s2','m2-s3'];var caps=['Stage 1 — precise trigger verified and queued.','Stage 2 — four specialists reason in parallel, grounded.','Stage 3 — aggregator merges, dedups, gates to post or human.'];var play=document.getElementById('m2-play'),rep=document.getElementById('m2-replay'),cap=document.getElementById('m2-cap');var wrap=document.getElementById('m2-anim'),idx=0,timer=null;if(!play||!rep||!cap||!wrap)return;function show(i){ids.forEach(function(id,k){var el=document.getElementById(id);if(el)el.style.opacity=(k===i?'1':'0.15');});cap.textContent=caps[i];}function stop(){if(timer){clearInterval(timer);timer=null;}}function go(){stop();idx=0;show(0);timer=setInterval(function(){idx++;if(idx>=ids.length){stop();return;}show(idx);},1700);}play.addEventListener('click',go);rep.addEventListener('click',go);if('IntersectionObserver' in window){new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)stop();});}).observe(wrap);}if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){show(0);}else{show(0);}})();
+(function(){var steps=['Trigger: PR webhook verified and queued in seconds.','Context: diff embedded; top slices from three memories merged.','Think: four specialists reason parallel with citations required.','Verify: aggregator dedups; gate checks critical then confidence.','Report: post when sure; human queue when unsure; log all.'];var t=document.getElementById('flowText');if(!t)return;var btns=document.querySelectorAll('[data-step]');function setWorkflowStep(i){btns.forEach(function(b){b.classList.toggle('on',+b.getAttribute('data-step')===i);});t.textContent=steps[i];}btns.forEach(function(b){b.addEventListener('click',function(){setWorkflowStep(+b.getAttribute('data-step'));});});setWorkflowStep(0);})();
+(function(){document.querySelectorAll('.flash').forEach(function(f){function flip(){f.classList.toggle('flip');}f.addEventListener('click',flip);f.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();flip();}});});})();
+(function(){var cards=Array.from(document.querySelectorAll('.term-card'));cards.forEach(function(c){c.querySelector('.term-head').addEventListener('click',function(){c.classList.toggle('open');});});var ex=document.getElementById('texpand');if(ex)ex.addEventListener('click',function(){var any=cards.some(function(c){return !c.classList.contains('open');});cards.forEach(function(c){c.classList.toggle('open',any);});});var s=document.getElementById('tsearch'),n=document.getElementById('tcount');function f(){var q=(s.value||'').toLowerCase();var v=0;cards.forEach(function(c){var hit=(c.getAttribute('data-term')+' '+c.textContent).toLowerCase().includes(q);c.style.display=hit?'':'none';if(hit)v++;});n.textContent=v+' / '+cards.length+' visible';}if(s){s.addEventListener('input',f);document.addEventListener('keydown',function(e){if(e.key==='/'&&document.activeElement!==s){e.preventDefault();s.focus();}if(e.key==='Escape'){s.value='';f();}});f();}})();
+(function(){document.querySelectorAll('[data-cheat]').forEach(function(b){b.addEventListener('click',function(){var tr=b.closest('tr');if(tr)tr.classList.toggle('open');b.textContent=(tr&&tr.classList.contains('open'))?'Hide':'Reveal';});});})();
+(function(){var Q=[{q:'1. Selectivity means…',opts:['Surface worthy findings only','Surface every finding always','Surface no findings ever'],a:0,why:'Worthy-only keeps trust; noise buries real bugs.'},{q:'2. A finding must carry…',opts:['Type, place, score, reason','Hype, length, jokes, emojis','Author, salary, mood, weather'],a:0,why:'Shape makes each claim checkable and disputable.'},{q:'3. Grounding needs which trio?',opts:['Code, past reviews, rules','Hopes, guesses, wishes now','Stars, forks, likes count'],a:0,why:'Three memories turn a stranger into a colleague.'},{q:'4. Low confidence means…',opts:['Route to human review','Post loudly anyway now','Delete the whole PR'],a:0,why:'Unsure cases spend human judgment, not thread noise.'},{q:'5. Fast ack exists because…',opts:['Hosts time out fast','Models enjoy waiting long','Queues dislike free space'],a:0,why:'Ack fast, reason slowly — queue bridges the gap.'}];var i=0,score=0,answered=false;var qq=document.getElementById('qq'),qo=document.getElementById('qopts'),qf=document.getElementById('qfb'),qn=document.getElementById('qnext'),qp=document.getElementById('qpos'),qs=document.getElementById('qscore');function renderQuiz(){answered=false;var cur=Q[i];qp.textContent='Question '+(i+1)+' of '+Q.length;qq.textContent=cur.q;qf.textContent='';qo.innerHTML='';cur.opts.forEach(function(op,k){var b=document.createElement('button');b.type='button';b.className='opt';b.textContent=op;b.addEventListener('click',function(){if(answered)return;answered=true;if(k===cur.a){b.classList.add('correct');score++;qf.textContent='Correct. '+cur.why;}else{b.classList.add('wrong');qo.children[cur.a].classList.add('correct');qf.textContent='Not quite. '+cur.why;}qs.textContent='Score '+score+' / '+Q.length;Array.from(qo.children).forEach(function(x){x.disabled=true;});});qo.appendChild(b);});qn.textContent=(i===Q.length-1)?'Restart':'Next';}qn.addEventListener('click',function(){if(!answered)return;i++;if(i>=Q.length){i=0;score=0;qs.textContent='';}renderQuiz();});renderQuiz();})();
+</script>
+</body>
+</html>

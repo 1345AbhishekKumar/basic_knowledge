@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Jensen Works — Interactive Lesson</title>
+<style>
+:root{
+  --washi:#F5F2ED; --sumi:#1C1C1C; --ai-iro:#2B4565; --rikyushiro:#B0B7A8;
+  --font-heading:Georgia,'Times New Roman',serif; --font-body:Inter,-apple-system,'Segoe UI',sans-serif;
+  --space-1:8px; --space-2:16px; --space-3:32px; --space-4:64px; --measure:62ch;
+  --dur-fade:0.9s; --ease-organic:cubic-bezier(0.25,0.1,0.25,1);
+}
+body.dark{ --washi:#000000; --sumi:#EDEAE4; --ai-iro:#7C97B8; --rikyushiro:#6E7566; }
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--washi);color:var(--sumi);font-family:var(--font-body);line-height:1.75;letter-spacing:.01em;margin:0;transition:background var(--dur-fade) var(--ease-organic),color var(--dur-fade) var(--ease-organic)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");}
+h1,h2,h3{font-family:var(--font-heading);font-weight:400;line-height:1.3}
+h1{font-size:2.1rem;margin:0 0 8px;max-width:70ch} h2{font-size:1.4rem;margin-bottom:4px}
+p,li{max-width:var(--measure)} a{color:var(--ai-iro)}
+#progress{position:fixed;top:0;left:0;height:2px;background:var(--ai-iro);width:0;z-index:50}
+.topbar{position:sticky;top:0;z-index:40;display:flex;justify-content:space-between;align-items:center;padding:10px 20px;background:var(--washi);border-bottom:1px solid var(--rikyushiro)}
+.topbar button{border:1px solid var(--ai-iro);background:transparent;color:var(--ai-iro);border-radius:20px;padding:4px 12px;cursor:pointer;font-size:.85rem}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 20px 80px}
+.hero{margin:32px 0 8px;max-width:760px}
+.kicker{color:var(--ai-iro);font-size:.9rem;letter-spacing:.08em;text-transform:uppercase}
+.note{display:grid;grid-template-columns:1fr 230px;gap:24px;border:1px solid var(--rikyushiro);border-radius:6px;padding:24px;margin:0 0 var(--space-4);box-shadow:0 10px 30px rgba(0,0,0,.05);background:linear-gradient(var(--washi),var(--washi))}
+.margin{font-size:.82rem;color:var(--ai-iro);border-left:2px solid var(--rikyushiro);padding-left:12px;align-self:start}
+.margin b{display:block;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--rikyushiro);margin-bottom:4px}
+.card{border:1px solid var(--rikyushiro);border-radius:10px;padding:14px 16px;margin:16px 0}
+.pill{display:inline-block;border:1px solid var(--ai-iro);color:var(--ai-iro);border-radius:999px;padding:2px 10px;font-size:.78rem;margin:4px 6px 4px 0}
+.qchip{display:inline-block;border:1px dashed var(--rikyushiro);border-radius:8px;padding:2px 10px;font-size:.8rem;margin:3px 6px 3px 0}
+svg.diagram{width:100%;height:auto;display:block;margin:12px 0}
+svg text{font-family:var(--font-body);font-size:12px}
+.anim-controls{display:flex;gap:8px;margin:8px 0}
+.anim-controls button{border:1px solid var(--ai-iro);background:transparent;color:var(--ai-iro);border-radius:8px;padding:4px 12px;cursor:pointer}
+.photo-placeholder{margin:16px 0}
+.photo-placeholder .placeholder-box{min-height:280px;border:1.5px dashed #bbb;background:repeating-linear-gradient(45deg,transparent 0 12px,rgba(0,0,0,.03) 12px 13px);display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:#777;font-size:.9rem}
+.photo-placeholder figcaption{font-size:.85rem;color:#666;margin-top:8px;max-width:var(--measure)}
+details{border:1px solid var(--rikyushiro);border-radius:10px;padding:10px 14px;margin:12px 0}
+.quiz{border:1px solid var(--rikyushiro);border-radius:10px;padding:14px;margin:14px 0}
+.quiz button.opt{display:block;width:100%;text-align:left;margin:6px 0;padding:8px 10px;border:1px solid var(--rikyushiro);border-radius:8px;background:transparent;color:var(--sumi);cursor:pointer}
+.quiz button.opt:hover{border-color:var(--ai-iro)}
+.feedback{font-size:.9rem;margin-top:8px;min-height:1.4em}
+.flash{margin:12px 0}
+.flash-inner{border:1px solid var(--rikyushiro);border-radius:10px;padding:20px;cursor:pointer;min-height:90px}
+.dropzone{border:1px dashed var(--ai-iro);border-radius:10px;padding:12px;margin:8px 0;min-height:48px}
+.chip{display:inline-block;border:1px solid var(--ai-iro);border-radius:8px;padding:4px 10px;margin:4px;cursor:grab;font-size:.9rem}
+table.sheet{width:100%;border-collapse:collapse;margin:16px 0}
+table.sheet th,table.sheet td{border:1px solid var(--rikyushiro);padding:10px;text-align:left;vertical-align:top}
+table.sheet td.def{cursor:pointer;color:var(--ai-iro)}
+footer{margin-top:var(--space-4);padding-top:24px;border-top:1px solid var(--rikyushiro);font-size:.85rem;color:#666}
+input[type=range]{width:100%}
+.paused *{animation-play-state:paused !important}
+@media(max-width:800px){.note{grid-template-columns:1fr}.margin{border-left:none;border-top:2px solid var(--rikyushiro);padding-left:0;padding-top:10px}}
+</style>
+</head>
+<body>
+<div id="progress" role="progressbar" aria-label="Reading progress"></div>
+<div class="topbar"><span>How Jensen Works</span><button id="themeToggle" aria-label="Toggle dark mode">◐ theme</button></div>
+<div class="wrap">
+
+<div class="hero">
+<div class="kicker">The Nvidia Way · ~20 ideas · longest-running founder CEO · Field Notes</div>
+<h1>How Jensen Works</h1>
+<p>After covering Jensen’s life in episode 376, the host reread <em>The Nvidia Way</em> and stripped out everything but operating ideas — about twenty of them, gathered over three decades at one company. Colleagues call him Professor Jensen: a teacher with a whiteboard, a mind-meld across tens of thousands of people, and a happy obsession with pain, speed, and reinvention. These field notes turn the twenty ideas into seven entries you can run. Your win: install three of them — teach one thing, flatten one decision, name one owner — inside your own team this month.</p>
+</div>
+
+<h2>What You Will Learn</h2>
+<ul>
+<li>Teach strategy until strangers repeat it identically.</li>
+<li>Treat reinvention as mandatory, not optional.</li>
+<li>Run flat, direct, and brutally fast.</li>
+<li>Criticize in public so everyone learns once.</li>
+<li>Convert pain and speed into character.</li>
+<li>Name one owner and act, never plan.</li>
+<li>Create markets, then swarm them for decades.</li>
+</ul>
+
+<h2>Knowledge Map</h2>
+<p style="font-size:.9rem">Seven notebook entries. Tap to jump.</p>
+<svg class="diagram" viewBox="0 0 920 120" role="img" aria-label="Knowledge map"><title>Knowledge map</title>
+<g font-size="11" text-anchor="middle">
+<a href="#m1"><ellipse cx="65" cy="60" rx="55" ry="28" fill="none" stroke="#2B4565" stroke-width="1.5"/><text x="65" y="64">1 Teach</text></a>
+<a href="#m2"><ellipse cx="190" cy="60" rx="55" ry="28" fill="none" stroke="#2B4565" stroke-width="1.5"/><text x="190" y="64">2 Reinvent</text></a>
+<a href="#m3"><ellipse cx="315" cy="60" rx="55" ry="28" fill="none" stroke="#2B4565" stroke-width="1.5"/><text x="315" y="64">3 Flat</text></a>
+<a href="#m4"><ellipse cx="440" cy="60" rx="55" ry="28" fill="none" stroke="#2B4565" stroke-width="1.5"/><text x="440" y="64">4 Criticize</text></a>
+<a href="#m5"><ellipse cx="565" cy="60" rx="55" ry="28" fill="none" stroke="#2B4565" stroke-width="1.5"/><text x="565" y="64">5 Suffer fast</text></a>
+<a href="#m6"><ellipse cx="690" cy="60" rx="55" ry="28" fill="none" stroke="#2B4565" stroke-width="1.5"/><text x="690" y="64">6 Own+act</text></a>
+<a href="#m7"><ellipse cx="825" cy="60" rx="55" ry="28" fill="none" stroke="#2B4565" stroke-width="1.5"/><text x="825" y="64">7 Swarm</text></a>
+</g></svg>
+
+<section class="note" id="m1">
+<div>
+<h2>Entry 1 — Professor Jensen And The Whiteboard</h2>
+<p><strong>Core explanation.</strong> The book’s first line says Jensen might have been a teacher in another life, and the company runs like his classroom. Costco’s founder sets the bar the host quotes: if you aren’t spending ninety percent of your time teaching, you aren’t doing the job — and Jensen lives near it, explaining hard concepts on whiteboards so plainly that anyone can follow, until the author himself becomes “his student much like his employees do.” Teaching here is persuasive and pervasive at once: two Nvidia employees who never met will describe strategy in identical words — the Vulcan mind-meld — because he spends enormous time communicating vision directly to everyone. The whiteboard is the instrument, and the rule is deliberate: it must be the primary medium in meetings because it forces people to show thinking in real time before witnesses, with nowhere to hide a borrowed slide. Then comes the philosophy drawn on it: the board means possibility plus ephemerality — every brilliant idea gets erased for the next one — which is constant reinvention stated as furniture. Michael Dell’s version sharpens the point: announce that in five years a faster, more efficient rival will occupy every one of your businesses and kill you, unless you become that rival first — gut-wrenching, mandatory, and the alternative is exit. Fix two terms. Mind-meld means strategy reproduced identically without contact. Ephemerality means good ideas expire by policy, not by accident.</p>
+<div><span class="qchip">90% teaching</span><span class="qchip">Whiteboard primary</span><span class="qchip">Vulcan mind-meld</span><span class="qchip">Erase brilliance</span><span class="qchip">Become the rival</span></div>
+<ol><li><strong>Teach</strong> strategy weekly, yourself.</li><li><strong>Require</strong> whiteboards, ban hiding decks.</li><li><strong>Test</strong> mind-meld: ask two strangers.</li><li><strong>Erase</strong> one good idea per quarter.</li></ol>
+<figure class="photo-placeholder"><div class="placeholder-box" role="img" aria-label="Photo of Jensen explaining strategy on a whiteboard before employees">Photo placeholder: Jensen at a whiteboard, marker up, employees watching. Learner should see teaching as the operating medium.</div><figcaption>Caption: the classroom company. Source suggestion: event photo with permission.</figcaption></figure>
+<svg class="diagram anim" viewBox="0 0 600 150" role="img" aria-label="Mindmeld broadcast"><title>One teacher, identical words</title><g fill="none" stroke="#2B4565" stroke-width="1.5"><rect x="255" y="20" width="90" height="40" rx="8"/><circle cx="120" cy="115" r="18"/><circle cx="300" cy="115" r="18"/><circle cx="480" cy="115" r="18"/><line x1="270" y1="60" x2="120" y2="97"/><line x1="300" y1="60" x2="300" y2="97"/><line x1="330" y1="60" x2="480" y2="97"/><circle cx="270" cy="60" r="5" fill="#2B4565"><animate attributeName="cy" values="60;97" dur="2s" repeatCount="indefinite"/></circle></g><g font-size="12" text-anchor="middle"><text x="300" y="45">teacher</text><text x="120" y="150">same words</text><text x="300" y="150">same words</text><text x="480" y="150">same words</text></g></svg>
+<div class="anim-controls"><button data-a="play">play</button><button data-a="pause">pause</button><button data-a="replay">replay</button></div>
+<p style="font-size:.85rem">Static fallback: one box broadcasting to three identical circles — sameness is the metric.</p>
+<div class="card"><strong>Visual analogy.</strong> A tuning fork held to three strings. Strike once, properly, and all three hum the note.<br><span class="pill">Mnemonic: TWE — Teach, Whiteboard, Erase</span></div>
+<ul><li><strong>Obvious:</strong> Strategy repeated identically by strangers.</li><li><strong>Counter-intuitive:</strong> Banning slides to raise thinking quality.</li><li><strong>Edge-case:</strong> Erasing a winning idea while it still wins.</li></ul>
+<details><summary>What people get wrong</summary><p>Teaching reads as explaining once. Here it is saturation plus erasure — repeat until identical, then replace.</p></details>
+<p><strong>Why this matters.</strong> Aligned minds move without meetings; misaligned brilliance needs them constantly.</p>
+<p><strong>Inter-module link.</strong> Shared minds enable the flat speed of <a href="#m3">Entry 3</a>.</p>
+<div class="quiz" data-answer="2"><p><strong>Check 1.</strong> Why whiteboards over slide decks?</p><button class="opt" data-i="0">Slides look more polished for outside guests</button><button class="opt" data-i="1">Decks let juniors hide behind borrowed charts</button><button class="opt" data-i="2">Boards force live thinking before witnesses</button><div class="feedback" aria-live="polite"></div></div>
+<div class="card"><strong>Recall prompt.</strong> What proves the mind-meld worked? <button class="showA">attempt, then reveal</button> <span class="ans" hidden>— Two strangers in the firm state strategy identically.</span></div>
+</div>
+<aside class="margin"><b>Margin · misconception</b>Teaching ≠ announcing. Announcing informs once; teaching repeats until reproduced.<br><br><b>Margin · why it matters</b>One taught company learns once per lesson; untaught ones pay tuition per person.</aside>
+</section>
+
+<section class="note" id="m2">
+<div>
+<h2>Entry 2 — Complacency Kills, Craft Continues</h2>
+<p><strong>Core explanation.</strong> Jensen pairs extreme self-confidence and charisma with an inner voice insisting he is no good — unsatisfiable, and shared by many great founders — and aims that voice at the firm’s deadliest disease. Innovation is a necessity, not an option; the worst enemy is not competitors but the company itself, specifically the complacency that grips successful firms. The chorus is deliberate: Grove’s mantra (success breeds complacency, complacency breeds failure, only the paranoid survive), Kelleher’s warning that danger peaks at the height of success amid cockiness, greed, laziness, bureaucracy, and blindness, and Buffett’s ABCs of decay — arrogance, bureaucracy, complacency — which fell even giants once metastasized. Jensen’s own exhibits: cringing at praise-filled introductions, dismissing his first fifteen years as naive management he’d rather erase, declaring “we’ll go kill Intel” while outweighed 860-to-1 in revenue, and Jobs’s matching rule of doing something great then immediately doing the next wonderful thing without dwelling — no rearview mirror, no laurels, make it great and repeat. The constructive twin is craft: his Caltech address frames dedication to craft as the work itself, the same relentless iteration the host admires in top technical teams shipping hundreds of improvements. Terms: complacency means success quietly lowering standards; craft means the endless honing that refuses the lowering.</p>
+<div><span class="qchip">Inner voice: I stink</span><span class="qchip">Enemy is self</span><span class="qchip">ABCs of decay</span><span class="qchip">Kill Intel at 1:860</span><span class="qchip">No rearview mirror</span><span class="qchip">Craft, not laurels</span></div>
+<ol><li><strong>Name</strong> complacency as the enemy.</li><li><strong>Measure</strong> against paranoia, not rivals.</li><li><strong>Ship</strong> the next wonderful thing.</li><li><strong>Hone</strong> craft between launches.</li></ol>
+<svg class="diagram" viewBox="0 0 600 140" role="img" aria-label="Success to failure chain"><title>Decay chain</title><g fill="none" stroke-width="1.5"><rect x="30" y="45" width="120" height="50" rx="8" stroke="#2B4565"/><rect x="230" y="45" width="120" height="50" rx="8" stroke="#B0B7A8"/><rect x="430" y="45" width="140" height="50" rx="8" stroke="#B0B7A8"/><line x1="150" y1="70" x2="230" y2="70" stroke="#2B4565"/><line x1="350" y1="70" x2="430" y2="70" stroke="#B0B7A8"/></g><g font-size="12" text-anchor="middle"><text x="90" y="65">success</text><text x="90" y="82">paranoia?</text><text x="290" y="65">complacency</text><text x="290" y="82">comfort</text><text x="500" y="65">failure</text><text x="500" y="82">decay ABCs</text></g></svg>
+<div class="card"><strong>Visual analogy.</strong> A champion treating the gold medal as a weigh-in for the next bout, not a pillow.<br><span class="pill">Mnemonic: ENC — Enemy inside, Next thing, Craft</span></div>
+<ul><li><strong>Obvious:</strong> Declaring war on Intel at 860-to-1.</li><li><strong>Counter-intuitive:</strong> Confidence plus an inner voice saying you stink.</li><li><strong>Edge-case:</strong> Disowning your own first fifteen years publicly.</li></ul>
+<details><summary>What people get wrong</summary><p>Paranoia reads as fear of rivals. Here it is fear of self-softening — rivals merely collect the remains.</p></details>
+<p><strong>Why this matters.</strong> Success funds the disease that kills successors; only craft outruns it.</p>
+<p><strong>Inter-module link.</strong> Anti-complacency justifies the public pain of <a href="#m4">Entry 4</a>.</p>
+<div class="quiz" data-answer="0"><p><strong>Check 2.</strong> Who is Nvidia’s worst enemy?</p><button class="opt" data-i="0">Itself, through creeping internal complacency</button><button class="opt" data-i="1">Rivals, through stealing its chip designs</button><button class="opt" data-i="2">Regulators, through blocking its big mergers</button><div class="feedback" aria-live="polite"></div></div>
+<div class="card"><strong>Recall prompt.</strong> Recite Grove’s chain. <button class="showA">attempt, then reveal</button> <span class="ans" hidden>— Success breeds complacency; complacency breeds failure; only the paranoid survive.</span></div>
+</div>
+<aside class="margin"><b>Margin · misconception</b>Confidence ≠ satisfaction. Loud belief with a quiet inner critic is the intended pair.<br><br><b>Margin · why it matters</b>Peaks hide rot; this entry schedules the inspection during sunshine.</aside>
+</section>
+
+<section class="note" id="m3">
+<div>
+<h2>Entry 3 — Sixty Directs, Zero Distance</h2>
+<p><strong>Core explanation.</strong> Jensen runs one of the flattest giants on earth: sixty direct reports, no one-on-ones, no chief operating officer even when boards suggest one — “no thanks,” because direct contact is the point. The design dates to intention: small Nvidia was already bureaucratic and political, so he imagined the ideal firm from scratch — flat enough for independent action, selective enough that people needing orders self-select out, fast enough that great people stay (Bezos agrees slow decisions repel talent). He frames it for the AI age: surrounded by agents smarter than himself already, since every direct is world-class and better than him at their craft. The organization is a race car the CEO must know how to drive — a company built so he can manage it directly, your way rather than the market’s way, as large as necessary but as small as possible, unbogged by process. Information is the fuel system. The top-five email asks every level for five bullets — action-first words like finalize, build, secure — tagged by topic for search, carrying edge observations on customers, rivals, technology, and delays. Strategy, he says, is not what he declares but what they do, so he reads the edge directly instead of through management layers — notably catching the faint machine-learning-on-GPU signal years early over scotch and inbox. His style compresses to match: blunt, concise, direct emails like haiku, in the Napoleon mode where long orders are enemies of speed and four-sentence clarity is world-class, shared with Jobs’s gift for being instantly understood. And when someone rambles, “LUIA” lands — listen to the question, understand it, answer it — because spreadable ideas must first be understandable ones.</p>
+<div><span class="qchip">60 directs, no 1:1s</span><span class="qchip">No COO, on purpose</span><span class="qchip">Race-car org</span><span class="qchip">Top-five edge emails</span><span class="qchip">Haiku directives</span><span class="qchip">LUIA: listen, grasp, answer</span></div>
+<ol><li><strong>Flatten</strong> — widen span, kill layers.</li><li><strong>Write</strong> five action-first bullets weekly.</li><li><strong>Read</strong> the edge, not the summary.</li><li><strong>Answer</strong> in sentences, not decks.</li></ol>
+<svg class="diagram anim" viewBox="0 0 600 150" role="img" aria-label="Flat signal flow"><title>Edge to CEO</title><g fill="none" stroke="#2B4565" stroke-width="1.5"><circle cx="80" cy="70" r="14"/><circle cx="80" cy="115" r="14"/><circle cx="520" cy="70" r="14"/><circle cx="520" cy="115" r="14"/><circle cx="300" cy="92" r="24"/><line x1="94" y1="70" x2="276" y2="92"/><line x1="94" y1="115" x2="276" y2="92"/><line x1="324" y1="92" x2="506" y2="70"/><line x1="324" y1="92" x2="506" y2="115"/><circle cx="94" cy="70" r="4" fill="#2B4565"><animate attributeName="cx" values="94;276;324;506" dur="3s" repeatCount="indefinite"/></circle></g><g font-size="12" text-anchor="middle"><text x="80" y="45">edge</text><text x="300" y="135">no layers</text><text x="520" y="45">Jensen</text></g></svg>
+<div class="anim-controls"><button data-a="play">play</button><button data-a="pause">pause</button><button data-a="replay">replay</button></div>
+<p style="font-size:.85rem">Static fallback: edge nodes wired straight to the center — signal with no management staircase.</p>
+<div class="card"><strong>Visual analogy.</strong> A race car with the driver wired to every wheel sensor, no interpreters between pedal and tire.<br><span class="pill">Mnemonic: FER — Flatten, Edge mail, Razor brevity</span></div>
+<ul><li><strong>Obvious:</strong> Refusing a COO to keep direct contact.</li><li><strong>Counter-intuitive:</strong> Sixty bosses’-worth of reports increasing speed.</li><li><strong>Edge-case:</strong> Spotting the AI era in faint email weak signals.</li></ul>
+<details><summary>What people get wrong</summary><p>Flat reads as structureless. Here it is stricter: independence required, thinking mandatory, layers forbidden.</p></details>
+<p><strong>Why this matters.</strong> Distance delays truth; this entry prices truth at one inbox.</p>
+<p><strong>Inter-module link.</strong> Direct lines carry the public lessons of <a href="#m4">Entry 4</a>.</p>
+<div class="flash" tabindex="0" role="button" aria-label="Flashcard"><div class="flash-inner"><span class="q">Flashcard: What makes a good top-five email?</span><span class="a" hidden> — Five bullets, action-first words, topic tag, edge observations included.</span></div></div>
+<div class="quiz" data-answer="1"><p><strong>Check 3.</strong> Where must real information come from?</p><button class="opt" data-i="0">Polished summaries passed up through layers</button><button class="opt" data-i="1">Raw edge notes read straight by the chief</button><button class="opt" data-i="2">External consultants with quarterly benchmark decks</button><div class="feedback" aria-live="polite"></div></div>
+<div class="card"><strong>Recall prompt.</strong> Decode LUIA. <button class="showA">attempt, then reveal</button> <span class="ans" hidden>— Listen to the question, understand it, answer it. Stop rambling.</span></div>
+</div>
+<aside class="margin"><b>Margin · misconception</b>Flat ≠ leaderless. Sixty report to one driver who reads everything.<br><br><b>Margin · why it matters</b>Speed keeps stars; slowness exports them to rivals.</aside>
+</section>
+
+<section class="note" id="m4">
+<div>
+<h2>Entry 4 — Criticize In Public, Torture Toward Great</h2>
+<p><strong>Core explanation.</strong> Jensen gives feedback in front of everybody, on purpose: why should one person alone learn from a mistake the whole company could study? The NV30 episode is the exhibit — furious at poor planning, he interrogated architects at an all-hands (“is this what you intended to build?”, “shitty job,” “who raised a hand?”), then brought a Best Buy executive to repeat customer complaints live, agreeing aloud: “this is crap” — while closing the loop on himself, since collaboration failure at scale was ultimately his responsibility. The Ive–Jobs mirror explains the ethic: when Ive softened wording to spare feelings, Jobs called it vanity — choosing likability over the work — and Ive admitted he was right. Optimization target stated: company learning, never embarrassment-avoidance. The inward version runs hotter. Jensen calls the method “tortured into greatness”: rather than give up on people he tortures them there, praise distracts, looking backward is the deadliest sin — and the torture starts with himself, an admitted self-flagellant whose confidence never silences the inner critic. The host’s translation: excellence equals the capacity to take pain. Terms: public criticism means one mistake taught once to all; torture means sustained pressure toward a standard, applied to self first.</p>
+<div><span class="qchip">Feedback before all</span><span class="qchip">NV30 all-hands + buyer</span><span class="qchip">Vanity vs work (Ive)</span><span class="qchip">Torture, don’t quit</span><span class="qchip">Praise distracts</span></div>
+<ol><li><strong>Surface</strong> the failure to the full room.</li><li><strong>Name</strong> the standard missed, plainly.</li><li><strong>Assign</strong> learning to everyone present.</li><li><strong>Start</strong> the pressure with yourself.</li></ol>
+<svg class="diagram" viewBox="0 0 600 140" role="img" aria-label="One lesson many learners"><title>Broadcast correction</title><g fill="none" stroke="#2B4565" stroke-width="1.5"><circle cx="300" cy="40" r="20"/><circle cx="140" cy="110" r="14"/><circle cx="300" cy="110" r="14"/><circle cx="460" cy="110" r="14"/><line x1="290" y1="58" x2="150" y2="98"/><line x1="300" y1="60" x2="300" y2="96"/><line x1="310" y1="58" x2="450" y2="98"/></g><g font-size="12" text-anchor="middle"><text x="300" y="45">one failure</text><text x="300" y="135">all learn</text></g></svg>
+<div class="card"><strong>Visual analogy.</strong> A flight-safety briefing from one real incident, delivered to every crew at once.<br><span class="pill">Mnemonic: SALT — Surface, All learn, Torture (self first)</span></div>
+<ul><li><strong>Obvious:</strong> Architects questioned before the whole firm.</li><li><strong>Counter-intuitive:</strong> Inviting an angry customer to lecture your staff.</li><li><strong>Edge-case:</strong> Calling kindness-to-faces vanity when work suffers.</li></ul>
+<details><summary>What people get wrong</summary><p>Public feedback reads as humiliation. The stated metric is learning-per-incident — privacy that re-teaches the same failure is costlier.</p></details>
+<p><strong>Why this matters.</strong> Single-loop learning compounds errors; broadcast learning compounds standards.</p>
+<p><strong>Inter-module link.</strong> Shared pain tolerance powers the speed of <a href="#m5">Entry 5</a>.</p>
+<div class="quiz" data-answer="0"><p><strong>Check 4.</strong> Why criticize before everyone?</p><button class="opt" data-i="0">One mistake teaches the entire company once</button><button class="opt" data-i="1">Public fear keeps every employee fully silent</button><button class="opt" data-i="2">Private chats take too much calendar time</button><div class="feedback" aria-live="polite"></div></div>
+<div class="card"><strong>Recall prompt.</strong> What is “tortured into greatness”? <button class="showA">attempt, then reveal</button> <span class="ans" hidden>— Sustained self-then-team pressure toward the standard; quitting refused.</span></div>
+</div>
+<aside class="margin"><b>Margin · misconception</b>Bluntness ≠ cruelty. Target is the standard missed, never the person’s worth.<br><br><b>Margin · why it matters</b>One broadcast correction can retire a whole failure class.</aside>
+</section>
+
+<section class="note" id="m5">
+<div>
+<h2>Entry 5 — Pain Is Power, Light-Speed Is Pace</h2>
+<p><strong>Core explanation.</strong> Jensen’s favorite superpower is not intelligence but endurance of suffering. At Caltech: see setbacks as opportunities; pain and suffering build character, resilience, agility — the ultimate powers; working very long on hard things, handling reversals, spotting the opening around the corner. At Stanford: low expectations beat high ones because high expectations produce low resilience, and resilience decides success — “I hope suffering happens to you,” backed by his own ample supply, with “pain and suffering” invoked inside Nvidia gleefully to refine character. Pace matches the metaphysics. The only benchmark is the theoretical maximum — the speed of light: decompose work, assign each task its no-delay ideal time, and judge against physics rather than history or rivals, admitting only maximum effort with minimum waste. Extremity is total: all hours, thinking about work when not working, work itself relaxing, olympians-grumble framing for complainers, second place as first loser, direct recruiting pitches promising to bankrupt the candidate’s employer, obsession permitted openly. He even staffs by enmity logic learned from Ellison’s Gates rivalry — a foe worthy of steel sharpens both sides, and Jensen’s focus-endurance draws the same comparison. Terms: resilience means converting setbacks into openings repeatedly; light-speed means the physically ideal schedule as the sole comparator.</p>
+<div><span class="qchip">Endurance over IQ</span><span class="qchip">Hope suffering finds you</span><span class="qchip">Judge vs light-speed</span><span class="qchip">Olympians grumble too</span><span class="qchip">Second = first loser</span><span class="qchip">Worthy foe sharpens</span></div>
+<ol><li><strong>Reframe</strong> setbacks as openings.</li><li><strong>Compute</strong> the light-speed schedule.</li><li><strong>Work</strong> all hours you can sustain.</li><li><strong>Pick</strong> a foe worthy of steel.</li></ol>
+<svg class="diagram anim" viewBox="0 0 600 150" role="img" aria-label="Actual versus light speed"><title>Versus physics</title><g fill="none" stroke-width="1.5"><line x1="60" y1="40" x2="540" y2="40" stroke="#2B4565" stroke-width="2.5"/><line x1="60" y1="100" x2="380" y2="100" stroke="#B0B7A8" stroke-width="2.5" stroke-dasharray="6 6"/><circle cx="380" cy="100" r="6" fill="#B0B7A8"><animate attributeName="cx" values="380;540" dur="3s" repeatCount="indefinite"/></circle></g><g font-size="12"><text x="60" y="30">light-speed ideal</text><text x="60" y="125">actual pace → chase ideal</text></g></svg>
+<div class="anim-controls"><button data-a="play">play</button><button data-a="pause">pause</button><button data-a="replay">replay</button></div>
+<p style="font-size:.85rem">Static fallback: fixed ideal line above a chasing actual — gap is the only score.</p>
+<div class="card"><strong>Slider — set the comparator:</strong><input type="range" id="paceSlider" min="0" max="2" value="0" aria-label="Pace comparator slider"><div id="paceOut" style="font-size:.92rem">Level 0: versus last quarter’s pace.</div></div>
+<div class="card"><strong>Visual analogy.</strong> Training at altitude against the clock, not against yesterday’s jog.<br><span class="pill">Mnemonic: RLP — Reframe pain, Light-speed, Pick foe</span></div>
+<ul><li><strong>Obvious:</strong> Urinal grilling ending in twenty listed tasks.</li><li><strong>Counter-intuitive:</strong> Wishing suffering upon Stanford graduates.</li><li><strong>Edge-case:</strong> Recruiting by threatening the candidate’s company.</li></ul>
+<details><summary>What people get wrong</summary><p>Suffering reads as hazing. Here it is training load with a theory: resilience is the muscle, openings the prize.</p></details>
+<p><strong>Why this matters.</strong> Fragile teams negotiate with pain; conditioned ones convert it.</p>
+<p><strong>Inter-module link.</strong> Pace needs named owners — <a href="#m6">Entry 6</a>.</p>
+<div class="quiz" data-answer="2"><p><strong>Check 5.</strong> What should pace be judged against?</p><button class="opt" data-i="0">Last year’s comfortable team average pace</button><button class="opt" data-i="1">Rival roadmaps published at big conferences</button><button class="opt" data-i="2">Theoretical maximum permitted by physics</button><div class="feedback" aria-live="polite"></div></div>
+<div class="quiz" data-answer="0"><p><strong>Check 5b (interleaved with Entry 2).</strong> Success starts feeling comfortable. You:</p><button class="opt" data-i="0">Name comfort the enemy and ship next</button><button class="opt" data-i="1">Celebrate for a quarter and then relax</button><button class="opt" data-i="2">Blame rivals for your slowing tempo</button><div class="feedback" aria-live="polite"></div></div>
+<div class="card"><strong>Recall prompt.</strong> Why do high expectations endanger success? <button class="showA">attempt, then reveal</button> <span class="ans" hidden>— They lower resilience, and resilience decides outcomes.</span></div>
+</div>
+<aside class="margin"><b>Margin · misconception</b>Extreme ≠ endless sprinting. Extremity here is standards + stamina, aimed by physics.<br><br><b>Margin · why it matters</b>Comfortable benchmarks manufacture comfortable companies.</aside>
+</section>
+
+<section class="note" id="m6">
+<div>
+<h2>Entry 6 — One Name, No Plan, Highest First</h2>
+<p><strong>Core explanation.</strong> Three operating rules keep the flat machine honest. First, pilot in command: every project carries one person’s name — nobody hides behind “the team is handling it” — with mission as the boss above the pilot; talent sits in functional pools (sales, engineering, operations) precisely so people can be redirected onto new missions fast, echoing the demand that every requirement name its human author. Second, strategy is action, planned continuously: no five-year plans because the world breathes — Singleton’s school (praised by Munger and Buffett as criminally unstudied) plus Bloomberg’s method of stringing small opportunities, skilling up, working maximum hours, planning a few tactical steps, then re-aiming one move ahead, since central planning failed states and fails founders equally. Third, highest priority first, daily: Jensen’s day succeeds before work because the top task is already done, freeing the rest for helping others — ruthless prioritization restated by Ellison as a handful of things that matter against a thousand that merely occur. The learning habit guards all three: Jensen shows up himself (“I’m here to learn” at AI conferences, no delegates), takes notes like Rales in small rooms, lives Walsh’s line that champions behave like champions before titles, and stays in details that startle (greeting Peter Young by name, tenure, and prior firm at a welcome party) — because the good ones simply know more. Terms: pilot means single accountable name; continuous planning means always re-aiming, never freezing.</p>
+<div><span class="qchip">Pilot in command</span><span class="qchip">Mission is boss</span><span class="qchip">Strategy = action</span><span class="qchip">No five-year plans</span><span class="qchip">Top task before work</span><span class="qchip">Show up, take notes</span></div>
+<ol><li><strong>Name</strong> one pilot per project.</li><li><strong>Act</strong> strategy daily, re-aim often.</li><li><strong>Do</strong> the top task before helping.</li><li><strong>Learn</strong> in person, in detail.</li></ol>
+<svg class="diagram" viewBox="0 0 600 140" role="img" aria-label="One pilot per project"><title>Named ownership</title><g fill="none" stroke="#2B4565" stroke-width="1.5"><rect x="60" y="45" width="130" height="50" rx="8"/><rect x="235" y="45" width="130" height="50" rx="8"/><rect x="410" y="45" width="130" height="50" rx="8"/><text x="125" y="75" font-size="12" text-anchor="middle">Ava</text><text x="300" y="75" font-size="12" text-anchor="middle">Ben</text><text x="475" y="75" font-size="12" text-anchor="middle">Cho</text></g></svg>
+<div class="card"><strong>Visual analogy.</strong> Every ship with one captain’s name on the hull — storms know exactly whom to test.<br><span class="pill">Mnemonic: NATH — Name, Act, Top-first, Here (show up)</span></div>
+<ul><li><strong>Obvious:</strong> No project owned by “the team.”</li><li><strong>Counter-intuitive:</strong> The busiest person attending beginner conferences personally.</li><li><strong>Edge-case:</strong> Knowing a newcomer’s history at a welcome party.</li></ul>
+<details><summary>What people get wrong</summary><p>Planning reads as safety. Here frozen plans are the risk; motion with re-aiming is the hedge.</p></details>
+<p><strong>Why this matters.</strong> Named owners plus daily action turn strategy from words into throughput.</p>
+<p><strong>Inter-module link.</strong> Owners now need markets worth owning — <a href="#m7">Entry 7</a>.</p>
+<div class="quiz" data-answer="1"><p><strong>Check 6.</strong> What does “strategy is action” forbid?</p><button class="opt" data-i="0">Daily tactical moves with frequent re-aiming</button><button class="opt" data-i="1">Frozen five-year plans divorced from reality</button><button class="opt" data-i="2">Named pilots owning each small project</button><div class="feedback" aria-live="polite"></div></div>
+<div class="card"><strong>Recall prompt.</strong> When is Jensen’s day already successful? <button class="showA">attempt, then reveal</button> <span class="ans" hidden>— Before work: top-priority task finished first.</span></div>
+</div>
+<aside class="margin"><b>Margin · misconception</b>Busyness ≠ priority. A thousand tasks done still fails the handful test.<br><br><b>Margin · why it matters</b>Unowned work drifts; unnamed requirements calcify.</aside>
+</section>
+
+<section class="note" id="m7">
+<div>
+<h2>Entry 7 — Make The Market, Swarm It For Decades</h2>
+<p><strong>Core explanation.</strong> Jensen refuses commodities — price-pressured, share-chasing work anyone can do — and instead creates markets where none exist, then swarms them for decades. The doctrine: build what others cannot, cutting-edge enough to attract the best; where there are no customers there are no competitors — a zero-billion market that may grow giant, as robotics was framed at Caltech to laughter and seriousness at once. Land is the patron saint: instant photography had no buyers until invented, and invention built a monopoly with pricing power — mirrored in gamers paying premiums for visibly radical frames and investors accepting premium average prices for a unique semiconductor story. The “whole cow” tactic defends while creating: learning from the Innovator’s Dilemma that threats climb from below, rejected Ferrari-grade chips were repackaged as cheaper lines — revenue from nothing, R&amp;D-free, priced to starve low-end attackers. Talent gets fed accordingly: choke the best with gold — stock treated as blood, allocations pored over, special four-year RSU grants reaching down anytime great work flashes, appreciation delivered in the moment. Then the swarm, the book’s eighty-page crescendo: a 2002 cloud-simulation paper and researchers hacking GPUs (GPGPU, Harris hired) revealed non-graphical demand; Jensen made such uses easier and markets widened on cue. Through 2007–08 he bet the firm — margins 45% to 35%, stock down 80% in the crisis — saturating CUDA everywhere as foundational technology, teaching the market himself (100+ talks a year, his own Illinois class, a self-written translated textbook) the way Intel once road-showed microprocessors, overruling lieutenants who called deep learning a fad. The result reads as a moat, though he prefers “self-reinforcing network” — moats invite the complacency of Entry 2 — as CUDA learners demand GPUs and GPU ubiquity teaches CUDA. The book’s last line seals the ethic: no shortcuts, the harder route, adversity the best teacher — at a pace that would burn out most, loved without irony.</p>
+<div><span class="qchip">No commodities</span><span class="qchip">$0B markets</span><span class="qchip">Whole-cow defense</span><span class="qchip">Choke with gold</span><span class="qchip">GPGPU → CUDA</span><span class="qchip">Teach the market</span><span class="qchip">Network, not moat</span></div>
+<ol><li><strong>Create</strong> where customers don’t exist yet.</li><li><strong>Defend</strong> below with whole-cow lines.</li><li><strong>Feed</strong> winners with timely gold.</li><li><strong>Swarm</strong> for decades, teaching all.</li></ol>
+<svg class="diagram anim" viewBox="0 0 600 160" role="img" aria-label="Swarm adoption curve"><title>Create then swarm</title><g fill="none" stroke-width="1.5"><circle cx="100" cy="110" r="8" stroke="#B0B7A8"/><path d="M100 110 Q250 110 330 70 T550 30" stroke="#2B4565" stroke-width="2.5"/><circle cx="330" cy="70" r="6" fill="#2B4565"><animate attributeName="r" values="6;9;6" dur="2s" repeatCount="indefinite"/></circle></g><g font-size="12"><text x="100" y="135">$0B market</text><text x="330" y="95">CUDA push</text><text x="520" y="50">standard</text></g></svg>
+<div class="anim-controls"><button data-a="play">play</button><button data-a="pause">pause</button><button data-a="replay">replay</button></div>
+<p style="font-size:.85rem">Static fallback: dot at zero bending into a steep standard — decades between points.</p>
+<div class="card"><strong>Visual analogy.</strong> <span id="anaShort">Plant the orchard, then flood the valley.</span><span id="anaLong" hidden> Plant the orchard where nobody lives, defend the saplings below, pay the gardeners in gold, then flood the valley with free saplings and lessons until your fruit becomes the region’s staple — that is create, defend, feed, swarm.</span> <button id="anaToggle">expand analogy</button></div>
+<ul><li><strong>Obvious:</strong> Rejected chips reborn as budget lines.</li><li><strong>Counter-intuitive:</strong> Building where assuredly no customers wait.</li><li><strong>Edge-case:</strong> Margin collapse plus 80% crash met with more investment.</li></ul>
+<details><summary>What people get wrong</summary><p>Market creation reads as invention alone. Here invention is a quarter of it; teaching, saturating, and decade-holding finish it.</p></details>
+<p><strong>Why this matters.</strong> Created markets price on uniqueness; contested ones price on desperation.</p>
+<p><strong>Inter-module link.</strong> Decades of swarming demand the teaching loop of <a href="#m1">Entry 1</a> — full circle.</p>
+<div id="dd1"><p><strong>Match (drag the move onto its meaning):</strong></p><div><span class="chip" draggable="true" data-k="cow">cow</span><span class="chip" draggable="true" data-k="gold">gold</span><span class="chip" draggable="true" data-k="swarm">swarm</span></div><div class="dropzone" data-k="cow">rejected parts reborn as budget defense</div><div class="dropzone" data-k="gold">timely stock grants feeding top talent</div><div class="dropzone" data-k="swarm">decades of saturating one opportunity</div><div class="feedback" aria-live="polite"></div></div>
+<div class="quiz" data-answer="2"><p><strong>Check 7.</strong> Why build where no customers exist?</p><button class="opt" data-i="0">Marketing costs drop to nearly zero there</button><button class="opt" data-i="1">Regulators always approve empty new markets</button><button class="opt" data-i="2">Zero customers means zero competitors waiting</button><div class="feedback" aria-live="polite"></div></div>
+<div class="card"><strong>Recall prompt.</strong> Why “network,” not “moat”? <button class="showA">attempt, then reveal</button> <span class="ans" hidden>— Moats breed complacency; networks demand tending.</span></div>
+</div>
+<aside class="margin"><b>Margin · misconception</b>New markets ≠ quick wins. Zero-billion starts need decade wallets.<br><br><b>Margin · why it matters</b>Uniqueness sets prices; sameness begs them.</aside>
+</section>
+
+<h2>Summary and Cheat Sheet</h2>
+<p>Second sightings aid memory. Click a definition to reveal it, then copy the sheet.</p>
+<table class="sheet" id="cheat"><tr><th>Term</th><th>Meaning (click to reveal)</th></tr>
+<tr><td>Mind-meld</td><td class="def" tabindex="0">Strategy repeated identically by unconnected staff.</td></tr>
+<tr><td>Ephemerality</td><td class="def" tabindex="0">Good ideas expire by policy for better ones.</td></tr>
+<tr><td>Complacency</td><td class="def" tabindex="0">Success quietly lowering standards; the true enemy.</td></tr>
+<tr><td>Flat + edge</td><td class="def" tabindex="0">Sixty directs; truth read raw from the edge.</td></tr>
+<tr><td>LUIA</td><td class="def" tabindex="0">Listen, understand, answer — stop rambling.</td></tr>
+<tr><td>Broadcast correction</td><td class="def" tabindex="0">One failure taught once to everyone.</td></tr>
+<tr><td>Tortured</td><td class="def" tabindex="0">Sustained pressure to standard, self first.</td></tr>
+<tr><td>Light-speed</td><td class="def" tabindex="0">Physics-ideal schedule as sole comparator.</td></tr>
+<tr><td>Pilot</td><td class="def" tabindex="0">Single named owner per project.</td></tr>
+<tr><td>Strategy = action</td><td class="def" tabindex="0">Continuous moves, re-aimed; never frozen plans.</td></tr>
+<tr><td>Whole cow</td><td class="def" tabindex="0">Rejects reborn as low-end defense lines.</td></tr>
+<tr><td>Swarm</td><td class="def" tabindex="0">Saturate one opportunity for decades, teaching all.</td></tr>
+</table>
+<button id="copySheet">copy cheat sheet</button> <span id="copyMsg" style="font-size:.85rem"></span>
+
+<h2>FAQ</h2>
+<details><summary>Sixty direct reports sounds chaotic — how is it fast?</summary><p>No layers means signal travels in one hop, and top-five emails make the sixty searchable. Independence is mandatory, so the weak self-select out.</p></details>
+<details><summary>Is public criticism compatible with retaining talent?</summary><p>The book’s answer: target standards, own failures first, teach everyone at once — and pay top talent in timely gold. Pressure with visible fairness retains missionaries.</p></details>
+<details><summary>How do I copy “light-speed” without burning out?</summary><p>Use it as comparator, not whip: compute the no-delay ideal, close the gap steadily, and let pain refine rather than merely punish.</p></details>
+<details><summary>Where should I read next?</summary><p><em>The Nvidia Way</em> for all twenty ideas, Grove on paranoia, the <em>Innovator’s Dilemma</em> for whole-cow logic, and Jensen’s Caltech and Stanford addresses for pain and craft.</p></details>
+
+<h2>Next Steps</h2>
+<ul>
+<li><label><input type="checkbox" class="nc"> Teach once on a whiteboard; quiz two colleagues for identical replay.</label></li>
+<li><label><input type="checkbox" class="nc"> Start top-five Fridays: five action-first bullets, tagged, from the edge.</label></li>
+<li><label><input type="checkbox" class="nc"> Name one pilot, set one light-speed target, broadcast one correction.</label></li>
+<li>Wisdom practice: explain one entry to your team until they can teach it back — mind-meld check.</li>
+<li>Primary source: read <em>The Nvidia Way</em> (Entries 1–4: teaching, complacency, flatness, criticism; Entries 5–7: pain, ownership, swarm) plus Jensen’s addresses, with company context at <a href="https://www.nvidia.com/">NVIDIA</a>.</li>
+</ul>
+
+<footer>Source: transcript “How Jensen Works” (Founders podcast on <em>The Nvidia Way</em>) + <a href="https://www.nvidia.com/">NVIDIA</a> for company context as background.<br>Stuck? Ask the agent a follow-up question about any module.</footer>
+
+</div>
+<script>
+const bar=document.getElementById('progress');
+addEventListener('scroll',()=>{const h=document.documentElement;const p=h.scrollTop/(h.scrollHeight-h.clientHeight||1);bar.style.width=(p*100)+'%';},{passive:true});
+const t=document.getElementById('themeToggle');t.addEventListener('click',()=>document.body.classList.toggle('dark'));
+if(matchMedia('(prefers-color-scheme: dark)').matches)document.body.classList.add('dark');
+const WHY={'Check 1.':'live boards expose thinking; decks conceal it.','Check 2.':'the transcript names the firm itself as foe.','Check 3.':'raw edge notes beat layered summaries always.','Check 4.':'broadcast lessons retire whole failure classes.','Check 5.':'physics ideals expose every avoidable delay.','Check 5b':'comfort is the named enemy; ship next.','Check 6.':'frozen plans rot while movers re-aim.','Check 7.':'empty markets mean no entrenched defenders.'};
+document.querySelectorAll('.quiz').forEach(q=>{const ans=+q.dataset.answer;const fb=q.querySelector('.feedback');q.querySelectorAll('.opt').forEach(b=>b.addEventListener('click',()=>{const ok=+b.dataset.i===ans;let w='the entry defines each term once.';for(const k in WHY){if(q.textContent.includes(k)){w=WHY[k];break;}}fb.textContent=(ok?'Correct — ':'Not quite — ')+w;b.style.borderColor=ok?'green':'red';}));});
+document.querySelectorAll('.flash').forEach(f=>{const a=f.querySelector('.a');f.addEventListener('click',()=>{a.hidden=!a.hidden;});f.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();a.hidden=!a.hidden;}});});
+document.querySelectorAll('.showA').forEach(b=>b.addEventListener('click',()=>{const s=b.parentElement.querySelector('.ans');s.hidden=!s.hidden;b.textContent=s.hidden?'attempt, then reveal':'hide answer';}));
+document.querySelectorAll('#dd1 .chip').forEach(c=>{c.addEventListener('dragstart',e=>e.dataTransfer.setData('text',c.dataset.k));});
+document.querySelectorAll('#dd1 .dropzone').forEach(z=>{z.addEventListener('dragover',e=>e.preventDefault());z.addEventListener('drop',e=>{e.preventDefault();const k=e.dataTransfer.getData('text');const fb=document.querySelector('#dd1 .feedback');if(k===z.dataset.k){z.style.borderColor='green';z.innerHTML+=' ✓';fb.textContent='Correct — each term keeps one fixed meaning from the cheat sheet.';}else{fb.textContent='Not quite — cow=rejects, gold=grants, swarm=decades.';}});});
+const sl=document.getElementById('paceSlider'),out=document.getElementById('paceOut');if(sl){const lv=['Level 0: versus last quarter’s pace.','Level 1: versus the best rival’s pace.','Level 2: versus the light-speed ideal.'];sl.addEventListener('input',()=>out.textContent=lv[+sl.value]);}
+document.getElementById('anaToggle').addEventListener('click',e=>{const l=document.getElementById('anaLong'),s=document.getElementById('anaShort');const open=l.hidden;l.hidden=!open;s.hidden=open;e.target.textContent=open?'collapse analogy':'expand analogy';});
+document.querySelectorAll('td.def').forEach(d=>{const full=d.textContent;d.textContent='click to reveal';d.addEventListener('click',()=>{d.textContent=d.textContent==='click to reveal'?full:'click to reveal';});});
+document.getElementById('copySheet').addEventListener('click',()=>{if(navigator.clipboard)navigator.clipboard.writeText('How Jensen Works cheat sheet — see lesson table').then(()=>document.getElementById('copyMsg').textContent='Copied — paste into your notes. Why: hand reuse aids recall.');});
+document.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>{const svg=b.closest('.note').querySelector('svg.anim');if(!svg)return;svg.classList.remove('paused');if(b.dataset.a==='pause')svg.classList.add('paused');if(b.dataset.a==='replay'){svg.classList.add('paused');void svg.getBoundingClientRect();svg.classList.remove('paused');}}));
+</script>
+</body>
+</html>

@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG, Before You Build: A Working Brief</title>
+<style>
+  :root{
+    --ink:#0E1512; --panel:#141C18; --panel-2:#1A2420; --line:#2A362F;
+    --text:#E7E6DE; --text-dim:#9BA79D;
+    --cyan:#6FE7C5; --amber:#E8B34F; --coral:#E97A63;
+    --mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+    --serif:'Source Serif 4','Iowan Old Style',Georgia,serif;
+    --sans:'Inter',-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0; background:var(--ink); color:var(--text); font-family:var(--sans); line-height:1.55; font-size:16.5px;}
+  ::selection{background:var(--cyan); color:#08120E;}
+
+  .shell{display:grid; grid-template-columns:250px 1fr; max-width:1240px; margin:0 auto;}
+  @media (max-width:900px){ .shell{grid-template-columns:1fr;} nav.toc{display:none;} }
+
+  nav.toc{position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto; padding:32px 18px 40px 26px; border-right:1px solid var(--line);}
+  nav.toc .brand{font-family:var(--mono); font-size:12px; letter-spacing:.04em; color:var(--text-dim); margin-bottom:24px;}
+  nav.toc .brand b{color:var(--cyan); font-weight:600;}
+  nav.toc ol{list-style:none; margin:0; padding:0; counter-reset:step;}
+  nav.toc li{counter-increment:step; margin-bottom:1px;}
+  nav.toc a{display:flex; gap:9px; padding:7px 9px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:13.5px; transition:.15s;}
+  nav.toc a::before{content:counter(step,decimal-leading-zero); font-family:var(--mono); font-size:11px; color:var(--line); flex:none;}
+  nav.toc a:hover, nav.toc a.active{background:var(--panel); color:var(--text);}
+  nav.toc a.active::before{color:var(--cyan);}
+
+  main{padding:48px 44px 110px; min-width:0;}
+  @media (max-width:900px){ main{padding:28px 18px 80px;} }
+
+  header.hero{max-width:660px; margin-bottom:52px;}
+  header.hero .kicker{font-family:var(--mono); font-size:12.5px; color:var(--coral); margin-bottom:12px;}
+  header.hero h1{font-family:var(--serif); font-size:42px; line-height:1.1; margin:0 0 16px; font-weight:500;}
+  header.hero p{color:var(--text-dim); font-size:16.5px; max-width:56ch;}
+  header.hero .meta{display:flex; gap:20px; margin-top:22px; font-family:var(--mono); font-size:12.5px; color:var(--text-dim);}
+  header.hero .meta span b{color:var(--text);}
+
+  section.lesson{max-width:700px; margin-bottom:64px; scroll-margin-top:20px;}
+  section.lesson .num{font-family:var(--mono); color:var(--cyan); font-size:13px; margin-bottom:8px;}
+  section.lesson h2{font-family:var(--serif); font-size:28px; font-weight:500; margin:0 0 14px;}
+  section.lesson h3{font-size:17.5px; margin:26px 0 8px; color:var(--text);}
+  section.lesson p{color:#CFD3C9; margin:0 0 12px; font-size:15.5px;}
+  section.lesson p.lede{color:var(--text); font-size:16.5px;}
+  section.lesson ul{margin:0 0 14px; padding-left:20px; color:#CFD3C9; font-size:15.5px;}
+  section.lesson li{margin-bottom:6px;}
+  section.lesson code{font-family:var(--mono); background:var(--panel-2); padding:2px 6px; border-radius:4px; font-size:14.5px; color:var(--cyan);}
+
+  .example{background:var(--panel); border:1px solid var(--line); border-radius:12px; margin:18px 0; overflow:hidden;}
+  .example .exhead{display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel-2);}
+  .example .exhead span{font-family:var(--mono); font-size:11px; color:var(--text-dim); letter-spacing:.03em;}
+  .example .exhead .exlabel{color:var(--cyan);}
+  .example pre{margin:0; padding:16px; overflow-x:auto; font-family:var(--mono); font-size:13px; line-height:1.6; color:#D9DED6;}
+  .example pre .cm{color:#6C7A70;}
+  .example pre .kw{color:#E8B34F;}
+  .example pre .st{color:#6FE7C5;}
+  .example pre .fn{color:#8FB8E8;}
+  .example .exnote{padding:12px 16px; border-top:1px solid var(--line); font-size:13.5px; color:var(--text-dim);}
+  .example .exnote b{color:var(--text);}
+  .real-example{background:var(--panel-2); border-left:3px solid var(--cyan); border-radius:0 8px 8px 0; padding:12px 16px; margin:16px 0; font-size:14.5px; color:#CFD3C9;}
+  .real-example b{color:var(--cyan); font-family:var(--mono); font-size:11px; display:block; margin-bottom:5px; letter-spacing:.03em;}
+
+  .callout{border-left:3px solid var(--amber); background:var(--panel); padding:14px 18px; border-radius:0 8px 8px 0; margin:20px 0; font-size:14.5px; color:var(--text-dim);}
+  .callout b{color:var(--amber); font-family:var(--mono); font-size:11.5px; letter-spacing:.03em; display:block; margin-bottom:5px;}
+  .callout.pitfall{border-color:var(--coral);}
+  .callout.pitfall b{color:var(--coral);}
+
+  .diagram{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; margin:22px 0; overflow-x:auto;}
+  .diagram svg{display:block; margin:0 auto; max-width:100%; height:auto;}
+  .diagram .caption{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); margin-top:10px; text-align:center;}
+  .flow-controls{display:flex; align-items:center; gap:10px; justify-content:center; margin-top:14px; flex-wrap:wrap;}
+  .flow-controls button{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-family:var(--mono);
+    font-size:12.5px; padding:8px 14px; border-radius:20px; cursor:pointer; transition:.15s;
+  }
+  .flow-controls button:hover{border-color:var(--cyan); color:var(--cyan);}
+  .flow-controls button:disabled{opacity:.35; cursor:default;}
+  .flow-status{font-family:var(--mono); font-size:12.5px; color:var(--cyan); min-height:18px; text-align:center; margin-top:10px;}
+
+  .node{transition:filter .25s, opacity .25s;}
+  .node.dim{opacity:.35;}
+  .node.active rect{filter:drop-shadow(0 0 8px currentColor);}
+  .edge{stroke-dasharray:6 4; opacity:.25; transition:opacity .25s;}
+  .edge.active{opacity:1; animation:dash 0.6s linear infinite;}
+  @keyframes dash{to{stroke-dashoffset:-20;}}
+
+  .tabs{border:1px solid var(--line); border-radius:12px; overflow:hidden; margin:20px 0; background:var(--panel);}
+  .tabs .tabbar{display:flex; flex-wrap:wrap; border-bottom:1px solid var(--line);}
+  .tabs .tabbar button{flex:1; min-width:100px; padding:11px 8px; background:none; border:none; color:var(--text-dim); font-family:var(--sans); font-size:13.5px; cursor:pointer; border-bottom:2px solid transparent; transition:.15s;}
+  .tabs .tabbar button:hover{color:var(--text);}
+  .tabs .tabbar button.active{color:var(--cyan); border-bottom-color:var(--cyan); background:var(--panel-2);}
+  .tabs .tabpanel{display:none; padding:18px 20px;}
+  .tabs .tabpanel.active{display:block; animation:fade .2s ease;}
+  .tabs .tabpanel h4{margin:0 0 6px; font-size:15px; color:var(--text);}
+  .tabs .tabpanel p{color:var(--text-dim); font-size:14px; margin:0 0 8px;}
+  .tag{display:inline-block; font-family:var(--mono); font-size:10.5px; padding:3px 8px; border-radius:20px; margin-right:6px; margin-top:4px;}
+  .tag.good{background:rgba(111,231,197,.12); color:var(--cyan);}
+  .tag.bad{background:rgba(233,122,99,.12); color:var(--coral);}
+  @keyframes fade{from{opacity:0;} to{opacity:1;}}
+
+  .accordion .item{border:1px solid var(--line); border-radius:10px; margin-bottom:8px; background:var(--panel); overflow:hidden;}
+  .accordion .item summary{list-style:none; cursor:pointer; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; font-size:15px; color:var(--text);}
+  .accordion .item summary::-webkit-details-marker{display:none;}
+  .accordion .item summary::after{content:"+"; font-family:var(--mono); color:var(--cyan); font-size:17px;}
+  .accordion .item[open] summary::after{content:"–";}
+  .accordion .item .body{padding:0 18px 16px; color:var(--text-dim); font-size:14px;}
+
+  table.cmp{width:100%; border-collapse:collapse; margin:20px 0; font-size:13.5px;}
+  table.cmp th, table.cmp td{padding:10px 12px; border-bottom:1px solid var(--line); text-align:left;}
+  table.cmp th{font-family:var(--mono); font-size:11px; color:var(--text-dim); font-weight:500;}
+  table.cmp td{color:var(--text);}
+  table.cmp tr:hover td{background:var(--panel-2);}
+
+  .chunk-demo{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:20px 0;}
+  .chunk-demo .controls{display:flex; gap:20px; flex-wrap:wrap; margin-bottom:14px; font-family:var(--mono); font-size:12.5px; color:var(--text-dim);}
+  .chunk-demo input[type=range]{width:160px; accent-color:var(--cyan); vertical-align:middle;}
+  .chunk-demo .value{color:var(--cyan);}
+  .chunk-demo .sample{font-family:var(--mono); font-size:13px; line-height:1.6; background:var(--ink); border-radius:8px; padding:14px; word-wrap:break-word; white-space:pre-wrap;}
+
+  .simdemo{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:20px 0;}
+  .simdemo .qbar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+  .simdemo .qbar button{background:var(--panel-2); border:1px solid var(--line); color:var(--text-dim); font-family:var(--sans); font-size:13px; padding:7px 12px; border-radius:20px; cursor:pointer;}
+  .simdemo .qbar button.active{border-color:var(--cyan); color:var(--cyan);}
+  .simdemo .cols{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:560px){ .simdemo .cols{grid-template-columns:1fr;} }
+  .simdemo .col h5{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin:0 0 8px;}
+  .simdemo .hit{background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:9px 11px; margin-bottom:6px; font-size:13px; color:var(--text);}
+  .simdemo .hit .score{float:right; font-family:var(--mono); color:var(--cyan); font-size:11.5px;}
+  .simdemo .hit.miss{opacity:.4; text-decoration:line-through;}
+
+  .quiz{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; margin:20px 0;}
+  .quiz .q{margin-bottom:18px;}
+  .quiz .q p.question{color:var(--text); font-weight:600; margin-bottom:10px; font-size:15px;}
+  .quiz .opts{display:flex; flex-direction:column; gap:7px;}
+  .quiz button.opt{text-align:left; background:var(--panel-2); border:1px solid var(--line); color:var(--text); padding:10px 13px; border-radius:8px; cursor:pointer; font-size:14px; font-family:var(--sans); transition:.15s;}
+  .quiz button.opt:hover{border-color:var(--cyan);}
+  .quiz button.opt.correct{border-color:var(--cyan); background:rgba(111,231,197,.1); color:var(--cyan);}
+  .quiz button.opt.wrong{border-color:var(--coral); background:rgba(233,122,99,.1); color:var(--coral);}
+  .quiz .explain{display:none; font-size:13.5px; color:var(--text-dim); margin-top:8px; padding-left:2px;}
+  .quiz .explain.show{display:block;}
+  .quiz-score{font-family:var(--mono); color:var(--cyan); font-size:13.5px; margin-bottom:16px;}
+
+  .checklist{display:flex; flex-direction:column; gap:0; margin:20px 0;}
+  .checklist label{display:flex; align-items:flex-start; gap:11px; padding:12px 4px; border-bottom:1px solid var(--line); cursor:pointer; font-size:14.5px; color:var(--text-dim);}
+  .checklist label:hover{color:var(--text);}
+  .checklist input{margin-top:3px; accent-color:var(--cyan); width:16px; height:16px; flex:none;}
+  .checklist input:checked + span{color:var(--text); text-decoration:line-through; text-decoration-color:var(--cyan);}
+  .checklist .progress{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:10px;}
+
+  footer{border-top:1px solid var(--line); padding:32px 44px 56px; font-family:var(--mono); font-size:12px; color:var(--text-dim); max-width:1240px; margin:0 auto;}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="toc" id="toc">
+    <div class="brand"><b>RAG//</b> pre-build brief</div>
+    <ol>
+      <li><a href="#why">Why RAG exists</a></li>
+      <li><a href="#pipeline">The pipeline (live)</a></li>
+      <li><a href="#chunking">Chunking</a></li>
+      <li><a href="#embeddings">Embeddings</a></li>
+      <li><a href="#vectordb">Vector stores</a></li>
+      <li><a href="#retrieval">Retrieval strategy</a></li>
+      <li><a href="#augment">Augmentation & prompting</a></li>
+      <li><a href="#eval">Evaluation</a></li>
+      <li><a href="#pitfalls">Common pitfalls</a></li>
+      <li><a href="#quiz">Check yourself</a></li>
+      <li><a href="#checklist">Build checklist</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="kicker">FIELD BRIEF — READ BEFORE BUILDING</div>
+      <h1>Everything to settle before you write a line of RAG code.</h1>
+      <p>RAG looks like glue code between a vector database and an LLM. It fails like a system with eleven independent decision points. Short version, all eleven, in order.</p>
+      <div class="meta">
+        <span><b>11</b> sections</span>
+        <span><b>~12 min</b> read</span>
+        <span><b>5</b> interactive demos</span>
+      </div>
+    </header>
+
+    <!-- 1 -->
+    <section class="lesson" id="why">
+      <div class="num">01</div>
+      <h2>Why RAG exists</h2>
+      <p class="lede">An LLM only knows what was frozen into it at training time. RAG hands it relevant documents at answer-time instead of retraining it.</p>
+      <p>It buys you three things fine-tuning doesn't: <b>freshness</b> (data changes, weights don't), <b>groundedness</b> (answers can cite a real passage), and <b>privacy</b> (documents stay in your own store, never enter the model's weights).</p>
+      <div class="callout">
+        <b>DECIDE FIRST</b>
+        Is this a knowledge gap or a reasoning gap? RAG only fixes the first. If the model has the facts and still reasons badly, more retrieval won't help.
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="lesson" id="pipeline">
+      <div class="num">02</div>
+      <h2>The pipeline — run it yourself</h2>
+      <p class="lede">Two paths share one store: an offline path that indexes your data, and an online path that answers a query. Press play.</p>
+      <div class="diagram">
+        <svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#6FE7C5"/>
+            </marker>
+          </defs>
+          <text x="16" y="20" fill="#9BA79D" font-family="IBM Plex Mono, monospace" font-size="11">OFFLINE — INDEXING</text>
+          <g font-family="Inter, sans-serif" font-size="12.5" fill="#E7E6DE">
+            <g class="node" id="n-docs"><rect x="16" y="32" width="110" height="46" rx="8" fill="#1A2420" stroke="#2A362F"/><text x="71" y="59" text-anchor="middle">Documents</text></g>
+            <g class="node" id="n-chunk"><rect x="164" y="32" width="110" height="46" rx="8" fill="#1A2420" stroke="#2A362F"/><text x="219" y="59" text-anchor="middle">Chunking</text></g>
+            <g class="node" id="n-embed1"><rect x="312" y="32" width="110" height="46" rx="8" fill="#1A2420" stroke="#2A362F"/><text x="367" y="59" text-anchor="middle">Embedding</text></g>
+            <g class="node" id="n-store1"><rect x="460" y="32" width="170" height="46" rx="8" fill="#16211C" stroke="#6FE7C5"/><text x="545" y="59" text-anchor="middle" fill="#6FE7C5">Vector Store</text></g>
+          </g>
+          <line class="edge" id="e-docs-chunk" x1="126" y1="55" x2="162" y2="55" stroke="#6FE7C5" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line class="edge" id="e-chunk-embed1" x1="274" y1="55" x2="310" y2="55" stroke="#6FE7C5" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line class="edge" id="e-embed1-store" x1="422" y1="55" x2="458" y2="55" stroke="#6FE7C5" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+          <text x="16" y="122" fill="#9BA79D" font-family="IBM Plex Mono, monospace" font-size="11">ONLINE — QUERY TIME</text>
+          <g font-family="Inter, sans-serif" font-size="12.5" fill="#E7E6DE">
+            <g class="node" id="n-query"><rect x="16" y="134" width="110" height="46" rx="8" fill="#1A2420" stroke="#2A362F"/><text x="71" y="161" text-anchor="middle">User Query</text></g>
+            <g class="node" id="n-embed2"><rect x="164" y="134" width="110" height="46" rx="8" fill="#1A2420" stroke="#2A362F"/><text x="219" y="161" text-anchor="middle">Query Embed</text></g>
+            <g class="node" id="n-store2"><rect x="460" y="134" width="170" height="46" rx="8" fill="#16211C" stroke="#6FE7C5"/><text x="545" y="156" text-anchor="middle" fill="#6FE7C5">Vector Store</text><text x="545" y="171" text-anchor="middle" fill="#6FE7C5" font-size="10">similarity search</text></g>
+          </g>
+          <line class="edge" id="e-query-embed2" x1="126" y1="157" x2="162" y2="157" stroke="#6FE7C5" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line class="edge" id="e-embed2-store2" x1="274" y1="157" x2="458" y2="157" stroke="#6FE7C5" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line class="edge" id="e-store2-topk" x1="545" y1="180" x2="545" y2="208" stroke="#E8B34F" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line class="edge" id="e-topk-prompt" x1="458" y1="245" x2="284" y2="245" stroke="#E8B34F" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+          <g font-family="Inter, sans-serif" font-size="12.5" fill="#E7E6DE">
+            <g class="node" id="n-topk"><rect x="460" y="208" width="170" height="46" rx="8" fill="#1A2420" stroke="#E8B34F"/><text x="545" y="228" text-anchor="middle" fill="#E8B34F">Top-k Chunks</text><text x="545" y="243" text-anchor="middle" fill="#E8B34F" font-size="10">retrieved context</text></g>
+            <g class="node" id="n-prompt"><rect x="120" y="222" width="164" height="46" rx="8" fill="#1A2420" stroke="#2A362F"/><text x="202" y="242" text-anchor="middle">Prompt Assembly</text><text x="202" y="257" text-anchor="middle" fill="#9BA79D" font-size="10">query + context</text></g>
+            <g class="node" id="n-llm"><rect x="120" y="292" width="164" height="34" rx="8" fill="#16211C" stroke="#6FE7C5"/><text x="202" y="314" text-anchor="middle" fill="#6FE7C5">LLM → Answer</text></g>
+          </g>
+          <line class="edge" id="e-prompt-llm" x1="202" y1="268" x2="202" y2="290" stroke="#6FE7C5" stroke-width="1.5" marker-end="url(#arrow)"/>
+        </svg>
+        <div class="flow-controls">
+          <button id="flowBack">◀ Back</button>
+          <button id="flowPlay">▶ Run query</button>
+          <button id="flowReset">↺ Reset</button>
+        </div>
+        <div class="flow-status" id="flowStatus">Press "Run query" to watch data move through the pipeline.</div>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="lesson" id="chunking">
+      <div class="num">03</div>
+      <h2>Chunking</h2>
+      <p class="lede">Documents get split into chunks before they can be embedded. Size and overlap decide what's even findable later.</p>
+      <div class="chunk-demo">
+        <div class="controls">
+          <label>Chunk size: <span id="csVal" class="value">120</span> chars<br><input type="range" id="chunkSize" min="40" max="220" step="10" value="120"></label>
+          <label>Overlap: <span id="ovVal" class="value">20</span> chars<br><input type="range" id="overlap" min="0" max="60" step="10" value="20"></label>
+        </div>
+        <div class="sample" id="chunkOutput"></div>
+      </div>
+      <div class="tabs" id="chunkTabs">
+        <div class="tabbar">
+          <button class="active" data-tab="fixed">Fixed-size</button>
+          <button data-tab="semantic">Semantic</button>
+          <button data-tab="recursive">Recursive</button>
+          <button data-tab="structural">Structural</button>
+        </div>
+        <div class="tabpanel active" data-panel="fixed"><h4>Fixed-size</h4><p>Split every N tokens with a fixed overlap. Trivial, model-agnostic, predictable cost.</p><span class="tag good">Fast to ship</span><span class="tag bad">Splits mid-idea</span></div>
+        <div class="tabpanel" data-panel="semantic"><h4>Semantic</h4><p>Split where embedding similarity between adjacent sentences drops — where topic actually changes.</p><span class="tag good">Coherent chunks</span><span class="tag bad">Slower to index</span></div>
+        <div class="tabpanel" data-panel="recursive"><h4>Recursive</h4><p>Try paragraph breaks first, then sentences, then words, falling back to a hard cut only if needed. Sane default.</p><span class="tag good">Good default</span><span class="tag bad">Ignores structure</span></div>
+        <div class="tabpanel" data-panel="structural"><h4>Structural</h4><p>Split along the doc's own structure — headers, tables, code boundaries. Needed when hierarchy matters.</p><span class="tag good">Preserves meaning</span><span class="tag bad">Needs per-format parsers</span></div>
+      </div>
+      <div class="example">
+        <div class="exhead"><span class="exlabel">EXAMPLE</span><span>recursive chunking, Python</span></div>
+        <pre><span class="cm"># splits on paragraphs first, then sentences, then words</span>
+<span class="kw">from</span> langchain.text_splitter <span class="kw">import</span> RecursiveCharacterTextSplitter
+
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=<span class="fn">500</span>,      <span class="cm"># chars per chunk</span>
+    chunk_overlap=<span class="fn">50</span>,    <span class="cm"># shared context between chunks</span>
+    separators=[<span class="st">"\n\n"</span>, <span class="st">"\n"</span>, <span class="st">". "</span>, <span class="st">" "</span>]
+)
+chunks = splitter.split_text(document_text)
+<span class="cm"># chunks[0] -> "Retrieval-Augmented Generation grounds a model's..."</span></pre>
+        <div class="exnote"><b>Real case:</b> a 40-page PDF policy manual → ~85 chunks at 500 chars. A user asking about "refund windows" only needs the 2–3 chunks mentioning refunds, not all 85.</div>
+      </div>
+      <div class="callout pitfall">
+        <b>PITFALL</b>
+        Too small loses context; too large drowns the relevant sentence in noise. No universal right size — test against your own data.
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="lesson" id="embeddings">
+      <div class="num">04</div>
+      <h2>Embeddings</h2>
+      <p class="lede">A vector puts each chunk at a point in space, so similar meaning lands nearby. Retrieval = "find the nearest points."</p>
+      <table class="cmp">
+        <tr><th>Consideration</th><th>What to check</th></tr>
+        <tr><td>Dimensionality</td><td>Higher isn't free — it raises storage/search cost. 384–1536 covers most cases.</td></tr>
+        <tr><td>Domain fit</td><td>General models struggle on legal, medical, code text. Domain-tuned models can beat them clearly.</td></tr>
+        <tr><td>Max input length</td><td>Chunk size must fit the embedder's context window, or it's silently truncated.</td></tr>
+        <tr><td>Symmetric vs asymmetric</td><td>Some models embed short queries and long passages differently — wrong mode hurts retrieval.</td></tr>
+        <tr><td>Consistency</td><td>Never mix embeddings from two different models in one index.</td></tr>
+      </table>
+      <p><b>Try it:</b> click a query below to see which of three stored chunks it lands nearest to.</p>
+      <div class="simdemo" id="embedDemo">
+        <div class="qbar" id="embedQbar"></div>
+        <div class="cols">
+          <div class="col"><h5>STORED CHUNKS (fixed)</h5><div id="embedChunks"></div></div>
+          <div class="col"><h5>NEAREST-NEIGHBOR RESULT</h5><div id="embedResult"></div></div>
+        </div>
+      </div>
+      <div class="example">
+        <div class="exhead"><span class="exlabel">EXAMPLE</span><span>generating an embedding, Python</span></div>
+        <pre><span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+client = OpenAI()
+
+response = client.embeddings.create(
+    model=<span class="st">"text-embedding-3-small"</span>,
+    input=<span class="st">"Refund requests must be filed within 30 days."</span>
+)
+vector = response.data[<span class="fn">0</span>].embedding
+<span class="cm"># vector -> [0.0023, -0.0187, 0.0412, ...]  (1536 numbers)</span></pre>
+        <div class="exnote"><b>Real case:</b> "How do I get my money back?" and "refund requests" produce vectors close together in space even though they share almost no words — that's the whole point of embedding over keyword matching.</div>
+      </div>
+      <div class="callout"><b>DECIDE FIRST</b> Switching embedding models later means re-embedding every chunk — no partial migration.</div>
+    </section>
+
+    <!-- 5 -->
+    <section class="lesson" id="vectordb">
+      <div class="num">05</div>
+      <h2>Vector stores</h2>
+      <p>Indexes embeddings for fast approximate nearest-neighbor search, usually alongside the original text and metadata.</p>
+      <div class="accordion">
+        <details class="item" open><summary>Embedded / in-process</summary><div class="body">Runs inside your app, no separate server. Fine under ~100k chunks. Doesn't scale horizontally, weak metadata filtering.</div></details>
+        <details class="item"><summary>Managed vector databases</summary><div class="body">Horizontal scaling, metadata filtering, hybrid search, multi-tenant isolation. Right call past prototype scale.</div></details>
+        <details class="item"><summary>Vector search on an existing database</summary><div class="body">Adds a vector index to a database you already run. Minimal new infra, moderate scale.</div></details>
+      </div>
+      <p>Confirm whichever you pick supports metadata filtering and a tunable ANN index (commonly HNSW).</p>
+      <div class="example">
+        <div class="exhead"><span class="exlabel">EXAMPLE</span><span>store + query, Python (Chroma)</span></div>
+        <pre><span class="kw">import</span> chromadb
+db = chromadb.Client().create_collection(<span class="st">"policies"</span>)
+
+<span class="cm"># indexing (offline)</span>
+db.add(
+    documents=[<span class="st">"Refund requests must be filed within 30 days."</span>],
+    embeddings=[vector],
+    metadatas=[{<span class="st">"source"</span>: <span class="st">"handbook.pdf"</span>, <span class="st">"page"</span>: <span class="fn">12</span>}],
+    ids=[<span class="st">"chunk-001"</span>]
+)
+
+<span class="cm"># retrieval (online) — nearest 3 chunks, filtered by source</span>
+results = db.query(
+    query_embeddings=[query_vector],
+    n_results=<span class="fn">3</span>,
+    where={<span class="st">"source"</span>: <span class="st">"handbook.pdf"</span>}
+)</pre>
+        <div class="exnote"><b>Real case:</b> the <code>where</code> filter is what lets a multi-tenant app search only <i>this customer's</i> documents instead of everyone's — metadata filtering, not the embedding itself, enforces that boundary.</div>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section class="lesson" id="retrieval">
+      <div class="num">06</div>
+      <h2>Retrieval strategy</h2>
+      <p class="lede">"Top-5 by similarity" is the starting point, not the finish line. Toggle the query type below.</p>
+      <div class="simdemo" id="retrievalDemo">
+        <div class="qbar" id="retrQbar"></div>
+        <div class="cols">
+          <div class="col"><h5>VECTOR-ONLY</h5><div id="retrVector"></div></div>
+          <div class="col"><h5>HYBRID (VECTOR + KEYWORD)</h5><div id="retrHybrid"></div></div>
+        </div>
+      </div>
+      <ul>
+        <li><b>Hybrid search</b> — vector similarity + keyword (BM25); catches exact names/IDs vector search misses.</li>
+        <li><b>Reranking</b> — retrieve a wide candidate set cheaply, then rerank with a slower cross-encoder for precision.</li>
+        <li><b>Metadata filtering</b> — narrow by date/source/user before or during search.</li>
+        <li><b>Query transformation</b> — rewrite vague queries; decompose multi-part questions.</li>
+      </ul>
+      <div class="real-example">
+        <b>REAL CASE — RERANKING</b>
+        Retrieve top-50 candidates by vector similarity (cheap), then run a cross-encoder over just those 50 to re-score and keep the top-5 (slower, more accurate). Cuts irrelevant hits without paying reranking cost on the whole corpus.
+      </div>
+      <div class="callout"><b>DECIDE FIRST</b> What happens when nothing retrieved is actually relevant? You need a relevance threshold, not just a fixed k.</div>
+    </section>
+
+    <!-- 7 -->
+    <section class="lesson" id="augment">
+      <div class="num">07</div>
+      <h2>Augmentation & prompting</h2>
+      <p>How retrieved chunks get assembled into the final prompt decides whether the model uses them right.</p>
+      <div class="accordion">
+        <details class="item"><summary>Ordering matters</summary><div class="body">Models over-weight the start/end of long context ("lost in the middle"). Put the best chunk first or last.</div></details>
+        <details class="item"><summary>Say what to do when context is thin</summary><div class="body">Instruct the model to admit insufficient context rather than guess.</div></details>
+        <details class="item"><summary>Attribute sources</summary><div class="body">Ask the model to cite which chunk supports each claim — makes hallucination visible.</div></details>
+        <details class="item"><summary>Mind the context budget</summary><div class="body">Chunks + system prompt + history + answer share one window. Too many chunks starves the answer.</div></details>
+      </div>
+      <div class="example">
+        <div class="exhead"><span class="exlabel">EXAMPLE</span><span>assembled prompt sent to the LLM</span></div>
+        <pre><span class="cm">Answer only using the context below. If the answer isn't</span>
+<span class="cm">in the context, say you don't have enough information.</span>
+<span class="cm">Cite the source after each claim like [source: doc, p.12].</span>
+
+Context:
+[1] (handbook.pdf, p.12) <span class="st">"Refund requests must be filed within 30 days of purchase."</span>
+[2] (handbook.pdf, p.13) <span class="st">"Refunds are issued to the original payment method within 5–7 business days."</span>
+
+Question: <span class="fn">How long do I have to request a refund, and how will I get paid back?</span></pre>
+        <div class="exnote"><b>Real case:</b> a good answer here reads: "You have 30 days [source: handbook.pdf, p.12], refunded to your original payment method within 5–7 business days [source: handbook.pdf, p.13]." — every clause traceable to a retrieved chunk.</div>
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section class="lesson" id="eval">
+      <div class="num">08</div>
+      <h2>Evaluation</h2>
+      <p class="lede">Retrieval and generation are two separate failure surfaces — measure them separately.</p>
+      <table class="cmp">
+        <tr><th>Layer</th><th>Metric</th><th>Question it answers</th></tr>
+        <tr><td>Retrieval</td><td>Precision@k / Recall@k</td><td>Were the retrieved chunks relevant — and complete?</td></tr>
+        <tr><td>Retrieval</td><td>MRR</td><td>Is the best chunk ranked near the top?</td></tr>
+        <tr><td>Generation</td><td>Faithfulness</td><td>Does the answer stick to what's in the context?</td></tr>
+        <tr><td>Generation</td><td>Answer relevance</td><td>Does it address the actual question?</td></tr>
+        <tr><td>End-to-end</td><td>Human / LLM-judge review</td><td>Would a real user accept this?</td></tr>
+      </table>
+      <p>Build a fixed eval set with known-correct answers before you build — not after.</p>
+    </section>
+
+    <!-- 9 -->
+    <section class="lesson" id="pitfalls">
+      <div class="num">09</div>
+      <h2>Common pitfalls</h2>
+      <div class="accordion">
+        <details class="item" open><summary>1. Trusting retrieval by default</summary><div class="body">Teams tune the prompt endlessly while retrieval quietly returns the wrong chunks. Debug retrieval first.</div></details>
+        <details class="item"><summary>2. One chunk size for everything</summary><div class="body">Prose-sized chunks mangle tables, code, and FAQs. Different content needs different rules.</div></details>
+        <details class="item"><summary>3. No re-indexing plan</summary><div class="body">Source docs change; without incremental re-indexing your store drifts or needs full rebuilds.</div></details>
+        <details class="item"><summary>4. Never testing "no answer exists"</summary><div class="body">This is exactly when hallucination is most likely and most damaging.</div></details>
+        <details class="item"><summary>5. Confusing retrieval with reasoning</summary><div class="body">RAG retrieves facts; it doesn't make the model reason better over them.</div></details>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section class="lesson" id="quiz">
+      <div class="num">10</div>
+      <h2>Check yourself</h2>
+      <p>Four questions. No penalty — the explanation is the point.</p>
+      <div class="quiz-score" id="quizScore">Score: 0 / 4</div>
+      <div class="quiz" id="quizRoot"></div>
+    </section>
+
+    <!-- 11 -->
+    <section class="lesson" id="checklist">
+      <div class="num">11</div>
+      <h2>Before you open your editor</h2>
+      <p>Decisions to have made — even provisionally — before the first commit.</p>
+      <div class="checklist" id="checklistRoot"></div>
+      <div class="progress" id="checklistProgress"></div>
+    </section>
+
+  </main>
+</div>
+
+<footer>RAG PRE-BUILD BRIEF — for internal reference before implementation.</footer>
+
+<script>
+// ---------- TOC active state ----------
+const sections = document.querySelectorAll('section.lesson');
+const tocLinks = document.querySelectorAll('nav.toc a');
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      tocLinks.forEach(l=>l.classList.remove('active'));
+      const link = document.querySelector('nav.toc a[href="#'+e.target.id+'"]');
+      if(link) link.classList.add('active');
+    }
+  });
+}, {rootMargin:'-20% 0px -70% 0px'});
+sections.forEach(s=>io.observe(s));
+
+// ---------- Chunking demo ----------
+const sampleText = "Retrieval-Augmented Generation grounds a language model's answer in documents fetched at query time. Instead of relying purely on parametric memory frozen at training, the system searches an external index for passages relevant to the user's question, then feeds those passages to the model alongside the question itself.";
+const chunkSizeEl = document.getElementById('chunkSize');
+const overlapEl = document.getElementById('overlap');
+const csVal = document.getElementById('csVal');
+const ovVal = document.getElementById('ovVal');
+const chunkOutput = document.getElementById('chunkOutput');
+const chunkColors = ['#6FE7C5','#E8B34F','#E97A63','#8FB8E8','#C79FE8'];
+function renderChunks(){
+  const size = parseInt(chunkSizeEl.value);
+  const overlap = Math.min(parseInt(overlapEl.value), size-10);
+  csVal.textContent = size; ovVal.textContent = overlap;
+  let pieces = [], i=0, ci=0;
+  while(i < sampleText.length){
+    const end = Math.min(i+size, sampleText.length);
+    pieces.push({text: sampleText.slice(i,end), color: chunkColors[ci%chunkColors.length]});
+    ci++; if(end>=sampleText.length) break; i += (size-overlap);
+  }
+  chunkOutput.innerHTML = pieces.map(p=>`<mark style="background:${p.color}22; border:1px solid ${p.color}55; color:${p.color}; padding:1px 2px; border-radius:3px;">${p.text}</mark>`).join(' / ') + `<div style="margin-top:8px; color:#9BA79D; font-size:11px;">${pieces.length} chunks</div>`;
+}
+chunkSizeEl.addEventListener('input', renderChunks);
+overlapEl.addEventListener('input', renderChunks);
+renderChunks();
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tabs').forEach(tabGroup=>{
+  const buttons = tabGroup.querySelectorAll('.tabbar button');
+  const panels = tabGroup.querySelectorAll('.tabpanel');
+  buttons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      buttons.forEach(b=>b.classList.remove('active'));
+      panels.forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      tabGroup.querySelector(`.tabpanel[data-panel="${btn.dataset.tab}"]`).classList.add('active');
+    });
+  });
+});
+
+// ---------- Live pipeline flow ----------
+const flowSteps = [
+  {nodes:['n-query'], edges:[], status:'User submits a query.'},
+  {nodes:['n-query','n-embed2'], edges:['e-query-embed2'], status:'Query is embedded with the same model used to index documents.'},
+  {nodes:['n-embed2','n-store2'], edges:['e-embed2-store2'], status:'Query vector is compared against the vector store.'},
+  {nodes:['n-store2','n-topk'], edges:['e-store2-topk'], status:'Top-k nearest chunks are retrieved.'},
+  {nodes:['n-topk','n-prompt'], edges:['e-topk-prompt'], status:'Retrieved chunks are assembled with the query into one prompt.'},
+  {nodes:['n-prompt','n-llm'], edges:['e-prompt-llm'], status:'LLM generates an answer grounded in the retrieved context.'}
+];
+const allNodes = document.querySelectorAll('.node');
+const allEdges = document.querySelectorAll('.edge');
+let flowIdx = -1;
+const flowStatus = document.getElementById('flowStatus');
+const flowPlay = document.getElementById('flowPlay');
+const flowBack = document.getElementById('flowBack');
+const flowReset = document.getElementById('flowReset');
+
+function renderFlow(){
+  allNodes.forEach(n=>{ n.classList.remove('active','dim'); });
+  allEdges.forEach(e=>{ e.classList.remove('active'); });
+  if(flowIdx < 0){
+    flowStatus.textContent = 'Press "Run query" to watch data move through the pipeline.';
+    flowBack.disabled = true;
+    return;
+  }
+  allNodes.forEach(n=>n.classList.add('dim'));
+  const step = flowSteps[flowIdx];
+  step.nodes.forEach(id=>{
+    const el = document.getElementById(id);
+    el.classList.remove('dim'); el.classList.add('active');
+  });
+  step.edges.forEach(id=>document.getElementById(id).classList.add('active'));
+  flowStatus.textContent = 'Step '+(flowIdx+1)+' / '+flowSteps.length+' — '+step.status;
+  flowBack.disabled = flowIdx===0;
+  flowPlay.textContent = flowIdx === flowSteps.length-1 ? '↺ Run again' : '▶ Next step';
+}
+flowPlay.addEventListener('click', ()=>{
+  if(flowIdx === flowSteps.length-1){ flowIdx = -1; renderFlow(); return; }
+  flowIdx++; renderFlow();
+});
+flowBack.addEventListener('click', ()=>{ if(flowIdx>0){ flowIdx--; renderFlow(); } });
+flowReset.addEventListener('click', ()=>{ flowIdx=-1; renderFlow(); });
+renderFlow();
+
+// ---------- Embedding nearest-neighbor demo ----------
+const embedChunksData = [
+  {id:'c1', text:'"Refund requests must be filed within 30 days of purchase."'},
+  {id:'c2', text:'"The API rate limit resets every 60 seconds per API key."'},
+  {id:'c3', text:'"Employees accrue 1.5 days of PTO per month worked."'}
+];
+const embedQueries = [
+  {label:'"How do I get my money back?"', nearest:'c1', dist:{c1:0.11,c2:0.79,c3:0.66}},
+  {label:'"Why am I getting throttled?"', nearest:'c2', dist:{c1:0.71,c2:0.09,c3:0.83}},
+  {label:'"How much vacation do I have?"', nearest:'c3', dist:{c1:0.68,c2:0.85,c3:0.07}}
+];
+const embedQbar = document.getElementById('embedQbar');
+const embedChunksEl = document.getElementById('embedChunks');
+const embedResultEl = document.getElementById('embedResult');
+embedChunksEl.innerHTML = embedChunksData.map(c=>`<div class="hit" id="chunk-${c.id}">${c.text}</div>`).join('');
+function renderEmbed(qi){
+  const q = embedQueries[qi];
+  Array.from(embedQbar.children).forEach((b,i)=>b.classList.toggle('active', i===qi));
+  document.querySelectorAll('#embedChunks .hit').forEach(h=>h.classList.remove('miss'));
+  embedResultEl.innerHTML = embedChunksData.map(c=>{
+    const d = q.dist[c.id]; const isNearest = c.id===q.nearest;
+    return `<div class="hit ${isNearest?'':'miss'}">${c.text}<span class="score">dist ${d.toFixed(2)}</span></div>`;
+  }).join('');
+}
+embedQueries.forEach((q,i)=>{
+  const b = document.createElement('button');
+  b.textContent = q.label;
+  b.addEventListener('click', ()=>renderEmbed(i));
+  embedQbar.appendChild(b);
+});
+renderEmbed(0);
+
+// ---------- Retrieval hybrid vs vector-only demo ----------
+const retrQueries = [
+  {label:'"SKU-88213 return policy"',
+   vector:[{t:'General return policy overview',hit:true},{t:'Warranty terms for electronics',hit:false},{t:'Shipping cost breakdown',hit:false}],
+   hybrid:[{t:'"SKU-88213" — return policy exception',hit:true},{t:'General return policy overview',hit:true},{t:'Shipping cost breakdown',hit:false}]},
+  {label:'"can I cancel my subscription"',
+   vector:[{t:'Subscription cancellation steps',hit:true},{t:'Billing cycle explanation',hit:true},{t:'Refund eligibility windows',hit:true}],
+   hybrid:[{t:'Subscription cancellation steps',hit:true},{t:'Billing cycle explanation',hit:true},{t:'Refund eligibility windows',hit:true}]}
+];
+const retrQbar = document.getElementById('retrQbar');
+const retrVectorEl = document.getElementById('retrVector');
+const retrHybridEl = document.getElementById('retrHybrid');
+function renderRetr(qi){
+  const q = retrQueries[qi];
+  Array.from(retrQbar.children).forEach((b,i)=>b.classList.toggle('active', i===qi));
+  retrVectorEl.innerHTML = q.vector.map(r=>`<div class="hit ${r.hit?'':'miss'}">${r.t}</div>`).join('');
+  retrHybridEl.innerHTML = q.hybrid.map(r=>`<div class="hit ${r.hit?'':'miss'}">${r.t}</div>`).join('');
+}
+retrQueries.forEach((q,i)=>{
+  const b = document.createElement('button');
+  b.textContent = q.label;
+  b.addEventListener('click', ()=>renderRetr(i));
+  retrQbar.appendChild(b);
+});
+renderRetr(0);
+
+// ---------- Quiz ----------
+const quizData = [
+  {q:"Retrieved chunks look relevant, but the answer still contains facts absent from all of them. Best fix?",
+   opts:[{t:"Increase chunk size",correct:false},{t:"Instruct the model to answer only from context and say when it can't",correct:true},{t:"Switch to a bigger LLM",correct:false},{t:"Add more chunks",correct:false}],
+   explain:"Generation-layer problem — fix the instructions, not the retrieval."},
+  {q:"You re-embed with a new, better model. What else must happen?",
+   opts:[{t:"Nothing — the store handles it",correct:false},{t:"Only re-embed new docs going forward",correct:false},{t:"Rebuild the whole index — old and new vectors aren't comparable",correct:true},{t:"Just update the query embedder",correct:false}],
+   explain:"Different embedding models produce incompatible vector spaces."},
+  {q:"A user searches an exact code like 'SKU-88213'. Pure vector search underperforms because:",
+   opts:[{t:"Vector search is generally worse",correct:false},{t:"Embeddings capture meaning, not exact tokens, so rare strings rank poorly",correct:true},{t:"Codes can't be embedded",correct:false},{t:"The store is too slow",correct:false}],
+   explain:"Exactly what hybrid (vector + keyword) search is for."},
+  {q:"What should an eval set contain, ideally before you build?",
+   opts:[{t:"Only questions it already answers well",correct:false},{t:"Unlabeled real queries",correct:false},{t:"Known-correct answers, including unanswerable questions",correct:true},{t:"Nothing — evaluate after launch",correct:false}],
+   explain:"A fixed baseline plus negative cases is what lets you measure whether a change actually helped."}
+];
+const quizRoot = document.getElementById('quizRoot');
+const quizScoreEl = document.getElementById('quizScore');
+let score = 0, answered = new Set();
+quizData.forEach((item, qi)=>{
+  const qDiv = document.createElement('div'); qDiv.className='q';
+  const p = document.createElement('p'); p.className='question'; p.textContent=(qi+1)+'. '+item.q; qDiv.appendChild(p);
+  const optsDiv = document.createElement('div'); optsDiv.className='opts';
+  const explainDiv = document.createElement('div'); explainDiv.className='explain'; explainDiv.textContent=item.explain;
+  item.opts.forEach(opt=>{
+    const b = document.createElement('button'); b.className='opt'; b.textContent=opt.t;
+    b.addEventListener('click', ()=>{
+      if(answered.has(qi)) return; answered.add(qi);
+      if(opt.correct){ b.classList.add('correct'); score++; } else { b.classList.add('wrong'); }
+      optsDiv.querySelectorAll('button').forEach(btn=>btn.disabled=true);
+      explainDiv.classList.add('show');
+      quizScoreEl.textContent = 'Score: '+score+' / '+quizData.length;
+    });
+    optsDiv.appendChild(b);
+  });
+  qDiv.appendChild(optsDiv); qDiv.appendChild(explainDiv); quizRoot.appendChild(qDiv);
+});
+
+// ---------- Checklist ----------
+const checklistItems = [
+  "Confirmed this is a knowledge problem, not a reasoning problem",
+  "Chosen a chunking strategy matched to your document types",
+  "Picked one embedding model — same model embeds queries and documents",
+  "Selected a vector store that supports metadata filtering at your scale",
+  "Decided retrieval strategy: pure vector, hybrid, and whether to rerank",
+  "Written the instruction for insufficient-context behavior",
+  "Built a fixed eval set with known-correct and unanswerable questions",
+  "Planned how the index updates when source documents change"
+];
+const checklistRoot = document.getElementById('checklistRoot');
+const progressEl = document.getElementById('checklistProgress');
+function updateProgress(){
+  const done = checklistRoot.querySelectorAll('input:checked').length;
+  progressEl.textContent = done+' / '+checklistItems.length+' settled';
+}
+checklistItems.forEach(text=>{
+  const label = document.createElement('label');
+  const input = document.createElement('input'); input.type='checkbox'; input.addEventListener('change', updateProgress);
+  const span = document.createElement('span'); span.textContent = text;
+  label.appendChild(input); label.appendChild(span); checklistRoot.appendChild(label);
+});
+updateProgress();
+</script>
+</body>
+</html>

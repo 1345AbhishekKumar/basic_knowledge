@@ -297,40 +297,117 @@
 
         <div class="grid-2">
           <div class="info-card">
-            <p class="info-tag">Failure Analysis</p>
-            <h3 class="info-title">Why Summarization Failed</h3>
+            <p class="info-tag">Core Problem · Context Physics</p>
+            <h3 class="info-title">Why Multi-Turn Sessions Break</h3>
             <p class="info-text">
-              Engineering teams often assume LLM summarization is the silver bullet for context compaction. In practice, LLM summarization is non-deterministic, hallucinates during recursive summaries, and frequently drops critical structured identifiers (like span IDs, timestamps, or exact SQL queries) required for downstream agent tool calls.
+              Every tool call (SQL query returns, terminal outputs, web scrapes) dumps hundreds of tokens into the context window. Within 5-10 turns, the token limit is approached. How an engineering harness manages this boundary dictates whether the agent successfully finishes the task or suffers amnesia and hallucinations.
             </p>
           </div>
 
           <div class="info-card focal">
-            <p class="info-tag">Production Solution</p>
-            <h3 class="info-title">Smart Head/Tail + External Memory Store</h3>
+            <p class="info-tag">Core Breakthrough</p>
+            <h3 class="info-title">Deterministic Truncation vs. Probabilistic Summary</h3>
             <p class="info-text">
-              The winning pattern used by Arize Alex and Claude Code:
-              <br>1. <strong>Never reset the system prompt.</strong>
-              <br>2. <strong>Preserve the Head</strong> (initial user goal) and <strong>Tail</strong> (immediate conversational turn).
-              <br>3. <strong>Truncate the middle</strong> (verbose tool outputs) and persist full payloads into a database indexed by ID, giving the agent a tool to recall them on demand.
+              Summarization uses a probabilistic model to summarize a probabilistic model's past thoughts—compounding errors. <strong>Smart Head/Tail Truncation</strong> replaces probabilistic summarization with deterministic code: keeping the core goal and immediate turns while swapping bulky intermediate logs with retrieval pointers.
             </p>
           </div>
         </div>
 
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2rem 0 1rem;">1. Core Concept Definitions (Labels in Figure 2.0)</h3>
+
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Strategy 1 · Left Column</p>
+            <h3 class="info-title">Strategy 1: Naive Sliding Window (FIFO)</h3>
+            <p class="info-text">
+              <strong>Sliding Window:</strong> A standard first-in, first-out (FIFO) queue that retains only the last <em>N</em> messages (e.g. last 8 turns) and discards everything older.<br>
+              <strong>Failure Mode (Amnesia):</strong> As turns advance, the queue discards the original System Prompt (identity and tool rules) and the user's root goal. The agent forgets what it was hired to do and begins asking the user who it is talking to.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <p class="info-tag">Strategy 2 · Center Column</p>
+            <h3 class="info-title">Strategy 2: LLM Summarization Compression</h3>
+            <p class="info-text">
+              <strong>Prompt-Based Condensation:</strong> Calling an auxiliary LLM every few turns to summarize earlier messages into a narrative paragraph.<br>
+              <strong>Failure Mode (Identifier Dropping):</strong> Summaries discard exact IDs (e.g. <code>span_id="0x4a8f9b"</code>, database row keys, regex formulas). When the agent needs those exact IDs in Turn 8 to invoke a tool, it hallucinates fake IDs. Recursive summarization also causes hallucination drift.
+            </p>
+          </div>
+
+          <div class="info-card focal">
+            <p class="info-tag">Strategy 3 · Right Column (Winning)</p>
+            <h3 class="info-title">Strategy 3: Smart Head/Tail Truncation</h3>
+            <p class="info-text">
+              <strong>The "Head":</strong> The initial 1-2 turns containing the user's primary prompt and task definition. Never truncated.<br>
+              <strong>The "Tail":</strong> The most recent 3-4 turns containing the immediate conversation flow and latest observation. Never truncated.<br>
+              <strong>Middle Offloading:</strong> Bulky tool outputs in the middle are saved to a key-value database. The context contains only an ID pointer: <code>[TRUNCATED: ID_104]</code>.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <p class="info-tag">Tool Mechanism</p>
+            <h3 class="info-title">On-Demand Context Expansion Tool</h3>
+            <p class="info-text">
+              <strong><code>fetch_context(chunk_id)</code>:</strong> A dedicated tool given to the agent. Because the middle messages contain clear ID tags, if the model genuinely needs full historical output from Turn 4, it autonomously calls <code>fetch_context(104)</code> to retrieve that exact block on demand.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2.5rem 0 1rem;">2. Step-by-Step Flow: Following the Progression in Figure 2.0</h3>
+        <p>Trace the evolution from left to right as indicated by the arrows connecting the three strategies:</p>
+
+        <div style="background:#ffffff; border:1px solid var(--color-rule); border-radius:8px; padding:1.5rem; margin:1.5rem 0;">
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-ink);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-ink); text-transform:uppercase;">Stage 1 &bull; The Naive Approach Fails (Left Column)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              Teams start with naive FIFO message truncation (Strategy 1). At Turn 6, the system prompt and original goal fall out of the sliding window. The model drifts uncontrollably. Arrow 1 points to the attempt to fix this with summarization.
+            </p>
+          </div>
+
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-muted);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-muted); text-transform:uppercase;">Stage 2 &bull; The Summarization Trap (Center Column)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              Teams introduce an LLM summarizer (Strategy 2) to condense old turns. While prose is preserved, the summarizer strips exact database schemas and span IDs. When subsequent tools fail because arguments were lost, teams abandon pure summarization. Arrow 2 points rightward to the production-tested solution.
+            </p>
+          </div>
+
+          <div style="padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Stage 3 &bull; Smart Head/Tail + Database Pointers (Right Column)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The winning architectural pattern (Strategy 3): The harness pins the System Prompt and Goal (Head), preserves the last 4 turns (Tail), and replaces middle tool responses with database reference IDs. If the agent needs details, it uses its built-in expansion tool. 100% deterministic, zero hallucinated IDs, minimal tokens.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; color: var(--color-ink); margin: 2rem 0 1rem;">Production Implementation Blueprint</h3>
+
         <div class="code-block">
 # SMART TRUNCATION + MEMORY STORE BLUEPRINT
-def prepare_context(system_prompt, messages, max_tokens=8000):
-    """Preserves Head, Tail, and offloads verbose tool middles to DB."""
-    head_context = messages[:2]       # Initial goal & setup
-    tail_context = messages[-4:]      # Latest recency turns
-    middle_messages = messages[2:-4]  # Verbose tool calls
+def prepare_context(system_prompt: dict, messages: list, max_tokens: int = 8000) -> list:
+    """
+    Implements Strategy 3:
+    1. Preserves System Prompt and Goal (Head)
+    2. Preserves Recency turns (Tail)
+    3. Offloads verbose middle tool responses to DB with pointer IDs
+    """
+    head_context = messages[:2]       # Initial user prompt & setup
+    tail_context = messages[-4:]      # Latest 4 conversational turns
+    middle_messages = messages[2:-4]  # Intermediate tool iterations
 
-    # Offload middle messages to DB
+    truncated_middle = []
     for msg in middle_messages:
-        if len(msg["content"]) > 500:
-            db_id = save_to_memory_store(msg)
-            msg["content"] = f"[TRUNCATED - ID: {db_id}. Use tool 'fetch_context({db_id})' to expand]"
+        # If middle tool observation is verbose, save to DB and insert pointer
+        if msg.get("role") == "tool" and len(msg.get("content", "")) > 400:
+            db_id = memory_store.save_payload(msg["content"])
+            truncated_middle.append({
+                "role": "tool",
+                "tool_call_id": msg.get("tool_call_id"),
+                "content": f"[TRUNCATED: ID_{db_id}. Use tool 'fetch_context({db_id})' if exact payload is needed]"
+            })
+        else:
+            truncated_middle.append(msg)
 
-    return [system_prompt] + head_context + middle_messages + tail_context
+    return [system_prompt] + head_context + truncated_middle + tail_context
         </div>
       </section>
     </main>

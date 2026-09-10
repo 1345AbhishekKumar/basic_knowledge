@@ -315,28 +315,138 @@
 
         <div class="grid-2">
           <div class="info-card">
-            <p class="info-tag">Core Tenet 01</p>
+            <p class="info-tag">Core Tenet 01 · Failure Modes</p>
             <h3 class="info-title">The Danger of Unbounded Loops</h3>
             <p class="info-text">
-              If an agent is given access to multiple tools without explicit termination guardrails, ambiguous tool returns can cause the model to loop indefinitely—re-querying APIs, burning thousands of token dollars, and generating unpredictable latency spikes.
+              When an agent is granted access to multiple tools without explicit termination rules, subtle issues (such as an empty API response or ambiguous search results) can cause the model to repeat the same failed tool call endlessly. This burns API tokens, inflates cloud bills, and can result in duplicate payments or spam emails.
             </p>
           </div>
 
           <div class="info-card focal">
-            <p class="info-tag">Core Tenet 02</p>
-            <h3 class="info-title">End-Loop Guardrails</h3>
+            <p class="info-tag">Core Tenet 02 · Deterministic Control</p>
+            <h3 class="info-title">What is Loop Engineering?</h3>
             <p class="info-text">
-              An <strong>End-Loop Guardrail</strong> evaluates whether the task goal is satisfied at the end of each iteration. Once all conditions are met (e.g. <em>"all 8 refunds completed"</em>), the harness immediately breaks the loop, halts tool dispatch, and synthesizes the final user response.
+              <strong>Loop Engineering</strong> is the practice of designing the execution state machine that governs how an LLM cycles through tools. Rather than letting the model decide freely forever, the engineering harness enforces hard computational bounds: max turn counters, state verification, cost limits, and human permission hooks.
             </p>
           </div>
         </div>
 
-        <div class="info-card">
-          <p class="info-tag">Real-World Pattern</p>
-          <h3 class="info-title">Permission Notification Hooks</h3>
-          <p class="info-text">
-            When an agent requires human clearance (e.g., spending company funds or deleting database rows), it must trigger a desktop or push notification hook rather than silently stalling. This prevents situations where a user leaves their machine only to find the agent blocked on a permission modal 30 minutes later.
-          </p>
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2rem 0 1rem;">1. Core Component Definitions (Labels in Figure 3.0)</h3>
+
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Panel 1 · Left</p>
+            <h3 class="info-title">Complex Multi-Step Goal</h3>
+            <p class="info-text">
+              <strong>Multi-Step Business Ask:</strong> A non-trivial user goal requiring multiple tools across external platforms (e.g., CRM &rarr; Payment Gateway &rarr; Calendar). The total number of required steps is unknown upfront until intermediate results are examined.<br>
+              <strong>Infinite Cycling Risk:</strong> The stochastic failure mode where the LLM repeats identical queries or toggles between two unhelpful tools when an expected data field is missing.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <p class="info-tag">Panel 2 · Center</p>
+            <h3 class="info-title">Iterative Agent Loop &amp; Evaluator</h3>
+            <p class="info-text">
+              <strong>Autonomous Turns:</strong> Discrete execution iterations where the model reads previous observations and emits the next tool call.<br>
+              <strong>End-Loop Guardrail Evaluator:</strong> The deterministic decision node that asks: <em>"Is task completion confirmed?"</em> It inspects the cumulative outputs (all 8 refunds processed and all 8 follow-ups scheduled) and triggers termination when the goal criteria are satisfied.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <p class="info-tag">Panel 3 · Right</p>
+            <h3 class="info-title">Safety Guardrails</h3>
+            <p class="info-text">
+              <strong>1. Max Turn Ceiling:</strong> A hard integer cap (e.g., <code>MAX_TURNS = 10</code>). If the task is not resolved within 10 iterations, the harness forcefully terminates the loop to prevent runaway token spend.<br>
+              <strong>2. Permission Hooks (Human-in-the-Loop):</strong> Real-time push or desktop alerts triggered when an action exceeds safety thresholds (e.g. refund &gt; $500), pausing execution until a human clicks "Approve".
+            </p>
+          </div>
+
+          <div class="info-card">
+            <p class="info-tag">Panel 3 · Output</p>
+            <h3 class="info-title">Output Validator &amp; Safe Return</h3>
+            <p class="info-text">
+              <strong>3. Output Validator:</strong> Schema verification (e.g. Pydantic or JSON Schema) that ensures the agent's final report contains required structured fields (e.g., customer IDs, refund transaction hashes, confirmation timestamps) before showing it to the user.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2.5rem 0 1rem;">2. Step-by-Step Flow: How the Iterative Loop Executes</h3>
+        <p>Follow the sequential arrows in Figure 3.0 from Goal Input through each turn to the Safe Return:</p>
+
+        <div style="background:#ffffff; border:1px solid var(--color-rule); border-radius:8px; padding:1.5rem; margin:1.5rem 0;">
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-ink);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-ink); text-transform:uppercase;">Step 1 &bull; Goal Ingestion (Left Panel &rarr; Center Panel)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The user provides the complex goal: <em>"Find customer complaints from the last 2 months. Reimburse unresolved cases &amp; schedule calls."</em> Arrow 1 passes this prompt to Turn 1 of the agent loop.
+            </p>
+          </div>
+
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Step 2 &bull; Turn 1: CRM Discovery (Center Panel, Top)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The agent calls <code>crm.get_complaints(months=2)</code>. The API returns 30 total tickets, identifying exactly 8 unresolved cases with valid refund requests. The result is appended to Context RAM, and the loop transitions down to Turn 2.
+            </p>
+          </div>
+
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Step 3 &bull; Turn 2: Stripe Reimbursements (Center Panel, Middle)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              Seeing the 8 ticket IDs, the agent invokes <code>stripe.refund_customer(customer_id, amount)</code> for each customer. If any refund exceeds $500, the <strong>Permission Hook</strong> in Panel 3 notifies the human operator. All 8 refunds complete successfully and generate transaction receipts.
+            </p>
+          </div>
+
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Step 4 &bull; Turn 3: Calendar Booking (Center Panel, Lower)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The agent calls <code>calendar.create_event()</code> to schedule follow-up check-ins for the 8 refunded customers. The confirmations are appended to context, satisfying the final clause of the original prompt.
+            </p>
+          </div>
+
+          <div style="padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Step 5 &bull; End-Loop Evaluator &amp; Output Validation (Center &rarr; Right Panel)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The <strong>End-Loop Guardrail Evaluator</strong> confirms: (1) All 8 refunds issued, (2) all 8 calls booked, (3) turn counter is 3 of 10 max. It terminates the loop, passes the payload through the <strong>Output Validator</strong> to verify schema correctness, and delivers the <strong>Safe Return to User</strong>.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; color: var(--color-ink); margin: 2rem 0 1rem;">Production Implementation: Guardrailed Loop</h3>
+
+        <div class="code-block">
+# PRODUCTION LOOP WITH DETERMINISTIC GUARDRAILS
+MAX_TURNS = 10
+REFUND_APPROVAL_THRESHOLD = 500.00
+
+def execute_autonomous_loop(goal: str, tools, model, notifier) -> str:
+    messages = [{"role": "user", "content": goal}]
+    turn_count = 0
+
+    while turn_count &lt; MAX_TURNS:
+        turn_count += 1
+        response = model.call(messages, tools=tools.get_definitions())
+
+        # No more tools requested -> Loop completed naturally
+        if not response.tool_calls:
+            if validate_goal_completion(goal, messages):
+                return response.content
+            # If model stopped prematurely, re-prompt with missing criteria
+            messages.append({"role": "user", "content": "Goal criteria incomplete. Check calendar bookings."})
+            continue
+
+        for tool_call in response.tool_calls:
+            # Permission Hook: Alert human if dangerous or high-value action
+            if tool_call.name == "stripe_refund" and tool_call.args["amount"] &gt; REFUND_APPROVAL_THRESHOLD:
+                notifier.send_push("Refund approval required", tool_call.args)
+                approved = notifier.wait_for_user_click(timeout_sec=300)
+                if not approved:
+                    return "Operation aborted: Human approval denied."
+
+            # Execute tool and append observation
+            result = tools.invoke(tool_call.name, tool_call.args)
+            messages.append({"role": "assistant", "tool_calls": [tool_call]})
+            messages.append({"role": "tool", "content": str(result)})
+
+    return "Safety Error: Maximum turn ceiling reached (10 turns). Loop terminated."
         </div>
       </section>
     </main>

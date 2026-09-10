@@ -285,6 +285,78 @@
             </p>
           </div>
         </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2rem 0 1rem;">1. Core Component Definitions (Labels in Figure 3.0)</h3>
+
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Panel 1 · Left</p>
+            <h3 class="info-title">The Post-Code Confirmation Bias Trap</h3>
+            <p class="info-text">
+              <strong>Post-Code Testing:</strong> Generating unit tests after writing the implementation code.<br>
+              <strong>Sunk-Cost Confirmation Bias:</strong> The model writes assertions that test what the code *does*, not what the software *should do*. If the coder incorrectly implemented a discount formula, it writes an assertion confirming the incorrect math, achieving 100% test pass rates while shipping broken software.<br>
+              <strong>Compounding System Drift:</strong> Flawed milestones compound over multi-turn runs, causing fatal crashes at Turn 20.
+            </p>
+          </div>
+
+          <div class="info-card focal">
+            <p class="info-tag">Panel 2 · Right</p>
+            <h3 class="info-title">Pre-Code Contracts &amp; Handoffs</h3>
+            <p class="info-text">
+              <strong>Pre-Code Validation Contract:</strong> Hundreds of explicit behavioral assertions and integration tests authored by the Orchestrator *before* any implementation begins.<br>
+              <strong>Clean Worker Execution:</strong> The implementation droid treats the pre-code assertions as immutable ground truth, writing code until the pre-existing test suite passes.<br>
+              <strong>Adversarial Validation:</strong> An independent QA agent executes the contract against the running system to verify compliance.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2.5rem 0 1rem;">2. Step-by-Step Flow: Comparing the Two Pipelines</h3>
+        <p>Follow the visual comparison between the Failure Trap (Left) and the Factory Solution (Right):</p>
+
+        <div style="background:#ffffff; border:1px solid var(--color-rule); border-radius:8px; padding:1.5rem; margin:1.5rem 0;">
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-ink);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-ink); text-transform:uppercase;">The Failure Trap Flow (Left Panel)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              <strong>Step 1:</strong> The agent writes product code with an unhandled edge case (e.g. negative balances).<br>
+              <strong>Step 2:</strong> The same agent writes unit tests. Influenced by its own implementation, it asserts that negative balances default to zero rather than raising an exception. Tests show green.<br>
+              <strong>Step 3:</strong> Subsequent agents build upon this flawed assumption. By Milestone 4, database transactions corrupt and the entire mission crashes.
+            </p>
+          </div>
+
+          <div style="padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">The Factory Solution Flow (Right Panel)</strong>
+            <p style="font-size:0.92rem; color:var(--color-accent); margin-top:0.25rem;">
+              <strong>Step 1:</strong> The Orchestrator writes <code>tests/contracts/test_billing.py</code> with 50 strict behavioral assertions defining exact edge-case handling.<br>
+              <strong>Step 2:</strong> A fresh Worker implements the billing module. It runs pytest repeatedly in its sandbox until all 50 assertions pass. It compiles a Structured Handoff manifest.<br>
+              <strong>Step 3:</strong> Adversarial Validators run the full suite and UI checks against a live app instance. All regressions are caught at the milestone boundary, enabling missions to run for 16-30 continuous days.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; color: var(--color-ink); margin: 2rem 0 1rem;">Example: Pre-Code Contract Assertion File</h3>
+
+        <div class="code-block">
+# tests/contracts/test_auth_mission_contract.py
+# PRE-CODE VALIDATION CONTRACT — AUTHORED BY ORCHESTRATOR BEFORE IMPLEMENTATION
+
+import pytest
+from src.auth import AuthService
+
+def test_oauth_token_exchange_success():
+    """Assertion 01: Valid Google auth code must return verified session token."""
+    auth = AuthService()
+    session = auth.exchange_code(provider="google", code="valid_mock_code_123")
+    assert session.is_authenticated is True
+    assert session.user_id is not None
+    assert session.expires_in == 3600
+
+def test_oauth_revoked_code_raises_security_exception():
+    """Assertion 02: Reusing or invalidating auth code must raise HTTP 401."""
+    auth = AuthService()
+    with pytest.raises(SecurityException) as exc:
+        auth.exchange_code(provider="google", code="expired_mock_code_999")
+    assert exc.value.status_code == 401
+        </div>
       </section>
     </main>
 

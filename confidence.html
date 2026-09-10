@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dangerous Confidence — A Quiet Lesson</title>
+<style>
+:root{
+  --bg:#0a0908; --bg2:#100e0c; --surface:#151210; --surface2:#1c1815; --surface3:#231e19;
+  --ink:#f2ede2; --ink2:#bdb5a6; --muted:#7a7368;
+  --accent:#d4a041; --accent2:#e8c176; --accent-soft:rgba(212,160,65,.10); --accent-glow:rgba(212,160,65,.30);
+  --border:rgba(242,237,226,.07); --border2:rgba(242,237,226,.14);
+  --good:#7ea87a; --bad:#c9705f;
+  --shadow:0 30px 70px -30px rgba(0,0,0,.8);
+  --serif:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,serif;
+  --sans:"Inter","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+[data-theme="light"]{
+  --bg:#f7f4ee; --bg2:#f0ebe2; --surface:#ffffff; --surface2:#f6f2ea; --surface3:#ece6da;
+  --ink:#1a1713; --ink2:#4a4438; --muted:#857c6b;
+  --accent:#a67716; --accent2:#c1902c; --accent-soft:rgba(166,119,22,.09); --accent-glow:rgba(166,119,22,.22);
+  --border:rgba(26,23,19,.09); --border2:rgba(26,23,19,.16);
+  --good:#4d7a49; --bad:#a84a38;
+  --shadow:0 30px 70px -34px rgba(60,45,20,.22);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.75;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  transition:background .5s var(--ease), color .4s var(--ease);
+}
+h1,h2,h3,h4,h5{font-family:var(--serif); font-weight:400; letter-spacing:-.01em; line-height:1.15; margin:0 0 .5em}
+h1{font-size:clamp(2.4rem,6vw,4rem); line-height:1.05}
+h2{font-size:clamp(1.6rem,3vw,2.2rem)}
+h3{font-size:clamp(1.4rem,2.4vw,1.9rem); line-height:1.2}
+h4{font-size:1.1rem}
+p{margin:.85em 0}
+a{color:var(--accent); text-decoration:none; border-bottom:1px solid transparent; transition:border-color .2s}
+a:hover{border-bottom-color:var(--accent)}
+em{font-style:italic; color:var(--ink2)}
+strong{font-weight:600; color:var(--ink)}
+.mono{font-family:var(--mono)}
+button{font:inherit; cursor:pointer; border:none; background:none; color:inherit}
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible,input:focus-visible,summary:focus-visible{
+  outline:2px solid var(--accent); outline-offset:3px; border-radius:3px;
+}
+
+/* ============ PROGRESS ============ */
+#progressbar{position:fixed; top:0; left:0; height:2px; width:0%; z-index:2000;
+  background:linear-gradient(90deg, var(--accent), var(--accent2));
+  box-shadow:0 0 16px var(--accent-glow); transition:width .6s var(--ease)}
+
+/* ============ TOPBAR ============ */
+.topbar{position:sticky; top:0; z-index:900;
+  background:color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  padding:14px 28px; display:flex; align-items:center; justify-content:space-between; gap:16px}
+.topbar .mark{display:flex; align-items:center; gap:12px; font-family:var(--serif); font-size:.95rem; letter-spacing:.02em}
+.topbar .glyph{width:22px; height:22px; border:1px solid var(--accent); border-radius:50%;
+  display:flex; align-items:center; justify-content:center; position:relative}
+.topbar .glyph::after{content:""; width:6px; height:6px; border-radius:50%; background:var(--accent);
+  box-shadow:0 0 10px var(--accent-glow)}
+.topbar .tools{display:flex; align-items:center; gap:18px}
+.topbar .progress-mini{font-family:var(--mono); font-size:.72rem; letter-spacing:.14em;
+  color:var(--muted); text-transform:uppercase}
+.topbar .theme-toggle{font-family:var(--mono); font-size:.72rem; letter-spacing:.1em;
+  color:var(--muted); text-transform:uppercase; padding:6px 4px; transition:color .2s}
+.topbar .theme-toggle:hover{color:var(--accent)}
+
+/* ============ LAYOUT ============ */
+.wrap{max-width:760px; margin:0 auto; padding:0 28px 120px}
+@media (max-width:600px){ .wrap{padding:0 20px 100px} .topbar{padding:12px 18px} }
+
+/* ============ HERO ============ */
+.hero{padding:80px 0 60px; border-bottom:1px solid var(--border); position:relative}
+.hero .eyebrow{font-family:var(--mono); font-size:.7rem; letter-spacing:.28em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:28px; display:flex; align-items:center; gap:14px}
+.hero .eyebrow::before{content:""; width:36px; height:1px; background:var(--accent)}
+.hero h1{max-width:16ch}
+.hero h1 em{font-style:italic; color:var(--accent)}
+.hero .lede{font-family:var(--serif); font-size:1.25rem; line-height:1.65; color:var(--ink2);
+  max-width:52ch; margin-top:28px}
+.hero .meta{display:flex; flex-wrap:wrap; gap:32px; margin-top:44px; padding-top:28px; border-top:1px solid var(--border)}
+.hero .meta div{display:flex; flex-direction:column; gap:3px}
+.hero .meta .v{font-family:var(--serif); font-size:1.6rem; color:var(--accent)}
+.hero .meta .l{font-family:var(--mono); font-size:.66rem; letter-spacing:.18em; text-transform:uppercase; color:var(--muted)}
+
+/* ============ SECTION ============ */
+.section{margin:72px 0}
+.section-head{margin-bottom:32px}
+.section-head .kicker{font-family:var(--mono); font-size:.68rem; letter-spacing:.24em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:12px}
+.section-head h2{margin:0}
+.section-head .sub{font-family:var(--serif); font-style:italic; color:var(--muted); margin-top:8px; font-size:1.05rem}
+
+/* ============ WHAT YOU'LL LEARN ============ */
+.learn-list{list-style:none; padding:0; margin:0; counter-reset:learn}
+.learn-list li{counter-increment:learn; padding:18px 0 18px 54px; border-bottom:1px solid var(--border); position:relative}
+.learn-list li:last-child{border-bottom:none}
+.learn-list li::before{content:counter(learn,decimal-leading-zero); position:absolute; left:0; top:19px;
+  font-family:var(--mono); font-size:.72rem; color:var(--accent); letter-spacing:.08em}
+.learn-list li strong{font-family:var(--serif); font-size:1.08rem; font-weight:400; display:block; margin-bottom:4px}
+.learn-list li span{color:var(--ink2); font-size:.95rem}
+
+/* ============ INDEX (knowledge map) ============ */
+.index{list-style:none; padding:0; margin:0; border-top:1px solid var(--border)}
+.index li{border-bottom:1px solid var(--border)}
+.index button{display:grid; grid-template-columns:52px 1fr auto; align-items:baseline; gap:22px;
+  width:100%; text-align:left; padding:22px 0; transition:padding .25s var(--ease), color .2s; position:relative}
+.index button::before{content:""; position:absolute; left:-28px; top:0; bottom:0; width:2px;
+  background:var(--accent); transform:scaleY(0); transform-origin:top; transition:transform .3s var(--ease)}
+.index button:hover{padding-left:10px}
+.index button:hover::before{transform:scaleY(1)}
+.index .n{font-family:var(--mono); font-size:.72rem; color:var(--accent); letter-spacing:.1em}
+.index .t{font-family:var(--serif); font-size:1.15rem; color:var(--ink)}
+.index .c{font-family:var(--mono); font-size:.66rem; color:var(--muted); letter-spacing:.14em; text-transform:uppercase; white-space:nowrap}
+.index button.done .t::after{content:" ✓"; color:var(--good)}
+@media (max-width:600px){ .index .c{display:none} .index button{grid-template-columns:40px 1fr} }
+
+/* ============ MODULE ============ */
+.module{margin:80px 0; scroll-margin-top:80px}
+.mod-head{border-top:2px solid var(--ink); padding-top:24px; margin-bottom:36px; position:relative}
+.mod-head .meta{display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px}
+.mod-head .num{font-family:var(--mono); font-size:.72rem; letter-spacing:.2em; color:var(--accent)}
+.mod-head .chap{font-family:var(--mono); font-size:.68rem; letter-spacing:.14em; color:var(--muted); text-transform:uppercase}
+.mod-head h3{margin:0 0 10px}
+.mod-head .sub{font-family:var(--serif); font-style:italic; font-size:1.12rem; color:var(--ink2); margin:0}
+.mod-head .done-badge{position:absolute; top:24px; right:0; font-family:var(--mono); font-size:.66rem;
+  letter-spacing:.14em; color:var(--good); text-transform:uppercase; opacity:0; transition:opacity .3s}
+.module.done .done-badge{opacity:1}
+
+.label{font-family:var(--mono); font-size:.66rem; letter-spacing:.24em; text-transform:uppercase;
+  color:var(--accent); margin:40px 0 16px; display:flex; align-items:center; gap:14px}
+.label::after{content:""; flex:1; height:1px; background:var(--border2)}
+
+.expl{font-size:1.02rem; color:var(--ink2)}
+.expl p{margin:1em 0}
+.expl p:first-child{margin-top:0}
+.expl strong{color:var(--ink); font-weight:600}
+.expl em{color:var(--ink)}
+
+.chapters{margin:28px 0; padding:0; list-style:none; border-left:1px solid var(--border2); padding-left:22px}
+.chapters li{margin:16px 0; position:relative}
+.chapters li::before{content:""; position:absolute; left:-27px; top:11px; width:9px; height:9px;
+  border-radius:50%; background:var(--bg); border:1.5px solid var(--accent)}
+.chapters .ct{font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; color:var(--accent);
+  text-transform:uppercase; display:block; margin-bottom:3px}
+.chapters .cd{color:var(--ink2); font-size:.95rem}
+
+/* diagram */
+.diagram{margin:32px 0; padding:28px 20px; background:var(--bg2); border:1px solid var(--border);
+  border-radius:2px; text-align:center; position:relative}
+.diagram::before{content:""; position:absolute; inset:6px; border:1px solid var(--border); pointer-events:none}
+.diagram svg{max-width:100%; height:auto; display:block; margin:0 auto}
+.diagram figcaption{font-family:var(--serif); font-style:italic; font-size:.92rem; color:var(--muted); margin-top:18px}
+
+/* analogy */
+.analogy{margin:32px 0; padding:28px 32px; background:var(--accent-soft);
+  border-left:2px solid var(--accent); position:relative}
+.analogy .tag{font-family:var(--mono); font-size:.64rem; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--accent); display:block; margin-bottom:10px}
+.analogy p{margin:0; font-family:var(--serif); font-size:1.05rem; line-height:1.7; color:var(--ink)}
+.analogy em{color:var(--accent2); font-style:italic}
+
+/* examples */
+.examples{margin:24px 0; display:flex; flex-direction:column; gap:2px}
+.ex{padding:20px 0; border-bottom:1px solid var(--border); display:grid; grid-template-columns:90px 1fr; gap:24px}
+.ex:last-child{border-bottom:none}
+.ex .tag{font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--muted); padding-top:5px}
+.ex .tag.counter{color:var(--accent)} .ex .tag.edge{color:var(--accent2)}
+.ex p{margin:0; font-size:.96rem; color:var(--ink2)}
+.ex p strong{color:var(--ink); font-family:var(--serif); font-size:1.02rem; font-weight:400; display:block; margin-bottom:3px}
+@media (max-width:600px){ .ex{grid-template-columns:1fr; gap:8px} .ex .tag{padding-top:0} }
+
+/* misconception */
+.mis{margin:28px 0; border:1px solid var(--border2); border-radius:2px}
+.mis summary{cursor:pointer; padding:18px 22px; font-family:var(--serif); font-size:1.02rem;
+  list-style:none; display:flex; align-items:flex-start; gap:14px}
+.mis summary::-webkit-details-marker{display:none}
+.mis summary::before{content:"✕"; color:var(--bad); font-size:.85rem; margin-top:5px}
+.mis[open] summary::before{content:"✓"; color:var(--good)}
+.mis .mis-body{padding:0 22px 22px 52px; color:var(--ink2); font-size:.96rem}
+@media (max-width:600px){ .mis .mis-body{padding-left:22px} }
+
+/* why */
+.why{margin:28px 0; padding:22px 26px; background:var(--surface2); border-radius:2px;
+  font-size:.97rem; color:var(--ink2); position:relative}
+.why::before{content:""; position:absolute; left:0; top:22px; bottom:22px; width:1px; background:var(--accent)}
+.why strong{color:var(--accent); font-family:var(--mono); font-size:.7rem; letter-spacing:.16em;
+  text-transform:uppercase; display:block; margin-bottom:8px; font-weight:500}
+
+/* scenario */
+.scenario{margin:28px 0}
+.scenario h4{font-family:var(--serif); font-size:1.08rem; margin-bottom:20px; color:var(--ink)}
+.scenario .step{padding:16px 0 16px 22px; border-left:1px solid var(--border2);
+  position:relative; margin:0}
+.scenario .step::before{content:""; position:absolute; left:-4px; top:23px; width:7px; height:7px;
+  border-radius:50%; background:var(--accent)}
+.scenario .step p{margin:0 0 4px; font-size:.95rem; color:var(--ink)}
+.scenario .step p.consequence{font-size:.88rem; color:var(--muted); font-style:italic}
+.scenario .step p.consequence::before{content:"→ "; color:var(--accent)}
+
+/* module footer */
+.mod-foot{margin-top:36px; padding-top:22px; border-top:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap}
+.mod-links{font-family:var(--mono); font-size:.7rem; letter-spacing:.1em; color:var(--muted); text-transform:uppercase}
+.mod-links a{color:var(--accent); border-bottom:1px solid transparent}
+.mod-links a:hover{border-bottom-color:var(--accent)}
+.btn{font-family:var(--mono); font-size:.7rem; letter-spacing:.14em; text-transform:uppercase;
+  padding:11px 20px; border:1px solid var(--border2); border-radius:2px;
+  transition:all .2s var(--ease); color:var(--ink)}
+.btn:hover{border-color:var(--accent); color:var(--accent)}
+.btn.done{border-color:var(--good); color:var(--good)}
+
+/* ============ INTERACTIONS ============ */
+.inter{margin:36px 0; padding:32px 28px; background:var(--bg2); border:1px solid var(--border); border-radius:2px}
+.inter .in-head{font-family:var(--mono); font-size:.66rem; letter-spacing:.24em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:10px}
+.inter h4{font-family:var(--serif); font-size:1.15rem; margin-bottom:8px}
+.inter .in-sub{color:var(--muted); font-size:.92rem; margin:0 0 22px}
+
+/* reframer */
+.reframe{display:flex; flex-direction:column; gap:12px}
+.reframe-item{padding:18px 22px; border:1px solid var(--border); border-radius:2px;
+  background:var(--surface); cursor:pointer; transition:all .25s var(--ease); position:relative}
+.reframe-item:hover{border-color:var(--border2)}
+.reframe-item .before{font-family:var(--serif); font-style:italic; color:var(--muted); font-size:1rem}
+.reframe-item .after{display:none; font-family:var(--serif); color:var(--accent2); font-size:1.05rem;
+  margin-top:10px; padding-top:10px; border-top:1px solid var(--border); animation:fadeUp .4s var(--ease)}
+.reframe-item.open .after{display:block}
+.reframe-item.open .before{color:var(--ink2)}
+.reframe-item .hint{position:absolute; right:18px; top:18px; font-family:var(--mono); font-size:.62rem;
+  letter-spacing:.12em; color:var(--muted); text-transform:uppercase}
+.reframe-item.open .hint{color:var(--accent)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* hotspot */
+.hotspot{position:relative; display:inline-block; max-width:100%}
+.hotspot .dot{position:absolute; width:30px; height:30px; border-radius:50%;
+  border:1px solid var(--accent); background:var(--bg); cursor:pointer; color:var(--accent);
+  font-family:var(--mono); font-size:.7rem; display:flex; align-items:center; justify-content:center;
+  transition:all .25s var(--ease)}
+.hotspot .dot:hover,.hotspot .dot.active{background:var(--accent); color:var(--bg)}
+.hot-info{margin-top:20px; padding:18px 22px; background:var(--surface2); border-left:2px solid var(--accent);
+  font-size:.95rem; color:var(--ink2); min-height:70px; font-family:var(--serif); font-size:1.02rem; line-height:1.65}
+.hot-info strong{color:var(--accent); font-family:var(--sans); font-size:.85rem; display:block;
+  margin-bottom:6px; letter-spacing:.04em}
+
+/* drag & drop */
+.pool{display:flex; flex-wrap:wrap; gap:8px; padding:18px; border:1px dashed var(--border2);
+  border-radius:2px; background:var(--surface2); min-height:70px; margin-bottom:20px}
+.chip{padding:8px 16px; background:var(--bg); border:1px solid var(--border2); border-radius:2px;
+  font-size:.88rem; cursor:grab; transition:all .2s var(--ease); user-select:none; font-family:var(--serif)}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent); color:var(--bg); border-color:var(--accent)}
+.chip.locked{cursor:default; opacity:.85}
+.buckets{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.bucket{min-height:150px; padding:18px; border:1px solid var(--border2); border-radius:2px;
+  background:var(--surface); transition:all .2s var(--ease)}
+.bucket h5{font-family:var(--mono); font-size:.66rem; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 14px; font-weight:500}
+.bucket:last-child h5{color:var(--good)}
+.bucket.drop{border-color:var(--accent); background:var(--accent-soft)}
+.bucket .chip{display:block; margin:6px 0; cursor:default}
+#dndFb{margin-top:16px; font-family:var(--serif); font-style:italic; min-height:24px; font-size:.98rem}
+@media (max-width:600px){ .buckets{grid-template-columns:1fr} }
+
+/* quiz */
+.quiz{margin:36px 0; padding:28px; background:var(--bg2); border:1px solid var(--border); border-radius:2px}
+.quiz .q{margin:24px 0; padding-bottom:20px; border-bottom:1px solid var(--border)}
+.quiz .q:last-of-type{border-bottom:none}
+.quiz .qt{font-family:var(--serif); font-size:1.05rem; margin:0 0 14px; color:var(--ink)}
+.quiz label{display:flex; align-items:flex-start; gap:12px; padding:12px 16px; border:1px solid var(--border);
+  border-radius:2px; margin:7px 0; cursor:pointer; font-size:.94rem; transition:all .2s var(--ease); color:var(--ink2)}
+.quiz label:hover{border-color:var(--border2); background:var(--surface)}
+.quiz label input{margin-top:5px; accent-color:var(--accent); flex:0 0 auto}
+.quiz label.correct{border-color:var(--good); background:color-mix(in srgb, var(--good) 8%, transparent)}
+.quiz label.wrong{border-color:var(--bad); background:color-mix(in srgb, var(--bad) 8%, transparent)}
+.quiz .fb{display:none; margin-top:12px; padding:14px 18px; background:var(--surface2);
+  border-left:2px solid var(--accent); font-size:.9rem; color:var(--ink2); font-family:var(--serif); font-style:italic}
+.quiz .fb.show{display:block}
+.quiz-foot{display:flex; align-items:center; gap:20px; margin-top:22px; flex-wrap:wrap}
+.quiz-score{font-family:var(--mono); font-size:.8rem; letter-spacing:.1em; color:var(--accent)}
+
+/* ladder */
+.ladder{list-style:none; padding:0; margin:0}
+.ladder li{display:grid; grid-template-columns:44px 1fr; gap:20px; padding:16px 0;
+  border-bottom:1px solid var(--border); align-items:baseline; transition:all .25s var(--ease); cursor:pointer}
+.ladder li:hover{padding-left:8px}
+.ladder li .rung{font-family:var(--mono); font-size:.72rem; color:var(--accent); letter-spacing:.1em}
+.ladder li .txt{font-size:.96rem; color:var(--ink2)}
+.ladder li.checked .txt{color:var(--ink)}
+.ladder li.checked .rung::after{content:" ✓"; color:var(--good)}
+
+/* habits */
+.habits{list-style:none; padding:0; margin:0}
+.habits li{display:flex; align-items:flex-start; gap:14px; padding:13px 0; border-bottom:1px solid var(--border); cursor:pointer}
+.habits li input{margin-top:5px; accent-color:var(--accent)}
+.habits li span{font-size:.95rem; color:var(--ink2)}
+.habits li input:checked + span{color:var(--ink)}
+.habits-progress{font-family:var(--mono); font-size:.72rem; letter-spacing:.12em; color:var(--accent);
+  margin-top:20px; text-transform:uppercase}
+
+/* flashcards */
+.flashgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px}
+.flip{perspective:1200px; height:170px; cursor:pointer; background:none; border:none; padding:0; text-align:left}
+.flip-inner{position:relative; width:100%; height:100%; transition:transform .7s var(--ease);
+  transform-style:preserve-3d}
+.flip.flipped .flip-inner{transform:rotateY(180deg)}
+.flip-face{position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden;
+  display:flex; align-items:center; justify-content:center; padding:22px; border:1px solid var(--border2);
+  border-radius:2px; font-family:var(--serif); font-size:.98rem; line-height:1.5; text-align:center}
+.flip-front{background:var(--surface); color:var(--ink)}
+.flip-back{background:var(--accent-soft); color:var(--ink); transform:rotateY(180deg);
+  font-size:.92rem; border-color:var(--accent)}
+
+/* cheat sheet */
+.cheat{border-top:2px solid var(--ink); border-bottom:2px solid var(--ink); margin:36px 0; overflow-x:auto}
+table{width:100%; border-collapse:collapse; font-size:.9rem; min-width:560px}
+th,td{padding:16px 20px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top}
+th{font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--accent); font-weight:500}
+td{color:var(--ink2)}
+td:first-child{font-family:var(--serif); font-size:1rem; color:var(--ink); white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface2)}
+
+/* faq */
+.faq details{border-bottom:1px solid var(--border); padding:20px 0}
+.faq summary{cursor:pointer; font-family:var(--serif); font-size:1.08rem; list-style:none;
+  display:flex; align-items:flex-start; gap:14px; color:var(--ink)}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::before{content:"+"; font-family:var(--mono); color:var(--accent); font-size:1.1rem;
+  line-height:1; margin-top:5px; transition:transform .2s}
+.faq details[open] summary::before{content:"−"}
+.faq p{color:var(--ink2); font-size:.96rem; margin:14px 0 0 32px; line-height:1.75}
+@media (max-width:600px){ .faq p{margin-left:0} }
+
+/* next steps */
+.steps{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:2px; margin-top:28px}
+.step-card{padding:22px 20px; border:1px solid var(--border); border-radius:2px; transition:all .25s var(--ease)}
+.step-card:hover{border-color:var(--accent); background:var(--surface)}
+.step-card .sn{font-family:var(--mono); font-size:.66rem; letter-spacing:.14em; color:var(--accent); margin-bottom:10px}
+.step-card h5{font-family:var(--serif); font-size:1.02rem; margin:0 0 8px; font-weight:400}
+.step-card p{margin:0; font-size:.88rem; color:var(--muted); line-height:1.6}
+
+/* closing quote */
+.closing{margin:80px 0; padding:60px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+  text-align:center}
+.closing blockquote{font-family:var(--serif); font-size:clamp(1.3rem,3vw,1.8rem); font-style:italic;
+  line-height:1.4; max-width:22ch; margin:0 auto; color:var(--ink)}
+.closing blockquote em{color:var(--accent); font-style:italic}
+.closing .attrib{font-family:var(--mono); font-size:.7rem; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--muted); margin-top:24px}
+
+footer{text-align:center; padding:60px 0 20px; border-top:1px solid var(--border); margin-top:80px;
+  font-family:var(--mono); font-size:.7rem; letter-spacing:.1em; color:var(--muted); line-height:2}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none !important; animation:none !important; scroll-behavior:auto !important}
+}
+</style>
+</head>
+<body>
+<div id="progressbar" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+
+<div class="topbar">
+  <div class="mark"><span class="glyph" aria-hidden="true"></span><span>Dangerous Confidence</span></div>
+  <div class="tools">
+    <span class="progress-mini" id="progressMini">00 / 08</span>
+    <button class="theme-toggle" id="themeBtn" aria-label="Toggle light mode">Light</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- HERO -->
+<header class="hero">
+  <div class="eyebrow">An interactive reading · 15 chapters</div>
+  <h1>The quiet kind of <em>confidence</em> that cannot be faked.</h1>
+  <p class="lede">Not loud. Not performed. Not dependent on anyone's approval. A reading of the fifteen chapters on dangerous confidence — restructured so it actually changes what you do on Monday.</p>
+  <div class="meta">
+    <div><span class="v">15</span><span class="l">Chapters</span></div>
+    <div><span class="v">08</span><span class="l">Modules</span></div>
+    <div><span class="v">14</span><span class="l">Interactions</span></div>
+    <div><span class="v">~35m</span><span class="l">Deep read</span></div>
+  </div>
+</header>
+
+<!-- WHAT YOU'LL LEARN -->
+<section class="section">
+  <div class="section-head">
+    <div class="kicker">00 · Orientation</div>
+    <h2>What you'll learn</h2>
+  </div>
+  <ol class="learn-list">
+    <li><strong>Why over-explaining drains confidence</strong><span>And the short, firm alternative that replaces it — without becoming rude.</span></li>
+    <li><strong>How to master the inner voice</strong><span>The private voice that eventually shows up in public. Plus the daily practice that rewires it.</span></li>
+    <li><strong>Why respect precedes confidence</strong><span>Confidence without self-respect is a mask. Self-respect is built from small daily choices.</span></li>
+    <li><strong>How to kill the approval trap</strong><span>Enjoying praise is fine. Needing it is the leash. The difference between the two.</span></li>
+    <li><strong>How silence and the body do the work</strong><span>Why silence disarms, why the body is believed over words, and how to train both.</span></li>
+    <li><strong>The shift from reacting to leading</strong><span>Most people live one step behind. Leading is controlling yourself, not others.</span></li>
+    <li><strong>Discomfort, rejection, detachment, boundaries</strong><span>The four engines of durable confidence — and how each one actually works.</span></li>
+    <li><strong>Calm in chaos and living as if you need nothing</strong><span>The two highest forms. What they mean, and what they don't.</span></li>
+  </ol>
+</section>
+
+<!-- INDEX -->
+<section class="section">
+  <div class="section-head">
+    <div class="kicker">01 · Index</div>
+    <h2>The eight modules</h2>
+    <p class="sub">Tap any entry to jump. Completed modules mark themselves.</p>
+  </div>
+  <ul class="index" id="indexList"></ul>
+</section>
+
+<!-- MODULES -->
+<div id="modulesRoot"></div>
+
+<!-- CLOSING QUOTE -->
+<div class="closing">
+  <blockquote>You react to <em>nothing</em>. Therefore nothing controls you.</blockquote>
+  <div class="attrib">— The thesis</div>
+</div>
+
+<!-- FLASHCARDS -->
+<section class="section">
+  <div class="section-head">
+    <div class="kicker">F · Recall</div>
+    <h2>Flashcards</h2>
+    <p class="sub">Answer out loud before you flip. That's the recall that makes it stick.</p>
+  </div>
+  <div class="flashgrid" id="flashgrid"></div>
+</section>
+
+<!-- HABITS -->
+<section class="section">
+  <div class="section-head">
+    <div class="kicker">H · Practice</div>
+    <h2>The daily practice</h2>
+    <p class="sub">A short set of actions drawn from every chapter. Tick them as you actually do them — not as you intend to.</p>
+  </div>
+  <div class="inter" id="habitsWrap">
+    <ul class="habits" id="habits"></ul>
+    <div class="habits-progress" id="habitsProgress">0 / 0 completed</div>
+  </div>
+</section>
+
+<!-- CHEAT SHEET -->
+<section class="section">
+  <div class="section-head">
+    <div class="kicker">S · Cheat sheet</div>
+    <h2>All fifteen chapters</h2>
+    <p class="sub">The whole book in one table.</p>
+  </div>
+  <div class="cheat">
+    <table>
+      <thead>
+        <tr><th>Ch</th><th>Principle</th><th>Practice</th><th>The shift</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Stop explaining yourself</td><td>Short, firm statements. Let silence carry the weight.</td><td>From apology mode to quiet certainty</td></tr>
+        <tr><td>2</td><td>Master your inner voice</td><td>Reframe the private line. Repeat three strong statements daily.</td><td>From worst critic to strongest ally</td></tr>
+        <tr><td>3</td><td>Respect before confidence</td><td>Keep small promises to yourself. Hold one boundary.</td><td>From a mask to a foundation</td></tr>
+        <tr><td>4</td><td>Kill the need for approval</td><td>Say no without explaining. Decide without waiting for applause.</td><td>From puppet to leader</td></tr>
+        <tr><td>5</td><td>Respond with silence</td><td>Pause before reacting. Let nine out of ten provocations go.</td><td>From reactive to untouchable</td></tr>
+        <tr><td>6</td><td>Let the body speak first</td><td>Doorway pause. Posture. One extra second of eye contact.</td><td>From words to presence</td></tr>
+        <tr><td>7</td><td>Stop reacting, start leading</td><td>Ask "what do I want to create here?" before responding.</td><td>From follower of circumstance to author</td></tr>
+        <tr><td>8</td><td>Embrace discomfort</td><td>Do one thing per week that makes you slightly nervous.</td><td>From safety to evidence</td></tr>
+        <tr><td>9</td><td>Speak less, command more</td><td>Cut your words in half. Listen to understand, not to reply.</td><td>From noise to weight</td></tr>
+        <tr><td>10</td><td>Turn rejection into power</td><td>Ask "what can I take from this?" instead of "why me?"</td><td>From identity wound to feedback</td></tr>
+        <tr><td>11</td><td>Detach from outcomes</td><td>Focus on process. Say "whatever happens, I'll be fine."</td><td>From clinging to freedom</td></tr>
+        <tr><td>12</td><td>Set boundaries without apology</td><td>No is a complete sentence. Hold the line calmly.</td><td>From drained to protected</td></tr>
+        <tr><td>13</td><td>Stand calm in chaos</td><td>Breathe slow. Slow your pace. Lower your voice.</td><td>From one more panic to the calm in the room</td></tr>
+        <tr><td>14</td><td>Train until skill is certainty</td><td>Deliberate practice on the specific skill that scares you.</td><td>From hoping to knowing</td></tr>
+        <tr><td>15</td><td>Live as if you need nothing</td><td>Provide your own validation. Gratitude. Focus inward.</td><td>From neediness to abundance</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section faq">
+  <div class="section-head">
+    <div class="kicker">Q · Questions</div>
+    <h2>Still unsure?</h2>
+  </div>
+
+  <details><summary>Isn't "react to nothing" just emotional suppression?</summary>
+    <p>There's a real difference, and it matters. Suppression is when you feel the emotion fully and then bury it — which costs energy and eventually leaks out sideways. What this material describes is closer to what meditation traditions call non-reactivity: the emotion arrives, you notice it, and you choose not to be driven by it. The feeling isn't denied; the <em>reaction</em> is delayed. That gap — between stimulus and response — is where all your power lives. If you're using "react to nothing" as a licence to feel nothing, you've misunderstood it. The instruction is not to amputate your emotional life. It's to stop handing the controls to whoever pushes your buttons.</p></details>
+
+  <details><summary>Doesn't "speak less, command more" just reward being cold or withdrawn?</summary>
+    <p>No — and this is the most common misreading of the book. The point of speaking less is not to become a silent, brooding figure. It's to remove the noise so that the words you do speak carry weight. A person who says three sentences a day and means all three is not cold; they're economical. The companion chapter — on listening to understand rather than to reply — makes the actual claim clear: this is a posture of <em>attention</em>, not withdrawal. The quietest person in the room is often the one paying the most attention, which is precisely why their words land. If you find yourself using "speak less" as an excuse to disengage, you've taken the wrong lesson.</p></details>
+
+  <details><summary>Isn't "live as if you need nothing" a recipe for isolation?</summary>
+    <p>This is the chapter most often misunderstood, so it's worth being precise. "Need nothing" doesn't mean <em>want nothing</em>, <em>have nothing</em>, or <em>be close to no one</em>. It means your identity, your peace, and your sense of worth don't hinge on what others give or take away. A person who loves deeply and doesn't cling is not cold — they're free. In fact, the material argues the opposite of isolation: people are drawn to those who don't beg for attention, because neediness repels and abundance attracts. Relationships built from choice are stronger than relationships built from desperation. The goal is to show up full rather than empty.</p></details>
+
+  <details><summary>How do I tell the difference between a boundary and a wall?</summary>
+    <p>A boundary is a line that protects something — your time, your energy, your values. A wall is a structure that blocks connection entirely. The boundary says: <em>here is where I end and you begin, and I will hold this line calmly</em>. The wall says: <em>you may not come near me</em>. Functionally, boundaries usually come with a clear, unapologetic statement — "I'm not available for that," "that doesn't work for me" — and a willingness to stay in relationship. Walls often come with silence, withdrawal, or contempt. The test: does your line leave room for the relationship to continue on healthier terms? If yes, it's a boundary. If it forecloses the relationship entirely, it may be a wall, and that may be appropriate in some cases — but it's worth knowing which one you're building.</p></details>
+
+  <details><summary>What if I do all this and people still don't respect me?</summary>
+    <p>Two responses. First, some of the practices take months to produce visible change, because you're changing a pattern others have learned to predict. Give it time. Second — and more importantly — the material is explicit that the goal is not to make other people treat you differently. The goal is to stop needing that to feel okay. The paradox the book keeps returning to is that the respect tends to follow the independence, not the other way around. If you're doing the practices <em>in order to</em> be respected, you're still in the approval trap with a longer route. Do them because you've decided to, and the external changes become a side effect rather than the point.</p></details>
+
+  <details><summary>Which chapter should I start with if I only have five minutes a day?</summary>
+    <p>Chapter one. "Stop explaining yourself" is the fastest of the fifteen to practice, because the opportunity shows up several times a day and the corrective is simple: catch yourself mid-explanation, cut the sentence short, and let the silence sit. It also compounds into the others — once you notice how often you explain yourself for permission, you'll start seeing the same pattern in your approval-seeking, your boundary-setting, and your reactions. If you want a second practice to layer on, add the chapter two morning statements — three short, strong sentences said out loud. Two practices, five minutes, and you've covered the foundation the other thirteen chapters build on.</p></details>
+</section>
+
+<!-- NEXT STEPS -->
+<section class="section">
+  <div class="section-head">
+    <div class="kicker">N · Further</div>
+    <h2>Where to go from here</h2>
+  </div>
+  <div class="steps">
+    <div class="step-card"><div class="sn">01</div><h5>Re-read one chapter per day</h5><p>Read one chapter, do its practice, and notice where the pattern shows up. Fifteen days covers the whole book.</p></div>
+    <div class="step-card"><div class="sn">02</div><h5>Keep a non-reaction log</h5><p>Each evening, write down one moment you chose not to react. Building the evidence is what makes the identity stick.</p></div>
+    <div class="step-card"><div class="sn">03</div><h5>Do the discomfort ladder</h5><p>One small discomfort a day for a week. Then one bigger one a week for a month. This is where confidence becomes real.</p></div>
+    <div class="step-card"><div class="sn">04</div><h5>Pick one boundary</h5><p>Find the one place you feel the most resentment. That resentment is the signal. Set the line, hold it calmly, and don't apologise.</p></div>
+    <div class="step-card"><div class="sn">05</div><h5>Train one skill deliberately</h5><p>Confidence is competence. Choose the skill your self-doubt circles, and practise it with intention until it feels ordinary.</p></div>
+    <div class="step-card"><div class="sn">06</div><h5>Read the adjacent traditions</h5><p>Stoicism (Marcus Aurelius, Epictetus), Robert Greene's <em>48 Laws</em>, and the literature on non-reactivity in meditation traditions.</p></div>
+  </div>
+</section>
+
+<footer>
+  An interactive reading built from a fifteen-chapter audiobook on dangerous confidence.<br>
+  Progress stored in your browser via localStorage.
+</footer>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   MODULE DATA — covers all 15 chapters plus intro & conclusion
+   ============================================================ */
+const MODULES = [
+  {
+    id:"m1", num:"01", chapters:"Intro · Ch 1",
+    title:"The Thesis: Confidence Is Quiet",
+    sub:"Real confidence is not loud. It is steady — and it begins by refusing to explain yourself.",
+    expl:`<p>Confidence is not about being the loudest person in the room. It is not showing off, chasing approval, or proving your worth to anyone. Real confidence is calm, steady, and quiet — the kind of presence that makes people stop and notice without you demanding their attention. And the highest form of it is this: when nothing shakes you, nothing provokes you, and nothing controls you.</p>
+      <p>Most people spend their lives reacting — to criticism, to rejection, to chaos, to the opinions of others. And every reaction takes away a piece of their power. The thesis of the whole book is that when you learn to react to nothing, you stop giving your energy away. You become untouchable. You move through the world with a presence that is rare and — the book's word — <em>dangerous</em>. Not dangerous to others, but dangerous to the attempts people make to control you.</p>
+      <p>Chapter one begins with the most immediate of the practices: <strong>stop explaining yourself</strong>. Every long, unnecessary explanation you give — the five-minute speech about traffic when you were late, the justification of every detail of a decision when someone questioned it — sends the same silent message underneath: <em>I need your approval to feel okay.</em> Confident people don't do this, not because they're arrogant, but because they know their worth is not up for debate.</p>
+      <p>The alternative is not rudeness. It is brevity. Instead of justifying every move, you learn to stand by your choices with a simple, firm, direct statement: "I chose this because it's right for me" — and then stop. No over-explaining. No backpedalling. Just calm certainty. Every time you keep it short and let the choice stand on its own, you send a louder message: <em>I don't need your permission.</em> The practice is to catch yourself mid-explanation for the next week, cut it short, and let the silence carry the weight.</p>`,
+    chapters:[
+      { t:"Introduction", d:"Confidence is calm and steady. The highest form is non-reactivity — nothing shakes you, nothing provokes you, nothing controls you. Every reaction gives away a piece of your power." },
+      { t:"Chapter 1 · Stop explaining yourself", d:"Long explanations are a silent plea for approval. The fix is not arrogance, it's brevity. Short, firm, direct statements — then silence. Let the silence carry the confidence." }
+    ],
+    diagram:`<svg viewBox="0 0 620 260" role="img" aria-label="A long tangled line labelled over-explaining, versus a short straight line labelled confident statement.">
+      <rect width="620" height="260" fill="none"/>
+      <text x="140" y="40" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="ui-monospace,monospace" letter-spacing="2">OVER-EXPLAINING</text>
+      <path d="M40 130 Q70 90 100 130 T160 130 T220 130 T280 130" stroke="var(--muted)" stroke-width="1.5" fill="none" opacity="0.55"/>
+      <path d="M40 130 Q60 170 90 130 T150 130 T210 130 T280 130" stroke="var(--muted)" stroke-width="1.5" fill="none" opacity="0.4"/>
+      <circle cx="280" cy="130" r="4" fill="var(--muted)"/>
+      <text x="160" y="200" text-anchor="middle" font-size="10" fill="var(--muted)" font-style="italic">signal buried in noise</text>
+      <line x1="310" y1="30" x2="310" y2="230" stroke="var(--border2)" stroke-dasharray="3 4"/>
+      <text x="480" y="40" text-anchor="middle" font-size="11" fill="var(--accent)" font-family="ui-monospace,monospace" letter-spacing="2">CONFIDENT STATEMENT</text>
+      <line x1="360" y1="130" x2="580" y2="130" stroke="var(--accent)" stroke-width="2.5"/>
+      <circle cx="580" cy="130" r="5" fill="var(--accent)"/>
+      <circle cx="580" cy="130" r="14" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.4"/>
+      <text x="470" y="200" text-anchor="middle" font-size="10" fill="var(--accent)" font-style="italic">signal, nothing else</text>
+      <text x="310" y="250" text-anchor="middle" font-size="10" fill="var(--muted)" letter-spacing="1">SAME MESSAGE · DIFFERENT WEIGHT</text>
+    </svg>`,
+    caption:"Every unnecessary sentence dilutes the signal. Confidence is what's left when you cut it.",
+    analogy:{ tag:"Analogy · The shopkeeper", text:"Over-explaining is like a shopkeeper who chases you down the street after you've said you're just browsing — shouting reasons why the product is good. The confident shopkeeper lets you look, answers what you ask, and trusts that the right customer will come back. The chasing doesn't sell more. It sells <em>less</em>." },
+    examples:[
+      { k:"Obvious", tagClass:"", title:"The late arrival", body:"Five-minute speech about traffic, your alarm, and your phone dying — instead of: 'Thanks for waiting.' The apology tour is longer than the lateness it's apologising for." },
+      { k:"Counter-intuitive", tagClass:"counter", title:"Not explaining reads as respect", body:"When you decline an invitation with a short 'That doesn't work for me' and no justification, people often experience it as <em>more</em> respectful than a padded excuse. It treats them as someone who doesn't require a story." },
+      { k:"Edge case", tagClass:"edge", title:"When explanation is genuinely owed", body:"Sometimes context is required — a mistake that affected someone, a decision that needs alignment. The practice isn't 'never explain'. It's 'don't explain for permission'. Explaining to inform is fine. Explaining to appease is what drains you." }
+    ],
+    mis:{ q:"'If I stop explaining, people will think I'm rude or arrogant.'", a:"This is the fear that keeps the pattern alive. But the opposite of over-explaining isn't coldness — it's brevity. You can decline an invitation, deliver a decision, or hold a position with warmth, eye contact, and a calm tone, and still keep it under ten words. What people read as arrogant is not brevity; it's contempt. Warm brevity reads as strength. Cold brevity reads as dismissal. The tone does the work the explanation was doing badly." },
+    why:"Every explanation you don't owe is a small payment of your power to someone who didn't ask for it. Cutting them is the fastest, cheapest way to feel the shift this whole book is about.",
+    scenario:{
+      title:"Scenario: A colleague questions a decision you made.",
+      steps:[
+        { d:"Launch into the full backstory — every step, every alternative you considered, every reason the choice was rational.", c:"You've signalled that the decision needs defending, and that you're the one who needs to do the defending." },
+        { d:"Say 'I chose this because it's right for the work' — and stop.", c:"The decision stands on its own. The colleague either engages with the reasoning or doesn't; either way, you haven't conceded that it was up for debate." },
+        { d:"Let the silence sit. Notice the urge to fill it, and don't.", c:"The first few times this will feel unbearable. After a week, it becomes the most natural thing in the room." }
+      ]
+    },
+    reframe:{
+      title:"Explanation reframer",
+      sub:"Tap each line to see the confident version underneath.",
+      items:[
+        { before:"\"I'm so sorry I'm late — the traffic was insane, and then my alarm didn't go off, and my phone died, and I couldn't...\"", after:"\"Thanks for waiting.\"" },
+        { before:"\"I can't come to that — I've just been really swamped lately, and there's a lot going on at work, and honestly I haven't been sleeping well...\"", after:"\"That doesn't work for me.\"" },
+        { before:"\"I chose the other vendor because I thought about it a lot and there were all these factors and I wasn't sure at first but then I...\"", after:"\"I chose the other vendor. Here's the one reason that mattered.\"" },
+        { before:"\"I'm not sure I'm the right person for this, I mean I could try, but I don't know, maybe someone else would be better at it, I just...\"", after:"\"I'll take it on. I'll flag if it needs someone else.\"" }
+      ]
+    }
+  },
+  {
+    id:"m2", num:"02", chapters:"Ch 2 · Ch 3",
+    title:"Master the Inner Voice",
+    sub:"The way you speak to yourself in private eventually shows up in how you show up in public.",
+    expl:`<p>If you want durable confidence, you have to start with the voice that speaks the most to you: the one in your own head. That voice is either your greatest weapon or your biggest enemy. And most people never realise the connection that chapters two and three make explicit — the way you speak to yourself in private determines how you show up in public.</p>
+      <p>If your inner voice is constantly saying <em>I'm not good enough, I always mess things up, people are probably judging me</em> — you will walk into a room nervous, hesitant, small. If your inner voice says <em>I can handle this, I've done harder things, I'm exactly where I need to be</em> — you walk into the same room taller, calmer, sharper. Same person, different voice, different life.</p>
+      <p>The mistake most people make is waiting for life to validate them before changing the inner voice. They think: <em>once I succeed, I'll feel confident</em>. Chapter two reverses the order. You don't wait for proof — you create it. Your brain believes repetition. Whatever you repeat to yourself becomes your truth. The inner voice is like a thermostat: if it's set low, you'll always sink back to that level no matter how much external success you taste. If it's set high, you'll rise to meet it.</p>
+      <p>Chapter three adds the foundation underneath: <strong>respect before confidence</strong>. Confidence without self-respect is a mask — a performance you put on to convince others while privately doubting. Real self-respect doesn't come from big achievements; it comes from the small daily choices that tell your mind <em>I matter</em>. Keeping a promise to yourself. Walking away from a conversation that was only costing you. Holding a boundary you said you would hold. Each of these looks small from the outside, but together they build the deep, unshakable sense that you can trust yourself. And once you trust yourself, confidence flows naturally.</p>`,
+    chapters:[
+      { t:"Chapter 2 · Master your inner voice", d:"The private voice shows up in public. Reframe the harsh line into a strong one. Morning statements: I respect myself. I can handle anything today. I don't need anyone's approval." },
+      { t:"Chapter 3 · Build respect before confidence", d:"Confidence without self-respect is a mask. Self-respect is built from small daily choices — keeping promises to yourself, walking away from toxic conversations, holding a boundary." }
+    ],
+    diagram:`<svg viewBox="0 0 620 260" role="img" aria-label="A thermostat dial showing how the inner voice sets the temperature of your confidence.">
+      <rect width="620" height="260" fill="none"/>
+      <path d="M160 190 A130 130 0 0 1 460 190" stroke="var(--border2)" stroke-width="2" fill="none"/>
+      <path d="M160 190 A130 130 0 0 1 460 190" stroke="var(--accent)" stroke-width="4" fill="none"
+            stroke-dasharray="210 400" stroke-linecap="round"/>
+      <line x1="310" y1="190" x2="310" y2="90" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="310" cy="190" r="7" fill="var(--accent)"/>
+      <text x="170" y="222" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="ui-monospace,monospace">LOW</text>
+      <text x="310" y="242" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="ui-monospace,monospace">INNER VOICE</text>
+      <text x="450" y="222" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="ui-monospace,monospace">HIGH</text>
+      <text x="310" y="60" text-anchor="middle" font-size="11" fill="var(--accent)" font-family="ui-monospace,monospace" letter-spacing="2">THE SET POINT</text>
+      <text x="310" y="260" text-anchor="middle" font-size="10" fill="var(--ink2)" font-style="italic">outside success can't hold you above your own thermostat</text>
+    </svg>`,
+    caption:"The inner voice sets the temperature. External success only warms the room temporarily.",
+    analogy:{ tag:"Analogy · The thermostat", text:"A thermostat doesn't react to the weather — it <em>sets the weather</em>. If it's set to 15°, the room returns to 15° no matter how much heat blows in. Your inner voice is that thermostat. A person whose internal setting is <em>I'm not enough</em> will find a way back to that feeling no matter how much praise arrives. A person whose setting is <em>I can handle this</em> will rise to meet it." },
+    examples:[
+      { k:"Obvious", tagClass:"", title:"The mirror check", body:"Two versions of the same mirror moment. Version A: 'Look at that flaw, look at that one.' Version B: 'You're showing up. You're improving. You're worthy.' Same face. Different life." },
+      { k:"Counter-intuitive", tagClass:"counter", title:"Reframing isn't lying to yourself", body:"'This is hard, but I'll figure it out' is not the same as 'I'm perfect and this is easy.' The first is honest and strong. The second is denial. Dangerous confidence isn't about fake positivity — it's about speaking with strength <em>while</em> things are imperfect." },
+      { k:"Edge case", tagClass:"edge", title:"The small kept promise", body:"You said you'd get up early to work on the thing. You did. Nothing dramatic happened. But an internal account was credited — the account that says <em>my word means something, including to myself</em>. That balance is what confidence is drawn against." }
+    ],
+    mis:{ q:"'Positive affirmations don't work — I feel like I'm lying to myself.'", a:"They don't work when they're generic and untrue ('I am the greatest') — that's why they feel like lying. The practice in this material is different: it's replacing a harsh, specific line with a strong, specific, <em>honest</em> alternative. 'I always fail' becomes 'every setback teaches me something.' 'I can't handle this' becomes 'this is hard and I'll figure it out.' Both versions of the second sentence are true. Only one of them is a sentence you'd say to someone you respect. The practice is not to invent a fantasy — it's to stop saying to yourself what you would never say to a friend." },
+    why:"You cannot outrun your own inner monologue. It's with you in every room, every conversation, every silent moment before a decision. Change that voice and you change the operating system underneath everything else in this book.",
+    scenario:{
+      title:"Scenario: You catch yourself saying 'I'm so stupid' after a mistake.",
+      steps:[
+        { d:"Let the line run. Add the second thought — 'and I always do this, and everyone noticed.'", c:"The inner critic gains weight with every repetition. The thermostat drops." },
+        { d:"Catch the line. Replace it — 'that was a mistake, and I'll do better next time.'", c:"The honest version of the same event, without the identity verdict. The thermostat holds." },
+        { d:"Say the replacement out loud, once, even if only to yourself in the car.", c:"Repetition is what the brain believes. Spoken words land deeper than internal ones, and the practice compounds." }
+      ]
+    },
+    reframe:{
+      title:"Inner voice reframer",
+      sub:"Tap each line to see the strong version.",
+      items:[
+        { before:"\"I'm so stupid.\"", after:"\"That was a mistake. I'll do better next time.\"" },
+        { before:"\"I can't handle this.\"", after:"\"This is hard, and I'll figure it out.\"" },
+        { before:"\"I always fail.\"", after:"\"Every setback teaches me something that makes me stronger.\"" },
+        { before:"\"They're probably judging me.\"", after:"\"I'm showing up as myself. That's the only thing I control.\"" },
+        { before:"\"I don't deserve to be here.\"", after:"\"I'm exactly where I need to be. I'll earn the rest.\"" }
+      ]
+    }
+  },
+  {
+    id:"m3", num:"03", chapters:"Ch 4 · Ch 5",
+    title:"Kill the Approval Trap",
+    sub:"Enjoying praise is fine. Needing it is the leash — and silence is how you slip it.",
+    expl:`<p>One of the biggest traps that steals confidence is the constant need for approval. That itch that asks: <em>do they like me? Do they agree with me? Am I good enough in their eyes?</em> It's subtle, but it controls a huge number of people's lives. They dress for what others might say. They post for validation rather than to share. They chase compliments, avoid criticism, and feel crushed when no one claps. The problem is structural: when your confidence depends on approval, it's always fragile, because approval can be given and taken away. One moment people cheer; the next they criticise. If your self-worth rises and falls with their reactions, you live like a puppet on strings you can't control.</p>
+      <p>Chapter four is careful to distinguish between two things that look similar. There is nothing wrong with <em>enjoying</em> praise. The problem comes the moment you <em>depend</em> on it to feel valuable. Enjoyment is a pleasant side effect; dependence is a handover of the remote control. The practice is to say no without explaining, to decide based on what you know is right for you even if it isn't understood, and to walk into a room not wondering <em>will they like me?</em> but <em>do I respect how I'm showing up?</em> That single question moves you out of the performer's role and into the leader's.</p>
+      <p>Chapter five gives you the practical mechanism: <strong>respond with silence, not emotion</strong>. Most people believe strength is having the last word, showing everyone how smart or sharp they are. True strength is often the opposite — the ability to stay calm, stay silent, and not be pulled into every emotional battle. When someone criticises you and you snap back, they've controlled you. When they attack and you don't move, they don't know what to do with you. Silence is disarming. It's also a self-interested move: it buys you time to think, and it makes your words weightier when you do choose to speak.</p>`,
+    chapters:[
+      { t:"Chapter 4 · Kill the need for approval", d:"Enjoying praise is fine; needing it is the trap. The test isn't 'will they like me?' but 'do I respect how I'm showing up?' You may be called arrogant at first — then respected." },
+      { t:"Chapter 5 · Respond with silence, not emotion", d:"Reaction proves the emotion is in control. Silence is disarming, buys time, and gives your words weight. Not every provocation deserves a response." }
+    ],
+    diagram:`<svg viewBox="0 0 620 280" role="img" aria-label="A figure with puppet strings being cut, transitioning from external control to self-control.">
+      <rect width="620" height="280" fill="none"/>
+      <!-- left: puppeted -->
+      <text x="150" y="30" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="ui-monospace,monospace" letter-spacing="2">APPROVAL-DRIVEN</text>
+      <line x1="150" y1="60" x2="120" y2="130" stroke="var(--muted)" stroke-width="1" opacity="0.6"/>
+      <line x1="150" y1="60" x2="150" y2="130" stroke="var(--muted)" stroke-width="1" opacity="0.6"/>
+      <line x1="150" y1="60" x2="180" y2="130" stroke="var(--muted)" stroke-width="1" opacity="0.6"/>
+      <circle cx="150" cy="145" r="14" fill="none" stroke="var(--muted)" stroke-width="1.5"/>
+      <line x1="150" y1="159" x2="150" y2="220" stroke="var(--muted)" stroke-width="1.5"/>
+      <line x1="150" y1="185" x2="120" y2="215" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="150" y1="185" x2="180" y2="215" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"/>
+      <text x="150" y="258" text-anchor="middle" font-size="10" fill="var(--muted)" font-style="italic">moves when pulled</text>
+      <!-- divider -->
+      <line x1="310" y1="40" x2="310" y2="250" stroke="var(--border2)" stroke-dasharray="3 4"/>
+      <!-- right: cut -->
+      <text x="470" y="30" text-anchor="middle" font-size="11" fill="var(--accent)" font-family="ui-monospace,monospace" letter-spacing="2">SELF-DIRECTED</text>
+      <line x1="440" y1="60" x2="440" y2="100" stroke="var(--muted)" stroke-width="1" opacity="0.35" stroke-dasharray="3 3"/>
+      <line x1="470" y1="60" x2="470" y2="100" stroke="var(--muted)" stroke-width="1" opacity="0.35" stroke-dasharray="3 3"/>
+      <line x1="500" y1="60" x2="500" y2="100" stroke="var(--muted)" stroke-width="1" opacity="0.35" stroke-dasharray="3 3"/>
+      <text x="470" y="112" text-anchor="middle" font-size="9" fill="var(--accent)" font-family="ui-monospace,monospace">✕ ✕ ✕</text>
+      <circle cx="470" cy="145" r="14" fill="none" stroke="var(--accent)" stroke-width="2"/>
+      <line x1="470" y1="159" x2="470" y2="220" stroke="var(--accent)" stroke-width="2"/>
+      <line x1="470" y1="185" x2="445" y2="212" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="470" y1="185" x2="495" y2="212" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+      <text x="470" y="258" text-anchor="middle" font-size="10" fill="var(--accent)" font-style="italic">stands on its own</text>
+    </svg>`,
+    caption:"The strings don't disappear. You cut them, deliberately, one at a time.",
+    analogy:{ tag:"Analogy · The remote control", text:"When you need approval to feel okay, you hand someone the remote control to your emotions. They press <em>like</em>, you feel good. They press <em>ignore</em>, you feel worthless. And people change channels fast. The practice is not to become indifferent to everyone — it's to stop giving out the remote." },
+    examples:[
+      { k:"Obvious", tagClass:"", title:"The post you didn't need to make", body:"You took a photo because you wanted to share a moment. By the time you hit post, you're refreshing the app. The moment was already had. What's refreshing the app isn't sharing — it's the meter." },
+      { k:"Counter-intuitive", tagClass:"counter", title:"The person who criticises your boundary is telling you it was needed", body:"When you stop chasing approval, some people will call you arrogant or selfish. In the material's framing, this is confirmation — not refutation. The people who wanted unlimited access to your yes are the ones upset that you've started saying no." },
+      { k:"Edge case", tagClass:"edge", title:"Public provocation and the choice not to move", body:"Someone insults you in front of others, expecting a reaction. Most people take the bait. But if you stay calm and simply choose silence, the room's attention shifts. They start to look foolish, not you. You've shown their words didn't penetrate." }
+    ],
+    mis:{ q:"'Silence means letting people walk all over me.'", a:"Silence and passivity are not the same thing. Silence is a <em>chosen</em> non-response — a deliberate decision that this provocation does not deserve your energy. Passivity is the absence of a response because you don't know what to do. The book is explicit: silence doesn't mean you let people abuse you. It means you choose your responses carefully and refuse to waste energy on pointless battles. The distinction is felt immediately from the inside — one is a choice, the other is a collapse." },
+    why:"Approval-chasing and reactive response are the two biggest leaks in most people's confidence. Both are addressed by the same underlying practice: choosing your response rather than having it chosen for you.",
+    scenario:{
+      title:"Scenario: Someone mocks your work in front of the team.",
+      steps:[
+        { d:"Respond immediately — defend yourself, correct the record, make sure everyone knows they're wrong.", c:"You've shown that the comment reached you. You've handed them the reaction they were fishing for." },
+        { d:"Pause. Look at them calmly. Let the silence sit for a beat longer than is comfortable.", c:"The room notices. The mockery is now exposed as a bid for attention, and it hasn't gotten one." },
+        { d:"If you choose to respond at all, respond to the substance, not the sting — and then move on.", c:"Your words carry weight because they weren't reactive. And the moment passes on your terms, not theirs." }
+      ]
+    },
+    quiz:{
+      key:"A", title:"Check: approval & silence",
+      items:[
+        { q:"What is the difference between enjoying praise and needing it?", opts:["There is no meaningful difference — both are fine.","Enjoying it is a side effect; needing it hands someone the remote control to your emotions.","Needing it is stronger because it shows you care."], correct:1, fb:"The book distinguishes them clearly: enjoyment is pleasant, dependence is a leash. The moment you need approval to feel valuable, you've given away your power." },
+        { q:"Someone tries to provoke you in public. What does the material recommend?", opts:["Match their energy so they learn not to try again.","Stay calm, hold the silence, and let the room's attention shift.","Leave the room immediately."], correct:1, fb:"Silence is disarming. When you don't react, the provocation has no target, and the person who tried looks like they were shouting into a void." },
+        { q:"When you stop chasing approval, some people will call you arrogant. What does the book say about this?", opts:["You're probably being arrogant and should soften.","It's normal at first — and those same people tend to respect you more over time.","You should explain yourself so they understand."], correct:1, fb:"The material is explicit: at first some people won't like it. But over time those same people begin to respect you more than they ever did when you were bending for their acceptance." }
+      ]
+    }
+  },
+  {
+    id:"m4", num:"04", chapters:"Ch 6 · Ch 9",
+    title:"The Body Speaks First",
+    sub:"Before you open your mouth, your body has already told the room who you are — and the quietest voice often carries furthest.",
+    expl:`<p>Before you ever speak, your body is already communicating. People see how you walk, how you stand, how you sit, how you look at them — and within seconds they've formed an opinion. If your words and your body disagree, people will always believe your body. You can say <em>I'm confident</em> while slouched, avoiding eye contact, and fidgeting — and nobody buys it. You can say almost nothing with a strong posture, steady eyes, and calm movement — and people feel your presence.</p>
+      <p>Chapter six is precise about what "letting the body speak first" means. It means walking into a room like you belong there. Standing tall, shoulders back, chest open, head level — not arrogant, just quietly certain. A firm handshake. Eye contact that doesn't flinch, doesn't dart, doesn't apologise for being seen. Crucially, the body is not just signalling to others; it's training your own mind. Sit small, feel small. Carry yourself like you're hiding, and your mind believes you should hide. Expand your posture and move with purpose, and the mind receives the message: <em>I am strong, I am steady, I belong here.</em></p>
+      <p>Chapter nine extends the same principle to speech. Most people talk too much because they're uncomfortable with silence — they're afraid that if they stop speaking, they'll lose attention. So they pile on words hoping to convince people of their worth. But the more you talk without purpose, the weaker your words become. The way to give words weight is simple: <strong>speak less, mean more</strong>. Slow down. Pause before answering. Listen to understand rather than to reply. And when you do speak, speak with calm authority — so that when you say something, people know it matters.</p>`,
+    chapters:[
+      { t:"Chapter 6 · Let your body speak first", d:"Words and body disagree, people believe the body. Posture, eye contact, doorway pause. The body trains the mind as much as it signals to others." },
+      { t:"Chapter 9 · Speak less, command more", d:"Silence builds anticipation. Pause before answering. Listen to understand, not to reply. Words used sparingly carry more weight." }
+    ],
+    diagram:`<div class="hotspot">
+      <svg viewBox="0 0 620 320" role="img" aria-label="A standing figure with four numbered hotspots marking posture, hands, gaze, and pace.">
+        <rect width="620" height="320" fill="none"/>
+        <line x1="310" y1="30" x2="310" y2="290" stroke="var(--border2)" stroke-dasharray="3 4"/>
+        <g transform="translate(180,40)">
+          <circle cx="70" cy="50" r="22" fill="none" stroke="var(--accent)" stroke-width="2"/>
+          <line x1="70" y1="72" x2="70" y2="180" stroke="var(--accent)" stroke-width="2"/>
+          <line x1="70" y1="100" x2="30" y2="150" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+          <line x1="70" y1="100" x2="110" y2="150" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+          <line x1="70" y1="180" x2="50" y2="260" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+          <line x1="70" y1="180" x2="90" y2="260" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+        </g>
+        <g transform="translate(400,40)" font-family="ui-monospace,monospace" font-size="11" fill="var(--ink2)">
+          <text x="0" y="30">POSTURE · square, open</text>
+          <text x="0" y="80">HANDS · still, unhurried</text>
+          <text x="0" y="130">GAZE · steady, unflinching</text>
+          <text x="0" y="180">PACE · slow, deliberate</text>
+          <text x="0" y="230">VOICE · low, calm</text>
+        </g>
+      </svg>
+      <button class="dot" style="left:28%; top:18%" data-hot="h1" aria-label="Posture">1</button>
+      <button class="dot" style="left:20%; top:42%" data-hot="h2" aria-label="Hands">2</button>
+      <button class="dot" style="left:30%; top:15%" data-hot="h3" aria-label="Gaze">3</button>
+      <button class="dot" style="left:23%; top:72%" data-hot="h4" aria-label="Pace">4</button>
+    </div>
+    <div class="hot-info" id="hotInfo">Tap a numbered point to see what each one communicates.</div>`,
+    caption:"Four non-verbal channels. Each one is read before a single word is spoken.",
+    analogy:{ tag:"Analogy · The trailer before the film", text:"Your body is the trailer. Long before the feature presentation — your actual words — the audience has already decided whether they're watching something worth their attention. You can't control whether they watch. You can control whether the trailer is honest about the film that's coming." },
+    examples:[
+      { k:"Obvious", tagClass:"", title:"The doorway pause", body:"Before you walk into a room, take one calm breath. Straighten. Roll shoulders back. Lift your head slightly. Then walk in at a steady pace — no rush, no hurry. One adjustment, and both the room and your own body respond." },
+      { k:"Counter-intuitive", tagClass:"counter", title:"Holding eye contact one second longer", body:"Most people break eye contact too quickly — they feel seen and dart away. Adding a single second of steady, calm, comfortable eye contact communicates confidence without a word. Not a stare. Just a beat more than the nervous default." },
+      { k:"Edge case", tagClass:"edge", title:"When the body is training the mind", body:"You don't feel confident first and then stand up straight. You stand up straight first, and the body's signal loops back into the mind. The practice works both directions — sometimes the fastest route to feeling steady is to act steady." }
+    ],
+    mis:{ q:"'Posture work is just faking it till you make it.'", a:"The framing matters here. The practice is not about pretending to be someone you're not. It's about removing the signals that sabotage you — the hunched shoulders, the nervous fidgeting, the darting eyes. Those habits send silent messages you don't intend. Cutting them isn't performance; it's clearing interference. The strength was already there; the posture work just stops hiding it. If you're using posture work to perform a character you don't believe in, you're doing it wrong. If you're using it to stop accidentally broadcasting insecurity, you're doing it right." },
+    why:"Roughly speaking, people form their impression of you before you've made your point — and that impression is largely non-verbal. Adjusting the body and the speaking style is the fastest visible change available, and it reinforces the internal work rather than replacing it.",
+    scenario:{
+      title:"Scenario: A meeting where you want to be heard but usually get talked over.",
+      steps:[
+        { d:"Sit at the back, prepare your point carefully, and wait for a gap in the conversation.", c:"The gap rarely comes. The people with the loudest default volume keep the floor. Preparation without presence goes unheard." },
+        { d:"Sit up. Place your hands still. Before you speak, take one slow breath.", c:"The body's cue reaches the room before the words do. People look toward the person who's physically present." },
+        { d:"Say the point in half the words you'd normally use, then stop.", c:"The brevity is what makes it land. Longer versions get talked over mid-sentence; short ones don't leave a gap to interrupt." }
+      ]
+    },
+    quiz:{
+      q:{
+        key:"B", title:"Check: body & speech",
+        items:[
+          { q:"When your words and body disagree, what do people believe?", opts:["The words, because they're more specific.","The body, always.","Whichever one is louder."], correct:1, fb:"The material is unambiguous: people will always believe the body. You can't talk your way out of a slouch." },
+          { q:"What does 'speak less, command more' actually mean?", opts:["Be silent and withdrawn so people come to you.","Slow down, cut excess words, and let silence build anticipation so the words you do use carry weight.","Never speak in meetings."], correct:1, fb:"It's not about withdrawal. It's about reducing noise so the signal is unmistakable. The word count goes down; the weight goes up." },
+          { q:"Why does posture work affect how you feel, not just how you're seen?", opts:["It doesn't — the effect is only external.","The body and mind are connected: expanding your posture sends your own brain the message 'I belong here.'","It's a placebo."], correct:1, fb:"The loop runs both directions. Standing upright isn't just signalling to the room — it's signalling to you." }
+        ]
+      }
+    }
+  },
+  {
+    id:"m5", num:"05", chapters:"Ch 7",
+    title:"From Reaction to Leadership",
+    sub:"Most people live one step behind. The shift is from reacting to circumstances to authoring them.",
+    expl:`<p>Most people live their lives in <strong>reaction mode</strong>. Something happens and they respond. Someone criticises them and they defend. Someone disrespects them and they snap back. Someone praises them and suddenly they feel good about themselves. They're constantly at the mercy of whatever comes their way. That isn't confidence — it's dependency. And as long as you're reacting, you're not leading.</p>
+      <p>The person who reacts is always one step behind. They're letting the world dictate their mood, their energy, and their choices. The person who leads sets the tone. They decide the direction. They don't wait to see what happens before they act; they create what happens. This is the difference between living as a follower of circumstance and living as the author of your own life.</p>
+      <p>Chapter seven delivers a harder truth underneath: when you react to everything, people learn how to control you. They push your buttons, and you respond on cue. They know which words make you angry, which actions make you defensive, which silences make you insecure. Stop reacting — stay calm and steady — and suddenly those same people lose their grip. That's when confidence starts to look dangerous, because you become untouchable.</p>
+      <p>The shift is practical. It doesn't require a title or a position. It requires discipline over yourself. Start by slowing down. Pause before you respond. Ask: <em>what outcome do I want here, and how can I create it?</em> Set intentions before situations arrive — before a stressful meeting, decide in advance: <em>I will remain calm, I will speak clearly, I will not be pushed off balance.</em> Leading isn't about proving yourself or controlling every detail. It's about owning yourself so completely that you influence everything around you.</p>`,
+    chapters:[
+      { t:"Chapter 7 · Stop reacting, start leading", d:"Reaction mode is dependency. When you react to everything, people learn how to control you. Shift to leading — set intentions before situations, ask what you want to create, slow the response." }
+    ],
+    diagram:`<svg viewBox="0 0 620 280" role="img" aria-label="Two loops — a reactive loop that circles back on itself, and a leading loop that moves forward with intention.">
+      <rect width="620" height="280" fill="none"/>
+      <!-- reactive loop -->
+      <text x="150" y="30" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="ui-monospace,monospace" letter-spacing="2">REACTIVE LOOP</text>
+      <circle cx="150" cy="150" r="70" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6 6" opacity="0.6"/>
+      <circle cx="150" cy="80" r="4" fill="var(--muted)"/>
+      <circle cx="220" cy="150" r="4" fill="var(--muted)"/>
+      <circle cx="150" cy="220" r="4" fill="var(--muted)"/>
+      <circle cx="80" cy="150" r="4" fill="var(--muted)"/>
+      <text x="150" y="155" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="ui-monospace,monospace">STIMULUS</text>
+      <text x="150" y="168" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="ui-monospace,monospace">→ REACTION</text>
+      <text x="150" y="255" text-anchor="middle" font-size="10" fill="var(--muted)" font-style="italic">one step behind</text>
+      <!-- divider -->
+      <line x1="310" y1="40" x2="310" y2="260" stroke="var(--border2)" stroke-dasharray="3 4"/>
+      <!-- leading -->
+      <text x="470" y="30" text-anchor="middle" font-size="11" fill="var(--accent)" font-family="ui-monospace,monospace" letter-spacing="2">LEADING LOOP</text>
+      <line x1="360" y1="150" x2="580" y2="150" stroke="var(--accent)" stroke-width="2"/>
+      <path d="M580 150 l-12 -7 l0 14 z" fill="var(--accent)"/>
+      <circle cx="400" cy="150" r="5" fill="var(--accent)"/>
+      <circle cx="470" cy="150" r="5" fill="var(--accent)"/>
+      <circle cx="540" cy="150" r="5" fill="var(--accent)"/>
+      <text x="400" y="180" text-anchor="middle" font-size="9" fill="var(--ink2)" font-family="ui-monospace,monospace">INTENTION</text>
+      <text x="470" y="180" text-anchor="middle" font-size="9" fill="var(--ink2)" font-family="ui-monospace,monospace">PAUSE</text>
+      <text x="540" y="180" text-anchor="middle" font-size="9" fill="var(--ink2)" font-family="ui-monospace,monospace">CHOICE</text>
+      <text x="470" y="255" text-anchor="middle" font-size="10" fill="var(--accent)" font-style="italic">authors the next moment</text>
+    </svg>`,
+    caption:"Reacting runs in a closed loop. Leading moves forward — because you paused long enough to choose.",
+    analogy:{ tag:"Analogy · Thermostat and thermometer", text:"A thermometer reacts to the temperature. A thermostat <em>sets</em> it. Most people live as thermometers — accurately reporting whatever emotional weather arrives, and being shaped by it. The shift in this chapter is from thermometer to thermostat: you still register the room, but you're the one deciding what temperature it will be." },
+    examples:[
+      { k:"Obvious", tagClass:"", title:"The meeting challenge", body:"Someone challenges your idea. The reactive version defends immediately, sometimes with heat. The leading version pauses, listens, and either responds with clarity or redirects to the bigger picture. One shifts the whole energy of the room." },
+      { k:"Counter-intuitive", tagClass:"counter", title:"The steady person who sets the emotional tone", body:"In relationships, reactions make you adjust to someone else's moods — upset when they're upset, happy when they're happy. Leading means staying steady regardless of their swings. Often they follow your calm rather than you following their chaos." },
+      { k:"Edge case", tagClass:"edge", title:"The person who no longer gets pushed", body:"Someone who has learned not to react is genuinely harder to move. Insults, provocations, emotional baiting — none of it lands, because none of it gets a reaction. This is the mechanism the whole book keeps describing: non-reaction is what makes you untouchable." }
+    ],
+    mis:{ q:"'Leading means controlling other people.'", a:"It's the opposite, and the chapter is explicit about it. Leadership here isn't about controlling others — it's about controlling <em>yourself</em> so completely that you influence everything around you. The person who reacts is the one being controlled, by whoever pushes their buttons. The person who pauses and chooses is the one whose influence radiates outward without effort. You don't need a title, a position, or a spotlight to be that person. You need discipline over your own responses." },
+    why:"Every other chapter in this book requires this one. Non-reaction, silence, boundaries, calm in chaos — all of them depend on the shift from being driven by circumstance to choosing your response to it.",
+    scenario:{
+      title:"Scenario: You're about to enter a conversation you know will be tense.",
+      steps:[
+        { d:"Walk in and see how it goes. Respond in real time to whatever they bring.", c:"You're entering as a thermometer. Whatever temperature they set, you'll register and be shaped by." },
+        { d:"Before you go in, decide: I will stay calm. I will speak clearly. I will not be pushed off balance.", c:"You've pre-set the thermostat. You're entering as the person who decides the temperature of the room, not the person reporting it." },
+        { d:"In the conversation, when the first push comes, take one breath before responding.", c:"That single second is where the whole shift lives. It's the gap between stimulus and response — the only place your power actually exists." }
+      ]
+    },
+    dnd:{
+      title:"Sort: reactive or leading?",
+      sub:"Drag each response into the bucket it belongs to. Click a chip then click a bucket if you prefer.",
+      items:[
+        { t:"Snap back immediately when criticised", k:"reactive" },
+        { t:"Take one breath before responding", k:"leading" },
+        { t:"Defend every decision in the moment", k:"reactive" },
+        { t:"Set an intention before the meeting", k:"leading" },
+        { t:"Let their mood decide yours", k:"reactive" },
+        { t:"Hold your calm regardless of theirs", k:"leading" },
+        { t:"Chase the last word", k:"reactive" },
+        { t:"Ask 'what do I want to create here?'", k:"leading" },
+        { t:"React to every criticism in real time", k:"reactive" },
+        { t:"Choose to let nine in ten go", k:"leading" }
+      ],
+      buckets:[{ id:"reactive", label:"Reactive" }, { id:"leading", label:"Leading" }]
+    }
+  },
+  {
+    id:"m6", num:"06", chapters:"Ch 8 · Ch 14",
+    title:"Discomfort & Mastery",
+    sub:"Confidence is not a feeling you wait for. It's evidence you collect and skill you build.",
+    expl:`<p>Confidence is not built in comfort. It's built in the uncomfortable places most people try to avoid. The moments that made you stronger were never the easy ones — they were the ones where you felt nervous, unprepared, maybe even afraid, and stepped forward anyway. That's where growth lives, and it's where confidence is actually born.</p>
+      <p>Most people spend their lives running from discomfort, choosing what feels safe and familiar. The problem with that is simple: if you always choose comfort, you never expand. You stay the same, play small, and deep down you know it. That's why so many people secretly feel insecure — because their lives contain no proof of their own strength. Confidence isn't about telling yourself you're strong. It's about putting yourself in situations that show you that you are.</p>
+      <p>Discomfort never fully goes away. You never reach a point where life stops testing you. But you can train yourself to get <em>comfortable being uncomfortable</em> — to see it as training rather than danger. Chapter fourteen extends this to its logical end: <strong>train until skill becomes certainty</strong>. Real, lasting confidence is built on competence. When you've put in the work — the reps, the practice, the repeated failures — you stop hoping you're good enough and start knowing you are. That shift from doubt to certainty is where dangerous confidence lives.</p>
+      <p>The two chapters work together. Chapter eight gives you the willingness to enter discomfort. Chapter fourteen gives you the method for staying in it long enough that the discomfort turns into skill. Neither works alone — willingness without practice is just adrenaline; practice without willingness never starts. Together they form the engine that makes confidence durable rather than mood-dependent.</p>`,
+    chapters:[
+      { t:"Chapter 8 · Embrace discomfort until it feels normal", d:"Choose what stretches you, not what's safe. Discomfort is where evidence lives. Reframe fear: 'this is where I get stronger.' Small pushes first, then bigger ones." },
+      { t:"Chapter 14 · Train until skill becomes certainty", d:"Confidence is competence. Repetition turns fear into familiarity. Practise with intention, embrace mistakes, and measure progress." }
+    ],
+    diagram:`<svg viewBox="0 0 620 280" role="img" aria-label="A rising curve showing competence increasing as discomfort is repeatedly entered.">
+      <rect width="620" height="280" fill="none"/>
+      <line x1="70" y1="230" x2="570" y2="230" stroke="var(--border2)" stroke-width="1.5"/>
+      <line x1="70" y1="230" x2="70" y2="40" stroke="var(--border2)" stroke-width="1.5"/>
+      <text x="320" y="260" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="ui-monospace,monospace" letter-spacing="1">REPETITIONS OF DISCOMFORT</text>
+      <text x="34" y="140" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="ui-monospace,monospace" transform="rotate(-90 34 140)" letter-spacing="1">COMPETENCE</text>
+      <path d="M70 220 Q180 210 260 180 T400 110 T570 60" stroke="var(--accent)" stroke-width="2.5" fill="none"/>
+      <circle cx="100" cy="217" r="4" fill="var(--accent)"/>
+      <circle cx="200" cy="200" r="4" fill="var(--accent)"/>
+      <circle cx="310" cy="162" r="4" fill="var(--accent)"/>
+      <circle cx="430" cy="98" r="4" fill="var(--accent)"/>
+      <circle cx="540" cy="66" r="5" fill="var(--accent)"/>
+      <text x="100" y="205" text-anchor="middle" font-size="9" fill="var(--ink2)" font-family="ui-monospace,monospace">nervous</text>
+      <text x="310" y="150" text-anchor="middle" font-size="9" fill="var(--ink2)" font-family="ui-monospace,monospace">familiar</text>
+      <text x="540" y="54" text-anchor="middle" font-size="9" fill="var(--accent)" font-family="ui-monospace,monospace">ordinary</text>
+    </svg>`,
+    caption:"What once felt terrifying becomes routine. The curve flattens because the fear has been absorbed into skill.",
+    analogy:{ tag:"Analogy · The gym", text:"If you only lift what's easy, you never build muscle. Growth happens when you pick up something heavy enough to make your body shake — and then do it again. Your mental and emotional muscles work the same way. The discomfort is the weight. The repetition is the workout. Skill is what remains." },
+    examples:[
+      { k:"Obvious", tagClass:"", title:"The first time you spoke in front of a group", body:"Hands shaking, voice uncertain. You did it anyway. The second time was less terrible. The tenth time was routine. Nothing changed except the repetition." },
+      { k:"Counter-intuitive", tagClass:"counter", title:"Failure is practice, not verdict", body:"Every stumble is a lesson; every failure is a rep. Confidence isn't the absence of mistakes — it's the ability to keep going until those mistakes no longer control you. Athletes don't stop training after a bad game." },
+      { k:"Edge case", tagClass:"edge", title:"The skill that removes doubt", body:"There's a specific competence beneath confidence that no compliment can give you and no criticism can take. The doctor who has done the procedure a thousand times doesn't need reassurance. That certainty came from reps." }
+    ],
+    mis:{ q:"'I'll act once I feel confident. I'm waiting to feel ready.'", a:"This is the order most people get wrong, and it's the reason confidence stays out of reach. Confidence comes <em>after</em> action, not before it. You act again and again until your actions create the confidence. Waiting to feel ready inverts the causality. The people you admire for their calm certainty almost never felt ready at the beginning — they acted, collected evidence, and let certainty arrive as a by-product of competence." },
+    why:"Every other practice in this book will feel uncomfortable at first. If you're not willing to sit in discomfort, none of them get past the first attempt. And if you're not willing to practise deliberately, the discomfort never turns into skill.",
+    scenario:{
+      title:"Scenario: There's a skill you've avoided because you don't feel ready.",
+      steps:[
+        { d:"Wait until you feel more confident, then start practising.", c:"The feeling doesn't arrive on its own. It arrives as a consequence of practice. Waiting is the loop that never starts." },
+        { d:"Start with a discomfort small enough that you'll actually do it. Do it once. Then again tomorrow.", c:"You begin collecting evidence — the only thing that ever moves the inner thermostat. Small, unglamorous, and effective." },
+        { d:"Increase the difficulty gradually. Reframe the fear as 'this is where I get stronger.'", c:"The curve rises. What once scared you becomes routine. Certainty arrives not as a feeling but as a fact." }
+      ]
+    },
+    ladder:{
+      title:"The discomfort ladder",
+      sub:"Tap each rung you're genuinely willing to try this week. Start at the bottom.",
+      rungs:[
+        "Say one sentence in a meeting where you'd normally stay quiet.",
+        "Send one message you've been drafting for weeks.",
+        "Ask one question in a room where you're the least expert.",
+        "Have one conversation you've been avoiding.",
+        "Share one piece of work before it feels ready.",
+        "Say no to one request without explaining.",
+        "Do the thing that scares you most, once, this month."
+      ]
+    },
+    quiz:{
+      key:"C", title:"Check: discomfort & mastery",
+      items:[
+        { q:"Where is confidence actually built?", opts:["In the moments when things are going well.","In the uncomfortable places most people avoid.","In the applause of others."], correct:1, fb:"The material is direct: confidence is built in discomfort. The moments that made you stronger were never the easy ones." },
+        { q:"What's the relationship between confidence and action?", opts:["You feel confident first, then act.","You act first, repeatedly, and confidence arrives as a by-product.","Confidence and action are unrelated."], correct:1, fb:"Waiting to feel confident before acting inverts the causality. Action produces evidence, and evidence produces certainty." },
+        { q:"Why does deliberate practice create certainty rather than just skill?", opts:["Because practice is intrinsically enjoyable.","Because competence removes doubt — you stop hoping you're good enough and start knowing you are.","Because it impresses others."], correct:1, fb:"Repetition turns fear into familiarity. When you've done the work, the doubt has nothing to stand on." }
+      ]
+    }
+  },
+  {
+    id:"m7", num:"07", chapters:"Ch 10 · 11 · 12",
+    title:"Rejection, Detachment & Boundaries",
+    sub:"Three practices that convert what looks like loss into a source of power.",
+    expl:`<p>These three chapters deal with the same underlying structure from three angles: the things you attach your worth to. Rejection, outcomes, and other people's demands are the three levers most commonly used to move you — and each one has a corresponding practice for taking the lever back.</p>
+      <p><strong>Chapter ten: turn rejection into power.</strong> Nobody enjoys hearing no. But rejection is one of the most powerful tools for building confidence if you learn how to use it. The difference between people who crumble and people who rise is perspective. Most people hear <em>no</em> and think <em>I'm not good enough</em>. They attach rejection to their identity instead of seeing it for what it is: feedback, redirection, a test. Some of the most successful people in history faced rejection over and over — books turned down by dozens of publishers, ideas laughed at, athletes cut from teams. The rejection didn't destroy them. It toughened them. The shift is to stop asking <em>why me</em> and start asking <em>what can I take from this</em>.</p>
+      <p><strong>Chapter eleven: detach from outcomes.</strong> Most people tie their entire sense of worth to results. If things go well, they feel good; if things fall apart, they feel broken. This attachment is what keeps them paralysed — afraid to apply, afraid to speak up, afraid to take the risk, because they can't bear the possible result. Detachment doesn't mean you stop caring or stop trying. It means you stop chaining your identity to the result. You focus on what you can control — effort, attitude, preparation — and release the rest.</p>
+      <p><strong>Chapter twelve: set boundaries without apology.</strong> Boundaries are not walls; they are lines that protect your time, energy, and self-respect. If you don't set them, the world will gladly run over you. People will take as much as you allow. Confidence means knowing your value and protecting it. And crucially — you don't owe anyone a justification. <em>No</em> is a complete sentence. <em>That doesn't work for me. I'm not available for that.</em> Short, calm, unapologetic. At first this feels uncomfortable, and some people will be unhappy. The right people will respect it — and the ones who get angry at your boundary have confirmed it was necessary.</p>`,
+    chapters:[
+      { t:"Chapter 10 · Turn rejection into power", d:"Rejection is feedback, redirection, and a test — not a verdict on your worth. Shift from 'why me' to 'what can I take from this'. Expect it; it's proof you're stretching." },
+      { t:"Chapter 11 · Detach from outcomes", d:"Attachment paralyses. Focus on process, not result. 'Whatever happens, I'll be fine.' Remind yourself you've survived every bad outcome so far." },
+      { t:"Chapter 12 · Set boundaries without apology", d:"Boundaries protect time, energy, and self-respect. No is a complete sentence. The right people respect the line; the wrong people confirm it was needed." }
+    ],
+    diagram:`<svg viewBox="0 0 620 300" role="img" aria-label="Three panels: rejection as reframing, detachment as releasing grip, and a boundary line being drawn.">
+      <rect width="620" height="300" fill="none"/>
+      <!-- panel 1 -->
+      <g transform="translate(20,30)">
+        <text x="90" y="14" text-anchor="middle" font-size="10" fill="var(--accent)" font-family="ui-monospace,monospace" letter-spacing="1.5">REJECTION</text>
+        <line x1="10" y1="30" x2="170" y2="30" stroke="var(--border2)"/>
+        <circle cx="90" cy="90" r="28" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="90" y="94" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="ui-monospace,monospace">NO</text>
+        <path d="M50 90 Q90 60 130 90" stroke="var(--accent)" stroke-width="2" fill="none"/>
+        <path d="M130 90 l-8 -2 l2 8 z" fill="var(--accent)"/>
+        <text x="90" y="145" text-anchor="middle" font-size="9.5" fill="var(--ink2)">feedback, not verdict</text>
+        <text x="90" y="165" text-anchor="middle" font-size="9.5" fill="var(--ink2)">reframed in place</text>
+      </g>
+      <!-- panel 2 -->
+      <g transform="translate(220,30)">
+        <text x="90" y="14" text-anchor="middle" font-size="10" fill="var(--accent)" font-family="ui-monospace,monospace" letter-spacing="1.5">DETACHMENT</text>
+        <line x1="10" y1="30" x2="170" y2="30" stroke="var(--border2)"/>
+        <circle cx="90" cy="100" r="14" fill="none" stroke="var(--muted)" stroke-width="1.5"/>
+        <line x1="76" y1="100" x2="60" y2="90" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="104" y1="100" x2="120" y2="90" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M90 60 Q70 80 90 100" stroke="var(--accent)" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>
+        <path d="M90 60 Q110 80 90 100" stroke="var(--accent)" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>
+        <text x="90" y="145" text-anchor="middle" font-size="9.5" fill="var(--ink2)">grip loosened</text>
+        <text x="90" y="165" text-anchor="middle" font-size="9.5" fill="var(--ink2)">on the outcome</text>
+      </g>
+      <!-- panel 3 -->
+      <g transform="translate(420,30)">
+        <text x="90" y="14" text-anchor="middle" font-size="10" fill="var(--accent)" font-family="ui-monospace,monospace" letter-spacing="1.5">BOUNDARY</text>
+        <line x1="10" y1="30" x2="170" y2="30" stroke="var(--border2)"/>
+        <line x1="90" y1="55" x2="90" y2="150" stroke="var(--accent)" stroke-width="2.5"/>
+        <text x="55" y="95" text-anchor="middle" font-size="9" fill="var(--muted)" font-family="ui-monospace,monospace">THEIRS</text>
+        <text x="125" y="95" text-anchor="middle" font-size="9" fill="var(--accent)" font-family="ui-monospace,monospace">MINE</text>
+        <text x="90" y="145" text-anchor="middle" font-size="14" fill="var(--accent)">✓</text>
+        <text x="90" y="165" text-anchor="middle" font-size="9.5" fill="var(--ink2)">held without</text>
+        <text x="90" y="180" text-anchor="middle" font-size="9.5" fill="var(--ink2)">apology</text>
+      </g>
+    </svg>`,
+    caption:"Three levers. Three practices. All of them involve taking back something that was being handed away by default.",
+    analogy:{ tag:"Analogy · The moat, not the wall", text:"A wall keeps everyone out — including the people you want close. A moat is selective: it defines the boundary of the castle, and it has a drawbridge for the people you choose to let in. The practice in this chapter is building a moat, not a wall. The line is real, and it's yours — but it isn't a rejection of everyone. It's a definition of where you end and other people begin." },
+    examples:[
+      { k:"Obvious", tagClass:"", title:"The rejection that becomes a redirection", body:"You didn't get the role. You could hear it as a verdict on your worth, or you could hear it as information — about fit, about timing, about what to strengthen. Same event, two entirely different next steps." },
+      { k:"Counter-intuitive", tagClass:"counter", title:"The colleague who is angry at your boundary has told you why you needed it", body:"When you finally stop saying yes to the extra work being dumped on you, the reaction isn't neutral. It's often anger. That anger is the clearest possible confirmation that the boundary was necessary." },
+      { k:"Edge case", tagClass:"edge", title:"You've survived every bad outcome so far", body:"This is a simple fact most people never actually count. Every failure, every disappointment, every rejection — you're still here, stronger, wiser. That's evidence that you don't need perfect outcomes to be okay. You just need resilience." }
+    ],
+    mis:{ q:"'Boundaries are selfish. If I set them, I'm pushing people away.'", a:"The distinction the chapter draws is precise: boundaries are not walls. They're lines that protect your time, your energy, and your self-respect — the resources you need in order to give anything at all. Without them you eventually resent the people you're trying to please, which pushes them away far more effectively than the boundary would have. The right people respect your lines. The people who don't are, usually, the ones who wanted unlimited access." },
+    why:"These are the three places most people leak power continuously — to the fear of rejection, to the pressure of outcomes, and to other people's expectations. Closing these leaks changes the baseline level of your confidence, not just your peak moments.",
+    scenario:{
+      title:"Scenario: A colleague keeps dumping extra work on you.",
+      steps:[
+        { d:"Say yes again and feel resentful about it. Tell yourself it's just this once.", c:"The pattern is reinforced. The resentment builds. Nothing changes, because nothing was named." },
+        { d:"Say: 'I can't take that on this week. It doesn't fit what I've got.' No explanation. No apology.", c:"The boundary is set. It's short, calm, and complete. The colleague has to find another solution — which they can." },
+        { d:"Hold the line when they push. Stay warm and stay firm. Notice who gets upset, and let that be information.", c:"The people who respect you will respect the line. The people who don't have just told you something important about the relationship." }
+      ]
+    },
+    quiz:{
+      key:"D", title:"Check: rejection, detachment, boundaries",
+      items:[
+        { q:"What's the right internal response to rejection?", opts:["'Why me?' — because understanding your weakness is important.","'What can I take from this?' — treating it as feedback and redirection.","Ignore it and move on without reflection."], correct:1, fb:"The shift is from identity wound to information. Rejection is a test and a redirection, not a verdict on your worth." },
+        { q:"What does detaching from outcomes actually mean?", opts:["Stop caring about results.","Stop chaining your identity to the result — focus on what you control and release the rest.","Only attempt things you're sure will succeed."], correct:1, fb:"Detachment is not indifference. It's a reordering: your identity sits in your effort and your values, not in the scoreboard." },
+        { q:"When you set a boundary and someone gets angry, what does the material say?", opts:["You probably set it wrong and should apologise.","It's confirmation the boundary was necessary — the right people will respect it.","You should explain yourself so they understand."], correct:1, fb:"The people who wanted unlimited access are the ones upset that the line exists. The right people respect it — and sometimes admire it." }
+      ]
+    }
+  },
+  {
+    id:"m8", num:"08", chapters:"Ch 13 · Ch 15 · Conclusion",
+    title:"Calm in Chaos & Living As If You Need Nothing",
+    sub:"The two highest forms of confidence — and what they actually mean, and don't.",
+    expl:`<p>Confidence isn't truly tested when things are going well. Anyone can look composed when life is smooth. The real measure of confidence is how you carry yourself when chaos strikes — when the room gets loud, when people panic, when everything is uncertain. That's when confidence either collapses or shines. Most people fall apart in chaos: they rush, panic, overreact, and make poor decisions because they're desperate to fix everything at once. The people who stand out are the ones who stay calm — who slow down when everyone else speeds up, breathe when everyone else holds their breath, and keep their voice steady when everyone else is shouting. That calmness is rare, and that's exactly what makes it powerful.</p>
+      <p>Chapter thirteen is practical about how: begin with your breathing. When chaos hits, the body instinctively tenses, breathes shallow, and prepares for fight or flight. Slow, steady breathing tells the body <em>I am not in danger; I am in control</em>. Then manage your pace — rushing creates mistakes, and mistakes create more chaos. Move deliberately. Then lower your voice. Chaos feeds on noise; a calm, grounded tone instantly shifts the energy of a room.</p>
+      <p>Chapter fifteen is the highest form: <strong>live as if you need nothing</strong>. Not because you don't enjoy success, recognition, or relationships — but because you're not dependent on them. When your sense of worth, your peace, and your identity no longer hinge on what others give or take away, you step into a freedom most people never experience. Most people live in constant need, and because they need, they chase — and the more they chase, the weaker they feel. But need is also a lever: someone who desperately needs approval can be manipulated, someone who desperately needs money can be bought, someone who desperately needs love will settle for less than they deserve. When you move as if you already have everything you need within yourself, you cannot be controlled. This isn't coldness — the material argues the opposite. People are drawn to those who don't beg for attention. Neediness repels; abundance attracts.</p>
+      <p>The conclusion ties the fifteen chapters together into one claim: confidence isn't about shouting louder than the rest of the world. It's calm, steady, and quiet. The most dangerous form comes from one simple truth — <em>you react to nothing, and therefore nothing controls you</em>. This isn't about perfection; it's about progress. And it's already inside you, waiting to be claimed.</p>`,
+    chapters:[
+      { t:"Chapter 13 · Stand calm in chaos", d:"Anyone can be composed when things are smooth. Chaos reveals. Slow your breathing, slow your pace, lower your voice. Your calm transfers to everyone around you." },
+      { t:"Chapter 15 · Live as if you need nothing", d:"Not coldness — non-dependence. Need is a lever others use. Provide your own validation. Gratitude. Focus inward. Abundance attracts; neediness repels." },
+      { t:"Conclusion · The thesis returns", d:"Confidence is quiet. You react to nothing, therefore nothing controls you. This is about progress, not perfection. It's already inside you." }
+    ],
+    diagram:`<svg viewBox="0 0 620 300" role="img" aria-label="Concentric rings showing chaos at the outer edges and calm at the centre.">
+      <rect width="620" height="300" fill="none"/>
+      <circle cx="310" cy="150" r="130" fill="none" stroke="var(--border2)" stroke-width="1.5" stroke-dasharray="4 5"/>
+      <circle cx="310" cy="150" r="100" fill="none" stroke="var(--border2)" stroke-width="1.5" stroke-dasharray="3 4" opacity="0.7"/>
+      <circle cx="310" cy="150" r="70" fill="none" stroke="var(--border2)" stroke-width="1.5" opacity="0.5"/>
+      <circle cx="310" cy="150" r="40" fill="none" stroke="var(--accent)" stroke-width="2"/>
+      <circle cx="310" cy="150" r="12" fill="var(--accent)"/>
+      <text x="310" y="154" text-anchor="middle" font-size="8" fill="var(--bg)" font-family="ui-monospace,monospace" font-weight="700">YOU</text>
+      <text x="310" y="30" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="ui-monospace,monospace">CHAOS · noise · panic · speed</text>
+      <text x="310" y="98" text-anchor="middle" font-size="10" fill="var(--ink2)" font-family="ui-monospace,monospace">the room</text>
+      <text x="310" y="128" text-anchor="middle" font-size="10" fill="var(--accent)" font-family="ui-monospace,monospace">the calm centre</text>
+      <text x="310" y="290" text-anchor="middle" font-size="10" fill="var(--muted)" font-style="italic">the eye of the storm doesn't move</text>
+    </svg>`,
+    caption:"Chaos moves fastest at the edges. The centre is still. Everyone nearby is affected by which one you're standing in.",
+    analogy:{ tag:"Analogy · The eye of the storm", text:"A storm is most violent at its outer bands. At the centre — the eye — the air is almost still. The storm doesn't stop being a storm because you're standing at the centre of it. But your position determines what you experience and what everyone around you experiences through you. The practice is not to calm the storm. It's to stand in the eye and let the calm radiate outward." },
+    examples:[
+      { k:"Obvious", tagClass:"", title:"The person in the emergency", body:"Something goes wrong. Two responses are possible: the person who runs around shouting, and the person who lowers their voice, slows their movements, and starts asking what needs to happen first. The second person is followed, whether or not they asked for the role." },
+      { k:"Counter-intuitive", tagClass:"counter", title:"Non-dependence attracts rather than repels", body:"The common fear is that needing nothing makes you cold and distant. The material argues the opposite: people are drawn to those who don't chase, don't cling, and don't try too hard. Neediness repels; abundance attracts. The person who doesn't need anything carries an aura of plenty." },
+      { k:"Edge case", tagClass:"edge", title:"Enjoying success without being defined by it", body:"The highest form isn't asceticism. You can enjoy recognition, enjoy relationships, enjoy the results of your work — as long as none of it is load-bearing for your identity. The difference between <em>enjoying</em> and <em>needing</em> is invisible from the outside and decisive from the inside." }
+    ],
+    mis:{ q:"'Living as if I need nothing sounds like isolation and emotional coldness.'", a:"This is the misreading worth being precise about. Needing nothing does not mean wanting nothing, having nothing, or being close to no one. It means your identity, your peace, and your worth are not hinged on what others give or take away. A person who loves deeply and doesn't cling is not cold — they're free. And the material makes an argument that goes the other direction from isolation: neediness repels, abundance attracts. Relationships built from choice are stronger than relationships built from desperation. You show up full rather than empty." },
+    why:"These are the two ends of the same practice. Calm in chaos is the visible expression of non-reactivity. Living as if you need nothing is the internal ground it stands on. Together they're what the whole book has been pointing at.",
+    scenario:{
+      title:"Scenario: Something goes badly wrong in a group you're part of.",
+      steps:[
+        { d:"Match the room's energy. Move fast, raise your voice, add urgency.", c:"The chaos compounds. You've become another source of noise rather than a centre of gravity." },
+        { d:"Breathe. Slow your pace. Lower your voice. Ask what needs to happen first.", c:"The room begins to calibrate to you. Even if you don't have the answers, your steadiness creates the conditions for finding them." },
+        { d:"Do the next small correct thing, then the next. Don't try to solve the whole thing at once.", c:"Calm is maintained in increments. The situation resolves on the timescale of deliberate action, not panic." }
+      ]
+    },
+    habits:{
+      title:"The daily practice",
+      sub:"Tap to mark what you actually did today.",
+      items:[
+        "Caught myself over-explaining, and stopped.",
+        "Said three strong statements to myself this morning.",
+        "Kept one small promise I made to myself.",
+        "Didn't chase approval today — made one decision on my own terms.",
+        "Paused before reacting to something that would normally pull me.",
+        "Held eye contact one second longer than my default.",
+        "Let a silence sit without filling it.",
+        "Spoke less than I wanted to, and it landed better.",
+        "Did one uncomfortable thing.",
+        "Reframed one rejection or setback.",
+        "Detached from one outcome I was gripping.",
+        "Held one boundary without apologising.",
+        "Stayed calm when the room didn't."
+      ]
+    }
+  }
+];
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const KEY = "dangerous.confidence.v1";
+let state = { done:{}, theme:"dark", habits:{}, ladder:{} };
+try{ const r = localStorage.getItem(KEY); if(r) state = Object.assign(state, JSON.parse(r)); }catch(e){}
+const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} };
+
+/* ============================================================
+   THEME
+   ============================================================ */
+const themeBtn = document.getElementById("themeBtn");
+function applyTheme(){
+  document.documentElement.setAttribute("data-theme", state.theme);
+  themeBtn.textContent = state.theme === "dark" ? "Light" : "Dark";
+}
+themeBtn.addEventListener("click", () => {
+  state.theme = state.theme === "dark" ? "light" : "dark";
+  applyTheme(); save();
+});
+applyTheme();
+
+/* ============================================================
+   ESCAPE
+   ============================================================ */
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ============================================================
+   RENDER MODULES
+   ============================================================ */
+const root = document.getElementById("modulesRoot");
+const indexList = document.getElementById("indexList");
+
+MODULES.forEach(m => {
+  // index entry
+  const li = document.createElement("li");
+  li.innerHTML = `<button data-goto="${esc(m.id)}">
+    <span class="n">${esc(m.num)}</span>
+    <span class="t">${esc(m.title)}</span>
+    <span class="c">${esc(m.chapters)}</span>
+  </button>`;
+  indexList.appendChild(li);
+
+  // module section
+  const sec = document.createElement("section");
+  sec.className = "module";
+  sec.id = m.id;
+  sec.dataset.module = m.id;
+
+  let html = `
+    <div class="mod-head">
+      <span class="done-badge">Complete ✓</span>
+      <div class="meta">
+        <span class="num">Module ${esc(m.num)}</span>
+        <span class="chap">${esc(m.chapters)}</span>
+      </div>
+      <h3>${esc(m.title)}</h3>
+      <p class="sub">${esc(m.sub)}</p>
+    </div>
+
+    <span class="label">A · The reading</span>
+    <div class="expl">${m.expl}</div>
+
+    <span class="label">B · Chapters covered</span>
+    <ul class="chapters">
+      ${m.chapters_list ? m.chapters_list.map(c => `<li><span class="ct">${esc(c.t)}</span><span class="cd">${esc(c.d)}</span></li>`).join("") : m.chapters.map ? m.chapters.map(c => `<li><span class="ct">${esc(c.t)}</span><span class="cd">${esc(c.d)}</span></li>`).join("") : ""}
+    </ul>
+
+    <span class="label">C · Diagram</span>
+    <figure class="diagram">${m.diagram}${m.caption ? `<figcaption>${esc(m.caption)}</figcaption>` : ""}</figure>
+
+    <span class="label">D · Analogy</span>
+    <div class="analogy">
+      <span class="tag">${esc(m.analogy.tag)}</span>
+      <p>${m.analogy.text}</p>
+    </div>
+
+    <span class="label">E · Three examples</span>
+    <div class="examples">
+      ${m.examples.map(ex => `
+        <div class="ex">
+          <div class="tag ${ex.tagClass || ""}">${esc(ex.k)}</div>
+          <p><strong>${esc(ex.title)}</strong>${ex.body}</p>
+        </div>`).join("")}
+    </div>
+
+    <span class="label">F · Misconception</span>
+    <details class="mis">
+      <summary>${esc(m.mis.q)}</summary>
+      <div class="mis-body">${m.mis.a}</div>
+    </details>
+
+    <span class="label">G · Why it matters</span>
+    <div class="why"><strong>Why it matters</strong>${esc(m.why)}</div>
+
+    <span class="label">H · Practice</span>
+    <div class="scenario">
+      <h4>${esc(m.scenario.title)}</h4>
+      ${m.scenario.steps.map((s,i) => `
+        <div class="step">
+          <p><strong>Decision ${i+1}.</strong> ${esc(s.d)}</p>
+          <p class="consequence">${esc(s.c)}</p>
+        </div>`).join("")}
+    </div>
+  `;
+
+  // Optional reframer
+  if(m.reframe){
+    html += `
+      <span class="label">I · Interactive</span>
+      <div class="inter">
+        <div class="in-head">Reframer</div>
+        <h4>${esc(m.reframe.title)}</h4>
+        <p class="in-sub">${esc(m.reframe.sub)}</p>
+        <div class="reframe">
+          ${m.reframe.items.map((it,i) => `
+            <div class="reframe-item" data-reframe="${i}" tabindex="0" role="button" aria-label="Reveal reframe">
+              <span class="hint">tap</span>
+              <div class="before">${it.before}</div>
+              <div class="after">${it.after}</div>
+            </div>`).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  // Optional hotspot (already in diagram markup) — add info panel handled globally
+  // Optional DND
+  if(m.dnd){
+    html += `
+      <span class="label">I · Interactive</span>
+      <div class="inter" data-dnd="${esc(m.id)}">
+        <div class="in-head">Sort</div>
+        <h4>${esc(m.dnd.title)}</h4>
+        <p class="in-sub">${esc(m.dnd.sub)}</p>
+        <div class="pool" id="pool-${esc(m.id)}"></div>
+        <div class="buckets">
+          ${m.dnd.buckets.map(b => `<div class="bucket" data-bucket="${esc(b.id)}" tabindex="0"><h5>${esc(b.label)}</h5></div>`).join("")}
+        </div>
+        <div id="dndFb-${esc(m.id)}"></div>
+      </div>
+    `;
+  }
+
+  // Optional ladder
+  if(m.ladder){
+    html += `
+      <span class="label">I · Interactive</span>
+      <div class="inter">
+        <div class="in-head">Ladder</div>
+        <h4>${esc(m.ladder.title)}</h4>
+        <p class="in-sub">${esc(m.ladder.sub)}</p>
+        <ul class="ladder" data-ladder="${esc(m.id)}">
+          ${m.ladder.rungs.map((r,i) => `
+            <li tabindex="0" role="button" data-rung="${i}">
+              <span class="rung">${String(i+1).padStart(2,"0")}</span>
+              <span class="txt">${esc(r)}</span>
+            </li>`).join("")}
+        </ul>
+      </div>
+    `;
+  }
+
+  // Optional quiz
+  if(m.quiz){
+    const q = m.quiz.q || m.quiz;
+    html += `
+      <span class="label">J · Check</span>
+      <div class="quiz" data-quiz="${esc(q.key)}">
+        <h4 style="font-family:var(--serif); font-size:1.15rem; margin-bottom:20px">${esc(q.title)}</h4>
+        ${q.items.map((item,i) => `
+          <div class="q" data-correct="${item.correct}" data-fb="${esc(item.fb)}">
+            <p class="qt">${i+1}. ${esc(item.q)}</p>
+            ${item.opts.map((o,j) => `
+              <label><input type="radio" name="q${esc(q.key)}${i}" value="${j}"> <span>${esc(o)}</span></label>
+            `).join("")}
+          </div>`).join("")}
+        <div class="quiz-foot">
+          <button class="btn" data-check="${esc(q.key)}">Check answers</button>
+          <span class="quiz-score" data-score="${esc(q.key)}"></span>
+        </div>
+      </div>
+    `;
+  }
+
+  html += `
+    <div class="mod-foot">
+      <div class="mod-links">${m.links ? "Related: " + m.links : ""}</div>
+      <button class="btn" data-complete="${esc(m.id)}">Mark complete</button>
+    </div>
+  `;
+
+  sec.innerHTML = html;
+  root.appendChild(sec);
+});
+
+/* ============================================================
+   PROGRESS
+   ============================================================ */
+const bar = document.getElementById("progressbar");
+const mini = document.getElementById("progressMini");
+function renderProgress(){
+  const n = MODULES.filter(m => state.done[m.id]).length;
+  const pct = Math.round(n / MODULES.length * 100);
+  bar.style.width = pct + "%";
+  bar.setAttribute("aria-valuenow", pct);
+  mini.textContent = String(n).padStart(2,"0") + " / " + String(MODULES.length).padStart(2,"0");
+  MODULES.forEach(m => {
+    const sec = document.querySelector(`.module[data-module="${m.id}"]`);
+    if(sec){
+      sec.classList.toggle("done", !!state.done[m.id]);
+      const b = sec.querySelector("[data-complete]");
+      if(b){
+        b.textContent = state.done[m.id] ? "✓ Complete" : "Mark complete";
+        b.classList.toggle("done", !!state.done[m.id]);
+      }
+    }
+    const idx = document.querySelector(`[data-goto="${m.id}"]`);
+    if(idx) idx.classList.toggle("done", !!state.done[m.id]);
+  });
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-complete]");
+  if(b){
+    const id = b.dataset.complete;
+    state.done[id] = !state.done[id];
+    save(); renderProgress();
+  }
+  const go = e.target.closest("[data-goto]");
+  if(go){
+    const el = document.getElementById(go.dataset.goto);
+    if(el) el.scrollIntoView({behavior:"smooth", block:"start"});
+  }
+});
+renderProgress();
+
+/* ============================================================
+   REFRAMER
+   ============================================================ */
+document.querySelectorAll(".reframe-item").forEach(item => {
+  const toggle = () => item.classList.toggle("open");
+  item.addEventListener("click", toggle);
+  item.addEventListener("keydown", e => {
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggle(); }
+  });
+});
+
+/* ============================================================
+   HOTSPOT
+   ============================================================ */
+const hotInfo = document.getElementById("hotInfo");
+const hotData = {
+  h1: { t:"Posture", d:"Squared shoulders, upright spine, chest open. Not rigid — just present. The single adjustment that most changes how a room reads you before you've said a word." },
+  h2: { t:"Hands", d:"Still, unhurried, visible. Fidgeting broadcasts nervousness louder than any sentence can conceal. Stillness reads as confidence because it takes more of it." },
+  h3: { t:"Gaze", d:"Steady, unflinching, comfortable being seen. Not a stare — one calm beat longer than the nervous default. Most people look away too soon." },
+  h4: { t:"Pace", d:"Slow and deliberate, especially under pressure. Rushing creates mistakes; mistakes create chaos. Moving at your own tempo communicates that the room's urgency doesn't own yours." }
+};
+document.querySelectorAll(".hotspot .dot").forEach(dot => {
+  dot.addEventListener("click", () => {
+    document.querySelectorAll(".hotspot .dot").forEach(d => d.classList.remove("active"));
+    dot.classList.add("active");
+    const h = hotData[dot.dataset.hot];
+    if(h && hotInfo) hotInfo.innerHTML = `<strong>${esc(h.t)}</strong>${esc(h.d)}`;
+  });
+});
+
+/* ============================================================
+   DRAG & DROP
+   ============================================================ */
+document.querySelectorAll("[data-dnd]").forEach(wrapper => {
+  const modId = wrapper.dataset.dnd;
+  const mod = MODULES.find(m => m.id === modId);
+  if(!mod || !mod.dnd) return;
+  const pool = wrapper.querySelector(".pool");
+  const fb = wrapper.querySelector(`#dndFb-${modId}`);
+  const bucketEls = wrapper.querySelectorAll(".bucket");
+  let selected = null;
+  let correct = 0;
+
+  const shuffled = mod.dnd.items.slice().sort(() => Math.random() - 0.5);
+  shuffled.forEach(it => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = it.t;
+    chip.dataset.kind = it.k;
+    chip.draggable = true;
+    chip.tabIndex = 0;
+    chip.setAttribute("role", "button");
+    chip.setAttribute("aria-pressed", "false");
+    chip.addEventListener("dragstart", e => e.dataTransfer.setData("text/plain", it.t));
+    chip.addEventListener("click", () => {
+      if(selected === chip){ chip.setAttribute("aria-pressed","false"); selected = null; return; }
+      if(selected) selected.setAttribute("aria-pressed","false");
+      selected = chip; chip.setAttribute("aria-pressed","true");
+    });
+    chip.addEventListener("keydown", e => {
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); chip.click(); }
+    });
+    pool.appendChild(chip);
+  });
+
+  function place(chip, bucket){
+    const kind = bucket.dataset.bucket;
+    if(chip.dataset.kind === kind){
+      bucket.appendChild(chip);
+      chip.draggable = false;
+      chip.classList.add("locked");
+      chip.setAttribute("aria-pressed","false");
+      chip.tabIndex = -1;
+      if(selected === chip) selected = null;
+      correct++;
+      fb.style.color = "var(--good)";
+      fb.textContent = correct === mod.dnd.items.length
+        ? "✓ All sorted. The reactive responses are all reactions to something; the leading responses are all choices made before anything happened."
+        : "";
+    } else {
+      fb.style.color = "var(--bad)";
+      fb.textContent = "That one belongs in the other bucket.";
+      setTimeout(() => { if(correct < mod.dnd.items.length) fb.textContent = ""; }, 1600);
+    }
+  }
+
+  bucketEls.forEach(b => {
+    b.addEventListener("dragover", e => { e.preventDefault(); b.classList.add("drop"); });
+    b.addEventListener("dragleave", () => b.classList.remove("drop"));
+    b.addEventListener("drop", e => {
+      e.preventDefault(); b.classList.remove("drop");
+      const txt = e.dataTransfer.getData("text/plain");
+      const chip = Array.from(pool.querySelectorAll(".chip")).find(c => c.textContent === txt);
+      if(chip) place(chip, b);
+    });
+    b.addEventListener("click", () => { if(selected && selected.parentElement === pool) place(selected, b); });
+    b.addEventListener("keydown", e => {
+      if((e.key === "Enter" || e.key === " ") && selected && selected.parentElement === pool){
+        e.preventDefault(); place(selected, b);
+      }
+    });
+  });
+});
+
+/* ============================================================
+   LADDER
+   ============================================================ */
+document.querySelectorAll("[data-ladder]").forEach(list => {
+  const id = list.dataset.ladder;
+  list.querySelectorAll("li").forEach(li => {
+    const rung = li.dataset.rung;
+    const key = id + ":" + rung;
+    if(state.ladder[key]) li.classList.add("checked");
+    const toggle = () => {
+      state.ladder[key] = !state.ladder[key];
+      li.classList.toggle("checked", state.ladder[key]);
+      save();
+    };
+    li.addEventListener("click", toggle);
+    li.addEventListener("keydown", e => {
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggle(); }
+    });
+  });
+});
+
+/* ============================================================
+   QUIZZES
+   ============================================================ */
+document.querySelectorAll("[data-check]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const key = btn.dataset.check;
+    const quiz = document.querySelector(`.quiz[data-quiz="${key}"]`);
+    if(!quiz) return;
+    let score = 0;
+    quiz.querySelectorAll(".q").forEach(q => {
+      const correctIdx = parseInt(q.dataset.correct, 10);
+      const labels = q.querySelectorAll("label");
+      const chosen = q.querySelector("input:checked");
+      labels.forEach(l => l.classList.remove("correct","wrong"));
+      labels.forEach((l, i) => {
+        if(i === correctIdx) l.classList.add("correct");
+        if(chosen && +chosen.value === i && i !== correctIdx) l.classList.add("wrong");
+      });
+      if(chosen && +chosen.value === correctIdx) score++;
+      let fb = q.querySelector(".fb");
+      if(!fb){
+        fb = document.createElement("div");
+        fb.className = "fb";
+        fb.textContent = q.dataset.fb || "";
+        q.appendChild(fb);
+      }
+      fb.classList.add("show");
+    });
+    const out = quiz.querySelector(`[data-score="${key}"]`);
+    const total = quiz.querySelectorAll(".q").length;
+    out.textContent = score + " / " + total + (score === total ? "  ✓" : "");
+    out.style.color = score === total ? "var(--good)" : "var(--accent)";
+  });
+});
+
+/* ============================================================
+   FLASHCARDS
+   ============================================================ */
+const cards = [
+  { q:"What is the highest form of confidence?", a:"When nothing shakes you, nothing provokes you, and nothing controls you — non-reactivity." },
+  { q:"What does over-explaining signal underneath?", a:"'I need your approval to feel okay.' The fix is brevity, not arrogance." },
+  { q:"What is the inner voice compared to?", a:"A thermostat. It sets the temperature of your confidence — outside success only warms the room temporarily." },
+  { q:"What does self-respect get built from?", a:"Small daily choices — kept promises, held boundaries, walking away from conversations that only cost you." },
+  { q:"What's the difference between enjoying praise and needing it?", a:"Enjoyment is a side effect. Need is a leash — someone else holds the remote to your emotions." },
+  { q:"Why is silence disarming?", a:"When people expect a reaction and get none, they don't know what to do. The provocation has no target." },
+  { q:"When words and body language disagree, which do people believe?", a:"The body. Always. You can't talk your way out of a slouch." },
+  { q:"What is the doorway pause?", a:"Before entering a room: one breath, straighten, shoulders back, head level, then walk in at a steady pace." },
+  { q:"What's the shift from thermometer to thermostat?", a:"A thermometer reacts to the temperature; a thermostat sets it. Most people live as thermometers." },
+  { q:"What does 'speak less, command more' actually mean?", a:"Not withdrawal — reducing noise so the signal is unmistakable. Words used sparingly carry weight." },
+  { q:"Where is confidence actually built?", a:"In the uncomfortable places most people avoid. Discomfort is where the evidence lives." },
+  { q:"What comes first — confidence or action?", a:"Action. You act repeatedly, collect evidence, and confidence arrives as a by-product. Not the reverse." },
+  { q:"What's the shift in how to hear rejection?", a:"From 'why me?' to 'what can I take from this?' It's feedback, redirection, and a test — not a verdict." },
+  { q:"What does detaching from outcomes actually mean?", a:"Not caring less — chaining your identity to effort and process rather than to the result." },
+  { q:"What is a boundary, as distinguished from a wall?", a:"A boundary is a line protecting time, energy, and self-respect. A wall blocks connection. A moat, not a wall." },
+  { q:"What's the simplest way to stand calm in chaos?", a:"Slow your breathing first. Then your pace. Then lower your voice. Chaos feeds on noise and speed." },
+  { q:"What's the difference between enjoying success and needing it?", a:"Enjoying means it adds to you. Needing means it defines you — and can therefore be used to control you." },
+  { q:"What is the thesis of the whole book in one line?", a:"You react to nothing, therefore nothing controls you." }
+];
+const flashgrid = document.getElementById("flashgrid");
+cards.forEach(c => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "flip";
+  b.setAttribute("aria-label", "Flashcard: " + c.q);
+  b.innerHTML = `<div class="flip-inner">
+    <div class="flip-face flip-front">${esc(c.q)}</div>
+    <div class="flip-face flip-back">${esc(c.a)}</div>
+  </div>`;
+  const flip = () => b.classList.toggle("flipped");
+  b.addEventListener("click", flip);
+  b.addEventListener("keydown", e => {
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); flip(); }
+  });
+  flashgrid.appendChild(b);
+});
+
+/* ============================================================
+   HABITS TRACKER (module 8)
+   ============================================================ */
+const habitsList = document.getElementById("habits");
+const habitsProgress = document.getElementById("habitsProgress");
+const habitItems = MODULES.find(m => m.id === "m8").habits.items;
+habitItems.forEach((h, i) => {
+  const li = document.createElement("li");
+  const checked = !!state.habits[i];
+  li.innerHTML = `<input type="checkbox" ${checked ? "checked" : ""} aria-label="${esc(h)}"><span>${esc(h)}</span>`;
+  li.addEventListener("click", e => {
+    if(e.target.tagName !== "INPUT") e.preventDefault();
+  });
+  const input = li.querySelector("input");
+  input.addEventListener("change", () => {
+    state.habits[i] = input.checked;
+    save(); renderHabits();
+  });
+  habitsList.appendChild(li);
+});
+function renderHabits(){
+  const done = Object.values(state.habits).filter(Boolean).length;
+  habitsProgress.textContent = done + " / " + habitItems.length + " completed today";
+}
+renderHabits();
+
+})();
+</script>
+</body>
+</html>

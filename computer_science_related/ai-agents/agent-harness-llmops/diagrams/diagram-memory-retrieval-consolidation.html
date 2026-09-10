@@ -303,32 +303,127 @@
 
         <div class="grid-2">
           <div class="info-card">
-            <p class="info-tag">Retrieval Pattern 01</p>
-            <h3 class="info-title">Exact SQL Time-Series Retrieval</h3>
+            <p class="info-tag">Core Concept 01 · Query Routing</p>
+            <h3 class="info-title">Why Dual-Tier Memory is Necessary</h3>
             <p class="info-text">
-              When a query specifies relational filters or strict temporal bounds (e.g. <em>"Show the last 10 messages with customer #441"</em>), executing vector RAG is inefficient and imprecise. The harness utilizes standard SQL index lookups on timestamped relational columns, executing in sub-milliseconds with zero embedding costs.
+              Dumping raw chat history directly into an LLM context window causes catastrophic token bloat, high API bills, and the "Lost-in-the-Middle" problem where the model misses key details. Production systems separate memory into two distinct tiers: <strong>Episodic DB</strong> for raw chronological auditing, and <strong>Semantic DB</strong> for distilled, instant conceptual recall.
             </p>
           </div>
 
           <div class="info-card focal">
-            <p class="info-tag">Retrieval Pattern 02</p>
-            <h3 class="info-title">Hybrid SQL + Semantic Vector RAG</h3>
+            <p class="info-tag">Core Concept 02 · Distillation</p>
+            <h3 class="info-title">The Consolidation ("Dreaming") Daemon</h3>
             <p class="info-text">
-              When querying vague concepts across history (e.g. <em>"Find the past 20 conversations where customers complained about shipping delays and our agent failed to resolve it"</em>), the harness runs a hybrid query: first pruning via SQL (<code>status = 'unresolved'</code>), then ranking remaining messages via cosine semantic similarity to extract the 20 exact targets.
+              Similar to biological sleep where the brain replays daily experiences and converts short-term memories into long-term knowledge, an <strong>Offline Consolidation Daemon</strong> runs asynchronously. It sweeps thousands of raw turns, strips chitchat ("Hi", "Thanks"), and writes permanent facts directly into Semantic Memory.
             </p>
           </div>
         </div>
 
-        <div class="code-block">
--- HYBRID RETRIEVAL BLUEPRINT
--- Step 1: SQL Pre-Filter
-SELECT id, user_id, message_text, embedding 
-FROM customer_turns 
-WHERE status = 'unresolved' AND created_at >= NOW() - INTERVAL '60 days'
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2rem 0 1rem;">1. Core Component Definitions (Labels in Figure 2.0)</h3>
 
--- Step 2: Vector Cosine Similarity Ranking (pgvector)
-ORDER BY embedding &lt;=&gt; embedding('customer complained about shipping delays')
-LIMIT 20;
+        <div class="grid-2">
+          <div class="info-card">
+            <p class="info-tag">Panel 1 · Left</p>
+            <h3 class="info-title">Query Routing &amp; Retrieval Gate</h3>
+            <p class="info-text">
+              <strong>Retrieval Gate:</strong> The routing logic that inspects incoming queries to decide whether to trigger exact SQL, vector similarity, or a hybrid combination.<br>
+              <strong>Case A (Exact Relational Lookup):</strong> Queries with specific entity IDs or time ranges (e.g., <em>"Last 10 messages from user #441"</em>). Handled purely by indexed SQL B-Trees in sub-milliseconds with $0 embedding cost.<br>
+              <strong>Case B (Semantic &amp; Hybrid Query):</strong> Queries about concepts or sentiments (e.g., <em>"Past 20 complaints regarding shipping delays"</em>). Requires SQL metadata filtering followed by vector embedding distance calculations.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <p class="info-tag">Panel 2 · Center</p>
+            <h3 class="info-title">Dual-Tier Database Repository</h3>
+            <p class="info-text">
+              <strong>Episodic DB (Raw Turn History):</strong> Relational SQL tables (SQLite / PostgreSQL) storing raw transcripts with strict schema columns: <code>[id, user_id, turn_text, timestamp, status]</code>. It preserves the exact historical record.<br>
+              <strong>Semantic DB (Distilled Facts):</strong> Vector stores (pgvector, Qdrant) or structured markdown files (<code>MEMORY.md</code>) containing high-dimensional embeddings (e.g. 1536-d) representing immutable truths, user preferences, and business policies.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <p class="info-tag">Panel 3 · Right</p>
+            <h3 class="info-title">Batch Consolidation Engine</h3>
+            <p class="info-text">
+              <strong>Consolidation Engine:</strong> An asynchronous worker process triggered on schedule or after every 2,000 conversations.<br>
+              <strong>Auxiliary Cheap LLM:</strong> A low-cost model (e.g. Llama-3-8B or GPT-4o-mini) that reads bulk episodic logs, extracts durable entity facts, and summarizes key insights.<br>
+              <strong>Cost Optimization:</strong> Shrinks context injection payloads by up to 90%, preventing the need to re-feed thousands of historical turns.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <p class="info-tag">Data Mechanics</p>
+            <h3 class="info-title">Vector Embeddings &amp; Cosine Distance</h3>
+            <p class="info-text">
+              Text is transformed into numerical vectors where semantic meaning corresponds to geometric direction. Using cosine distance (<code>&lt;=&gt;</code> operator in pgvector), the retrieval gate measures semantic similarity between the user's intent and stored historical complaints, returning only top-K matching records.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--color-ink); margin: 2.5rem 0 1rem;">2. Step-by-Step Flow: How Retrieval &amp; Consolidation Work</h3>
+        <p>Follow the arrows in Figure 2.0 to trace both online retrieval paths and the offline background consolidation loop:</p>
+
+        <div style="background:#ffffff; border:1px solid var(--color-rule); border-radius:8px; padding:1.5rem; margin:1.5rem 0;">
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-ink);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-ink); text-transform:uppercase;">Flow A &bull; Fast Exact Relational Lookup (Top Arrow)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The user requests <em>"Fetch last 10 messages for user #441"</em>. The Retrieval Gate identifies user ID and timestamp constraints and executes an indexed SQL query directly on the <strong>Episodic DB</strong>: <code>SELECT * FROM conversation_turns WHERE user_id = 441 ORDER BY timestamp DESC LIMIT 10</code>. Results return in &lt;5ms without running vector embeddings.
+            </p>
+          </div>
+
+          <div style="margin-bottom:1.2rem; padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Flow B &bull; Hybrid Semantic Retrieval (Bottom Orange Arrow)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              The user requests <em>"Find 20 past complaints about shipping delays"</em>. The Retrieval Gate performs a two-stage hybrid search: (1) Pre-filters the Episodic DB using SQL for <code>category = 'support'</code>, then (2) calculates cosine vector similarity against the query embedding in the <strong>Semantic DB</strong>, returning the 20 most conceptually relevant complaints out of thousands of records.
+            </p>
+          </div>
+
+          <div style="padding-left:0.75rem; border-left:2px solid var(--color-accent);">
+            <strong style="font-family:var(--font-mono); font-size:0.75rem; color:var(--color-accent); text-transform:uppercase;">Flow C &bull; Offline Batch Consolidation Loop (Dashed Orange Arrows)</strong>
+            <p style="font-size:0.92rem; color:var(--color-ink); margin-top:0.25rem;">
+              Every 2,000 turns, the <strong>Consolidation Engine</strong> awakens in the background. It queries un-distilled turns from the <strong>Episodic DB</strong> (dashed arrow rightward), runs them through the <strong>Auxiliary Cheap LLM</strong> to strip conversational pleasantries and synthesize actionable rules (e.g. <em>"Warehouse B has recurring 48-hour dispatch delays"</em>), and commits these distilled facts into the <strong>Semantic DB</strong> (dashed arrow downward and back into center).
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; color: var(--color-ink); margin: 2rem 0 1rem;">Concrete Implementation: SQL + Background Worker</h3>
+
+        <div class="code-block">
+# 1. HYBRID RETRIEVAL FUNCTION
+def hybrid_search(user_id: int, query_text: str, top_k: int = 20):
+    query_vector = embed_model.get_embedding(query_text)
+    
+    # Combined SQL filter + pgvector cosine ranking
+    sql = """
+        SELECT id, turn_text, timestamp, 
+               (embedding <=> %s::vector) AS distance
+        FROM conversation_turns
+        WHERE user_id = %s AND status = 'unresolved'
+        ORDER BY distance ASC
+        LIMIT %s;
+    """
+    return db.execute(sql, (query_vector, user_id, top_k))
+
+
+# 2. OFFLINE CONSOLIDATION DAEMON ("DREAMING")
+def run_memory_consolidation_job():
+    unprocessed_turns = db.query("SELECT * FROM conversation_turns WHERE distilled = FALSE LIMIT 2000")
+    if not unprocessed_turns:
+        return
+
+    prompt = f"""
+    Analyze the following customer support turns. Strip all conversational pleasantries.
+    Extract only durable customer preferences, recurring product bugs, and verified facts.
+    Output as JSON array of atomic semantic facts:
+    {unprocessed_turns}
+    """
+    
+    # Use cheap auxiliary model
+    extracted_facts = cheap_llm.generate(prompt)
+    for fact in extracted_facts:
+        semantic_store.save(fact["entity"], fact["rule"], embed_model.get_embedding(fact["rule"]))
+    
+    db.execute("UPDATE conversation_turns SET distilled = TRUE WHERE id IN %s", (tuple(t.id for t in unprocessed_turns),))
         </div>
       </section>
     </main>

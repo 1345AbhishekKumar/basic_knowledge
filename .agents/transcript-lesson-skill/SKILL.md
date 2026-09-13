@@ -1,103 +1,141 @@
 ---
-name: transcript-lesson
-description: Use when the user provides a transcript and wants to learn the material deeply through an interactive, visual, self-contained HTML lesson. Also use when the user provides a URL, YouTube link, video link, podcast link and wants a lesson from it. Also use if the user asks to "convert a transcript into an interactive lesson", "create a lesson from a transcript", "make a visual lesson from this video", "teach me this video", "make a lesson from this link" or "teach me with interactive diagrams and quizzes".
+name: transcript-lesson-skill
+description: Use when the user provides a transcript and wants to learn the material deeply through an interactive, visual, self-contained HTML lesson. Also use when the user provides a YouTube URL with captions or an article/blog/docs URL and wants a lesson from it. Also use if the user asks to "convert a transcript into an interactive lesson", "create a lesson from a transcript", "make a visual lesson from this video", "teach me this video", "make a lesson from this link" or "teach me with interactive diagrams and quizzes". For podcast/audio files, direct video files, playlists, or videos without captions, ask the user to paste the transcript — direct audio/video-file transcription and playlist batch extraction are not supported.
+version: 2.4.0
 ---
+
+## Scope — file-access isolation + repo boundary (mandatory, overrides any other step)
+
+- Repo boundary (mandatory): never touch anything outside the current repo (the working directory where the skill was invoked). All reads, writes, creates, and script outputs (`transcripts/`, lesson `.html`, `--out-dir`, `--out`) must resolve inside the current repo. Never use absolute paths outside the repo, never traverse above the repo root (`..` beyond repo), never read/write home directory, sibling repos, or system paths. If a requested `--out-dir` / `--out` path resolves outside the current repo, refuse it and fall back to the in-repo default (`transcripts/` + topic filename).
+- Read ONLY:
+  1. This skill's own files: `SKILL.md`, `lesson-requirements.md`, `scripts/README.md` (plus `scripts/extract_transcript.py` only when running Step 0 Branch B).
+  2. The `japanese-philosophy` skill — only if it exists inside the current repo: `../japanese-philosophy/SKILL.md`, `../japanese-philosophy/references/design-tokens.md`, and a skim of `../japanese-philosophy/references/principles.md`. Never outside the current repo.
+  3. The `diagram-design` skill — CONDITIONALLY ONLY (see Step 3A) and only if it exists inside the current repo: `../diagram-design/SKILL.md` §3 visual-type guide + at most ONE matching `../diagram-design/references/type-*.md`. Never its `style-guide.md`, `onboarding.md`, `profiles.md`, assets, or scripts.
+  4. Working files this run creates (exception to Read ONLY): the `transcripts/<Topic>.txt` file created in Step 0 (plus re-reads for Steps 1–2) and the `<Central Topic>.html` lesson file created in Step 7 (plus re-opens for Steps 7–8 verification). These must also live inside the current repo.
+- Do NOT list, glob, open, grep, or summarize anything else in the workspace — no sibling `.html` lessons (including any `Field Notes`-themed file), no other transcripts, no playlists, no other folders, and nothing outside the current repo. Even if prior lessons exist, ignore them completely.
+- Existence check without discovery: to test whether `../japanese-philosophy/` or `../diagram-design/` exists, attempt a direct read of its `SKILL.md` path only. If the read fails, treat it as absent and continue — never fall back to listing/globbing to discover it.
+- Calibrate difficulty and pick the layout theme WITHOUT workspace context (see Steps 1 and 5). Never run `*.html` searches to decide anything.
 
 ## Steps
 
 0. **Normalize input — resolve transcript with real name**
       - Detect input branch:
-          - Branch A: raw transcript text pasted -> derive a concise topic from the first 150 words (3-8 words, Title Case), sanitize it, and save transcript as `<Topic>.txt`. Do NOT use generic `transcript.txt`.
-          - Branch B: URL provided (YouTube, article, podcast) -> run `python scripts/extract_transcript.py <url> --out-dir.`. This script:
+          - Branch A: raw transcript text pasted -> derive a concise topic from the first 150 words (3-8 words, Title Case), sanitize it with the same rules as the script, and save it as `transcripts/<Topic>.txt` (create the `transcripts/` folder if it does not exist). Do NOT use generic `transcript.txt`.
+          - Branch B: URL provided (YouTube video with captions, article/blog/docs page) -> run `uv run python scripts/extract_transcript.py <url>` (isolated venv only — never install globally; see `scripts/README.md` for `uv venv` setup). Supported: YouTube watch / youtu.be / embed / shorts / live single videos WITH captions (EN tried first, then auto-translated / other languages), generic article/blog/docs pages via `og:title`. NOT supported: podcast RSS / direct audio (`.mp3`, `.m4a`, `.ogg`, `.oga`, `.wav`, `.flac`, `.opus`, `.m4b`), direct video files (`.mp4`, `.mov`, `.avi`, `.webm`, `.mkv`), YouTube playlists / channels (batch), age-restricted / private / login-walled videos, videos with captions disabled. For those, skip the script and ask the user to paste the transcript. This script:
+              - Saves transcripts into the `transcripts/` folder inside the current repo by default — it checks whether the folder already exists and creates it automatically if it does not (use `--out-dir <in-repo-path>` to override the destination; paths resolving outside the current repo are refused and fall back to `transcripts/`)
               - Fetches real video/page title via yt-dlp or og:title
               - Sanitizes title (replace \ / : *? " < > | with _, collapse whitespace, trim, limit 120 chars, preserve Title Case and spaces)
-              - Creates `<Real Title>.txt` and `<Real Title>.meta.json` with {title, source_url, video_id, html_file_suggestion}
+              - Creates `transcripts/<Real Title>.txt` (transcript only, no sidecar file)
               - Handles collisions by adding (1), (2)
-      - Read `scripts/README.md` for args and fallback logic.
-      - If extraction fails or transcript <200 chars, ask user to paste transcript manually or enable captions.
-      - **Completion criterion:** A.txt file exists whose name equals the sanitized video/page title or derived topic, NOT `transcript.txt`. You can quote the filename and the title from meta.json. File is >200 chars UTF-8.
+      - Read `scripts/README.md` for args, supported/unsupported inputs, and fallback logic.
+      - If extraction fails or transcript <200 chars, ask user to paste transcript manually. Name the likely cause from the script error: captions disabled/missing, playlist / channel URL (needs single-video URL), podcast/audio URL (no audio transcription — paste transcript), direct video file URL (paste transcript), age-restricted/private/login-walled (paste transcript), or article paywall/JS-only (paste text). For YouTube also suggest enabling captions or passing `--languages <codes>`.
+      - **Completion criterion:** A `.txt` file exists inside the `transcripts/` folder in the current repo (unless an in-repo `--out-dir` was used) whose name equals the sanitized video/page title or derived topic, NOT `transcript.txt`. You can quote the filename and the title (from the filename stem). File is >200 chars UTF-8. Never create or read files outside the current repo.
 
-1. **Extract the lesson outline — and verify completeness + determine final filenames**
-      - Read the real-named transcript file from Step 0 (e.g., `How Gravity Works.txt` + `How Gravity Works.meta.json`).
-      - Identify the central topic and 4–6 key concepts that will become learning modules.
-      - For each module note: the core idea, any process/steps, at least three distinct real‑world examples (one obvious, one counter‑intuitive, one edge‑case), a relatable analogy, a common misconception, and why the concept matters.
-      - **Completeness check:** After drafting the outline, re‑scan the transcript line by line. List every distinct concept, term, subtopic, or nuance mentioned — no matter how small. If any listed item is not already covered by one of the 4–6 modules, you must either:
-          - Enrich an existing module so it includes that concept (with dedicated explanation and examples), or
-          - Create an additional module if the concept warrants its own full treatment.
-      - The final module count may grow beyond 6 if needed to honour the transcript’s full scope. Never drop a concept to fit an arbitrary module limit.
-      - **Determine final lesson filename:** Central topic becomes final HTML filename. For URL branch, use video title from meta.json or refined version if transcript reveals more precise topic. Sanitize same as Step 0. Example: `Why Black Holes Evaporate.txt` -> `Why Black Holes Evaporate.html`. Never `lesson.html`, `index.html`, or `transcript.html`.
-      - **Completion criterion:** You have a structured outline whose coverage is exhaustive — every single concept from the transcript is accounted for, and no idea is left orphaned. Central topic string (3-8 words) defined, sanitized HTML filename decided (e.g., `Gravity and Falling Objects.html`).
+  1. **READ → UNDERSTAND → IDENTIFY N → THEN CREATE (gated — do not skip ahead)**
+      - You MUST complete 1A → 1B → 1C in order and show the survey output before touching Steps 2–7. NEVER generate HTML, visuals, or quizzes before N is fixed. NEVER decide N from the title, description, first paragraphs, or a guess — N comes ONLY from reading the full transcript.
+      - **1A. READ the full transcript (mandatory gate):**
+        - Read the real-named transcript file from Step 0 (e.g., `How Gravity Works.txt`) from start to finish.
+        - Long transcripts (3hrs+, 40k+ chars, 30+ sections): read in chunks with offsets until EOF — first chunk, middle chunks, last chunk. NEVER truncate to the first N words / first chunk and call it done. If you only read part, you MUST continue reading until the end.
+        - Prove you read it: note total approximate length (chars / lines), first-line + last-line quotes, and whether the transcript has its own headings / timestamps / chapters.
+        - **Gate:** if the file is >200 chars you still may NOT proceed until 1B + 1C are written out. A partial read = FAIL, go back and finish.
+      - **1B. UNDERSTAND it (prove comprehension, 5 lines):**
+        - If the request doesn't already say WHY the user wants this, ask one short question first (what do they want to be able to do with it?) and thread the answer through "What You'll Learn" and "Next Steps".
+        - In your own words write: (1) central topic in 3–8 words, (2) 2–3 sentence summary of what the transcript actually teaches, (3) who the learner is + what they will be able to DO after (purpose), (4) 5–10 key terms defined in plain words exactly as the transcript uses them.
+        - Grounding rule: teach ONLY what is in the transcript. If the transcript is thin on a point, say so briefly later — never pad from parametric knowledge, never import outside facts.
+        - Assume a first-timer: define every term on first use, never reference sibling lessons, never skip an explanation because "they already mastered it elsewhere".
+      - **1C. IDENTIFY how many modules are needed (count before you cut):**
+        - Scan the UNDERSTOOD transcript and list every distinct major concept / section / chapter (use the transcript's own headings, timestamps, or topic shifts when present). Format: `1. <concept> — evidence: <timestamp / heading / 5-8 word quote>`. One line per major. Small asides/repeats do NOT get a line here — they fold later as bullets.
+        - Let N = that line count. N is the module budget — NO fixed 3–5 cap. 30 distinct majors → 30 modules; 40 → 40.
+        - **Scale guide (guidance, not a cap):** short (<~10k chars or <6 majors) -> typically 3–5 modules; medium (~10k–40k chars or 6–15 majors) -> typically 6–12; long / course-length (40k+ chars or 15+ majors or 2–3hrs+) -> 13+ modules, one per major, up to whatever N needs (30–40 allowed). Never merge distinct majors just to hit 5.
+        - For each of the N modules note: the core idea in 1 sentence, 3-5 steps max, 3 short everyday examples (1 obvious, 1 counter‑intuitive, 1 edge‑case/limit), a 1-line analogy, a 1-line misconception, and why it matters in 1 line. Order simple -> complex.
+      - **Clustering rule (small points only):** CLUSTER only small nuances, repeats, and asides into the closest major module as 1-line bullets. NEVER fold a distinct major into another module to save space, and NEVER park a first-teach major in FAQ / Cheat Sheet. FAQ / Cheat Sheet hold reminders, not first-teach.
+      - **Completeness check (strict, second full pass):** re‑scan the full transcript top-to-bottom against your 1C list. Build `Concept | Module N | Evidence | Status PASS/FAIL`. Every major must map to its OWN module. Orphaned major → ADD a module, never merge away. Invented module with no transcript evidence → DELETE it.
+      - **Determine final lesson filename:** Central topic from 1B becomes HTML filename. For URL branch, use the transcript filename stem or a refined version if the transcript reveals a more precise topic. Sanitize same as Step 0. Example: `Why Black Holes Evaporate.txt` -> `Why Black Holes Evaporate.html`. Never `lesson.html`, `index.html`, or `transcript.html`.
+      - **Completion criterion (STOP gate):** do NOT start Steps 2–7 until you can show: (a) full-read proof (length + first/last quotes), (b) 1B 5-line understanding block, (c) 1C numbered major list with evidence where count = N, (d) coverage table all-PASS, (e) central topic + sanitized HTML filename. If any piece is missing, you have NOT finished Step 1.
 
-2. **Plan domain‑specific visuals (prioritising the right visual, not just SVG)**
-      - Determine the transcript’s domain and the **nature of the concepts**. Use the most instructionally effective visual:
-          - *Abstract/relational* → SVG diagram (flowchart, hierarchy, Venn, cycle).
-          - *Data‑heavy* → Pure‑SVG chart.
-          - *Physical / mechanical / spatial / anatomical* → SVG technical illustration **if a clear diagram can capture the structure / mechanism** (cutaway, exploded view, multi‑panel sequence). If the learner would be better served by a **photographic or realistic depiction** (e.g., actual tissue histology, a specific animal, a natural landscape, a real chemical apparatus), flag it for an image placeholder.
-          - *Real‑world identity / appearance* (product, person, landmark, specific scene, UI screenshot, etc.) → image placeholder.
-      - The guiding principle: **diagrams explain how something works; photographs show what something actually looks like.** Pick the one that teaches the concept better.
-      - **Completion criterion:** Every module has at least one visual. Physical/identity concepts are correctly typed as SVG or placeholder; no placeholder is used where an SVG would suffice, and no concept that demands a photograph is forced into a diagram.
+2. **Plan domain‑specific visuals — one explicit type decision per module (never guess)**
+      - For every concept, run the **three-question test defined in §13 of `lesson-requirements.md` — that section is the canonical decision table; this step summarizes it and never overrides it:**
+          - **Q1 — Does the learner need to SEE the real thing?** (appearance, identity, real parts/ports/components, a specific product / person / landmark / scene) → **image placeholder (photo)**. Physicality alone is NOT 3D: a motherboard is 3D hardware, but a labelled photo (or photo with labelled SVG overlay) teaches recognition better than a 3D reconstruction.
+          - **Q2 — Does real 2D physics (gravity / collision / stacking / bounce) teach what a staged diagram cannot?** (falling bodies, colliding pendulums, balance, seesaws, dominoes) → **Matter.js physics scene**. Fixed sequences with no forces (request lifecycle, blood-flow steps) stay SVG animation even if things "move".
+          - **Q3 — Does interacting in 3D space teach what a photo or 2D diagram cannot?** (orbits, protein folding, cross‑product, assemblies best viewed from multiple angles) → **Three.js 3D scene**. Otherwise → **SVG animation** for 2D processes/mechanisms, or **static SVG** for relational/data concepts.
+      - **Ask when unsure:** if you cannot confidently decide between photo, physics, 3D, or another medium for a module, ASK the user before generating — one short question listing the options. Never silently guess between photo, physics, and 3D; a wrong guess is expensive to redo.
+      - **Completion criterion:** every module has at least one visual with an explicit type decision (photo / static SVG / SVG animation / Matter.js / Three.js), and every planned animation, physics, or 3D scene also has a static SVG fallback planned (per §13). Uncertain decisions were asked, not guessed.
 
-3. **Assess visual needs — balanced SVG / image strategy**
-      - Categorise every visual concept using the principle above.
-      - **SVG diagrams** are the default for: flowcharts, process steps, data plots, abstract relationships, and any mechanism where a simplified illustration aids understanding.
-      - **Image placeholders** (the transparent-pixel pattern from `lesson-requirements.md`) must be used whenever the learner **needs to see a real‑world appearance** that cannot be captured by a schematic. This includes, but is not limited to:
-          - Biology / anatomy (histology slides, specimen photographs, anatomical dissections)
-          - Chemistry (colour changes, actual apparatus setups)
-          - Geography / geology (aerial photos, rock formations)
-          - History (photographs, paintings, documents)
-          - Products, logos, branded items, buildings, artworks, screenshots, etc.
-      - If in doubt, ask: “Would a simplified drawing miss essential visual information?” If yes, use the placeholder with detailed `alt` text and caption.
-      - **Completion criterion:** Every visual concept is resolved correctly; the lesson contains a healthy mix of SVG diagrams and image placeholders where pedagogically justified.
+3. **Map visuals into the lesson — balanced mix**
+      - Assign each decided visual to its module and check the overall mix against §5 of `lesson-requirements.md`: SVG diagrams are the default for flowcharts, process steps, data plots, and abstract relationships; image placeholders (using the exact markup pattern in §5) are mandatory wherever the learner **needs to see real‑world appearance** — biology/anatomy, chemistry apparatus and colour changes, geography/geology, history photographs and documents, products, logos, buildings, artworks, screenshots.
+      - **Completion criterion:** the planned lesson has a healthy, pedagogically justified mix of static SVGs, image placeholders, SVG animations, and (only where justified) Matter.js physics / 3D scenes — no concept forced into the wrong medium.
 
-4. **Assess animation and 3D needs (now including SVG process animations)**
-      - For each module that involves a **dynamic process, mechanism, or sequence of steps** (e.g., how a rifle fires, how gravity pulls objects, how the heart pumps blood), determine the best medium:
-          - **SVG Animation:** If the process can be clearly shown in 2D as a step‑by‑step animated flow. This covers **any** moving mechanism, cycle, or cause‑effect chain — not just mathematical transformations. Examples:
-              - Trigger mechanism of a firearm (sear, hammer, firing pin)
-              - Water cycle (evaporation, condensation, precipitation)
-              - Newton’s apple falling due to gravity
-              - Cellular respiration steps
-              - Electron flow in a circuit
-          - **Three.js 3D Scene:** If the concept is inherently **spatial** or three‑dimensional, and a 3D view with rotation/zoom adds significant understanding. Examples:
-              - 3D structure of a rifle’s action (realistic moving parts)
-              - Gravitational orbits of planets (3D solar system)
-              - Cross product of vectors in 3D space
-              - Protein folding in 3D
-          - **Manim‑style Mathematical Morphing:** A subset of SVG animation where the focus is on transforming mathematical shapes or equations (e.g., square → circle, secant → tangent).
-      - The choice between SVG animation and Three.js depends on whether the extra dimension is essential for comprehension. If in doubt, start with SVG animation; it’s simpler and aligns better with the overall editorial aesthetic. Reserve Three.js for when flat 2D would lose critical information.
-      - **Completion criterion:** Every process‑based module has a planned animation (SVG or 3D). All other modules retain their static visual.
+3A. **Conditional diagram-design consultation — technical diagrams ONLY, grammar only (mandatory gate)**
+      - **Trigger — USE diagram-design ONLY when BOTH are true:**
+        (a) Topic is software / AI agents / system architecture / data flow / infra / deployment / API / DB schema / dev workflow — i.e. the transcript teaches components + connections, message order, states, entities/relationships, or where software runs.
+        (b) A §5B static SVG alone would be weaker than a proper architecture / flowchart / sequence / state / ER / swimlane / deployment / dependency / UML-class / data-flow diagram (the 40 types in diagram-design §3).
+      - **Do NOT use when:** philosophy, economics, chemistry, physics concepts, biology appearance, history, biography, habits, psychology, general life advice — anything with no system architecture or software structure. For these, stay 100% in this skill's §5B system and never open diagram-design.
+      - **If triggered — grammar ONLY, never its skin:**
+        - Attempt a direct read of `../diagram-design/SKILL.md` §3. If the read fails (not installed), skip diagram-design and stay in §5B.
+        - Read ONLY `../diagram-design/SKILL.md` §3 (type selection) + at most ONE matching `type-*.md` reference for layout grammar (node roles, connector routing, complexity budget, when to split).
+        - NEVER read or apply its `references/style-guide.md`, `onboarding.md`, `profiles.md`, templates, or assets. NEVER run its §0 style-guide gate. NEVER copy its default skin (paper `#f5f5f5`, ink `#2d3142`, accent `#eb6c36`, Instrument Serif / Geist fonts, dot pattern, card styles, legend placement) into the lesson.
+        - RE-SKIN every borrowed layout into this lesson's system: §5B shell (`diagram-wrap` + `diagram-toolbar` + `diagram-stage`), the 7 SVG classes via theme vars, namespaced `arr-m<N>` markers, thin 1.5 strokes, per-lesson palette (theme vars) + dark-mode vars. The diagram-design input is structure (which boxes, which arrows, orthogonal routing, what to cut per budget) — the rendering stays in this lesson's chosen system.
+        - Never create standalone diagram `.html` files. Diagrams live inline inside the lesson modules only.
+      - **Completion criterion:** technical software/architecture topics get diagram-design-informed structure re-skinned to §5B; all other topics never touch diagram-design and show zero trace of its default skin.
 
-5. **Select a layout theme — guarantee a completely different design each time**
-      - This step is **mandatory and must not be skipped.** Use the Layout Variation System in `lesson-requirements.md`.
-      - Pick one theme from the catalogue. **Do not reuse the same theme** as any previous run you can remember. If you have no memory of prior runs, pick randomly, but exclude the most obvious “default” (Classic Essay) unless it is the only one you haven’t used.
-      - Deliberately vary the theme across invocations so that the page architecture, module flow, and navigation feel radically different every time.
-      - **Completion criterion:** A theme is chosen, noted, and you can describe how it will produce a structure that is clean, fresh, and unlike the last output.
+4. **Plan animations, physics, and 3D scenes — content, controls, fallback**
+      - For every module whose visual is an SVG animation, Matter.js scene, or Three.js scene (decided in Step 2), plan the *content* per §13: break the process into labelled stages with the current stage highlighted, plan play/pause/replay controls with unique prefixed ids (`m2-play`, `m5-replay`, …), and keep the living-diagram style (thin strokes, muted palette, no cartoon). Three.js scenes get the §13 inline orbit (drag rotate, scroll zoom — never `THREE.OrbitControls`) and labelled axes when needed. Matter.js scenes get play/pause/replay driving `runner.enabled` + rebuild-on-replay.
+      - Obey the §13 hard bans: no SMIL `<animate>`/`<animateTransform>`/`<set>`, no `THREE.OrbitControls` / addons CDN, no `type="module"` / import maps, one driver per visual, one IIFE per visual, containers with non-zero size (`min-height:320px` for 3D/physics).
+      - Apply the anti-pattern rule: a physical 3D object alone never justifies Three.js (motherboard = photo; orbits = 3D). A moving 2D diagram alone never justifies Matter.js (request lifecycle = SVG animation; falling colliding bodies = Matter.js). If in doubt, choose SVG animation — reserve physics/3D for when flat staged 2D loses critical information.
+      - **Completion criterion:** every process‑based module has a staged animation/physics/3D plan with wired controls and a static SVG fallback capturing the key insight. No physical/identity concept was forced into a 3D scene; no fixed sequence was forced into Matter.js.
+
+ 5. **Select a layout theme + per-lesson design system — without reading the workspace**
+      - This step is **mandatory and must not be skipped.** Use the Layout Variation System in `lesson-requirements.md` §2. The catalogue has exactly 7 themes: Editorial Scroll, Split Atlas, Card Deck, Timeline Rail, Field Notes, Magazine Grid, Lab Manual.
+      - **Do NOT open or list any sibling lesson to decide.** Pick the theme solely on pedagogical fit for THIS transcript (process/sequence -> Timeline Rail or Lab Manual; reference-heavy -> Split Atlas or Magazine Grid; narrative -> Editorial Scroll or Field Notes; independent concepts -> Card Deck). In the absence of a strong fit, exclude Editorial Scroll — it is the closest to a default essay — and pick the best-fitting remaining theme. If the user stated a theme preference, honour it.
+      - **Aesthetic layer (different every time, by topic):** The chosen layout is the structural skeleton only. The visual/design system on top must be chosen fresh for THIS lesson to fit its topic — never reuse the same palette/typography/texture by default. Japanese philosophy (Ma, Kanso, Shibui, washi/sumi/ai-iro) is one option among many, not the default. Derive 2–3 hues + 1 font pairing + 1 texture that fit the topic, keep all §2 taste constraints (contrast ≥4.5:1, thin 1.5 strokes, Ma spacing, 0.8–1.2s motion, §5B remap via same var names). See Step 6 for token sources.
+      - **Completion criterion:** A layout theme AND a design system are chosen, noted (layout name + design-system name + 2–3 tokens + 1-line why it fits the topic), and you can describe how they produce a structure that is clean, fresh, and unlike a default essay and unlike the last lesson.
 
 6. **Consult the detailed lesson specification**
-      - Load `lesson-requirements.md`. Internalise the Design Taste & Anti‑Slop Rules first, then every structural, visual, interactive, detail, and feedback requirement.
+      - Load `lesson-requirements.md`. Internalise the Design Taste & Anti‑Slop Rules first, then §4B Teaching Craft (storage strength: retrieval, spacing, interleaving, tight feedback, no-clue options), then every structural, visual, interactive, detail, and feedback requirement.
+      - Load tokens for the design system chosen in Step 5: if Japanese was chosen, attempt a direct read of `../japanese-philosophy/SKILL.md`; if it succeeds, also read `../japanese-philosophy/references/design-tokens.md` (source of truth) and skim `../japanese-philosophy/references/principles.md`. If the read fails or a non-Japanese system was chosen, use the self-sufficient token block in §2 of `lesson-requirements.md` as the remap contract (keep var names, change hex/fonts to the chosen aesthetic). Never invent substitute tokens outside that contract.
       - **Note:** The final “Test Your Knowledge” assessment is **NOT** included in the initial HTML.
+      - **Scope guard:** This skill outputs ONLY the transcript `.txt` (Step 0) and one self-contained `.html` lesson (Step 7, QA in Step 8, plus revision in Step 9), both inside the current repo. Never create MISSION.md, RESOURCES.md, learning-records, reference docs, assets, NOTES.md, glossaries, or any other workspace files. Never read sibling lessons, other transcripts, or any workspace file outside the Scope section above — reading is not free, so stay isolated. Never write or read anything outside the current repo.
       - **Completion criterion:** All mandatory elements (except final assessment) memorised.
 
-7. **Generate the self‑contained HTML (without final Knowledge Check) — named after video topic**
-      - Build a single file with inline CSS and JavaScript. For Three.js, include the script via CDN:
-     ```html
-     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+   7. **Generate the self‑contained HTML (without final Knowledge Check) — named after video topic**
+      - BUILD ONLY the N modules fixed in Step 1C — no fewer, no extra, no renames without evidence. Every 1C major → one H2 module in order simple -> complex, with its evidence traceable. If Step 1 has no N + coverage table, STOP and go back — do NOT invent a 5-module outline from memory.
+      - Build a single file with inline CSS and JavaScript. Include a library ONLY when used, with the default pins in `lesson-requirements.md` §9 (no other CDNs, no `type="module"`, inline `<script>` at end of `<body>`). A different patch version is allowed ONLY if it passes the §9 upgrade policy (global `THREE`/`Matter` build, `file://` safe, QA re-run).
+        ```html
+        <!-- only if a Three.js 3D scene exists -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+        <!-- only if a Matter.js physics scene exists -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+        ```
+      - Copy the boilerplates from `lesson-requirements.md` §13 verbatim as your starting point (SVG staged highlight / Three.js inline-orbit / Matter.js runner), then adapt ids + content. Keep the guards (`typeof THREE/Matter==='undefined'` → fallback), try/catch, IntersectionObserver pause, `prefers-reduced-motion` paused start, and unique `m<N>-` prefixes.
+      - Filename rule (mandatory): HTML file must be named <Central Topic>.html as decided in Step 1, saved inside the current repo, which for URL branch equals or refines the real video title. Example: transcript file Why Black Holes Evaporate.txt -> HTML Why Black Holes Evaporate.html. Never use lesson.html, index.html, or transcript.html. Never save outside the current repo.
+      - Follow the specification exactly, filtered through the chosen layout theme and all design‑taste rules. Build every diagram with the §5B system (shell + toolbar + stage, 7 SVG classes via theme vars, namespaced `arr-m<N>` markers, `min-width:680px` scroll contract) and every interaction with the §6 canonical shapes (grid-rows accordion, single `setWorkflowStep`, `renderQuiz` state machine, reveal-once observer, `-20%/-65%` scrollspy).
+      - Build in this order:
+        - “What You’ll Learn” overview: if N ≤ 5, one bullet per module (3–5 short bullets); if N > 5, 5–8 outcome bullets grouping related modules (each bullet names the modules it covers), so the overview stays scannable while the Knowledge Map still lists all N modules.
+        - Minimal Interactive Knowledge Map (SVG, monochrome line art) with all N modules (group into labelled clusters when N > 12 so the map stays readable, but every module remains jumpable).
+         - For each of the N modules from Step 1 (no cap — 30–40 allowed, brief each): Core Explanation (80–120 words, simple plain language), Step‑by‑Step (3–5 bullets), 3 Short Everyday Examples (What → So what: 1 obvious, 1 counter‑intuitive, 1 edge‑case/limit), Visual Analogy Card (1–2 lines), ❌ What People Get Wrong (1 line), Why This Matters (1 line), 🔗 Inter‑Module Link (to another module within THIS lesson only — never to a sibling lesson), Compact Scenario (2–3 decision points with consequences, reveal-style).
+        - Unobtrusive progress tracker (thin top bar).
+         - Interactive learning elements, scaled to N: minimum 4 for short lessons (module quizzes + compact scenario + 1–2 others like flashcards / reveal / hotspot where part-identification matters); for N > 5 add at least 1 quiz Q + 1 recall prompt per extra module so every module stays retrievable. Each styled with economy. Each gives immediate feedback + one-sentence why; MCQ options equal-length with parallel phrasing (no format clues).
+        - One recall prompt per module (answer hidden until attempted); core ideas resurface in Summary/FAQ (spacing).
+        - Memory techniques integrated without visual noise (each mnemonic testable by a quiz Q).
+        - Consistent terminology throughout; Cheat Sheet is canonical and recall-first (click to reveal).
+        - Dark/light mode toggle (small icon, smooth transition).
+        - Final “Summary & Cheat Sheet”, FAQ, Next Steps.
+        - Tiny footer: link to original source URL + line “Stuck? Ask the agent a follow-up question about any module.”
+        - Keep it brief: one tightly-scoped idea per module, simple -> complex order, cut anything not needed to use the idea. Teach only what the transcript contains.
+        - Do NOT include the 15‑question “Test Your Knowledge” assessment.
+             - **Mechanical verification (mandatory, do not skip):** after saving the HTML, re-open the saved file — never verify from memory — and check each mandatory artifact is physically present: the follow-up footer line (“Stuck? Ask the agent a follow-up question about any module.”), the source link, progress bar, dark/light toggle, knowledge map with all N modules, interactive elements scaled to N (minimum 4, including module quizzes + compact scenario; hotspot where part-identification matters), a recall prompt in every module, `localStorage` keys for progress + theme, placeholder CSS at the §5 values (min-height 280px, dashed 1.5px #bbb, alt text + caption), and the §14 checklist items. Grep or scan the saved file for each item; fix every miss before declaring the step complete. Animation-specific grep: `animateTransform|<animate|OrbitControls|type="module"` must return ZERO hits; every `id="m*-play"` button must have a matching `getElementById` listener; every `.viz3d`/`.vizphys` container must have `min-height` and a paired `.fallback` static SVG. Diagram-specific grep: every `<svg` must sit inside `.diagram-stage`, use only `svg-node/svg-text/svg-small/svg-mono/svg-line` classes (no inline `fill="#` on nodes), and every `marker-end="url(#` target must be a namespaced `arr-m` id defined in the same SVG.
+      - **Completion criterion:** HTML passes the verification checklist in lesson-requirements.md §14 (excluding final assessment), verified item by item against the saved file. Module count in HTML == N from Step 1C (verify: count H2 modules == N, every 1C major present, zero invented modules). All N majors each have their own module, taught briefly with everyday examples. Prefer simple static SVG; use animation / physics / 3D only if essential. The layout theme fits the content and avoids a default essay look. File is named after topic, e.g., How Gravity Works.html.
 
-- Filename rule (mandatory): HTML file must be named <Central Topic>.html as decided in Step 1, which for URL branch equals or refines the real video title. Example: transcript file Why Black Holes Evaporate.txt -> HTML Why Black Holes Evaporate.html. Never use lesson.html, index.html, or transcript.html.
-- Follow the specification exactly, filtered through the chosen layout theme and all design‑taste rules.
-- Build in this order:
-- Clean “What You’ll Learn” overview.
-- Minimal Interactive Knowledge Map (SVG, monochrome line art).
-- For each module: Core Explanation (≥200 words, conversational style), Step‑by‑Step Breakdown, ≥3 Examples, Visual Analogy Card, ❌ What People Get Wrong, Why This Matters, 🔗 Inter‑Module Link.
-- Unobtrusive progress tracker (thin top bar).
-- At least 6 interactive learning elements from the approved list (flashcards, drag‑and‑drop, module quizzes, etc.), each styled with economy.
-- Memory techniques integrated without visual noise.
-- Dark/light mode toggle (small icon, smooth transition).
-- Final “Summary & Cheat Sheet”, FAQ, Next Steps.
-- Do NOT include the 15‑question “Test Your Knowledge” assessment.
-- Completion criterion: HTML passes the verification checklist in lesson-requirements.md (excluding final assessment). Every concept from the transcript is explicitly taught. The visual mix (static SVGs, image placeholders, SVG animations, 3D scenes) is appropriate. The layout theme is distinct and well‑executed. File is named after topic, e.g., How Gravity Works.html.
+ 8. **Final QA pass — coverage + animations + design (mandatory, fix-loop)**
+      - Do this AFTER Step 7 mechanical verification, BEFORE presenting to user. Re-open the saved `.html` from disk — never verify from memory.
+      - **A. Topic coverage audit:** list every distinct major concept from the full transcript (1 line each), map each to Module N / FAQ / Cheat Sheet. Every major must land in its OWN module (N modules total, no cap); only small nuances may live as bullets in FAQ / Cheat Sheet. If any major is orphaned, ADD a module for it (never merge majors away) and re-verify. Output a small table: `Concept | Where taught | Status PASS/FAIL`.
+             - **B. Animation + interaction functional test:** click EVERY control in the saved file (`file://` AND http server): each `m<N>-play/pause/replay` wired to its `getElementById` listener, one driver per visual, unique prefixed ids, no shared globals, IntersectionObserver pause works, `prefers-reduced-motion` starts paused, every quiz/flashcard/scenario/hotspot gives instant feedback + why, recall prompt + compact scenario in every module, `localStorage` progress + theme round-trip with no throws, no console errors. Grep: `animateTransform|<animate|OrbitControls|type="module"` = 0 hits; every `.viz3d`/`.vizphys` has `min-height` + paired `.fallback` static SVG; block CDN (offline) → fallback still teaches. Fix every FAIL, re-test.
+      - **C. Design review:** light + dark toggle both readable (contrast ≥4.5:1), per-lesson palette noted in Step 5 (2–3 hues, one doing most work — washi/sumi/ai-iro values only when Japanese was chosen), thin 1.5 strokes, §5B shell + 7 classes + namespaced `arr-m<N>` on every SVG, no inline `fill="#` on nodes, mobile 380px no horizontal break (except `diagram-stage` scroll), no slop phrases, no diagram-design skin leak (`eb6c36|2d3142|Instrument Serif|Geist|JetBrains Mono` = 0 hits unless topic triggered Step 3A — and even then grammar-only, re-skinned to §5B).
+      - **Report + gate:** present a short QA report: `Coverage: PASS (X/Y concepts) | Animations: PASS (N controls clicked, 0 errors) | Design: PASS`. If any FAIL remains, fix and re-run this step. Never present the lesson with an open FAIL.
+      - **Completion criterion:** QA report is all-PASS, verified against the saved file, fixes applied.
 
-8.  **Output and ask about Knowledge Check**
+ 9.  **Output and ask about Knowledge Check**
    Present the final HTML file (with topic-based name) in a code block or as file reference.
-   Immediately after, explicitly ask the user: “Would you like me to add a comprehensive Knowledge Check (15‑question test) to this lesson?”
+   Immediately after, explicitly ask the user: “Would you like me to add a comprehensive Knowledge Check (15‑question test for short lessons, scaled up for long/N-module lessons per §12) to this lesson?”
    If user says yes: Generate a revised HTML with the Knowledge Check integrated, leaving everything else identical, keeping the same topic-based filename. Output the revised HTML.
    If user says no: Stop — the lesson is complete.

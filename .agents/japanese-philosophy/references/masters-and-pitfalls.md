@@ -1,18 +1,18 @@
-# Masters and Pitfalls
+# Masters and Pitfalls for Web Design
 
-## Masters worth studying directly
+## Masters worth studying directly (for what they teach web work)
 
 **Kenya Hara** — MUJI's art director since 2001. His concept of "emptiness" (see `principles.md`) is the philosophical core this whole skill is built on. Deconstruct MUJI.jp directly and ask, section by section, "what is this space waiting for?" His books *Designing Design* and *White* are the two standard references for the emptiness framework; both are worth reading in full rather than secondhand summary, since the argument builds cumulatively.
 
-**Naoto Fukasawa** — MUJI's product designer, known for the phrase "without thought" — objects designed to be used without the user having to consciously figure them out. The design equivalent of Omotenashi applied to physical form rather than service.
+**Naoto Fukasawa** — MUJI's product designer, known for the phrase "without thought" — objects designed to be used without the user having to consciously figure them out. On the web that's Omotenashi: nav, forms, and checkout flows that need no explanation.
 
-**Tadao Ando** — architect working almost entirely in raw concrete, natural light, and water. His buildings are the clearest large-scale expression of Ma as a spatial (not just visual) principle — worth studying for how negative space can structure movement through a physical sequence, which maps directly onto how a user moves through a scrolling page.
+**Tadao Ando** — architect working almost entirely in raw concrete, natural light, and water. His buildings are the clearest large-scale expression of Ma as a spatial principle — study how he sequences movement through empty intervals, then apply the same thinking to how a visitor moves through a scrolling page.
 
 **Junichiro Tanizaki** — *In Praise of Shadows* (1933). See `principles.md` for the core argument; the essay itself is short and worth reading directly rather than through this summary.
 
-**For contrast, not imitation:** Yahoo! Japan or Rakuten. Study *why* density works for trust in that specific market context (see Step 0 in `SKILL.md`) — not to imitate it, but so the elite-pole choice is a deliberate contrast rather than an assumption that all "Japanese design" looks the same way.
+**For contrast, not imitation:** Yahoo! Japan or Rakuten homepages. Study *why* density works for trust in that specific market context (see Step 0 in `SKILL.md`) — not to imitate it, but so the elite-pole choice for your site is a deliberate contrast rather than an assumption that all "Japanese web design" looks the same way.
 
-## Recurring mistakes (self-check before delivering)
+## Recurring web mistakes (self-check before delivering)
 
 **1. Emptiness with nothing to complete.** A page that's just sparse, with no single anchor the space is clearing room for, isn't Ma — it's an unfinished layout wearing a philosophy as an excuse. Every empty area should be answerable with "it's making room for X."
 

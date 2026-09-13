@@ -1,0 +1,2061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learn RAG From Scratch — Interactive Lesson</title>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   DESIGN SYSTEM: Neural Circuit — Dark Tech Aesthetic
+   Palette: Slate #0f1419, Ink #e8e6e3, Accent #4a9eff, Secondary #2dd4bf
+   Fonts: JetBrains Mono (headings), Inter (body)
+   ═══════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --washi: #0f1419;
+  --sumi: #e8e6e3;
+  --ai-iro: #4a9eff;
+  --rikyushiro: #2dd4bf;
+  --panel: #161b22;
+  --panel-2: #1c2333;
+  --node: #1c2333;
+  --node-strong: #243049;
+  --border: rgba(232,230,227,.10);
+  --border-strong: rgba(232,230,227,.20);
+  --text: #e8e6e3;
+  --muted: #8b949e;
+  --muted-2: #6e7681;
+  --line: rgba(74,158,255,.35);
+  --line-dim: rgba(74,158,255,.15);
+  --chip: #1c2333;
+  --font-heading: 'JetBrains Mono', monospace;
+  --font-body: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 32px;
+  --space-4: 64px;
+  --measure: 70ch;
+  --dur-fade: 0.9s;
+  --ease-organic: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --timeline-width: 3px;
+  --timeline-dot: 14px;
+}
+
+body.dark {
+  --washi: #000000;
+  --sumi: #f0ede8;
+  --ai-iro: #6db3ff;
+  --rikyushiro: #5ee4c8;
+  --panel: #0d1117;
+  --panel-2: #131921;
+  --node: #161b22;
+  --node-strong: #1c2640;
+  --border: rgba(255,255,255,.08);
+  --border-strong: rgba(255,255,255,.15);
+  --text: #f0ede8;
+  --muted: #a1a1aa;
+  --muted-2: #71717a;
+  --line: rgba(109,179,255,.35);
+  --line-dim: rgba(109,179,255,.15);
+  --chip: #111418;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; scroll-padding-top: 90px; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--washi);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 15px;
+  transition: background 0.4s var(--ease-organic), color 0.4s var(--ease-organic);
+}
+
+/* ─── PROGRESS BAR ─── */
+.progress-bar {
+  position: fixed; top: 0; left: 0; width: 0; height: 2px;
+  background: var(--ai-iro); z-index: 1000; transition: width 0.2s ease;
+}
+
+/* ─── TOPBAR ─── */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 60px;
+  background: rgba(15,20,25,.85); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; z-index: 999;
+  font-family: var(--font-heading); font-size: 13px;
+}
+.topbar-brand { font-weight: 700; color: var(--ai-iro); letter-spacing: -0.02em; }
+.topbar-nav { display: flex; gap: 16px; align-items: center; }
+.topbar-nav a {
+  color: var(--muted); text-decoration: none; font-size: 12px;
+  transition: color 0.2s ease;
+}
+.topbar-nav a:hover, .topbar-nav a.active { color: var(--ai-iro); }
+.topbar-status { color: var(--muted-2); font-size: 11px; }
+.theme-toggle {
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--muted); cursor: pointer; padding: 4px 10px;
+  font-size: 14px; transition: all 0.2s ease;
+}
+.theme-toggle:hover { border-color: var(--ai-iro); color: var(--ai-iro); }
+
+/* ─── MAIN LAYOUT: TIMELINE RAIL ─── */
+.lesson-wrap {
+  max-width: 900px; margin: 0 auto; padding: 90px 24px 80px;
+  position: relative;
+}
+
+/* Timeline rail */
+.timeline-rail {
+  position: absolute; left: 44px; top: 90px; bottom: 80px;
+  width: var(--timeline-width); background: var(--border);
+}
+.timeline-rail-fill {
+  position: absolute; top: 0; left: 0; width: 100%; height: 0;
+  background: var(--ai-iro); transition: height 0.3s ease;
+}
+
+/* Module node on timeline */
+.module-node {
+  position: absolute; left: calc(44px - var(--timeline-dot)/2 + var(--timeline-width)/2);
+  width: var(--timeline-dot); height: var(--timeline-dot);
+  border-radius: 50%; background: var(--panel-2); border: 2px solid var(--border-strong);
+  transition: all 0.3s ease; cursor: pointer; z-index: 2;
+}
+.module-node.active {
+  background: var(--ai-iro); border-color: var(--ai-iro);
+  box-shadow: 0 0 12px rgba(74,158,255,.4);
+}
+.module-node.visited { background: var(--rikyushiro); border-color: var(--rikyushiro); }
+
+/* ─── HERO ─── */
+.hero {
+  padding: 60px 0 40px; margin-left: 60px;
+  max-width: var(--measure);
+}
+.hero-tag {
+  display: inline-block; padding: 4px 12px; border-radius: 20px;
+  background: var(--chip); border: 1px solid var(--border);
+  color: var(--ai-iro); font-family: var(--font-heading);
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.hero h1 {
+  font-family: var(--font-heading); font-size: clamp(28px, 5vw, 44px);
+  letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 16px;
+  color: var(--text);
+}
+.hero h1 span { color: var(--ai-iro); }
+.hero-sub { color: var(--muted); font-size: 15px; line-height: 1.6; max-width: 560px; }
+.hero-meta {
+  margin-top: 20px; display: flex; gap: 16px; flex-wrap: wrap;
+  font-size: 12px; color: var(--muted-2); font-family: var(--font-heading);
+}
+
+/* ─── WHAT YOU'LL LEARN ─── */
+.outline-section {
+  margin-left: 60px; margin-bottom: 50px; padding: 24px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; max-width: 680px;
+}
+.outline-section h2 {
+  font-family: var(--font-heading); font-size: 14px; font-weight: 700;
+  color: var(--ai-iro); margin-bottom: 14px; letter-spacing: 0.02em;
+}
+.outline-section ul { list-style: none; }
+.outline-section li {
+  padding: 6px 0; padding-left: 18px; position: relative;
+  color: var(--muted); font-size: 14px; line-height: 1.5;
+}
+.outline-section li::before {
+  content: '→'; position: absolute; left: 0; color: var(--ai-iro);
+  font-family: var(--font-heading); font-size: 12px;
+}
+
+/* ─── KNOWLEDGE MAP ─── */
+.knowledge-map-wrap {
+  margin-left: 60px; margin-bottom: 50px; padding: 24px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; overflow-x: auto;
+}
+.knowledge-map-wrap h2 {
+  font-family: var(--font-heading); font-size: 14px; font-weight: 700;
+  color: var(--ai-iro); margin-bottom: 16px;
+}
+.km-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+.km-item {
+  padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--panel-2); cursor: pointer; transition: all 0.2s ease;
+  font-size: 12px; color: var(--muted); text-decoration: none;
+  display: block;
+}
+.km-item:hover { border-color: var(--ai-iro); color: var(--ai-iro); }
+.km-item .km-num { font-family: var(--font-heading); color: var(--ai-iro); margin-right: 6px; }
+.km-cluster { font-size: 10px; color: var(--muted-2); text-transform: uppercase; letter-spacing: 0.1em; padding: 8px 0 4px; font-family: var(--font-heading); }
+
+/* ─── MODULE CARD ─── */
+.module {
+  margin-left: 60px; margin-bottom: 50px; padding: 32px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; max-width: 780px;
+  opacity: 0; transform: translateY(20px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+}
+.module.visible { opacity: 1; transform: none; }
+
+.module-head { margin-bottom: 24px; }
+.module-index {
+  font-family: var(--font-heading); font-size: 11px; color: var(--muted-2);
+  letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px;
+}
+.module h2 {
+  font-family: var(--font-heading); font-size: clamp(20px, 3.5vw, 28px);
+  letter-spacing: -0.03em; line-height: 1.2; color: var(--text);
+}
+.module-intro { color: var(--muted); font-size: 14px; margin-top: 8px; max-width: 600px; }
+
+.module-body p { margin-bottom: 14px; font-size: 15px; line-height: 1.7; max-width: var(--measure); }
+
+/* Step-by-step bullets */
+.steps-list { margin: 14px 0; padding-left: 0; list-style: none; }
+.steps-list li {
+  padding: 6px 0 6px 24px; position: relative; font-size: 14px;
+  color: var(--muted); line-height: 1.6;
+}
+.steps-list li::before {
+  content: attr(data-step); position: absolute; left: 0; top: 6px;
+  font-family: var(--font-heading); font-size: 11px; font-weight: 700;
+  color: var(--ai-iro);
+}
+
+/* Examples */
+.examples { margin: 20px 0; }
+.example {
+  padding: 12px 16px; margin-bottom: 8px; border-radius: 10px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  font-size: 13px; line-height: 1.5;
+}
+.example-label {
+  font-family: var(--font-heading); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;
+  display: block;
+}
+.example-label.obvious { color: var(--rikyushiro); }
+.example-label.counter { color: var(--ai-iro); }
+.example-label.edge { color: #f59e0b; }
+
+/* Analogy card */
+.analogy-card {
+  margin: 16px 0; padding: 14px 18px; border-radius: 12px;
+  background: linear-gradient(135deg, rgba(74,158,255,.06), rgba(45,212,191,.04));
+  border: 1px solid rgba(74,158,255,.15); font-size: 13px;
+}
+.analogy-card::before { content: '💡 Analogy: '; font-weight: 600; color: var(--ai-iro); }
+
+/* Misconception */
+.misconception {
+  margin: 12px 0; padding: 10px 14px; border-radius: 8px;
+  background: rgba(239,68,68,.06); border-left: 3px solid #ef4444;
+  font-size: 13px; color: var(--muted);
+}
+.misconception::before { content: '❌ '; font-weight: 700; color: #ef4444; }
+
+/* Why it matters */
+.matters {
+  margin: 10px 0; font-size: 13px; color: var(--muted);
+  padding: 8px 14px; border-left: 3px solid var(--rikyushiro);
+}
+.matters::before { content: '✦ Why this matters: '; font-weight: 600; color: var(--rikyushiro); }
+
+/* Inter-module link */
+.inter-link {
+  margin: 12px 0; font-size: 12px;
+}
+.inter-link a {
+  color: var(--ai-iro); text-decoration: none; border-bottom: 1px dashed var(--ai-iro);
+  transition: border-color 0.2s ease;
+}
+.inter-link a:hover { border-bottom-style: solid; }
+
+/* ─── SVG DIAGRAMS ─── */
+.diagram-wrap {
+  border: 1px solid var(--border); border-radius: 16px;
+  background: var(--panel); overflow: hidden; margin: 20px 0;
+}
+.diagram-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.diagram-title { font-size: 11px; font-weight: 700; font-family: var(--font-heading); color: var(--text); }
+.diagram-subtitle { font-size: 10px; color: var(--muted-2); }
+.diagram-stage {
+  min-height: 200px; padding: 20px; overflow: auto;
+}
+.diagram-stage svg {
+  width: 100%; min-width: 500px; height: auto; display: block;
+}
+
+/* SVG classes */
+.svg-node { fill: var(--node); stroke: var(--border-strong); stroke-width: 1; }
+.svg-node-strong { fill: var(--node-strong); stroke: var(--ai-iro); stroke-width: 1.5; }
+.svg-text { fill: var(--text); font-family: var(--font-heading); font-size: 11px; font-weight: 700; }
+.svg-small { fill: var(--muted); font-size: 9px; font-family: var(--font-body); }
+.svg-mono { fill: var(--muted-2); font-size: 9px; font-family: var(--font-heading); }
+.svg-line { stroke: var(--line); stroke-width: 1.2; fill: none; }
+.svg-line-dim { stroke: var(--line-dim); stroke-width: 1; fill: none; }
+
+/* ─── QUIZ ─── */
+.quiz-box {
+  margin: 20px 0; padding: 20px; border-radius: 12px;
+  background: var(--panel-2); border: 1px solid var(--border);
+}
+.quiz-box h4 {
+  font-family: var(--font-heading); font-size: 12px; font-weight: 700;
+  color: var(--ai-iro); margin-bottom: 12px; letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.quiz-q { font-size: 14px; margin-bottom: 12px; color: var(--text); }
+.quiz-options { display: flex; flex-direction: column; gap: 6px; }
+.quiz-opt {
+  padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--panel); cursor: pointer; font-size: 13px;
+  color: var(--muted); transition: all 0.2s ease; text-align: left;
+  font-family: var(--font-body);
+}
+.quiz-opt:hover { border-color: var(--ai-iro); color: var(--text); }
+.quiz-opt.correct { border-color: var(--rikyushiro); background: rgba(45,212,191,.08); color: var(--rikyushiro); }
+.quiz-opt.wrong { border-color: #ef4444; background: rgba(239,68,68,.08); color: #ef4444; }
+.quiz-feedback {
+  margin-top: 10px; font-size: 12px; color: var(--muted); padding: 8px 12px;
+  border-radius: 8px; background: var(--panel); display: none;
+}
+.quiz-feedback.show { display: block; }
+
+/* ─── RECALL PROMPT ─── */
+.recall-box {
+  margin: 16px 0; padding: 16px; border-radius: 12px;
+  border: 1px dashed var(--border-strong); background: var(--panel-2);
+}
+.recall-box h4 {
+  font-family: var(--font-heading); font-size: 11px; font-weight: 700;
+  color: var(--rikyushiro); margin-bottom: 8px; text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.recall-q { font-size: 13px; color: var(--text); margin-bottom: 10px; }
+.recall-btn {
+  padding: 6px 14px; border-radius: 6px; border: 1px solid var(--ai-iro);
+  background: transparent; color: var(--ai-iro); font-size: 12px;
+  cursor: pointer; font-family: var(--font-heading);
+  transition: all 0.2s ease;
+}
+.recall-btn:hover { background: var(--ai-iro); color: var(--washi); }
+.recall-answer {
+  margin-top: 10px; font-size: 13px; color: var(--muted); display: none;
+  padding: 10px 14px; border-radius: 8px; background: var(--panel);
+  line-height: 1.6;
+}
+.recall-answer.show { display: block; }
+
+/* ─── COMPACT SCENARIO ─── */
+.scenario-box {
+  margin: 16px 0; padding: 16px; border-radius: 12px;
+  background: linear-gradient(135deg, rgba(45,212,191,.04), rgba(74,158,255,.04));
+  border: 1px solid var(--border);
+}
+.scenario-box h4 {
+  font-family: var(--font-heading); font-size: 11px; font-weight: 700;
+  color: var(--rikyushiro); margin-bottom: 8px; text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.scenario-step {
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+  color: var(--muted); cursor: pointer;
+}
+.scenario-step:last-child { border-bottom: none; }
+.scenario-step .scenario-choice {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  background: var(--chip); border: 1px solid var(--border);
+  font-family: var(--font-heading); font-size: 11px; color: var(--ai-iro);
+  margin-right: 6px;
+}
+.scenario-consequence {
+  display: none; margin-top: 6px; padding: 8px 12px; border-radius: 6px;
+  background: var(--panel); font-size: 12px; color: var(--muted); line-height: 1.5;
+}
+.scenario-consequence.show { display: block; }
+
+/* ─── FLASHCARD ─── */
+.flashcard-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px; margin: 16px 0;
+}
+.flashcard {
+  padding: 14px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--panel-2); cursor: pointer; perspective: 600px;
+  min-height: 80px; display: flex; align-items: center; justify-content: center;
+  text-align: center; font-size: 13px; transition: all 0.3s ease;
+}
+.flashcard:hover { border-color: var(--ai-iro); }
+.flashcard .fc-front { color: var(--text); font-weight: 500; }
+.flashcard .fc-back { display: none; color: var(--ai-iro); font-size: 12px; }
+.flashcard.flipped .fc-front { display: none; }
+.flashcard.flipped .fc-back { display: block; }
+
+/* ─── SUMMARY / CHEAT SHEET ─── */
+.summary-section {
+  margin-left: 60px; margin-bottom: 50px; padding: 32px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; max-width: 780px;
+}
+.summary-section h2 {
+  font-family: var(--font-heading); font-size: 22px; letter-spacing: -0.03em;
+  margin-bottom: 20px;
+}
+.cheat-table { width: 100%; border-collapse: collapse; }
+.cheat-table th {
+  text-align: left; padding: 10px 14px; font-family: var(--font-heading);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--ai-iro); border-bottom: 2px solid var(--border-strong);
+}
+.cheat-table td {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--muted); vertical-align: top;
+}
+.cheat-table td:first-child { font-weight: 600; color: var(--text); white-space: nowrap; }
+.cheat-reveal {
+  cursor: pointer; color: var(--muted); transition: color 0.2s ease;
+}
+.cheat-reveal:hover { color: var(--ai-iro); }
+.cheat-def { display: none; }
+.cheat-reveal.open + .cheat-def { display: inline; }
+
+/* ─── FAQ ─── */
+.faq-section {
+  margin-left: 60px; margin-bottom: 50px; padding: 32px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; max-width: 780px;
+}
+.faq-section h2 {
+  font-family: var(--font-heading); font-size: 22px; letter-spacing: -0.03em;
+  margin-bottom: 20px;
+}
+.faq-item {
+  border-bottom: 1px solid var(--border); padding: 16px 0;
+}
+.faq-q {
+  font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.faq-q::after { content: '+'; color: var(--ai-iro); font-family: var(--font-heading); }
+.faq-item.open .faq-q::after { content: '−'; }
+.faq-a {
+  max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
+  font-size: 13px; color: var(--muted); line-height: 1.6; padding-top: 0;
+}
+.faq-item.open .faq-a { max-height: 300px; padding-top: 10px; }
+
+/* ─── NEXT STEPS ─── */
+.next-steps {
+  margin-left: 60px; margin-bottom: 50px; padding: 24px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; max-width: 680px;
+}
+.next-steps h2 {
+  font-family: var(--font-heading); font-size: 16px; margin-bottom: 14px;
+}
+.next-steps ol { padding-left: 20px; }
+.next-steps li {
+  padding: 6px 0; font-size: 14px; color: var(--muted); line-height: 1.5;
+}
+
+/* ─── FOOTER ─── */
+.lesson-footer {
+  margin-left: 60px; padding: 20px 0; font-size: 12px; color: var(--muted-2);
+  border-top: 1px solid var(--border); max-width: 680px;
+}
+.lesson-footer a { color: var(--ai-iro); text-decoration: none; }
+.lesson-footer a:hover { text-decoration: underline; }
+
+/* ─── MOBILE ─── */
+@media (max-width: 780px) {
+  .timeline-rail { display: none; }
+  .module-node { display: none; }
+  .hero, .outline-section, .knowledge-map-wrap, .module,
+  .summary-section, .faq-section, .next-steps, .lesson-footer {
+    margin-left: 0;
+  }
+  .module { padding: 20px; }
+  .topbar-nav { display: none; }
+}
+@media (max-width: 380px) {
+  .hero h1 { font-size: 24px; }
+  .module { padding: 16px; margin-bottom: 24px; }
+}
+
+/* ─── REVEAL ANIMATION ─── */
+.reveal { opacity: 0; transform: translateY(18px); transition: 0.65s ease; }
+.reveal.visible { opacity: 1; transform: none; }
+
+/* ─── REDUCED MOTION ─── */
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .module { opacity: 1; transform: none; transition: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Progress bar -->
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- Topbar -->
+<div class="topbar">
+  <div class="topbar-brand">RAG // From Scratch</div>
+  <div class="topbar-nav">
+    <a href="#m1">Overview</a>
+    <a href="#m6">Query Translation</a>
+    <a href="#m11">Routing</a>
+    <a href="#m13">Indexing</a>
+    <a href="#m16">Active RAG</a>
+    <a href="#summary">Summary</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span class="topbar-status" id="statusText">0 / 18 complete</span>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light mode">◐</button>
+  </div>
+</div>
+
+<div class="lesson-wrap">
+  <!-- Timeline rail -->
+  <div class="timeline-rail" id="timelineRail">
+    <div class="timeline-rail-fill" id="timelineFill"></div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero" id="top">
+    <div class="hero-tag">Interactive Lesson</div>
+    <h1>Learn <span>RAG</span> From Scratch</h1>
+    <p class="hero-sub">A complete guide to Retrieval Augmented Generation — from basic indexing to self-reflective active RAG flows, taught through the LangChain engineer's short course.</p>
+    <div class="hero-meta">
+      <span>18 modules</span>
+      <span>•</span>
+      <span>~90 min</span>
+      <span>•</span>
+      <span>Source: Lance Martin / LangChain</span>
+    </div>
+  </div>
+
+  <!-- WHAT YOU'LL LEARN -->
+  <div class="outline-section reveal">
+    <h2>What You'll Learn</h2>
+    <ul>
+      <li><strong>Modules 1–2:</strong> Why RAG exists and how the core indexing→retrieval→generation pipeline works</li>
+      <li><strong>Modules 3–5:</strong> The basics — embedding documents, similarity search, and building generation chains</li>
+      <li><strong>Modules 6–10:</strong> Advanced query translation — multi-query, RAG fusion, decomposition, step-back, and HyDE</li>
+      <li><strong>Modules 11–12:</strong> Routing questions to the right source and constructing structured queries</li>
+      <li><strong>Modules 13–15:</strong> Advanced indexing — multi-representation, hierarchical Raptor, and token-level ColBERT</li>
+      <li><strong>Modules 16–18:</strong> Active RAG with LangGraph, self-RAG grading, and corrective RAG with web fallback</li>
+    </ul>
+  </div>
+
+  <!-- KNOWLEDGE MAP -->
+  <div class="knowledge-map-wrap reveal">
+    <h2>Knowledge Map</h2>
+    <div class="km-grid">
+      <div class="km-cluster">Fundamentals</div>
+      <a class="km-item" href="#m1"><span class="km-num">01</span>Why RAG Exists</a>
+      <a class="km-item" href="#m2"><span class="km-num">02</span>RAG Pipeline Overview</a>
+      <a class="km-item" href="#m3"><span class="km-num">03</span>Documents to Vectors</a>
+      <a class="km-item" href="#m4"><span class="km-num">04</span>Similarity Search</a>
+      <a class="km-item" href="#m5"><span class="km-num">05</span>Prompts &amp; Chains</a>
+      <div class="km-cluster">Query Translation</div>
+      <a class="km-item" href="#m6"><span class="km-num">06</span>Multi-Query</a>
+      <a class="km-item" href="#m7"><span class="km-num">07</span>RAG Fusion</a>
+      <a class="km-item" href="#m8"><span class="km-num">08</span>Decomposition</a>
+      <a class="km-item" href="#m9"><span class="km-num">09</span>Step-Back Prompting</a>
+      <a class="km-item" href="#m10"><span class="km-num">10</span>HyDE</a>
+      <div class="km-cluster">Routing &amp; Construction</div>
+      <a class="km-item" href="#m11"><span class="km-num">11</span>Routing</a>
+      <a class="km-item" href="#m12"><span class="km-num">12</span>Query Construction</a>
+      <div class="km-cluster">Advanced Indexing</div>
+      <a class="km-item" href="#m13"><span class="km-num">13</span>Multi-Representation</a>
+      <a class="km-item" href="#m14"><span class="km-num">14</span>Raptor</a>
+      <a class="km-item" href="#m15"><span class="km-num">15</span>ColBERT</a>
+      <div class="km-cluster">Active RAG</div>
+      <a class="km-item" href="#m16"><span class="km-num">16</span>LangGraph Flows</a>
+      <a class="km-item" href="#m17"><span class="km-num">17</span>Self-RAG</a>
+      <a class="km-item" href="#m18"><span class="km-num">18</span>CRAG</a>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 1 — Why RAG Exists
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m1" data-module="1">
+    <div class="module-head">
+      <div class="module-index">01 / FUNDAMENTALS</div>
+      <h2>Why RAG Exists</h2>
+      <p class="module-intro">LLMs know a lot — but most of the world's important data is private. RAG bridges that gap.</p>
+    </div>
+    <div class="module-body">
+      <p>Large language models are trained on publicly available data. But the data that matters most — your personal files, corporate documents, internal knowledge bases — is private and never seen during training. RAG (Retrieval Augmented Generation) solves this by letting you feed external data into an LLM at query time.</p>
+
+      <p>Context windows have exploded: from 4K–8K tokens a year ago to over a million tokens today. That means thousands of pages of private text can now be loaded into an LLM's working memory. RAG is the structured way to do this — instead of dumping everything in, you <em>retrieve</em> only the relevant pieces and use them to <em>augment</em> the LLM's <em>generation</em>.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">LLMs are trained on public data — most important data is private</li>
+        <li data-step="2.">Context windows grew from 4K to 1M+ tokens, making external data feasible</li>
+        <li data-step="3.">RAG = Retrieval Augmented Generation: fetch relevant docs, then generate grounded answers</li>
+        <li data-step="4.">This is the new operating system paradigm: LLMs + private data sources</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> You ask your company chatbot "What's our refund policy?" <strong>So what:</strong> Without RAG, it guesses from public training data. With RAG, it finds your actual policy document and quotes it.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> A bigger model doesn't always give better answers on private data. <strong>So what:</strong> A small model with good RAG retrieval often beats a giant model that's guessing — grounding beats raw scale.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Context windows hit 1M tokens but retrieval still matters. <strong>So what:</strong> Even with huge windows, stuffing everything in is slow and expensive. RAG targets what's needed.
+        </div>
+      </div>
+
+      <div class="analogy-card">A library with millions of books (LLM training data) vs. a librarian who finds the exact page you need from your private filing cabinet (RAG).</div>
+      <div class="misconception">Bigger context windows mean RAG is obsolete — no, retrieval is still cheaper, faster, and more precise than dumping everything in.</div>
+      <div class="matters">RAG unites LLM processing power with the private data where most real-world value lives.</div>
+
+      <!-- SVG: Motivation diagram -->
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div class="diagram-title">The RAG Motivation</div>
+          <div class="diagram-subtitle">Private data + LLM = grounded answers</div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 700 200" role="img" aria-label="RAG motivation: private data feeds into LLM for grounded answers">
+            <title>RAG Motivation Diagram</title>
+            <defs><marker id="arr-m1" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/></marker></defs>
+            <!-- Private Data -->
+            <rect x="30" y="60" width="140" height="80" rx="12" class="svg-node"/>
+            <text x="100" y="92" text-anchor="middle" class="svg-text">Private Data</text>
+            <text x="100" y="108" text-anchor="middle" class="svg-small">docs, DBs, APIs</text>
+            <!-- Arrow -->
+            <line x1="170" y1="100" x2="260" y2="100" class="svg-line" marker-end="url(#arr-m1)"/>
+            <text x="215" y="90" text-anchor="middle" class="svg-mono">retrieve</text>
+            <!-- LLM -->
+            <rect x="270" y="50" width="160" height="100" rx="14" class="svg-node-strong"/>
+            <text x="350" y="88" text-anchor="middle" class="svg-text">LLM</text>
+            <text x="350" y="104" text-anchor="middle" class="svg-small">processing engine</text>
+            <!-- Arrow out -->
+            <line x1="430" y1="100" x2="520" y2="100" class="svg-line" marker-end="url(#arr-m1)"/>
+            <text x="475" y="90" text-anchor="middle" class="svg-mono">generate</text>
+            <!-- Answer -->
+            <rect x="530" y="60" width="140" height="80" rx="12" class="svg-node"/>
+            <text x="600" y="92" text-anchor="middle" class="svg-text">Grounded Answer</text>
+            <text x="600" y="108" text-anchor="middle" class="svg-small">sourced from your data</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="recall-box">
+        <h4>Recall Prompt</h4>
+        <div class="recall-q">What are the two main reasons RAG exists, according to this module?</div>
+        <button class="recall-btn" onclick="toggleRecall(this)">Show Answer</button>
+        <div class="recall-answer">(1) Most important data is private and not in LLM training sets. (2) Context windows are now large enough to feed external data, but RAG makes this efficient by retrieving only what's relevant.</div>
+      </div>
+
+      <div class="scenario-box">
+        <h4>Compact Scenario</h4>
+        <div class="scenario-step" onclick="toggleScenario(this)">
+          <span class="scenario-choice">A</span> You're building a customer support bot. Do you: (a) Fine-tune the LLM on all support tickets, or (b) Use RAG to retrieve relevant past tickets at query time?
+          <div class="scenario-consequence"><strong>Best choice: (b) RAG.</strong> Fine-tuning is expensive and doesn't update when new tickets arrive. RAG retrieves current, relevant tickets on the fly — always up to date, always grounded.</div>
+        </div>
+      </div>
+
+      <div class="inter-link">🔗 Next: See how the full pipeline works in <a href="#m2">Module 2: RAG Pipeline Overview</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 2 — RAG Pipeline Overview
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m2" data-module="2">
+    <div class="module-head">
+      <div class="module-index">02 / FUNDAMENTALS</div>
+      <h2>RAG Pipeline Overview</h2>
+      <p class="module-intro">Three stages, one flow: index your documents, retrieve relevant chunks, generate grounded answers.</p>
+    </div>
+    <div class="module-body">
+      <p>RAG has three core stages. <strong>Indexing</strong> processes your documents so they can be searched — typically by splitting them into chunks and storing numerical representations (embeddings) in a vector store. <strong>Retrieval</strong> takes a user question, embeds it the same way, and finds the closest document chunks. <strong>Generation</strong> stuffs those retrieved chunks into a prompt and asks the LLM to produce an answer grounded in that context.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Indexing: Load documents → split into chunks → embed → store in vector store</li>
+        <li data-step="2.">Retrieval: Embed question → similarity search → return K nearest chunks</li>
+        <li data-step="3.">Generation: Stuff retrieved chunks + question into prompt → LLM generates answer</li>
+      </ul>
+
+      <p>The advanced RAG landscape adds techniques at each stage: query translation (improve the question before retrieval), routing (send it to the right source), query construction (convert to structured queries), and active RAG (grade and retry if results are poor).</p>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div class="diagram-title">Basic RAG Pipeline</div>
+          <div class="diagram-subtitle">Three stages: Index → Retrieve → Generate</div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 800 180" role="img" aria-label="RAG pipeline: Index, Retrieve, Generate stages">
+            <title>Basic RAG Pipeline</title>
+            <defs><marker id="arr-m2" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/></marker></defs>
+            <rect x="20" y="40" width="150" height="100" rx="12" class="svg-node"/>
+            <text x="95" y="78" text-anchor="middle" class="svg-text">Indexing</text>
+            <text x="95" y="96" text-anchor="middle" class="svg-small">split → embed → store</text>
+            <line x1="170" y1="90" x2="240" y2="90" class="svg-line" marker-end="url(#arr-m2)"/>
+            <rect x="250" y="40" width="150" height="100" rx="12" class="svg-node"/>
+            <text x="325" y="78" text-anchor="middle" class="svg-text">Vector Store</text>
+            <text x="325" y="96" text-anchor="middle" class="svg-small">indexed embeddings</text>
+            <line x1="400" y1="90" x2="470" y2="90" class="svg-line" marker-end="url(#arr-m2)"/>
+            <rect x="480" y="40" width="150" height="100" rx="12" class="svg-node"/>
+            <text x="555" y="78" text-anchor="middle" class="svg-text">Retrieval</text>
+            <text x="555" y="96" text-anchor="middle" class="svg-small">similarity search</text>
+            <line x1="630" y1="90" x2="650" y2="90" class="svg-line" marker-end="url(#arr-m2)"/>
+            <!-- Question input -->
+            <text x="445" y="65" text-anchor="middle" class="svg-mono">Question →</text>
+            <!-- Generation -->
+            <text x="670" y="78" class="svg-text">→ Gen</text>
+            <text x="670" y="96" class="svg-small">LLM answer</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> A FAQ chatbot needs to answer from your company docs. <strong>So what:</strong> You index all FAQ articles, retrieve the matching one, and let the LLM rephrase it conversationally.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> Retrieval quality matters more than LLM quality in RAG. <strong>So what:</strong> A great LLM with bad retrieval still gives bad answers. Fix retrieval first.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> What if no document matches the question? <strong>So what:</strong> The LLM may hallucinate. Active RAG (Module 17–18) handles this by grading and falling back to web search.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like a doctor consulting a medical database before diagnosing: look up relevant studies (retrieve), then reason over them (generate) rather than guessing from memory alone.</div>
+      <div class="misconception">"RAG is just a vector store lookup" — no, the pipeline includes clever preprocessing, query rewriting, and quality grading at multiple stages.</div>
+      <div class="matters">Understanding the full pipeline lets you identify which stage is the bottleneck when your RAG system performs poorly.</div>
+
+      <div class="inter-link">🔗 Deep dive into the first stage: <a href="#m3">Module 3: Documents to Vectors</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 3 — Indexing: Documents to Vectors
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m3" data-module="3">
+    <div class="module-head">
+      <div class="module-index">03 / FUNDAMENTALS</div>
+      <h2>Indexing: Documents to Vectors</h2>
+      <p class="module-intro">How documents become searchable numbers — splitting, embeddings, and sparse vs. dense representations.</p>
+    </div>
+    <div class="module-body">
+      <p>To search documents, you need a numerical representation. There are two main approaches: <strong>sparse vectors</strong> (like TF-IDF) count word frequencies across a large vocabulary — most entries are zero, hence "sparse." <strong>Dense embeddings</strong> compress a document into a fixed-length vector (e.g., 1536 dimensions) using machine-learned models that capture semantic meaning.</p>
+
+      <p>In practice, you load documents, split them into chunks (because embedding models have limited context windows — typically 512 to 8K tokens), embed each chunk into a vector, and store those vectors in a vector database. Each vector links back to the original text.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Load documents from source (PDF, web, database, etc.)</li>
+        <li data-step="2.">Split into chunks that fit the embedding model's context window</li>
+        <li data-step="3.">Embed each chunk using an embedding model (e.g., OpenAI embeddings → 1536-d vector)</li>
+        <li data-step="4.">Store vectors + original text in a vector store (Chroma, Pinecone, etc.)</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> A 10-page PDF about return policies. <strong>So what:</strong> Split into ~20 chunks, embed each, store in Chroma. Now searchable by question.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> Smaller chunks aren't always better. <strong>So what:</strong> Tiny chunks lose context. Too large chunks mix unrelated topics. Sweet spot is usually 500–1500 tokens.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Code documents with lots of imports and boilerplate. <strong>So what:</strong> Standard chunking may split a function mid-definition. Consider semantic chunking or AST-based splitting.
+        </div>
+      </div>
+
+      <div class="analogy-card">Embedding is like giving every document a GPS coordinate in "meaning space." Documents about similar topics land near each other — you don't need to read them all, just find the ones closest to your question's location.</div>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div class="diagram-title">From Document to Embedding</div>
+          <div class="diagram-subtitle">Split → Embed → Store</div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 800 160" role="img" aria-label="Document indexing flow: document splits into chunks, each gets embedded into a vector stored in a vector store">
+            <title>Document Indexing Flow</title>
+            <defs><marker id="arr-m3" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/></marker></defs>
+            <rect x="20" y="30" width="120" height="100" rx="12" class="svg-node"/>
+            <text x="80" y="70" text-anchor="middle" class="svg-text">Document</text>
+            <text x="80" y="88" text-anchor="middle" class="svg-small">raw text</text>
+            <line x1="140" y1="80" x2="190" y2="80" class="svg-line" marker-end="url(#arr-m3)"/>
+            <text x="165" y="70" text-anchor="middle" class="svg-mono">split</text>
+            <rect x="200" y="20" width="100" height="30" rx="8" class="svg-node"/>
+            <text x="250" y="40" text-anchor="middle" class="svg-small">chunk 1</text>
+            <rect x="200" y="60" width="100" height="30" rx="8" class="svg-node"/>
+            <text x="250" y="80" text-anchor="middle" class="svg-small">chunk 2</text>
+            <rect x="200" y="100" width="100" height="30" rx="8" class="svg-node"/>
+            <text x="250" y="120" text-anchor="middle" class="svg-small">chunk 3</text>
+            <line x1="300" y1="80" x2="370" y2="80" class="svg-line" marker-end="url(#arr-m3)"/>
+            <text x="335" y="70" text-anchor="middle" class="svg-mono">embed</text>
+            <rect x="380" y="30" width="140" height="100" rx="12" class="svg-node-strong"/>
+            <text x="450" y="70" text-anchor="middle" class="svg-text">Vector Store</text>
+            <text x="450" y="88" text-anchor="middle" class="svg-small">1536-d vectors</text>
+            <text x="450" y="104" text-anchor="middle" class="svg-mono">indexed</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="recall-box">
+        <h4>Recall Prompt</h4>
+        <div class="recall-q">What is the difference between sparse and dense vector representations?</div>
+        <button class="recall-btn" onclick="toggleRecall(this)">Show Answer</button>
+        <div class="recall-answer">Sparse vectors (like TF-IDF) have one entry per word in a large vocabulary, mostly zeros — they count word frequencies. Dense embeddings compress the document into a fixed-length vector (e.g., 1536 dimensions) using machine learning to capture semantic meaning in a compact form.</div>
+      </div>
+
+      <div class="quiz-box" data-quiz="3">
+        <h4>Quick Check</h4>
+        <div class="quiz-q">Why do we split documents before embedding them?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '3')">To make them faster to download from the web</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, true, '3')">Embedding models have limited context windows (512–8K tokens)</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '3')">Vector stores can only store small documents</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '3')">Splitting improves the LLM's reading comprehension</button>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <div class="inter-link">🔗 Next: How retrieval works using these vectors — <a href="#m4">Module 4: Similarity Search</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 4 — Retrieval: Similarity Search
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m4" data-module="4">
+    <div class="module-head">
+      <div class="module-index">04 / FUNDAMENTALS</div>
+      <h2>Retrieval: Similarity Search</h2>
+      <p class="module-intro">Finding the nearest neighbors in embedding space — the core of RAG retrieval.</p>
+    </div>
+    <div class="module-body">
+      <p>When you embed both documents and questions into the same high-dimensional space, similar meanings land near each other. Retrieval is simply a neighborhood search: find the K closest document vectors to the question vector. This is K-Nearest Neighbors (KNN) search, and it's the backbone of modern vector stores.</p>
+
+      <p>The <strong>K parameter</strong> controls how many chunks you retrieve. K=1 gets the single best match; K=5 casts a wider net. Too low and you miss context; too high and you dilute with irrelevant chunks. The right K depends on your use case.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Embed the user's question using the same embedding model as the documents</li>
+        <li data-step="2.">Search the vector store for the K most similar vectors (KNN search)</li>
+        <li data-step="3.">Return those chunks with their similarity scores</li>
+        <li data-step="4.">Tune K: too low = missing info; too high = noise</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> Question: "What is task decomposition?" <strong>So what:</strong> Embedding search finds the chunk that explains task decomposition — even if it uses slightly different words.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> "Cosine similarity" ignores vector magnitude. <strong>So what:</strong> What matters is the <em>direction</em> (meaning), not the <em>size</em> (length). A short document and a long one about the same topic score similarly.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> K=1 misses related context from adjacent chunks. <strong>So what:</strong> Use K=3–6 for multi-faceted questions, or implement "parent document retrieval" — retrieve a small chunk, return the larger section it belongs to.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like asking a librarian for books on "quantum physics" — they don't check every shelf, they go to the physics section and grab the closest 3 books to your topic.</div>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div class="diagram-title">Embedding Space &amp; KNN Search</div>
+          <div class="diagram-subtitle">Documents cluster by meaning; retrieval finds nearby chunks</div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 700 250" role="img" aria-label="3D embedding space showing document vectors clustered by meaning with a question vector searching for nearest neighbors">
+            <title>Embedding Space KNN Search</title>
+            <defs><marker id="arr-m4" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--ai-iro)"/></marker></defs>
+            <!-- Axes -->
+            <line x1="50" y1="220" x2="200" y2="220" class="svg-line-dim"/>
+            <text x="205" y="224" class="svg-mono">dim 1</text>
+            <line x1="50" y1="220" x2="50" y2="70" class="svg-line-dim"/>
+            <text x="45" y="65" text-anchor="end" class="svg-mono">dim 2</text>
+            <!-- Document clusters -->
+            <circle cx="180" cy="140" r="50" fill="none" stroke="var(--line-dim)" stroke-dasharray="4"/>
+            <text x="180" y="105" text-anchor="middle" class="svg-mono">AI docs</text>
+            <circle cx="130" cy="155" r="6" class="svg-node"/>
+            <circle cx="165" cy="135" r="6" class="svg-node"/>
+            <circle cx="200" cy="150" r="6" class="svg-node"/>
+            <circle cx="155" cy="165" r="6" class="svg-node"/>
+
+            <circle cx="400" cy="110" r="50" fill="none" stroke="var(--line-dim)" stroke-dasharray="4"/>
+            <text x="400" y="75" text-anchor="middle" class="svg-mono">Finance docs</text>
+            <circle cx="380" cy="105" r="6" class="svg-node"/>
+            <circle cx="420" cy="120" r="6" class="svg-node"/>
+            <circle cx="395" cy="100" r="6" class="svg-node"/>
+
+            <circle cx="550" cy="180" r="50" fill="none" stroke="var(--line-dim)" stroke-dasharray="4"/>
+            <text x="550" y="145" text-anchor="middle" class="svg-mono">Legal docs</text>
+            <circle cx="530" cy="175" r="6" class="svg-node"/>
+            <circle cx="570" cy="190" r="6" class="svg-node"/>
+
+            <!-- Question vector -->
+            <circle cx="175" cy="145" r="8" fill="var(--ai-iro)" stroke="var(--ai-iro)" stroke-width="2"/>
+            <text x="195" y="142" class="svg-text" fill="var(--ai-iro)" font-size="10">Q</text>
+            <!-- Search radius -->
+            <circle cx="175" cy="145" r="35" fill="none" stroke="var(--ai-iro)" stroke-dasharray="6" stroke-opacity="0.5"/>
+            <text x="175" y="240" text-anchor="middle" class="svg-mono">K=3 nearest neighbors retrieved</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="quiz-box" data-quiz="4">
+        <h4>Quick Check</h4>
+        <div class="quiz-q">What does the K parameter control in retrieval?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '4')">The number of dimensions in the embedding</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '4')">The maximum chunk size for splitting</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, true, '4')">How many nearest neighbor documents to retrieve</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '4')">The number of retry attempts for failed queries</button>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <div class="inter-link">🔗 Now let's generate answers from retrieved chunks — <a href="#m5">Module 5: Prompts &amp; Chains</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 5 — Generation: Prompts and Chains
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m5" data-module="5">
+    <div class="module-head">
+      <div class="module-index">05 / FUNDAMENTALS</div>
+      <h2>Generation: Prompts and Chains</h2>
+      <p class="module-intro">Putting it all together — prompt templates, LCEL chains, and producing grounded answers.</p>
+    </div>
+    <div class="module-body">
+      <p>Generation is the final stage: you take the retrieved document chunks, stuff them into a prompt template along with the user's question, and pass it to an LLM. The prompt has placeholders (keys) like "context" and "question" that get filled with the retrieved chunks and the original query.</p>
+
+      <p>In LangChain, you compose these pieces into a <strong>chain</strong> using LCEL (LangChain Expression Language). A simple chain connects: prompt → LLM → output parser. A RAG chain automatically triggers retrieval when invoked, passing the question through to the retriever and plumbing results into the prompt.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Define a prompt template: "Answer the following question based on this context: {context} Question: {question}"</li>
+        <li data-step="2.">Choose an LLM (e.g., GPT-3.5, Claude, Llama)</li>
+        <li data-step="3.">Build a chain: prompt | LLM | output parser</li>
+        <li data-step="4.">Invoke with {"context": retrieved_docs, "question": user_question}</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> Retrieval returns 3 chunks about refund policies. <strong>So what:</strong> The prompt assembles them into "Based on these documents: [chunks], answer: what's the refund policy?" and the LLM generates a clear answer.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> A more detailed prompt doesn't always produce better answers. <strong>So what:</strong> Overly complex instructions can confuse the LLM. Simple, clear prompts with good context often outperform elaborate ones.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Context window overflow when retrieved chunks are too large. <strong>So what:</strong> Limit K or use summarization to compress retrieved content before generation.
+        </div>
+      </div>
+
+      <div class="analogy-card">The prompt template is a fill-in-the-blank form: the retrieved documents are your research notes, the question is the exam prompt, and the LLM is the student writing an answer using only those notes.</div>
+
+      <div class="recall-box">
+        <h4>Recall Prompt</h4>
+        <div class="recall-q">What are the three pieces you need to build a basic RAG chain?</div>
+        <button class="recall-btn" onclick="toggleRecall(this)">Show Answer</button>
+        <div class="recall-answer">(1) A retriever that fetches relevant documents, (2) A prompt template with placeholders for context and question, (3) An LLM that generates the answer from the populated prompt.</div>
+      </div>
+
+      <div class="inter-link">🔗 That's the basic pipeline! Now let's improve retrieval with <a href="#m6">Module 6: Multi-Query</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 6 — Query Translation: Multi-Query
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m6" data-module="6">
+    <div class="module-head">
+      <div class="module-index">06 / QUERY TRANSLATION</div>
+      <h2>Multi-Query</h2>
+      <p class="module-intro">Fan out one question into multiple perspectives to improve retrieval coverage.</p>
+    </div>
+    <div class="module-body">
+      <p>User queries are often ambiguous or poorly worded for embedding-based retrieval. Multi-query takes one question and rewrites it into several differently worded versions from different angles. Each version is embedded and searched independently, then the unique results are combined. This "shotgun approach" increases the chance of retrieving the right documents.</p>
+
+      <p>The intuition: a question's initial wording might not align well with how relevant documents are embedded. By rewriting from multiple perspectives, you cover more of the embedding space.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Take the user's original question</li>
+        <li data-step="2.">Use an LLM to generate 3–5 rephrased versions from different perspectives</li>
+        <li data-step="3.">Run retrieval independently for each version</li>
+        <li data-step="4.">Take the unique union of all retrieved documents</li>
+        <li data-step="5.">Pass combined documents to the generation step</li>
+      </ul>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div class="diagram-title">Multi-Query Flow</div>
+          <div class="diagram-subtitle">One question → many perspectives → combined results</div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 700 200" role="img" aria-label="Multi-query: one question fans out to multiple rephrased versions, each retrieves independently, results are merged">
+            <title>Multi-Query Flow</title>
+            <defs><marker id="arr-m6" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--line)"/></marker></defs>
+            <rect x="20" y="75" width="120" height="50" rx="10" class="svg-node-strong"/>
+            <text x="80" y="105" text-anchor="middle" class="svg-text">Question</text>
+            <!-- Fan out -->
+            <line x1="140" y1="85" x2="230" y2="30" class="svg-line" marker-end="url(#arr-m6)"/>
+            <line x1="140" y1="95" x2="230" y2="70" class="svg-line" marker-end="url(#arr-m6)"/>
+            <line x1="140" y1="105" x2="230" y2="110" class="svg-line" marker-end="url(#arr-m6)"/>
+            <line x1="140" y1="115" x2="230" y2="150" class="svg-line" marker-end="url(#arr-m6)"/>
+            <line x1="140" y1="120" x2="230" y2="180" class="svg-line" marker-end="url(#arr-m6)"/>
+            <!-- Rewritten questions -->
+            <rect x="235" y="15" width="130" height="28" rx="6" class="svg-node"/>
+            <text x="300" y="34" text-anchor="middle" class="svg-small">Rewrite 1</text>
+            <rect x="235" y="55" width="130" height="28" rx="6" class="svg-node"/>
+            <text x="300" y="74" text-anchor="middle" class="svg-small">Rewrite 2</text>
+            <rect x="235" y="95" width="130" height="28" rx="6" class="svg-node"/>
+            <text x="300" y="114" text-anchor="middle" class="svg-small">Rewrite 3</text>
+            <rect x="235" y="135" width="130" height="28" rx="6" class="svg-node"/>
+            <text x="300" y="154" text-anchor="middle" class="svg-small">Rewrite 4</text>
+            <rect x="235" y="168" width="130" height="28" rx="6" class="svg-node"/>
+            <text x="300" y="187" text-anchor="middle" class="svg-small">Rewrite 5</text>
+            <!-- Retrieve each -->
+            <line x1="365" y1="29" x2="430" y2="95" class="svg-line-dim"/>
+            <line x1="365" y1="69" x2="430" y2="95" class="svg-line-dim"/>
+            <line x1="365" y1="109" x2="430" y2="95" class="svg-line-dim"/>
+            <line x1="365" y1="149" x2="430" y2="95" class="svg-line-dim"/>
+            <line x1="365" y1="182" x2="430" y2="95" class="svg-line-dim"/>
+            <rect x="435" y="75" width="100" height="40" rx="10" class="svg-node-strong"/>
+            <text x="485" y="100" text-anchor="middle" class="svg-text">Union</text>
+            <!-- Final -->
+            <line x1="535" y1="95" x2="590" y2="95" class="svg-line" marker-end="url(#arr-m6)"/>
+            <rect x="595" y="75" width="80" height="40" rx="10" class="svg-node"/>
+            <text x="635" y="100" text-anchor="middle" class="svg-text">Generate</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> Question: "How do agents use memory?" <strong>So what:</strong> Rewrites might include "types of agent memory," "persistent vs. episodic memory in AI," "memory architectures for LLM agents."
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> More rewrites don't always help. <strong>So what:</strong> Too many rewrites add noise. 3–5 is usually the sweet spot — enough diversity without diluting with tangential results.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> The original question was already perfectly worded. <strong>So what:</strong> Multi-query still helps because the LLM's rewrites may match document phrasing better than your exact words.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like asking the same question in 5 different ways at a library — each wording might help the librarian find a different relevant book that one phrasing alone would miss.</div>
+
+      <div class="quiz-box" data-quiz="6">
+        <h4>Quick Check</h4>
+        <div class="quiz-q">What is the main benefit of multi-query over basic retrieval?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '6')">It reduces the number of API calls needed</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, true, '6')">It covers more of the embedding space by rewriting from multiple perspectives</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '6')">It eliminates the need for chunking documents</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '6')">It automatically ranks results by relevance</button>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <div class="inter-link">🔗 Add smart ranking on top — <a href="#m7">Module 7: RAG Fusion</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 7 — RAG Fusion
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m7" data-module="7">
+    <div class="module-head">
+      <div class="module-index">07 / QUERY TRANSLATION</div>
+      <h2>RAG Fusion</h2>
+      <p class="module-intro">Multi-query + reciprocal rank fusion = smarter ranking across multiple retrievals.</p>
+    </div>
+    <div class="module-body">
+      <p>RAG Fusion is nearly identical to multi-query — you generate multiple rephrased questions and retrieve for each. The key difference: instead of just taking a union of results, you apply <strong>Reciprocal Rank Fusion (RRF)</strong>, a ranking algorithm that consolidates the multiple ranked lists into one optimized order.</p>
+
+      <p>RRF works by looking at where each document appears across all the ranked lists and aggregating those positions. A document that appears high in multiple lists gets boosted. This is especially useful when querying across multiple vector stores or many differently-worded questions.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Generate multiple rephrased questions (same as multi-query)</li>
+        <li data-step="2.">Retrieve ranked document lists for each question</li>
+        <li data-step="3.">Apply reciprocal rank fusion: aggregate positions across all lists</li>
+        <li data-step="4.">Take the top-N from the fused ranking for generation</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> Doc A ranks #1 in list 1 and #3 in list 2. Doc B ranks #2 in both. <strong>So what:</strong> RRF may rank Doc A higher because it appeared at #1 in one list — consistent high placement wins.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> RRF doesn't need actual similarity scores. <strong>So what:</strong> It works purely on rank positions, making it robust to different score scales across different vector stores or embedding models.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> All rewrites retrieve the same documents. <strong>So what:</strong> RRF doesn't help if rewrites aren't diverse enough — diversity in the LLM-generated rewrites is critical.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like asking 5 friends to rank their top 3 pizza places, then combining their lists: a place that appears high on everyone's list wins over one that's #1 for just one friend.</div>
+
+      <div class="recall-box">
+        <h4>Recall Prompt</h4>
+        <div class="recall-q">What's the key difference between multi-query and RAG fusion?</div>
+        <button class="recall-btn" onclick="toggleRecall(this)">Show Answer</button>
+        <div class="recall-answer">Both generate multiple rephrased questions and retrieve for each. The difference is that RAG fusion applies Reciprocal Rank Fusion to rank the combined results by position across all lists, while multi-query simply takes the unique union without re-ranking.</div>
+      </div>
+
+      <div class="inter-link">🔗 Break complex questions into sub-problems — <a href="#m8">Module 8: Query Decomposition</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 8 — Query Decomposition
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m8" data-module="8">
+    <div class="module-head">
+      <div class="module-index">08 / QUERY TRANSLATION</div>
+      <h2>Query Decomposition</h2>
+      <p class="module-intro">Break hard questions into simpler sub-questions, solve each, then combine.</p>
+    </div>
+    <div class="module-body">
+      <p>Some questions are too complex for a single retrieval. Decomposition breaks them into sub-questions that can be answered individually. There are two flavors: <strong>sequential</strong> (answer Q1, use that answer to inform Q2, and so on — from Google's "Least-to-Most" paper) and <strong>parallel</strong> (answer all sub-questions independently, then concatenate).</p>
+
+      <p>A related technique called IRCoT (Interleaved Retrieval + Chain of Thought) combines retrieval with reasoning at each step — each sub-question's answer feeds into the next, building up the solution progressively.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Use an LLM to decompose the question into sub-questions</li>
+        <li data-step="2.">For sequential: answer Q1 → use answer as context for Q2 → continue</li>
+        <li data-step="3.">For parallel: answer all sub-questions independently, concatenate</li>
+        <li data-step="4.">Combine sub-answers into a final response</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> "What are the main components of an autonomous agent?" <strong>So what:</strong> Decomposes into: "What is LLM technology?" → "What are agent components?" → "How do components interact?"
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> Parallel decomposition is simpler but weaker than sequential. <strong>So what:</strong> Sequential builds knowledge step by step. Parallel treats sub-questions as independent — loses cross-references.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Sub-questions that depend on each other but are run in parallel. <strong>So what:</strong> The second sub-question lacks context from the first, leading to incomplete answers. Use sequential for dependent chains.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like solving a math problem: first find x, then use x to find y. You can't find y without x — sequential decomposition respects that dependency.</div>
+
+      <div class="quiz-box" data-quiz="8">
+        <h4>Quick Check</h4>
+        <div class="quiz-q">When should you use sequential vs. parallel decomposition?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '8')">Sequential is always better</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, true, '8')">Sequential when sub-questions depend on each other; parallel when they're independent</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '8')">Parallel is always faster so always prefer it</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '8')">It doesn't matter — both produce identical results</button>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <div class="inter-link">🔗 The opposite direction: going more abstract — <a href="#m9">Module 9: Step-Back Prompting</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 9 — Step-Back Prompting
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m9" data-module="9">
+    <div class="module-head">
+      <div class="module-index">09 / QUERY TRANSLATION</div>
+      <h2>Step-Back Prompting</h2>
+      <p class="module-intro">Ask a higher-level question first, then use that background to answer the specific one.</p>
+    </div>
+    <div class="module-body">
+      <p>While decomposition makes questions more specific, step-back prompting goes the opposite direction — it generates a more <strong>abstract, higher-level question</strong> that captures the general concept. You then retrieve documents for both the original and the step-back question, combining the context for a richer answer.</p>
+
+      <p>This works especially well for textbook-style domains where high-level concepts are in one chapter and specific implementations in another. The step-back question retrieves the conceptual foundation, and the original question retrieves the specific details.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Use few-shot prompting to generate a more abstract "step-back" question</li>
+        <li data-step="2.">Retrieve documents for both the original and step-back questions</li>
+        <li data-step="3.">Combine both sets of retrieved context</li>
+        <li data-step="4.">Generate the final answer using the enriched context</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> "What is task composition for LLM agents?" <strong>So what:</strong> Step-back: "What is the process of task composition in general?" — retrieves broader conceptual docs.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> Sometimes a vaguer question retrieves better documents. <strong>So what:</strong> Specific questions may not match any document exactly. Abstract questions match general knowledge that contains the answer.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Step-back generates an unrelated abstract question. <strong>So what:</strong> Poor few-shot examples lead to bad abstractions. Tune the examples carefully for your domain.
+        </div>
+      </div>
+
+      <div class="analogy-card">Before asking "What's the exact pH of lemon juice?", first ask "What is pH?" — understanding pH gives you the framework to interpret the specific answer.</div>
+
+      <div class="inter-link">🔗 Map questions into document space — <a href="#m10">Module 10: HyDE</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 10 — HyDE
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m10" data-module="10">
+    <div class="module-head">
+      <div class="module-index">10 / QUERY TRANSLATION</div>
+      <h2>HyDE (Hypothetical Document Embeddings)</h2>
+      <p class="module-intro">Generate a fake answer first, then use it to find real documents.</p>
+    </div>
+    <div class="module-body">
+      <p>Questions and documents are very different text objects — short and sparse vs. long and dense. HyDE bridges this gap by having the LLM generate a <strong>hypothetical document</strong> (a plausible-looking answer passage) and then using that hypothetical document for retrieval instead of the raw question.</p>
+
+      <p>The intuition: a hypothetical document, even if factually wrong, is closer in embedding space to the real target document than the short, potentially poorly-worded question. The LLM's "best guess" at what an answer looks like becomes a better search query.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Prompt the LLM: "Write a passage that would answer this question: [question]"</li>
+        <li data-step="2.">Embed the generated hypothetical document</li>
+        <li data-step="3.">Use that embedding to search the vector store</li>
+        <li data-step="4.">Pass real retrieved documents (not the hypothetical) to the LLM for generation</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> Question: "How do agents use memory?" <strong>So what:</strong> LLM generates a fake passage about agent memory systems. That passage embeds near real docs about memory architectures.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> The hypothetical document can be factually wrong and still work. <strong>So what:</strong> What matters is the <em>embedding location</em>, not the content accuracy. The wrong passage is still closer to the right docs than the raw question.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Domain where the LLM has no knowledge. <strong>So what:</strong> The hypothetical document will be generic and may not land near the right docs. HyDE works best when the LLM has some domain familiarity.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like describing a suspect to a sketch artist — even if the sketch isn't perfect, it's easier to match against a photo database than a verbal description alone.</div>
+
+      <div class="recall-box">
+        <h4>Recall Prompt</h4>
+        <div class="recall-q">Why is a hypothetical document better for retrieval than the raw question?</div>
+        <button class="recall-btn" onclick="toggleRecall(this)">Show Answer</button>
+        <div class="recall-answer">Questions are short and sparse; documents are long and dense. They live in different regions of embedding space. A hypothetical document — even if factually wrong — is a longer, denser text that lands closer to real documents in embedding space than the raw question does.</div>
+      </div>
+
+      <div class="inter-link">🔗 Send questions to the right source — <a href="#m11">Module 11: Routing</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 11 — Routing
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m11" data-module="11">
+    <div class="module-head">
+      <div class="module-index">11 / ROUTING</div>
+      <h2>Routing</h2>
+      <p class="module-intro">Direct questions to the right data source — vector store, SQL, graph DB, or different prompts.</p>
+    </div>
+    <div class="module-body">
+      <p>After translating a query, you need to route it to the right source. A question about code goes to Python docs; a question about physics goes to a physics knowledge base. There are two approaches:</p>
+
+      <p><strong>Logical routing:</strong> Give the LLM knowledge of available data sources and let it reason about which one to use. The output is a structured object (via function calling) constrained to specific options — essentially classification with structured output.</p>
+
+      <p><strong>Semantic routing:</strong> Embed the question and embed reference prompts for each data source. Choose the most similar prompt. Pure math, no LLM reasoning needed.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Define your available sources (vector stores, DBs, prompts)</li>
+        <li data-step="2.">Logical: Bind a data model to the LLM for structured output classification</li>
+        <li data-step="3.">Semantic: Embed question + reference prompts, pick most similar</li>
+        <li data-step="4.">Route to the appropriate retriever chain</li>
+      </ul>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div class="diagram-title">Routing Decision</div>
+          <div class="diagram-subtitle">Question → classifier → right data source</div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 700 180" role="img" aria-label="Routing: question goes to a classifier that picks between vector store, SQL DB, and graph DB">
+            <title>Routing Decision</title>
+            <defs><marker id="arr-m11" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--line)"/></marker></defs>
+            <rect x="20" y="65" width="120" height="50" rx="10" class="svg-node-strong"/>
+            <text x="80" y="95" text-anchor="middle" class="svg-text">Question</text>
+            <line x1="140" y1="90" x2="220" y2="90" class="svg-line" marker-end="url(#arr-m11)"/>
+            <rect x="225" y="60" width="120" height="60" rx="12" class="svg-node-strong"/>
+            <text x="285" y="85" text-anchor="middle" class="svg-text">Router</text>
+            <text x="285" y="100" text-anchor="middle" class="svg-small">LLM or embedding</text>
+            <!-- Three paths -->
+            <line x1="345" y1="72" x2="430" y2="30" class="svg-line" marker-end="url(#arr-m11)"/>
+            <line x1="345" y1="90" x2="430" y2="90" class="svg-line" marker-end="url(#arr-m11)"/>
+            <line x1="345" y1="108" x2="430" y2="150" class="svg-line" marker-end="url(#arr-m11)"/>
+            <rect x="435" y="12" width="110" height="36" rx="8" class="svg-node"/>
+            <text x="490" y="35" text-anchor="middle" class="svg-small">Vector Store</text>
+            <rect x="435" y="72" width="110" height="36" rx="8" class="svg-node"/>
+            <text x="490" y="95" text-anchor="middle" class="svg-small">SQL Database</text>
+            <rect x="435" y="132" width="110" height="36" rx="8" class="svg-node"/>
+            <text x="490" y="155" text-anchor="middle" class="svg-small">Graph DB</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> Question mentions Python code. <strong>So what:</strong> Logical router classifies it as "python_docs" and sends to the Python documentation retriever.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> Semantic routing can work without an LLM at all. <strong>So what:</strong> Embed the question, embed reference prompts, compute cosine similarity — pure math, no API call, very fast.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Question spans two domains. <strong>So what:</strong> Router picks one. Consider routing to both or using a combined retriever for multi-domain queries.
+        </div>
+      </div>
+
+      <div class="inter-link">🔗 Convert natural language to structured queries — <a href="#m12">Module 12: Query Construction</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 12 — Query Construction
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m12" data-module="12">
+    <div class="module-head">
+      <div class="module-index">12 / ROUTING &amp; CONSTRUCTION</div>
+      <h2>Query Construction</h2>
+      <p class="module-intro">Turn natural language into structured queries — metadata filters, SQL, Cypher.</p>
+    </div>
+    <div class="module-body">
+      <p>Users ask questions in natural language, but vector stores need structured filters. "Find me videos about chat LangChain published after 2024" needs to become a structured query with date filters. Query construction uses function calling to convert natural language into the domain-specific language (DSL) your data source needs.</p>
+
+      <p>For vector stores, this means metadata filters (date ranges, categories, view counts). For SQL databases, it's text-to-SQL. For graph databases, it's text-to-Cypher. The pattern is the same: describe your schema to the LLM via structured output, and it produces queries that match.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Define a schema describing your available filters and search fields</li>
+        <li data-step="2.">Bind that schema to the LLM using function calling / structured output</li>
+        <li data-step="3.">User asks in natural language → LLM outputs a structured query object</li>
+        <li data-step="4.">Parse the output and apply it to your vector store / DB</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> "Show me short videos about agents from 2024." <strong>So what:</strong> LLM outputs: {content_search: "agents", publish_date: {gte: "2024-01-01"}, length: {lte: 600}}.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> The LLM doesn't execute the query — it just generates it. <strong>So what:</strong> The structured output is a Pydantic object. Your code applies it. The LLM is a query translator, not a database engine.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Ambiguous filter: "recent" could mean last week, month, or year. <strong>So what:</strong> Define sensible defaults in your schema or prompt the LLM to ask for clarification.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like a concierge: you say "I want a quiet table for two near the window" and they translate that into the restaurant's reservation system codes.</div>
+
+      <div class="inter-link">🔗 Now let's look at smarter indexing strategies — <a href="#m13">Module 13: Multi-Representation Indexing</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 13 — Multi-Representation Indexing
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m13" data-module="13">
+    <div class="module-head">
+      <div class="module-index">13 / ADVANCED INDEXING</div>
+      <h2>Multi-Representation Indexing</h2>
+      <p class="module-intro">Index summaries for retrieval, store full documents for generation — best of both worlds.</p>
+    </div>
+    <div class="module-body">
+      <p>Traditional indexing embeds document chunks directly. Multi-representation indexing takes a different approach: use an LLM to create a <strong>summary (proposition)</strong> of each document, embed that summary for retrieval, but store the <strong>full raw document</strong> separately. When retrieval matches a summary, you return the full document to the LLM.</p>
+
+      <p>This is powerful with long-context LLMs: the summary is optimized for retrieval (keywords, big ideas), while the full document gives the LLM complete context for generation. No need to worry about chunk boundaries losing important information.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Load full documents</li>
+        <li data-step="2.">Use an LLM to generate a summary/proposition for each document</li>
+        <li data-step="3.">Embed and index the summaries in a vector store</li>
+        <li data-step="4.">Store full raw documents in a separate document store</li>
+        <li data-step="5.">At retrieval: match summaries → return full documents via doc IDs</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> A 50-page report on AI safety. <strong>So what:</strong> Summary captures "AI safety alignment RLHF" — retrieves well. Full 50-page report goes to the LLM for comprehensive answer.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> Summaries can include keywords the original document doesn't emphasize. <strong>So what:</strong> LLM-generated summaries may "translate" the document into retrieval-friendly language — a feature, not a bug.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Full document exceeds the LLM's context window. <strong>So what:</strong> You're back to needing chunking for generation. But with 1M+ token windows, most documents fit.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like an index at the back of a textbook: the index words (summaries) help you find the right page, but you read the full page (document), not just the index entry.</div>
+
+      <div class="inter-link">🔗 Build hierarchical indexes — <a href="#m14">Module 14: Raptor</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 14 — Raptor
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m14" data-module="14">
+    <div class="module-head">
+      <div class="module-index">14 / ADVANCED INDEXING</div>
+      <h2>Raptor: Hierarchical Indexing</h2>
+      <p class="module-intro">Cluster documents recursively into a tree of summaries — handle both specific and broad questions.</p>
+    </div>
+    <div class="module-body">
+      <p>Some questions need a specific chunk; others need information synthesized across many documents. Raptor builds a <strong>hierarchical tree</strong> of document summaries: start with leaf documents, cluster similar ones, summarize each cluster, then cluster those summaries, and repeat recursively until you have a single top-level summary.</p>
+
+      <p>Index all levels together — raw chunks, mid-level summaries, and top-level summaries. Low-level questions retrieve raw chunks (specific details). High-level questions retrieve summaries (broad synthesis). This gives you semantic coverage across the entire abstraction hierarchy.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Start with raw documents as leaf nodes</li>
+        <li data-step="2.">Embed all documents, cluster similar ones together</li>
+        <li data-step="3.">Summarize each cluster into a parent node</li>
+        <li data-step="4.">Repeat recursively until one cluster remains</li>
+        <li index="5.">Index ALL levels (leaves + all summaries) together in one vector store</li>
+      </ul>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div class="diagram-title">Raptor Hierarchical Tree</div>
+          <div class="diagram-subtitle">Documents cluster → summarize → recurse</div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 700 200" role="img" aria-label="Raptor tree: leaf documents at bottom cluster into summaries, which cluster into higher summaries, all indexed together">
+            <title>Raptor Hierarchical Index</title>
+            <defs><marker id="arr-m14" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--line)"/></marker></defs>
+            <!-- Leaves -->
+            <rect x="30" y="160" width="60" height="24" rx="6" class="svg-node"/>
+            <text x="60" y="176" text-anchor="middle" class="svg-mono">D1</text>
+            <rect x="100" y="160" width="60" height="24" rx="6" class="svg-node"/>
+            <text x="130" y="176" text-anchor="middle" class="svg-mono">D2</text>
+            <rect x="170" y="160" width="60" height="24" rx="6" class="svg-node"/>
+            <text x="200" y="176" text-anchor="middle" class="svg-mono">D3</text>
+            <rect x="240" y="160" width="60" height="24" rx="6" class="svg-node"/>
+            <text x="270" y="176" text-anchor="middle" class="svg-mono">D4</text>
+            <rect x="310" y="160" width="60" height="24" rx="6" class="svg-node"/>
+            <text x="340" y="176" text-anchor="middle" class="svg-mono">D5</text>
+            <rect x="380" y="160" width="60" height="24" rx="6" class="svg-node"/>
+            <text x="410" y="176" text-anchor="middle" class="svg-mono">D6</text>
+            <!-- Level 1 summaries -->
+            <line x1="90" y1="160" x2="130" y2="120" class="svg-line-dim"/>
+            <line x1="160" y1="160" x2="130" y2="120" class="svg-line-dim"/>
+            <rect x="100" y="100" width="80" height="28" rx="8" class="svg-node"/>
+            <text x="140" y="118" text-anchor="middle" class="svg-small">Sum A</text>
+
+            <line x1="230" y1="160" x2="290" y2="120" class="svg-line-dim"/>
+            <line x1="300" y1="160" x2="290" y2="120" class="svg-line-dim"/>
+            <rect x="250" y="100" width="80" height="28" rx="8" class="svg-node"/>
+            <text x="290" y="118" text-anchor="middle" class="svg-small">Sum B</text>
+
+            <line x1="370" y1="160" x2="410" y2="120" class="svg-line-dim"/>
+            <line x1="440" y1="160" x2="410" y2="120" class="svg-line-dim"/>
+            <rect x="370" y="100" width="80" height="28" rx="8" class="svg-node"/>
+            <text x="410" y="118" text-anchor="middle" class="svg-small">Sum C</text>
+
+            <!-- Level 2 summary -->
+            <line x1="140" y1="100" x2="270" y2="60" class="svg-line-dim"/>
+            <line x1="290" y1="100" x2="270" y2="60" class="svg-line-dim"/>
+            <rect x="230" y="38" width="80" height="28" rx="8" class="svg-node-strong"/>
+            <text x="270" y="56" text-anchor="middle" class="svg-text" font-size="10">Sum D</text>
+
+            <!-- Root -->
+            <line x1="270" y1="38" x2="410" y2="20" class="svg-line-dim"/>
+            <line x1="410" y1="100" x2="410" y2="38" class="svg-line-dim"/>
+            <rect x="370" y="4" width="80" height="28" rx="8" class="svg-node-strong"/>
+            <text x="410" y="22" text-anchor="middle" class="svg-text" font-size="10">Root</text>
+
+            <!-- Labels -->
+            <text x="560" y="175" class="svg-mono" font-size="8">Leaves: specific Qs</text>
+            <text x="560" y="115" class="svg-mono" font-size="8">Mid: broader Qs</text>
+            <text x="560" y="55" class="svg-mono" font-size="8">Root: highest Qs</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> 30 LangChain docs about different topics. <strong>So what:</strong> Raptor clusters them into groups (agents, retrieval, chains), summarizes each, then indexes all levels together.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> You don't need to split documents at all with long-context LLMs. <strong>So what:</strong> Raptor works on whole documents — embed, cluster, summarize, recurse. No chunking needed.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Very heterogeneous document sets. <strong>So what:</strong> Clustering may produce poor groups. Consider domain-specific clustering or adjusting the number of clusters.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like organizing a library: books on the same shelf (cluster), shelves grouped by section (summary), sections grouped by floor (higher summary) — you can search at any level of detail.</div>
+
+      <div class="inter-link">🔗 Token-level embedding matching — <a href="#m15">Module 15: ColBERT</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 15 — ColBERT
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m15" data-module="15">
+    <div class="module-head">
+      <div class="module-index">15 / ADVANCED INDEXING</div>
+      <h2>ColBERT: Token-Level Embeddings</h2>
+      <p class="module-intro">Instead of one vector per document, embed every token — then match question tokens to document tokens.</p>
+    </div>
+    <div class="module-body">
+      <p>Traditional embeddings compress an entire document into a single vector — potentially losing nuance. ColBERT takes a different approach: embed <strong>every token</strong> in both the document and the question. Then for each question token, find the most similar document token (max similarity), and sum those max scores. This "late interaction" captures fine-grained matching that single-vector embeddings miss.</p>
+
+      <p>The trade-off: ColBERT reports very strong performance, but requires more storage (many vectors per document) and has latency considerations for production use. The RAPTOR library makes it easy to experiment with.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Tokenize both document and question</li>
+        <li data-step="2.">Embed each token individually (positional weighting applied)</li>
+        <li data-step="3.">For each question token, compute similarity to all document tokens, take the max</li>
+        <li data-step="4.">Final score = sum of max similarities across all question tokens</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> Question: "What emotion Studio did Miyazaki found?" <strong>So what:</strong> Token-level matching finds "Miyazaki" ↔ "Miyazaki" and "emotion" ↔ "Studio Ghibli" separately, then combines.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> ColBERT doesn't compress anything — it stores more data. <strong>So what:</strong> Quality comes from preserving token-level detail, not compressing. More storage = better matching.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Very long documents with ColBERT. <strong>So what:</strong> Each token gets a vector — a 10K-token document needs 10K vectors. Check max token limits and storage requirements.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like a word-matching game: instead of comparing entire sentences at once, you highlight matching words in each and score how many individual words overlap.</div>
+
+      <div class="recall-box">
+        <h4>Recall Prompt</h4>
+        <div class="recall-q">How does ColBERT's scoring differ from traditional single-vector similarity?</div>
+        <button class="recall-btn" onclick="toggleRecall(this)">Show Answer</button>
+        <div class="recall-answer">Traditional: one vector per document, cosine similarity between document vector and question vector. ColBERT: one vector per token, each question token finds its best-matching document token (max similarity), then all max scores are summed. This captures fine-grained token-level matching that single-vector compression loses.</div>
+      </div>
+
+      <div class="inter-link">🔗 Now let's build active, self-reflective RAG flows — <a href="#m16">Module 16: Active RAG with LangGraph</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 16 — Active RAG with LangGraph
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m16" data-module="16">
+    <div class="module-head">
+      <div class="module-index">16 / ACTIVE RAG</div>
+      <h2>Active RAG with LangGraph</h2>
+      <p class="module-intro">Flow engineering: build logical graphs where the LLM decides when to retrieve, grade, retry, or generate.</p>
+    </div>
+    <div class="module-body">
+      <p>Basic RAG is a straight line: retrieve → generate. Active RAG adds <strong>decision points</strong>. With LangGraph, you define a state graph where each node modifies a shared state dictionary, and conditional edges let the LLM choose what happens next. This is "flow engineering" — you design the graph, define what each node does, and let the LLM navigate it.</p>
+
+      <p>A typical active RAG flow: retrieve documents → grade relevance → if irrelevant, transform query and do web search → generate. The grading nodes use structured output (binary yes/no) to make deterministic routing decisions.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Define state as a dict: {question, documents, generation, ...}</li>
+        <li data-step="2.">Define nodes as functions that take state and return modified state</li>
+        <li data-step="3.">Define conditional edges: if grade=yes → generate; if grade=no → transform → web search</li>
+        <li data-step="4.">Lay out the graph: entry → retrieve → grade → conditional → generate → end</li>
+      </ul>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div class="diagram-title">Active RAG Flow</div>
+          <div class="diagram-subtitle">Grade → decide → retry or generate</div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 750 220" role="img" aria-label="Active RAG flow: retrieve → grade → if relevant generate, if not transform query → web search → generate">
+            <title>Active RAG LangGraph Flow</title>
+            <defs><marker id="arr-m16" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--line)"/></marker></defs>
+            <rect x="20" y="85" width="100" height="40" rx="10" class="svg-node-strong"/>
+            <text x="70" y="110" text-anchor="middle" class="svg-text">Retrieve</text>
+            <line x1="120" y1="105" x2="175" y2="105" class="svg-line" marker-end="url(#arr-m16)"/>
+            <rect x="180" y="85" width="100" height="40" rx="10" class="svg-node"/>
+            <text x="230" y="110" text-anchor="middle" class="svg-text">Grade</text>
+            <!-- Branch -->
+            <line x1="280" y1="95" x2="370" y2="50" class="svg-line" marker-end="url(#arr-m16)"/>
+            <text x="325" y="65" class="svg-mono" font-size="9">relevant ✓</text>
+            <line x1="280" y1="115" x2="370" y2="160" class="svg-line" marker-end="url(#arr-m16)"/>
+            <text x="325" y="145" class="svg-mono" font-size="9">irrelevant ✗</text>
+            <!-- Generate (relevant path) -->
+            <rect x="375" y="30" width="100" height="40" rx="10" class="svg-node-strong"/>
+            <text x="425" y="55" text-anchor="middle" class="svg-text">Generate</text>
+            <line x1="475" y1="50" x2="540" y2="50" class="svg-line" marker-end="url(#arr-m16)"/>
+            <rect x="545" y="30" width="60" height="40" rx="10" class="svg-node"/>
+            <text x="575" y="55" text-anchor="middle" class="svg-text">End</text>
+            <!-- Transform → Web Search (irrelevant path) -->
+            <rect x="375" y="140" width="100" height="40" rx="10" class="svg-node"/>
+            <text x="425" y="165" text-anchor="middle" class="svg-text">Transform</text>
+            <line x1="475" y1="160" x2="520" y2="160" class="svg-line" marker-end="url(#arr-m16)"/>
+            <rect x="525" y="140" width="110" height="40" rx="10" class="svg-node"/>
+            <text x="580" y="165" text-anchor="middle" class="svg-text">Web Search</text>
+            <line x1="580" y1="140" x2="580" y2="70" class="svg-line" marker-end="url(#arr-m16)"/>
+            <text x="595" y="110" class="svg-mono" font-size="8">→ Generate</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> Question about a very niche topic not in your index. <strong>So what:</strong> Grade says "irrelevant" → transform query → web search finds the answer → generate with web results.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> Adding grading steps adds latency but improves quality. <strong>So what:</strong> Use fast models (GPT-3.5-turbo, Groq) for grading — these are simple yes/no decisions that don't need big models.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Infinite loop: grade fails → transform → grade fails again. <strong>So what:</strong> Limit iterations (e.g., one retry max) to prevent runaway flows.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like a quality control line in a factory: every product gets inspected (graded). Defective ones get reworked (transform + re-retrieve). Only passing products ship (generate).</div>
+
+      <div class="inter-link">🔗 The specific grading technique — <a href="#m17">Module 17: Self-RAG</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 17 — Self-RAG
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m17" data-module="17">
+    <div class="module-head">
+      <div class="module-index">17 / ACTIVE RAG</div>
+      <h2>Self-RAG</h2>
+      <p class="module-intro">Grade document relevance, check for hallucinations, verify answer quality — then retry if needed.</p>
+    </div>
+    <div class="module-body">
+      <p>Self-RAG moves from single-shot RAG to a cyclic flow. After retrieval, you grade whether the documents are actually relevant to the question. After generation, you check for hallucinations (is the answer faithful to the retrieved documents?) and answer relevance (does it actually answer the question?). If any grade fails, you loop back — rewrite the question, re-retrieve, or regenerate.</p>
+
+      <p>This is especially valuable as context windows grow: you can use fast, cheap LLMs to do the grading (it's a binary yes/no task), keeping latency low while dramatically improving quality.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Retrieve documents</li>
+        <li data-step="2.">Grade: Are documents relevant to the question?</li>
+        <li data-step="3.">If irrelevant → rewrite question → re-retrieve</li>
+        <li data-step="4.">Generate answer</li>
+        <li data-step="5.">Grade: Is the answer faithful to the documents? (No hallucination)</li>
+        <li data-step="6.">Grade: Does the answer actually address the question?</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> Retrieved doc is about "apple pie recipes" but question is about "Apple Inc. stock." <strong>So what:</strong> Relevance grade = no → rewrite query with "technology company" → re-retrieve.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> Self-RAG works with small open-source models. <strong>So what:</strong> Grading is a simple binary task — even a 7B model can do it well. You don't need GPT-4 for quality checks.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Document is relevant but answer hallucinates details not in the document. <strong>So what:</strong> Faithfulness grade catches this. Regenerate with stricter "only use provided context" instructions.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like a self-editing process: write a draft (generate), then ask "Did I actually answer the question?" and "Did I make anything up?" — revise until both answers are yes.</div>
+
+      <div class="quiz-box" data-quiz="17">
+        <h4>Quick Check</h4>
+        <div class="quiz-q">What are the three types of grading in Self-RAG?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '17')">Speed, cost, and accuracy</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, true, '17')">Document relevance, hallucination (faithfulness), and answer relevance</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '17')">Token count, embedding similarity, and response length</button>
+          <button class="quiz-opt" onclick="checkQuiz(this, false, '17')">Chunk size, K parameter, and model temperature</button>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <div class="inter-link">🔗 When your index fails — <a href="#m18">Module 18: CRAG (Corrective RAG)</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODULE 18 — CRAG
+       ═══════════════════════════════════════════════════════ -->
+  <div class="module" id="m18" data-module="18">
+    <div class="module-head">
+      <div class="module-index">18 / ACTIVE RAG</div>
+      <h2>CRAG: Corrective RAG</h2>
+      <p class="module-intro">When your index fails, fall back to web search — corrective RAG as a safety net.</p>
+    </div>
+    <div class="module-body">
+      <p>What happens when a question is outside the scope of your index? Corrective RAG (CRAG) adds a web search fallback. After grading documents as irrelevant, instead of just rewriting the query, you perform a web search to find answers from the broader internet. This makes your RAG system robust to out-of-domain questions.</p>
+
+      <p>CRAG works well with small open-source models (like Mistral 7B running locally via Ollama), making it practical for production. The core pattern: grade → if bad → web search → use search results for generation.</p>
+
+      <ul class="steps-list">
+        <li data-step="1.">Retrieve documents from your index</li>
+        <li data-step="2.">Grade document relevance</li>
+        <li data-step="3.">If relevant → use retrieved docs for generation</li>
+        <li data-step="4.">If irrelevant → trigger web search as fallback</li>
+        <li data-step="5.">Use web search results for generation instead</li>
+      </ul>
+
+      <div class="examples">
+        <div class="example">
+          <span class="example-label obvious">Obvious</span>
+          <strong>What:</strong> User asks about a news event from yesterday. <strong>So what:</strong> Your index doesn't have it → grade says irrelevant → web search finds current articles → generate from search results.
+        </div>
+        <div class="example">
+          <span class="example-label counter">Counter-intuitive</span>
+          <strong>What:</strong> Web search as a "feature" not a "failure." <strong>So what:</strong> CRAG embraces that no index is complete. The fallback is intentional — broader coverage without maintaining a massive index.
+        </div>
+        <div class="example">
+          <span class="example-label edge">Edge case</span>
+          <strong>What:</strong> Web search returns low-quality or biased results. <strong>So what:</strong> Consider adding a quality grade on web results too, or limiting to trusted search domains.
+        </div>
+      </div>
+
+      <div class="analogy-card">Like a doctor who checks their hospital's database first, but if the case is unusual, they consult external medical literature — better to find the right answer from somewhere than to guess.</div>
+
+      <div class="recall-box">
+        <h4>Recall Prompt</h4>
+        <div class="recall-q">What is the overall trend in RAG development that this module illustrates?</div>
+        <button class="recall-btn" onclick="toggleRecall(this)">Show Answer</button>
+        <div class="recall-answer">RAG is moving from single-shot pipelines to cyclic, self-reflective flows. The trend is: reason before retrieval (query translation), reason after retrieval (grading), and reason after generation (faithfulness checks) — building increasingly sophisticated logical flows on top of the basic retrieve-then-generate paradigm.</div>
+      </div>
+
+      <div class="inter-link">🔗 You've completed all 18 modules! Review everything in the <a href="#summary">Summary &amp; Cheat Sheet</a></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SUMMARY & CHEAT SHEET
+       ═══════════════════════════════════════════════════════ -->
+  <div class="summary-section" id="summary">
+    <h2>Summary &amp; Cheat Sheet</h2>
+    <table class="cheat-table">
+      <thead>
+        <tr><th>Concept</th><th>What It Does</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>RAG</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Retrieval Augmented Generation — fetch relevant docs, then generate grounded answers using an LLM</span></td>
+        </tr>
+        <tr>
+          <td>Embedding</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Compressing text into a fixed-length numerical vector that captures semantic meaning</span></td>
+        </tr>
+        <tr>
+          <td>Vector Store</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Database that indexes embeddings for fast similarity search (e.g., Chroma, Pinecone)</span></td>
+        </tr>
+        <tr>
+          <td>KNN Search</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">K-Nearest Neighbors — find the K closest vectors to a query in embedding space</span></td>
+        </tr>
+        <tr>
+          <td>Multi-Query</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Rewrite one question into multiple perspectives, retrieve for each, combine results</span></td>
+        </tr>
+        <tr>
+          <td>RAG Fusion</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Multi-query + reciprocal rank fusion to optimally rank combined results</span></td>
+        </tr>
+        <tr>
+          <td>Decomposition</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Break complex questions into sub-questions, solve each independently or sequentially</span></td>
+        </tr>
+        <tr>
+          <td>Step-Back</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Generate a more abstract question, retrieve for both original and abstract, combine</span></td>
+        </tr>
+        <tr>
+          <td>HyDE</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Generate a hypothetical answer document, use it for retrieval instead of the raw question</span></td>
+        </tr>
+        <tr>
+          <td>Routing</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Direct questions to the right data source via LLM reasoning (logical) or embedding similarity (semantic)</span></td>
+        </tr>
+        <tr>
+          <td>Query Construction</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Convert natural language to structured queries (metadata filters, SQL, Cypher) via function calling</span></td>
+        </tr>
+        <tr>
+          <td>Multi-Rep Indexing</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Index LLM-generated summaries for retrieval, store full documents for generation</span></td>
+        </tr>
+        <tr>
+          <td>Raptor</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Hierarchical clustering + recursive summarization to build a multi-level document tree</span></td>
+        </tr>
+        <tr>
+          <td>ColBERT</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Token-level embeddings with late interaction — match individual tokens, not whole documents</span></td>
+        </tr>
+        <tr>
+          <td>LangGraph</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Framework for building stateful, cyclic RAG flows with conditional edges and grading nodes</span></td>
+        </tr>
+        <tr>
+          <td>Self-RAG</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Grade document relevance, hallucination faithfulness, and answer quality with feedback loops</span></td>
+        </tr>
+        <tr>
+          <td>CRAG</td>
+          <td><span class="cheat-reveal" onclick="this.classList.toggle('open')">▸ Click to reveal</span><span class="cheat-def">Corrective RAG — fall back to web search when index retrieval fails the relevance grade</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- FAQ -->
+  <div class="faq-section">
+    <h2>Still Confused?</h2>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">When should I use multi-query vs. RAG fusion?</div>
+      <div class="faq-a">Multi-query is simpler — just combine unique results. Use RAG fusion when you need better ranking across multiple retrievals, especially across different vector stores. RAG fusion's reciprocal rank fusion produces a consolidated ranking that's often better than a raw union. Start with multi-query; upgrade to RAG fusion if ranking quality matters.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Do I still need RAG if context windows are 1M+ tokens?</div>
+      <div class="faq-a">Yes. Even with huge windows, dumping everything in is slow, expensive, and can degrade LLM performance (the "lost in the middle" problem). RAG targets only relevant content, keeping costs low and answers precise. The trend is to use long context <em>plus</em> RAG — the LLM reads the full retrieved document, not just a chunk.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How do I choose between HyDE, step-back, and multi-query?</div>
+      <div class="faq-a">They solve different problems. Multi-query handles ambiguous wording. Step-back handles questions that need broad conceptual context. HyDE handles the mismatch between short questions and long documents. Try multi-query first (easiest to implement); add step-back for knowledge-heavy domains; experiment with HyDE for retrieval quality issues.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What's the latency impact of active RAG (Self-RAG, CRAG)?</div>
+      <div class="faq-a">Grading adds one extra LLM call per grade step. Use fast models (GPT-3.5-turbo, Groq, small open-source models) for grading — these are simple yes/no decisions. Limit cyclic retries to 1 turn. The quality improvement usually justifies the small latency cost, especially for high-stakes applications.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Should I use Raptor or multi-representation indexing?</div>
+      <div class="faq-a">Multi-representation indexing is simpler — summarize each doc, index summaries, retrieve full docs. Raptor adds hierarchical clustering for questions that span many documents. Start with multi-representation; add Raptor when you have many documents and need to answer both very specific and very broad questions from the same corpus.</div>
+    </div>
+  </div>
+
+  <!-- NEXT STEPS -->
+  <div class="next-steps">
+    <h2>Next Steps</h2>
+    <ol>
+      <li><strong>Build a basic RAG pipeline:</strong> Load documents, split them, embed with OpenAI or open-source models, store in Chroma, and build a simple retrieval chain. Start here before adding advanced techniques.</li>
+      <li><strong>Add one advanced technique at a time:</strong> Try multi-query first (simplest to implement), then experiment with step-back prompting or HyDE for your specific domain.</li>
+      <li><strong>Implement active RAG with LangGraph:</strong> Add document grading and a web search fallback. Use fast models for grading to keep latency low.</li>
+      <li><strong>Practice wisdom:</strong> Explain the RAG pipeline to a colleague — from indexing through generation. If you can teach it, you've learned it. Then try building a RAG system for your own data.</li>
+    </ol>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="lesson-footer">
+    <p>Source: <a href="https://youtu.be/sVcwVQRHIc8" target="_blank" rel="noopener">Learn RAG From Scratch — Python AI Tutorial from a LangChain Engineer</a> by Lance Martin (LangChain)</p>
+    <p style="margin-top:8px;">Stuck? Ask the agent a follow-up question about any module.</p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// THEME TOGGLE
+// ═══════════════════════════════════════════════════════
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const saved = localStorage.getItem('lesson-theme');
+  if (saved === 'dark') document.body.classList.add('dark');
+  toggle.addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    localStorage.setItem('lesson-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+  });
+})();
+
+// ═══════════════════════════════════════════════════════
+// PROGRESS BAR
+// ═══════════════════════════════════════════════════════
+(function() {
+  const bar = document.getElementById('progressBar');
+  const status = document.getElementById('statusText');
+  function updateProgress() {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = Math.min(100, Math.round((scrollTop / docHeight) * 100));
+    bar.style.width = pct + '%';
+    // Count visible modules
+    const modules = document.querySelectorAll('.module');
+    let visible = 0;
+    modules.forEach(m => {
+      const rect = m.getBoundingClientRect();
+      if (rect.top < window.innerHeight * 0.6) visible++;
+    });
+    status.textContent = visible + ' / ' + modules.length + ' explored';
+    // Update timeline
+    const fill = document.getElementById('timelineFill');
+    if (fill) fill.style.height = pct + '%';
+  }
+  window.addEventListener('scroll', updateProgress);
+  updateProgress();
+})();
+
+// ═══════════════════════════════════════════════════════
+// REVEAL ON SCROLL (IntersectionObserver)
+// ═══════════════════════════════════════════════════════
+(function() {
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReduced) {
+    document.querySelectorAll('.reveal, .module').forEach(el => el.classList.add('visible'));
+    return;
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.reveal, .module').forEach(el => observer.observe(el));
+})();
+
+// ═══════════════════════════════════════════════════════
+// QUIZ ENGINE
+// ═══════════════════════════════════════════════════════
+function checkQuiz(btn, correct, quizId) {
+  const box = btn.closest('.quiz-box');
+  if (box.dataset.answered) return;
+  box.dataset.answered = 'true';
+  const opts = box.querySelectorAll('.quiz-opt');
+  opts.forEach(o => {
+    o.style.pointerEvents = 'none';
+    if (o === btn) {
+      o.classList.add(correct ? 'correct' : 'wrong');
+    }
+  });
+  if (!correct) {
+    opts.forEach(o => {
+      if (o.onclick && o.onclick.toString().includes('true')) o.classList.add('correct');
+    });
+  }
+  const fb = box.querySelector('.quiz-feedback');
+  fb.classList.add('show');
+  fb.textContent = correct
+    ? 'Correct! You grasped the key idea.'
+    : 'Not quite. Review the module content and try to recall the distinction.';
+}
+
+// ═══════════════════════════════════════════════════════
+// RECALL TOGGLE
+// ═══════════════════════════════════════════════════════
+function toggleRecall(btn) {
+  const answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? 'Hide Answer' : 'Show Answer';
+}
+
+// ═══════════════════════════════════════════════════════
+// SCENARIO TOGGLE
+// ═══════════════════════════════════════════════════════
+function toggleScenario(step) {
+  const consequence = step.querySelector('.scenario-consequence');
+  consequence.classList.toggle('show');
+}
+
+// ═══════════════════════════════════════════════════════
+// FLASHCARD FLIP
+// ═══════════════════════════════════════════════════════
+document.querySelectorAll('.flashcard').forEach(fc => {
+  fc.addEventListener('click', () => fc.classList.toggle('flipped'));
+});
+
+// ═══════════════════════════════════════════════════════
+// SCROLLSPY — highlight nav + timeline nodes
+// ═══════════════════════════════════════════════════════
+(function() {
+  const modules = document.querySelectorAll('.module');
+  const navLinks = document.querySelectorAll('.topbar-nav a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const id = e.target.id;
+        navLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector('.topbar-nav a[href="#' + id + '"]');
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -65% 0px' });
+  modules.forEach(m => observer.observe(m));
+})();
+
+// ═══════════════════════════════════════════════════════
+// LOCALSTORAGE PROGRESS
+// ═══════════════════════════════════════════════════════
+(function() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('lesson-progress') || '{}');
+    if (saved.scrollY) window.scrollTo(0, saved.scrollY);
+  } catch(e) {}
+  window.addEventListener('beforeunload', () => {
+    try {
+      localStorage.setItem('lesson-progress', JSON.stringify({ scrollY: window.scrollY }));
+    } catch(e) {}
+  });
+})();
+</script>
+
+</body>
+</html>

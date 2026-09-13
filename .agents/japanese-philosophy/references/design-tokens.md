@@ -1,6 +1,6 @@
-# Design Tokens — Concrete Values
+# Design Tokens for Web — Concrete Values
 
-Use this file as the source of truth once a design moves from direction into actual CSS/code. Don't improvise "zen" colors or spacing ad hoc when considered values already exist here — and don't duplicate these values into other reference files; point back here instead.
+Use this file as the source of truth once a site moves from direction into actual CSS/code. Don't improvise "zen" colors or spacing ad hoc when considered values already exist here — and don't duplicate these values into other reference files; point back here instead.
 
 ## Color
 
@@ -38,7 +38,7 @@ Japanese elite sites treat the mix of scripts (Kanji, Hiragana, Katakana, Romaji
 - **Easing:** soft, organic curves. No bounce, no elastic, nothing that calls attention to the mechanism of the animation itself.
 - **Shadows:** soft and diffuse (ambient-occlusion style), not hard drop-shadows with a crisp offset — ties back to the *In Praise of Shadows* preference for soft darkness over hard contrast.
 - **Micro-interactions (Omotenashi):** should confirm an action happened without interrupting the user's flow to do it — a subtle state change, not a modal or a loud toast, unless the action genuinely warrants interruption.
-- **High-fidelity product reveals:** where the brief calls for inspecting an object closely (a garment, a knife, a product), WebGL/Three.js slow-rotation views suit this aesthetic well — implement via this library's `creative-webgl` or `3d-scene-architect` skills rather than duplicating 3D setup guidance here.
+- **High-fidelity product reveals:** where the brief calls for inspecting an object closely (a garment, a knife, a product), WebGL/Three.js slow-rotation views suit this aesthetic well — implement via this library's `creative-webgl` skill rather than duplicating 3D setup guidance here.
 
 ## Texture (Wabi-Sabi, applied digitally)
 

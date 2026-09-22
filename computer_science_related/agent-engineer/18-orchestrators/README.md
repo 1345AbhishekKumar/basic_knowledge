@@ -797,4 +797,4 @@ Agents fail. Tools return errors. LLMs hallucinate. Your orchestrator needs to h
 
 ---
 
-[Previous Lesson: Agent Skills](../17-agent-skills/) | [Next Lesson: Where to Go From Here ->](../19-where-to-go-from-here/)
+[Previous Lesson: Agent Skills](../17-agent-skills/) | [Next Lesson: Agent Harnesses ->](../19-agent-harnesses/)

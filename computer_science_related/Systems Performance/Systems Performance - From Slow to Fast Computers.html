@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Systems Performance: From Slow to Fast Computers</title>
+  <style>
+    :root {
+      --bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --surface-2: #F1F5F9;
+      --surface-card: #FFFFFF;
+      --text: #0F172A;
+      --muted: #475569;
+      --muted-2: #64748B;
+      --border: rgba(15, 23, 42, 0.12);
+      --border-strong: rgba(15, 23, 42, 0.24);
+      --accent: #0284C7;
+      --accent-soft: rgba(2, 132, 199, 0.08);
+      --accent-gold: #D97706;
+      --accent-emerald: #059669;
+      --accent-rose: #E11D48;
+      --accent-purple: #7C3AED;
+      --line: rgba(15, 23, 42, 0.40);
+      --line-dim: rgba(15, 23, 42, 0.15);
+      --node: #FFFFFF;
+      --node-strong: #E2E8F0;
+      --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --measure: 72ch;
+    }
+
+    body.dark {
+      --bg: #090D16;
+      --surface: #111827;
+      --surface-2: #1F2937;
+      --surface-card: #151F30;
+      --text: #F3F4F6;
+      --muted: #9CA3AF;
+      --muted-2: #6B7280;
+      --border: rgba(255, 255, 255, 0.12);
+      --border-strong: rgba(255, 255, 255, 0.22);
+      --accent: #38BDF8;
+      --accent-soft: rgba(56, 189, 248, 0.12);
+      --accent-gold: #FBBF24;
+      --accent-emerald: #34D399;
+      --accent-rose: #FB7185;
+      --accent-purple: #A78BFA;
+      --line: rgba(255, 255, 255, 0.35);
+      --line-dim: rgba(255, 255, 255, 0.15);
+      --node: #151F30;
+      --node-strong: #1E293B;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-padding-top: 80px; scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.65;
+      font-size: 16px;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 24px;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .progress-bar-wrap {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: transparent;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.1s linear;
+    }
+
+    .brand {
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-pill {
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--accent);
+      color: #FFF;
+      padding: 2px 7px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .nav {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      flex: 1;
+      padding: 4px 0;
+      scrollbar-width: none;
+    }
+    .nav::-webkit-scrollbar { display: none; }
+    .nav a {
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 12px;
+      white-space: nowrap;
+      background: var(--surface);
+      transition: all 0.2s ease;
+    }
+    .nav a:hover, .nav a.active {
+      background: var(--accent);
+      color: #FFF;
+      border-color: var(--accent);
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-text {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--muted-2);
+      white-space: nowrap;
+    }
+    #theme-toggle {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      transition: border-color 0.2s ease;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    .hero {
+      margin-bottom: 56px;
+    }
+    .hero-meta {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: clamp(32px, 5vw, 48px);
+      letter-spacing: -0.04em;
+      line-height: 1.15;
+      margin-bottom: 18px;
+    }
+    .hero-lead {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: var(--measure);
+      line-height: 1.6;
+    }
+
+    .learn-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 64px;
+    }
+    .learn-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted-2);
+      margin-bottom: 14px;
+    }
+    .learn-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .learn-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .learn-item::before {
+      content: "✓";
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .module-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px;
+      margin-bottom: 56px;
+      transition: border-color 0.2s ease;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 720px) {
+      .section-head { grid-template-columns: 1fr; gap: 8px; }
+    }
+    .section-index {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted-2);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding-top: 4px;
+    }
+    .section-label {
+      font-size: 11px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    h2 {
+      font-size: clamp(24px, 3.5vw, 32px);
+      letter-spacing: -0.03em;
+      line-height: 1.25;
+      margin-bottom: 10px;
+    }
+    .section-intro {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: var(--measure);
+    }
+
+    .diagram-wrap {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-2);
+      overflow: hidden;
+      margin: 28px 0;
+    }
+    .diagram-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .diagram-title { font-size: 13px; font-weight: 700; }
+    .diagram-subtitle { font-size: 11px; color: var(--muted-2); }
+    .diagram-stage {
+      min-height: 280px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-x: auto;
+    }
+    .diagram-stage svg {
+      width: 100%;
+      min-width: 680px;
+      height: auto;
+      display: block;
+    }
+
+    .svg-node { fill: var(--node); stroke: var(--border-strong); stroke-width: 1.2; }
+    .svg-node-strong { fill: var(--node-strong); stroke: var(--accent); stroke-width: 1.6; }
+    .svg-text { fill: var(--text); font-size: 13px; font-weight: 600; font-family: var(--font-body); }
+    .svg-small { fill: var(--muted); font-size: 11px; font-family: var(--font-body); }
+    .svg-mono { fill: var(--muted-2); font-size: 11px; font-family: var(--font-mono); }
+    .svg-line { stroke: var(--line); stroke-width: 1.4; fill: none; }
+    .svg-line-dim { stroke: var(--line-dim); stroke-width: 1; fill: none; }
+
+    .ctrl-box {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin: 24px 0;
+    }
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .ctrl-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      min-width: 140px;
+    }
+    .ctrl-slider {
+      flex: 1;
+      min-width: 180px;
+      cursor: pointer;
+    }
+    .ctrl-val {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 90px;
+      text-align: right;
+    }
+    .ctrl-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .ctrl-btn:hover, .ctrl-btn.active {
+      background: var(--accent);
+      color: #FFF;
+      border-color: var(--accent);
+    }
+
+    .output-panel {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .explanation-p {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .steps-list {
+      list-style: none;
+      margin: 20px 0;
+      counter-reset: step-counter;
+    }
+    .steps-list li {
+      position: relative;
+      padding-left: 36px;
+      margin-bottom: 12px;
+      font-size: 15px;
+      color: var(--text);
+    }
+    .steps-list li::before {
+      counter-increment: step-counter;
+      content: counter(step-counter);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .worked-example {
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      padding: 18px 22px;
+      border-radius: 0 12px 12px 0;
+      margin: 24px 0;
+    }
+    .worked-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .worked-example p {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .worked-example p:last-child { margin-bottom: 0; }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    @media (max-width: 640px) {
+      .meta-grid { grid-template-columns: 1fr; }
+    }
+    .meta-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      background: var(--surface-2);
+      font-size: 14px;
+    }
+    .meta-card b {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+    .meta-card.pitfall b { color: var(--accent-rose); }
+    .meta-card.impact b { color: var(--accent-emerald); }
+
+    .quiz-box {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-card);
+      padding: 24px;
+      margin-top: 32px;
+    }
+    .quiz-box h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .quiz-box h4::before {
+      content: "?";
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #FFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .quiz-q {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .qopt {
+      text-align: left;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .qopt:hover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .qopt.correct {
+      background: rgba(5, 150, 105, 0.15) !important;
+      border-color: var(--accent-emerald) !important;
+      color: var(--accent-emerald) !important;
+      font-weight: 600;
+    }
+    .qopt.wrong {
+      background: rgba(225, 29, 72, 0.12) !important;
+      border-color: var(--accent-rose) !important;
+      color: var(--accent-rose) !important;
+    }
+    .qopt:disabled { cursor: default; }
+    .qfb {
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 10px 14px;
+      border-radius: 8px;
+      display: none;
+    }
+    .qfb.show { display: block; }
+    .qfb.correct { background: rgba(5, 150, 105, 0.12); color: var(--accent-emerald); }
+    .qfb.wrong { background: rgba(225, 29, 72, 0.12); color: var(--accent-rose); }
+
+    .ref-table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      overflow-x: auto;
+      margin: 32px 0 64px;
+    }
+    table.ref-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      text-align: left;
+    }
+    table.ref-table th {
+      padding: 14px 18px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+    }
+    table.ref-table td {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    table.ref-table tr:last-child td { border-bottom: none; }
+    table.ref-table code {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent);
+    }
+
+    .faq-grid {
+      display: grid;
+      gap: 16px;
+      margin: 32px 0 64px;
+    }
+    .faq-card {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 22px;
+    }
+    .faq-q {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .faq-a {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding-top: 36px;
+      margin-top: 64px;
+      color: var(--muted-2);
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media print {
+      .topbar, .ctrl-box, .quiz-box, #theme-toggle { display: none !important; }
+      body { background: #FFF !important; color: #000 !important; }
+      .module-card, .ref-table-wrap { border: 1px solid #CCC !important; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progress-indicator"></div>
+    </div>
+    <div class="brand">
+      <span>Systems Performance</span>
+      <span class="brand-pill">Architecture</span>
+    </div>
+    <nav class="nav" id="top-nav" aria-label="Modules">
+      <a href="#overview">Overview</a>
+      <a href="#m1">01 / Latency Spectrum</a>
+      <a href="#m2">02 / Napkin Math</a>
+      <a href="#m3">03 / Latency vs Throughput</a>
+      <a href="#m4">04 / Vertical Scalability</a>
+      <a href="#m5">05 / Scaling Solutions</a>
+      <a href="#m6">06 / Traffic Spikes &amp; Caches</a>
+      <a href="#summary">Cheat Sheet</a>
+      <a href="#faq">FAQ</a>
+      <a href="#next-steps">Next Steps</a>
+    </nav>
+    <div class="actions">
+      <span class="status-text" id="scroll-pct">0%</span>
+      <button type="button" id="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">◑</button>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <header class="hero" id="overview">
+      <div class="hero-meta">Systems Performance · Chapter 2 Deep-Dive</div>
+      <h1>From Slow to Fast Computers: Latency, Scalability &amp; Limits</h1>
+      <p class="hero-lead">
+        Performance engineering is the discipline of knowing what normal hardware behavior costs before you write code or configure infrastructure. This masterclass bridges CPU clock cycles, hardware memory hierarchies, napkin math budgeting, and the universal limits of scaling.
+      </p>
+    </header>
+
+    <section class="learn-box">
+      <h2>What You'll Learn</h2>
+      <div class="learn-grid">
+        <div class="learn-item">The 9 orders of magnitude separating CPU cycles (1 ns) from global network round trips (150 ms).</div>
+        <div class="learn-item">How to use Napkin Math to instantly calculate whether a database query is bottlenecked by hardware or software.</div>
+        <div class="learn-item">The mathematical orthogonality between latency (turnaround time) and throughput (aggregate bandwidth).</div>
+        <div class="learn-item">Why vertical scaling always degrades into saturation via serialization lock contention and bus coherency overhead.</div>
+        <div class="learn-item">How database sharding, connection pooling, and data layout overcome single-node bottlenecks.</div>
+        <div class="learn-item">The hidden latency trap of serverless auto-scaling: cache de-warming and high resource pricing.</div>
+      </div>
+    </section>
+
+    <!-- MODULE 1 -->
+    <article class="module-card" id="m1">
+      <div class="section-head">
+        <div class="section-index">01 / ARCHITECTURE</div>
+        <div>
+          <div class="section-label">Memory Hierarchy</div>
+          <h2>The Latency Spectrum: Nanoseconds to Milliseconds</h2>
+          <p class="section-intro">
+            A modern CPU executes billions of operations per second, but memory distance dominates actual run times. Every computer operation sits on a spectrum spanning nine orders of magnitude.
+          </p>
+        </div>
+      </div>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div>
+            <div class="diagram-title">The Hardware Distance Hierarchy</div>
+            <div class="diagram-subtitle">From CPU core registers out to global cross-datacenter fiber.</div>
+          </div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 880 260" role="img" aria-label="Memory hierarchy from CPU to Network">
+            <defs>
+              <marker id="arr-m1" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+                <path d="M0,0 L9,4.5 L0,9 z" fill="var(--line)"/>
+              </marker>
+            </defs>
+            <!-- Nodes -->
+            <rect x="20" y="80" width="105" height="100" rx="10" class="svg-node-strong"/>
+            <text x="72" y="115" text-anchor="middle" class="svg-text">CPU Core</text>
+            <text x="72" y="138" text-anchor="middle" class="svg-mono">~0.3 – 1 ns</text>
+            <text x="72" y="156" text-anchor="middle" class="svg-small">1-4 cycles</text>
+
+            <path d="M125 130 L155 130" class="svg-line" marker-end="url(#arr-m1)"/>
+
+            <rect x="160" y="80" width="105" height="100" rx="10" class="svg-node"/>
+            <text x="212" y="115" text-anchor="middle" class="svg-text">L1/L2/L3</text>
+            <text x="212" y="138" text-anchor="middle" class="svg-mono">1 – 10 ns</text>
+            <text x="212" y="156" text-anchor="middle" class="svg-small">SRAM cache</text>
+
+            <path d="M265 130 L295 130" class="svg-line" marker-end="url(#arr-m1)"/>
+
+            <rect x="300" y="80" width="115" height="100" rx="10" class="svg-node"/>
+            <text x="357" y="115" text-anchor="middle" class="svg-text">Main RAM</text>
+            <text x="357" y="138" text-anchor="middle" class="svg-mono">~100 ns</text>
+            <text x="357" y="156" text-anchor="middle" class="svg-small">DRAM bus</text>
+
+            <path d="M415 130 L445 130" class="svg-line" marker-end="url(#arr-m1)"/>
+
+            <rect x="450" y="80" width="120" height="100" rx="10" class="svg-node"/>
+            <text x="510" y="115" text-anchor="middle" class="svg-text">NVMe SSD</text>
+            <text x="510" y="138" text-anchor="middle" class="svg-mono">10–100 µs</text>
+            <text x="510" y="156" text-anchor="middle" class="svg-small">Flash PCIe</text>
+
+            <path d="M570 130 L600 130" class="svg-line" marker-end="url(#arr-m1)"/>
+
+            <rect x="605" y="80" width="115" height="100" rx="10" class="svg-node"/>
+            <text x="662" y="115" text-anchor="middle" class="svg-text">Spinning Disk</text>
+            <text x="662" y="138" text-anchor="middle" class="svg-mono">1–10 ms</text>
+            <text x="662" y="156" text-anchor="middle" class="svg-small">Seek platter</text>
+
+            <path d="M720 130 L750 130" class="svg-line" marker-end="url(#arr-m1)"/>
+
+            <rect x="755" y="80" width="110" height="100" rx="10" class="svg-node"/>
+            <text x="810" y="115" text-anchor="middle" class="svg-text">WAN Network</text>
+            <text x="810" y="138" text-anchor="middle" class="svg-mono">10–150 ms</text>
+            <text x="810" y="156" text-anchor="middle" class="svg-small">Internet hops</text>
+          </svg>
+        </div>
+      </div>
+
+      <p class="explanation-p">
+        Computers operate on discrete timescales. A 4 GHz CPU core runs 4 billion clock cycles per second, with single primitive instructions completing in a fraction of a nanosecond. But when data is not in CPU registers, the memory controller traverses an expanding pyramid of physical distances:
+      </p>
+
+      <ul class="steps-list">
+        <li><strong>On-Die CPU Caches (L1, L2, L3):</strong> Static RAM located directly beside execution units. L1 responds in ~1 ns (4 cycles), L2 in ~3 ns (10–14 cycles), and shared L3 in ~10–20 ns (40–75 cycles).</li>
+        <li><strong>Main Memory (DRAM):</strong> Dynamic RAM accessed over the memory bus. Requires row opening and column decoding, jumping latency by an order of magnitude to ~100 ns.</li>
+        <li><strong>Solid State Flash (NVMe SSD):</strong> Communicates across PCIe lanes. Flash block reads and controller firmware processing require 10 to 100 microseconds (10,000 to 100,000 ns)—two to three orders of magnitude slower than DRAM.</li>
+        <li><strong>Spinning Disk (HDD):</strong> Requires physical actuator arm movement and platter rotation. Mechanical seek time costs 1 to 10 milliseconds (1,000,000 to 10,000,000 ns).</li>
+        <li><strong>Network Round Trips (WAN):</strong> Photons traversing optical fiber across geographic distances. East-to-West US takes ~70 ms; US-to-Europe takes ~150 ms.</li>
+      </ul>
+
+      <!-- INTERACTIVE 1: Latency Scale Explorer -->
+      <div class="ctrl-box">
+        <div class="ctrl-row">
+          <span class="ctrl-label">Select Hardware Tier:</span>
+          <button type="button" class="ctrl-btn active" id="m1-btn-cpu">CPU Cycle (0.3 ns)</button>
+          <button type="button" class="ctrl-btn" id="m1-btn-l1">L1 Cache (1 ns)</button>
+          <button type="button" class="ctrl-btn" id="m1-btn-ram">DRAM RAM (100 ns)</button>
+          <button type="button" class="ctrl-btn" id="m1-btn-ssd">NVMe SSD (50 µs)</button>
+          <button type="button" class="ctrl-btn" id="m1-btn-hdd">Rotational HDD (5 ms)</button>
+          <button type="button" class="ctrl-btn" id="m1-btn-wan">US-to-EU WAN (150 ms)</button>
+        </div>
+        <div class="output-panel" id="m1-output">
+          <strong>Selected Tier:</strong> CPU Instruction Execution (~1.0 ns)<br>
+          <strong>Relative Scale:</strong> If 1 CPU Cycle was scaled up to 1 second...<br>
+          <strong>Human Analogy:</strong> This operation completes in <strong>1 heartbeat (1 second)</strong>.
+        </div>
+      </div>
+
+      <div class="worked-example">
+        <div class="worked-title">Humanized Scale Comparison (Jeff Dean Standard)</div>
+        <p>If 1 CPU cycle (0.3 ns) were scaled up to equal <strong>1 second</strong> in human perception:</p>
+        <p>• L1 cache access (1 ns) = <strong>3.3 seconds</strong></p>
+        <p>• Main Memory DRAM (100 ns) = <strong>5.5 minutes</strong></p>
+        <p>• NVMe SSD read (50 µs) = <strong>1.9 days</strong></p>
+        <p>• Hard drive rotational seek (5 ms) = <strong>6 months</strong></p>
+        <p>• Transatlantic network ping (150 ms) = <strong>15.8 years</strong></p>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-card pitfall">
+          <b>❌ Common Misconception</b>
+          Thinking SSDs are "almost as fast as RAM". Even the fastest NVMe drive is still 500x to 1,000x slower than accessing main system memory.
+        </div>
+        <div class="meta-card impact">
+          <b>💡 Why This Matters</b>
+          Software architecture is fundamentally the management of this hierarchy: keeping critical working sets in RAM and avoiding synchronous disk/network I/O in the hot path.
+        </div>
+      </div>
+
+      <div class="quiz-box" data-answer="2">
+        <h4>Module 1 Checkpoint</h4>
+        <div class="quiz-q">Approximately how many orders of magnitude slower is a random NVMe SSD read compared to an L1 CPU cache access?</div>
+        <div class="quiz-options">
+          <button type="button" class="qopt" data-opt="0">Around 1 order of magnitude (10x difference)</button>
+          <button type="button" class="qopt" data-opt="1">Around 2 orders of magnitude (100x difference)</button>
+          <button type="button" class="qopt" data-opt="2">Around 4 to 5 orders of magnitude (10,000x to 50,000x)</button>
+          <button type="button" class="qopt" data-opt="3">They are equivalent due to PCIe bus direct DMA</button>
+        </div>
+        <div class="qfb" id="m1-fb"></div>
+      </div>
+    </article>
+
+    <!-- MODULE 2 -->
+    <article class="module-card" id="m2">
+      <div class="section-head">
+        <div class="section-index">02 / CALCULATION</div>
+        <div>
+          <div class="section-label">Napkin Math</div>
+          <h2>Building Latency Budgets for Root-Cause Analysis</h2>
+          <p class="section-intro">
+            Napkin math is the practice of composing expected hardware latencies into a theoretical minimum budget. It tells you immediately whether a 10 ms query is constrained by physics or bad software.
+          </p>
+        </div>
+      </div>
+
+      <p class="explanation-p">
+        When an engineer diagnoses a slow database query or API call, guessing is inefficient. Instead, calculate the theoretical floor. For example, consider an indexed primary-key query: <code>SELECT * FROM users WHERE id = 5000</code>:
+      </p>
+
+      <ul class="steps-list">
+        <li><strong>Step 1: Network Ingestion:</strong> Application server sends request to database inside the same cloud region. Expected cost: ~1.0 ms round-trip.</li>
+        <li><strong>Step 2: Engine Parsing &amp; Index Lookup:</strong> CPU instructions to parse SQL and walk the B-tree index in RAM. Expected cost: ~5 to 10 µs.</li>
+        <li><strong>Step 3: Data Page Retrieval:</strong> If the table page is already cached in Postgres <code>shared_buffers</code> (RAM), cost is ~100 ns. If it misses cache and requires an NVMe SSD read, cost is ~50 µs.</li>
+        <li><strong>Step 4: Serialization &amp; Return:</strong> Writing protocol bytes to the socket and receiving the packet. Expected cost: ~0.5 ms.</li>
+      </ul>
+
+      <!-- INTERACTIVE 2: Napkin Math Budget Builder -->
+      <div class="ctrl-box">
+        <div class="ctrl-row">
+          <span class="ctrl-label">Cache Hit State:</span>
+          <button type="button" class="ctrl-btn active" id="m2-btn-hit">Buffer Pool Hit (RAM)</button>
+          <button type="button" class="ctrl-btn" id="m2-btn-miss-ssd">Cache Miss (NVMe SSD)</button>
+          <button type="button" class="ctrl-btn" id="m2-btn-miss-hdd">Cache Miss (Old Platter HDD)</button>
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-label">Network Location:</span>
+          <button type="button" class="ctrl-btn active" id="m2-btn-local">Same Region (~1.0 ms)</button>
+          <button type="button" class="ctrl-btn" id="m2-btn-cross">Cross-Region (~40 ms)</button>
+          <button type="button" class="ctrl-btn" id="m2-btn-wan">Intercontinental (~150 ms)</button>
+        </div>
+        <div class="output-panel" id="m2-budget-output">
+          <strong>Calculated Latency Budget:</strong> 1.05 ms<br>
+          • Network RTT: 1.0 ms (95.2%)<br>
+          • Query Parse &amp; Index Traversal: 0.01 ms (1.0%)<br>
+          • Storage Page Fetch (RAM): 0.0001 ms (0.01%)<br>
+          • Serialization / Framing: 0.04 ms (3.8%)<br>
+          <em>Diagnosis Rule:</em> If your actual observed query takes 15 ms, 93% of the time is wasted in software queueing, unindexed full table scans, or connection lock contention!
+        </div>
+      </div>
+
+      <div class="worked-example">
+        <div class="worked-title">Real-World Case: The 10 ms Anomaly</div>
+        <p><strong>Scenario:</strong> A Postgres query <code>SELECT * FROM orders WHERE id = 42</code> takes 10 ms on production.</p>
+        <p><strong>Budget Calculation:</strong> 1 hop to DB (1 ms) + 1 NVMe read (50 µs) + 1 hop back (1 ms) = ~2.05 ms expected maximum.</p>
+        <p><strong>Conclusion:</strong> The hardware can execute this in 2 ms. The extra 8 ms reveals software contention: connection pool starvation in <code>pg_bouncer</code>, lock wait on an uncommitted row transaction, or CPU throttling.</p>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-card pitfall">
+          <b>❌ Common Pitfall</b>
+          Blaming "the network" or "slow cloud disks" without calculating the minimum budget first.
+        </div>
+        <div class="meta-card impact">
+          <b>💡 Actionable Diagnostic</b>
+          Any operation taking >3x its hardware napkin budget points directly to software-level lock contention, queuing delay, or unindexed scans.
+        </div>
+      </div>
+
+      <div class="quiz-box" data-answer="1">
+        <h4>Module 2 Checkpoint</h4>
+        <div class="quiz-q">If an in-region indexed database read takes 12 ms, what does napkin math indicate?</div>
+        <div class="quiz-options">
+          <button type="button" class="qopt" data-opt="0">The hardware is operating at peak physical capability</button>
+          <button type="button" class="qopt" data-opt="1">Software contention, connection queuing, or unindexed scans are stalling the query</button>
+          <button type="button" class="qopt" data-opt="2">Main memory bus speed has degraded to magnetic platter rates</button>
+          <button type="button" class="qopt" data-opt="3">Optical fiber light velocity in the datacenter has halved</button>
+        </div>
+        <div class="qfb" id="m2-fb"></div>
+      </div>
+    </article>
+
+    <!-- MODULE 3 -->
+    <article class="module-card" id="m3">
+      <div class="section-head">
+        <div class="section-index">03 / METRICS</div>
+        <div>
+          <div class="section-label">Performance Dimensions</div>
+          <h2>Latency vs. Throughput: Two Independent Axes</h2>
+          <p class="section-intro">
+            Latency and throughput are frequently conflated. A high-throughput system can have terrible latency, while an ultra-low latency system may saturate at modest volumes.
+          </p>
+        </div>
+      </div>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div>
+            <div class="diagram-title">Throughput vs. Latency Tradeoff Plane</div>
+            <div class="diagram-subtitle">Contrasting high-speed pipeline bandwidth against individual packet turnaround time.</div>
+          </div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 880 280" role="img" aria-label="Latency versus Throughput comparison">
+            <defs>
+              <marker id="arr-m3" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+                <path d="M0,0 L9,4.5 L0,9 z" fill="var(--line)"/>
+              </marker>
+            </defs>
+            <!-- Axes -->
+            <path d="M60 230 L820 230" class="svg-line" marker-end="url(#arr-m3)"/>
+            <path d="M60 230 L60 30" class="svg-line" marker-end="url(#arr-m3)"/>
+            <text x="825" y="235" class="svg-mono">Throughput (QPS / MB/s) →</text>
+            <text x="55" y="25" class="svg-mono">Latency (ms) ↑</text>
+
+            <!-- Latency curve -->
+            <path d="M 60 210 Q 450 200 600 170 T 780 40" fill="none" stroke="var(--accent-rose)" stroke-width="2.5"/>
+            <text x="640" y="60" fill="var(--accent-rose)" font-size="12" font-weight="700">Hockey Stick (Queue Saturation)</text>
+
+            <!-- Operating Zones -->
+            <rect x="70" y="160" width="220" height="60" rx="8" class="svg-node"/>
+            <text x="180" y="185" text-anchor="middle" class="svg-text">Linear Zone (Low Wait)</text>
+            <text x="180" y="205" text-anchor="middle" class="svg-small">Predictable p50 / p90 latency</text>
+
+            <rect x="520" y="170" width="230" height="50" rx="8" class="svg-node-strong"/>
+            <text x="635" y="192" text-anchor="middle" class="svg-text">Saturation Threshold (~75-80%)</text>
+            <text x="635" y="208" text-anchor="middle" class="svg-small">Queuing delay explodes p99</text>
+          </svg>
+        </div>
+      </div>
+
+      <p class="explanation-p">
+        To properly measure systems, decouple these two foundational metrics:
+      </p>
+
+      <ul class="steps-list">
+        <li><strong>Latency (Response Time):</strong> The wall-clock duration to finish a single unit of work (e.g. <code>2.4 ms</code> for an API request). Latency must be inspected across distribution percentiles (<code>p50</code> median, <code>p95</code>, <code>p99</code> tail), never arithmetic means alone.</li>
+        <li><strong>Throughput (Volume / Bandwidth):</strong> The aggregate amount of work processed per unit of time (e.g. <code>25,000 queries/sec</code> or <code>1.2 GB/sec</code>).</li>
+        <li><strong>The S3 Analogy:</strong> Object stores like standard AWS S3 have modest latency (often 100 to 200 ms initial time-to-first-byte), but enormous throughput (aggregating multi-gigabytes per second over parallel connections). In contrast, an in-memory Redis node offers sub-millisecond latency but caps out when its single CPU core saturates.</li>
+      </ul>
+
+      <div class="meta-grid">
+        <div class="meta-card pitfall">
+          <b>❌ Common Pitfall</b>
+          Relying on average latency. In a dataset where 99 users experience 2 ms and 1 user experiences 5,000 ms, the average is 52 ms—hiding a severe failure mode from telemetry.
+        </div>
+        <div class="meta-card impact">
+          <b>💡 Percentile Rule</b>
+          Always evaluate systems by tail latency (p95, p99, p99.9). At scale, a user session issues dozens of sub-queries; your user experience is dictated by the slowest component.
+        </div>
+      </div>
+
+      <div class="quiz-box" data-answer="3">
+        <h4>Module 3 Checkpoint</h4>
+        <div class="quiz-q">Which system archetype exemplifies high throughput paired with high latency?</div>
+        <div class="quiz-options">
+          <button type="button" class="qopt" data-opt="0">A local Redis cache storing small session tokens</button>
+          <button type="button" class="qopt" data-opt="1">An L1 CPU cache buffer fetching 64-byte lines</button>
+          <button type="button" class="qopt" data-opt="2">An in-memory hash map lookup during query execution</button>
+          <button type="button" class="qopt" data-opt="3">A cloud object store (like AWS S3) streaming multi-gigabyte archives</button>
+        </div>
+        <div class="qfb" id="m3-fb"></div>
+      </div>
+    </article>
+
+    <!-- MODULE 4 -->
+    <article class="module-card" id="m4">
+      <div class="section-head">
+        <div class="section-index">04 / SCALABILITY</div>
+        <div>
+          <div class="section-label">Scaling Limits</div>
+          <h2>Vertical Scalability &amp; The Universal Scalability Law</h2>
+          <p class="section-intro">
+            Doubling CPU cores does not double capacity indefinitely. Contention and coherency overhead inevitably bend the scaling curve downward into degradation.
+          </p>
+        </div>
+      </div>
+
+      <p class="explanation-p">
+        When an application grows, upgrading a server from 4 cores (16 GB) to 8 cores (32 GB), 16 cores (64 GB), and eventually 128 cores is the easiest path (vertical scaling). In an ideal world, throughput scales linearly. In reality, system throughput follows the <strong>Universal Scalability Law (USL)</strong>:
+      </p>
+
+      <!-- INTERACTIVE 3: Scalability Law Simulator -->
+      <div class="ctrl-box">
+        <div class="ctrl-row">
+          <span class="ctrl-label">CPU Cores Allocated:</span>
+          <input type="range" class="ctrl-slider" id="m4-cores" min="1" max="128" step="1" value="16">
+          <span class="ctrl-val" id="m4-cores-val">16 Cores</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-label">Lock Contention (α):</span>
+          <input type="range" class="ctrl-slider" id="m4-alpha" min="0.00" max="0.10" step="0.005" value="0.02">
+          <span class="ctrl-val" id="m4-alpha-val">2.0%</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-label">Coherency Delay (β):</span>
+          <input type="range" class="ctrl-slider" id="m4-beta" min="0.000" max="0.005" step="0.0002" value="0.0008">
+          <span class="ctrl-val" id="m4-beta-val">0.08%</span>
+        </div>
+        <div class="output-panel" id="m4-usl-output">
+          <strong>Relative Speedup:</strong> 11.2x on 16 cores (Ideal Linear = 16.0x)<br>
+          <strong>Scaling Efficiency:</strong> 70.0%<br>
+          <strong>Status:</strong> Healthy parallel scaling, but serialization overhead is beginning to consume throughput gains.
+        </div>
+      </div>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div>
+            <div class="diagram-title">Universal Scalability Law Simulation</div>
+            <div class="diagram-subtitle">Dynamic plot comparing linear scaling vs. actual contention degradation.</div>
+          </div>
+        </div>
+        <div class="diagram-stage">
+          <svg id="m4-svg-plot" viewBox="0 0 880 320" role="img" aria-label="USL Scaling curve plot">
+            <defs>
+              <marker id="arr-m4" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+                <path d="M0,0 L9,4.5 L0,9 z" fill="var(--line)"/>
+              </marker>
+            </defs>
+            <!-- Plot Axes -->
+            <path d="M 60 280 L 820 280" class="svg-line" marker-end="url(#arr-m4)"/>
+            <path d="M 60 280 L 60 30" class="svg-line" marker-end="url(#arr-m4)"/>
+            <text x="825" y="285" class="svg-mono">Cores (N) →</text>
+            <text x="50" y="25" class="svg-mono">Throughput Speedup (X) ↑</text>
+
+            <!-- Reference Grid -->
+            <line x1="60" y1="220" x2="800" y2="220" class="svg-line-dim"/>
+            <line x1="60" y1="160" x2="800" y2="160" class="svg-line-dim"/>
+            <line x1="60" y1="100" x2="800" y2="100" class="svg-line-dim"/>
+
+            <!-- Dynamic curves -->
+            <path id="m4-linear-path" d="" fill="none" stroke="var(--accent-emerald)" stroke-width="2" stroke-dasharray="6,4"/>
+            <path id="m4-usl-path" d="" fill="none" stroke="var(--accent)" stroke-width="3"/>
+            <circle id="m4-current-point" cx="0" cy="0" r="6" fill="var(--accent-rose)"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="explanation-p">
+        Why does scaling degrade beyond a certain server size?
+      </p>
+
+      <ul class="steps-list">
+        <li><strong>Serialization Contention (Amdahl's Law, α):</strong> Portions of code that cannot run in parallel—such as writing to the write-ahead log (WAL), updating the shared buffer pool page table, or locking a table row—force threads to queue sequentially.</li>
+        <li><strong>Crosstalk &amp; Coherency Delay (Neil Gunther's USL, β):</strong> When multiple CPU sockets and cores write to shared memory addresses, CPU cache coherency protocols (MESI/MOESI) must invalidate cache lines across the inter-socket interconnect (QPI/UPI). As cores increase, interconnect chatter grows quadratically: <code>O(N²)</code>.</li>
+        <li><strong>Negative Scalability:</strong> Past the peak point on the curve, adding more cores actively decreases overall throughput because the machine spends more CPU cycles negotiating lock ownership and invalidating cache lines than executing useful work.</li>
+      </ul>
+
+      <div class="quiz-box" data-answer="2">
+        <h4>Module 4 Checkpoint</h4>
+        <div class="quiz-q">What causes 'retrograde scalability' (throughput dropping as cores increase) under the Universal Scalability Law?</div>
+        <div class="quiz-options">
+          <button type="button" class="qopt" data-opt="0">RAM chips reducing their clock frequency to protect battery health</button>
+          <button type="button" class="qopt" data-opt="1">Operating system task schedulers shutting down idle cores permanently</button>
+          <button type="button" class="qopt" data-opt="2">Cache coherency bus traffic (O(N²)) and lock serialization consuming all CPU cycles</button>
+          <button type="button" class="qopt" data-opt="3">PCIe lanes disconnecting when memory utilization exceeds eighty percent</button>
+        </div>
+        <div class="qfb" id="m4-fb"></div>
+      </div>
+    </article>
+
+    <!-- MODULE 5 -->
+    <article class="module-card" id="m5">
+      <div class="section-head">
+        <div class="section-index">05 / ARCHITECTURE</div>
+        <div>
+          <div class="section-label">Overcoming Limits</div>
+          <h2>Architectural Solutions: Code Tuning to Database Sharding</h2>
+          <p class="section-intro">
+            When single-server vertical scaling hits the wall of contention, systems engineers have two avenues: tune software to minimize contention, or distribute the dataset horizontally via sharding.
+          </p>
+        </div>
+      </div>
+
+      <div class="diagram-wrap">
+        <div class="diagram-toolbar">
+          <div>
+            <div class="diagram-title">Vertical Scaling Limit vs. Horizontal Sharding</div>
+            <div class="diagram-subtitle">Routing queries by shard key across isolated hardware nodes to restore linear scaling.</div>
+          </div>
+        </div>
+        <div class="diagram-stage">
+          <svg viewBox="0 0 880 260" role="img" aria-label="Database sharding architectural diagram">
+            <defs>
+              <marker id="arr-m5" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+                <path d="M0,0 L9,4.5 L0,9 z" fill="var(--line)"/>
+              </marker>
+            </defs>
+            <!-- Client Layer -->
+            <rect x="30" y="90" width="130" height="80" rx="10" class="svg-node"/>
+            <text x="95" y="125" text-anchor="middle" class="svg-text">Client Traffic</text>
+            <text x="95" y="145" text-anchor="middle" class="svg-small">100,000 QPS</text>
+
+            <path d="M160 130 L220 130" class="svg-line" marker-end="url(#arr-m5)"/>
+
+            <!-- Router / Shard Gateway -->
+            <rect x="225" y="65" width="160" height="130" rx="12" class="svg-node-strong"/>
+            <text x="305" y="110" text-anchor="middle" class="svg-text">Router / Proxy</text>
+            <text x="305" y="130" text-anchor="middle" class="svg-small">Vitess / Citus Gateway</text>
+            <text x="305" y="152" text-anchor="middle" class="svg-mono">hash(user_id) % 3</text>
+
+            <!-- Branches to Shards -->
+            <path d="M385 100 L470 55" class="svg-line" marker-end="url(#arr-m5)"/>
+            <path d="M385 130 L470 130" class="svg-line" marker-end="url(#arr-m5)"/>
+            <path d="M385 160 L470 205" class="svg-line" marker-end="url(#arr-m5)"/>
+
+            <!-- Shard 0 -->
+            <rect x="475" y="25" width="160" height="60" rx="8" class="svg-node"/>
+            <text x="555" y="50" text-anchor="middle" class="svg-text">Shard 0 (IDs 0–33M)</text>
+            <text x="555" y="68" text-anchor="middle" class="svg-mono">Independent RAM/Disk</text>
+
+            <!-- Shard 1 -->
+            <rect x="475" y="100" width="160" height="60" rx="8" class="svg-node"/>
+            <text x="555" y="125" text-anchor="middle" class="svg-text">Shard 1 (IDs 34–66M)</text>
+            <text x="555" y="143" text-anchor="middle" class="svg-mono">Independent RAM/Disk</text>
+
+            <!-- Shard 2 -->
+            <rect x="475" y="175" width="160" height="60" rx="8" class="svg-node"/>
+            <text x="555" y="200" text-anchor="middle" class="svg-text">Shard 2 (IDs 67–100M)</text>
+            <text x="555" y="218" text-anchor="middle" class="svg-mono">Independent RAM/Disk</text>
+
+            <!-- Scale bracket -->
+            <rect x="670" y="25" width="180" height="210" rx="12" class="svg-node"/>
+            <text x="760" y="115" text-anchor="middle" class="svg-text">Total Independence</text>
+            <text x="760" y="135" text-anchor="middle" class="svg-small">Zero lock contention</text>
+            <text x="760" y="155" text-anchor="middle" class="svg-small">Zero bus crosstalk</text>
+          </svg>
+        </div>
+      </div>
+
+      <p class="explanation-p">
+        When vertical scaling maxes out, engineers employ two phases of optimization:
+      </p>
+
+      <ul class="steps-list">
+        <li><strong>Phase 1: In-Place Software Tuning:</strong>
+          <br>• <em>Connection Pooling:</em> Tools like <code>PgBouncer</code> pool thousands of client connections down to 50–100 persistent worker connections, eliminating process fork overhead and memory pressure.
+          <br>• <em>Memory Allocation:</em> Tuning buffer pool size (e.g. Postgres <code>shared_buffers</code> to 25–40% of RAM) and query workspace (<code>work_mem</code>) so sorts complete in DRAM without spilling to temp files on disk.
+          <br>• <em>Data Layout:</em> Packing hot columns together, optimizing alignment to avoid padding bytes, and creating covering indexes (<code>INCLUDE</code>) to bypass heap table fetches entirely.
+        </li>
+        <li><strong>Phase 2: Horizontal Sharding:</strong>
+          <br>• Partitioning data horizontally across distinct physical nodes using a shard key (e.g. <code>hash(customer_id)</code>).
+          <br>• Because each node runs its own CPU, DRAM bus, and operating system kernel, there is <strong>zero lock contention</strong> between shards. Linear scaling is restored. Systems like Vitess (MySQL) and Citus (Postgres) power this architecture at hyper-scale companies.
+        </li>
+      </ul>
+
+      <div class="meta-grid">
+        <div class="meta-card pitfall">
+          <b>❌ Sharding Tradeoff</b>
+          Sharding introduces operational complexity: cross-shard distributed transactions require two-phase commit (2PC) or sagas, and re-sharding requires live data migration.
+        </div>
+        <div class="meta-card impact">
+          <b>💡 Rule of Thumb</b>
+          Exhaust indexing, connection pooling, and read replicas first. Only shard when your write throughput or dataset size exceeds what a 64-core, 512 GB memory machine can sustain.
+        </div>
+      </div>
+
+      <div class="quiz-box" data-answer="0">
+        <h4>Module 5 Checkpoint</h4>
+        <div class="quiz-q">Why does database sharding restore near-linear throughput scaling when a single big server maxes out?</div>
+        <div class="quiz-options">
+          <button type="button" class="qopt" data-opt="0">Each shard node has completely independent CPUs, memory buses, and locks, eliminating cross-node contention</button>
+          <button type="button" class="qopt" data-opt="1">Sharded databases bypass the operating system kernel and talk directly to flash NAND cells</button>
+          <button type="button" class="qopt" data-opt="2">Sharding eliminates the need for B-tree indexes by converting tables into flat sequentially-scanned text files</button>
+          <button type="button" class="qopt" data-opt="3">SQL queries sent to sharded nodes execute in the network router instead of server memory</button>
+        </div>
+        <div class="qfb" id="m5-fb"></div>
+      </div>
+    </article>
+
+    <!-- MODULE 6 -->
+    <article class="module-card" id="m6">
+      <div class="section-head">
+        <div class="section-index">06 / CAPACITY</div>
+        <div>
+          <div class="section-label">Production Traffic</div>
+          <h2>Traffic Spikes &amp; The Cache Re-Warming Problem</h2>
+          <p class="section-intro">
+            Traffic arrives in diurnal waves and sharp event bursts (Black Friday, product drops). Deciding between fixed over-provisioning and dynamic serverless auto-scaling involves hidden performance penalties.
+          </p>
+        </div>
+      </div>
+
+      <!-- INTERACTIVE 4: Traffic & Cache Simulator -->
+      <div class="ctrl-box">
+        <div class="ctrl-row">
+          <span class="ctrl-label">Traffic Scenario:</span>
+          <button type="button" class="ctrl-btn active" id="m6-btn-normal">Diurnal Daily Wave</button>
+          <button type="button" class="ctrl-btn" id="m6-btn-spike">Black Friday 10x Spike</button>
+        </div>
+        <div class="ctrl-row">
+          <span class="ctrl-label">Architecture Mode:</span>
+          <button type="button" class="ctrl-btn active" id="m6-btn-fixed">Fixed Provisioned (Steady Cache)</button>
+          <button type="button" class="ctrl-btn" id="m6-btn-serverless">Reactive Serverless (Dynamic RAM/CPU)</button>
+        </div>
+        <div class="output-panel" id="m6-sim-output">
+          <strong>Architecture:</strong> Fixed Pre-Provisioned Capacity<br>
+          <strong>Cache Hit Rate:</strong> 99.2% (Warm buffer pool maintained across night/day cycles)<br>
+          <strong>Cost / Performance Profile:</strong> Higher off-peak idle spend, but rock-solid latency stability during sudden bursts. Zero cold-cache stall.
+        </div>
+      </div>
+
+      <div class="worked-example">
+        <div class="worked-title">The Serverless Cache Re-Warming Penalty</div>
+        <p>In stateless web servers (e.g. AWS Lambda, Cloudflare Workers), spinning up 100 new workers takes a few milliseconds and handles requests immediately.</p>
+        <p><strong>In databases, however, memory is state:</strong> 80% to 90% of your database performance comes from the working set resting in DRAM (the buffer pool). When a serverless database dynamically spins up or doubles instance capacity, the new RAM starts completely empty (a <em>cold cache</em>).</p>
+        <p>Every initial query must trigger synchronous 50 µs NVMe disk reads to fault pages into memory. Consequently, right at the moment of your biggest traffic spike, database query latency spikes by 10x to 50x while the cache warms up!</p>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-card pitfall">
+          <b>❌ Pricing Fallacy</b>
+          Serverless auto-scaling looks cheap because you only pay for what you use, but providers charge 2x to 4x higher rates per CPU-second to maintain that idle reserve capacity.
+        </div>
+        <div class="meta-card impact">
+          <b>💡 Sizing Recommendation</b>
+          For predictable events (sales, launches), pre-warm and size up fixed resources 2x–4x several hours in advance. Keep a steady buffer cache hot and avoid reactive scaling storms.
+        </div>
+      </div>
+
+      <div class="quiz-box" data-answer="1">
+        <h4>Module 6 Checkpoint</h4>
+        <div class="quiz-q">Why does dynamic auto-scaling of database RAM often degrade latency right when a traffic spike arrives?</div>
+        <div class="quiz-options">
+          <button type="button" class="qopt" data-opt="0">Operating systems cannot allocate more than sixteen gigabytes without a kernel recompile</button>
+          <button type="button" class="qopt" data-opt="1">The newly allocated memory buffer pool starts cold, forcing queries to stall on physical disk I/O</button>
+          <button type="button" class="qopt" data-opt="2">TCP network connections disconnect automatically whenever RAM sizes are altered</button>
+          <button type="button" class="qopt" data-opt="3">CPUs throttle down to 100 MHz whenever serverless billing monitors trigger</button>
+        </div>
+        <div class="qfb" id="m6-fb"></div>
+      </div>
+    </article>
+
+    <!-- SUMMARY & CHEAT SHEET -->
+    <section class="module-card" id="summary">
+      <div class="section-head">
+        <div class="section-index">REFERENCE</div>
+        <div>
+          <div class="section-label">Canonical Reference</div>
+          <h2>Systems Performance Master Cheat Sheet</h2>
+          <p class="section-intro">
+            High-density napkin math values and operational rules to keep on hand during performance reviews and system design.
+          </p>
+        </div>
+      </div>
+
+      <div class="ref-table-wrap">
+        <table class="ref-table">
+          <thead>
+            <tr>
+              <th>Operation / Event</th>
+              <th>Typical Latency</th>
+              <th>Humanized Scale</th>
+              <th>Operational Rule</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>CPU Clock Cycle (4 GHz)</code></td>
+              <td><code>0.25 – 0.3 ns</code></td>
+              <td>1 second</td>
+              <td>Instruction baseline. 4 cycles typical per complex ALU op.</td>
+            </tr>
+            <tr>
+              <td><code>L1 Cache Reference</code></td>
+              <td><code>~1.0 ns</code></td>
+              <td>3.3 seconds</td>
+              <td>Fastest memory on chip. 32–64 KB per core.</td>
+            </tr>
+            <tr>
+              <td><code>L2 Cache Reference</code></td>
+              <td><code>~3.0 ns</code></td>
+              <td>10 seconds</td>
+              <td>Slightly larger (512 KB–1 MB), ~10–14 cycle latency.</td>
+            </tr>
+            <tr>
+              <td><code>L3 Cache Reference</code></td>
+              <td><code>~10 – 20 ns</code></td>
+              <td>33 – 66 seconds</td>
+              <td>Shared on-die LLC (16–64 MB). Last stop before off-chip.</td>
+            </tr>
+            <tr>
+              <td><code>Main Memory (DRAM) Read</code></td>
+              <td><code>~100 ns</code></td>
+              <td>5.5 minutes</td>
+              <td>First major cliff: 10x slower than L3 cache.</td>
+            </tr>
+            <tr>
+              <td><code>NVMe SSD Random Read</code></td>
+              <td><code>10 – 50 µs</code></td>
+              <td>1.9 days</td>
+              <td>Flash memory cliff: 500x slower than DRAM.</td>
+            </tr>
+            <tr>
+              <td><code>Spinning Disk (HDD) Seek</code></td>
+              <td><code>1 – 10 ms</code></td>
+              <td>6 months</td>
+              <td>Mechanical platter arm movement. High throughput, terrible latency.</td>
+            </tr>
+            <tr>
+              <td><code>In-Datacenter Network Round-Trip</code></td>
+              <td><code>0.5 – 1.0 ms</code></td>
+              <td>1 month</td>
+              <td>Intra-rack or intra-region ping.</td>
+            </tr>
+            <tr>
+              <td><code>US Cross-Country (East-West)</code></td>
+              <td><code>~70 ms</code></td>
+              <td>7.4 years</td>
+              <td>Speed of light in glass across ~4,000 km fiber route.</td>
+            </tr>
+            <tr>
+              <td><code>Transatlantic (US-to-EU)</code></td>
+              <td><code>~150 ms</code></td>
+              <td>15.8 years</td>
+              <td>Undersea fiber cables + router hops.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="module-card" id="faq">
+      <div class="section-head">
+        <div class="section-index">FAQ</div>
+        <div>
+          <div class="section-label">Deep Nuances</div>
+          <h2>Frequently Asked Questions</h2>
+          <p class="section-intro">Edge cases and practical questions encountered when measuring systems.</p>
+        </div>
+      </div>
+
+      <div class="faq-grid">
+        <div class="faq-card">
+          <div class="faq-q">What is the exact mathematical formula for the Universal Scalability Law (USL)?</div>
+          <div class="faq-a">
+            Gunther's USL expresses relative throughput speedup as: <code>C(N) = N / (1 + α(N - 1) + β N(N - 1))</code>, where <code>N</code> is concurrent workers/cores, <code>α</code> is the serialization contention coefficient (Amdahl's law parameter), and <code>β</code> is the coherency crosstalk delay parameter. When <code>β > 0</code>, throughput reaches a local maximum and drops into retrograde scalability.
+          </div>
+        </div>
+        <div class="faq-card">
+          <div class="faq-q">Why does High-Frequency Trading (HFT) care so deeply about sub-microsecond latencies?</div>
+          <div class="faq-a">
+            In financial markets, trading algorithms compete to fill arbitrage spreads across order books. An algorithm responding in 500 nanoseconds captures the profit, while an order arriving 10 microseconds later trades against stale prices and loses capital. This is why trading firms co-locate servers in the same physical datacenter cages as stock exchanges.
+          </div>
+        </div>
+        <div class="faq-card">
+          <div class="faq-q">When should I choose vertical scaling over sharding?</div>
+          <div class="faq-a">
+            Scale vertically first as long as your database fits comfortably on a standard high-end machine (e.g. 16 to 32 cores, 128 GB to 256 GB RAM) and your write load doesn't cause lock starvation. Sharding introduces distributed transaction complexity, complex rebalancing, and architectural friction. Never shard prematurely.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NEXT STEPS -->
+    <section class="module-card" id="next-steps">
+      <div class="section-head">
+        <div class="section-index">PRACTICE</div>
+        <div>
+          <div class="section-label">Actionable Plan</div>
+          <h2>Next Steps: Applying Systems Performance to Real Code</h2>
+          <p class="section-intro">Concrete exercises to turn napkin math into instinctive engineering intuition.</p>
+        </div>
+      </div>
+
+      <ul class="steps-list">
+        <li><strong>Watch the Primary Video Source:</strong> Rewatch the original recording for Chapter 2 at <a href="https://www.youtube.com/watch?v=SystemsPerformance" target="_blank" rel="noopener">Systems Performance Chapter 2 Live Stream</a> (covering latency napkin numbers, USL scaling curves, and database sharding).</li>
+        <li><strong>Audit Your Slowest Endpoint:</strong> Pick a slow database query or API endpoint in your codebase. Measure its wall-clock time, and build a napkin math hardware budget for it (network hops + CPU instructions + cache/disk reads). Identify where the delta between physical minimum and observed latency lives.</li>
+        <li><strong>Calculate Your Cache Working Set:</strong> In Postgres, query <code>pg_stat_database</code> and <code>pg_stat_user_tables</code> to check your buffer cache hit ratio. If it is below 98%, your server is performing expensive synchronous NVMe reads for hot queries.</li>
+        <li><strong>Read the Literature:</strong> Refer to Brendan Gregg's <em>Systems Performance: Enterprise and the Cloud (2nd Edition)</em>, specifically Chapter 2: "Methodologies" and Chapter 3: "Operating Systems". Also explore Simon Eskildsen's canonical <a href="https://github.com/sirupsen/napkin-math" target="_blank" rel="noopener">Napkin Math repository on GitHub</a>.</li>
+      </ul>
+    </section>
+
+    <footer>
+      <div>Primary Source: <a href="https://www.youtube.com/watch?v=SystemsPerformance" target="_blank" rel="noopener">Systems Performance Chapter 2 Live Stream</a> (<code>transcripts/Systems Performance/02 - slow → fast computers.txt</code>). Referenced Books: Brendan Gregg, <a href="https://www.brendangregg.com/systems-performance-2nd-edition-book.html" target="_blank" rel="noopener">Systems Performance (2nd Edition)</a>; Simon Eskildsen, <a href="https://github.com/sirupsen/napkin-math" target="_blank" rel="noopener">Napkin Math</a>.</div>
+      <div>Stuck? Ask the agent a follow-up question about any module.</div>
+    </footer>
+
+  </div>
+
+  <script>
+    // Theme Toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    const rootBody = document.body;
+    const savedTheme = localStorage.getItem('lesson-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    if (savedTheme === 'dark') rootBody.classList.add('dark');
+
+    themeBtn.addEventListener('click', () => {
+      rootBody.classList.toggle('dark');
+      const current = rootBody.classList.contains('dark') ? 'dark' : 'light';
+      localStorage.setItem('lesson-theme', current);
+    });
+
+    // Scroll progress & active nav
+    const progressIndicator = document.getElementById('progress-indicator');
+    const scrollPct = document.getElementById('scroll-pct');
+    const navLinks = document.querySelectorAll('#top-nav a');
+    const sections = Array.from(document.querySelectorAll('header, article.module-card, section.module-card'));
+
+    window.addEventListener('scroll', () => {
+      const s = window.scrollY;
+      const d = document.documentElement.scrollHeight - window.innerHeight;
+      const p = d > 0 ? Math.min(100, Math.max(0, Math.round((s / d) * 100))) : 0;
+      progressIndicator.style.width = p + '%';
+      scrollPct.textContent = p + '%';
+
+      // Active nav highlight
+      let activeId = '';
+      for (const sec of sections) {
+        const top = sec.offsetTop - 100;
+        if (s >= top) {
+          activeId = sec.id;
+        }
+      }
+      navLinks.forEach(link => {
+        if (link.getAttribute('href') === '#' + activeId) {
+          link.classList.add('active');
+        } else {
+          link.classList.remove('active');
+        }
+      });
+    }, { passive: true });
+
+    // INTERACTIVE 1: Latency Scale Explorer
+    const m1Tiers = {
+      cpu: { name: "CPU Instruction Execution (~1.0 ns)", human: "1 second (1 heartbeat)", scale: "1.0x", detail: "Executes directly inside CPU register ALU pipeline." },
+      l1: { name: "L1 Cache Access (~1.0 ns)", human: "3.3 seconds", scale: "3.3x", detail: "Static RAM on die, ~4 CPU cycles." },
+      ram: { name: "Main Memory DRAM (~100 ns)", human: "5.5 minutes", scale: "100x", detail: "Traverses memory bus; DRAM row/column activation." },
+      ssd: { name: "NVMe SSD Random Read (~50 µs)", human: "1.9 days", scale: "50,000x", detail: "PCIe packet, flash translation layer (FTL), NAND flash read." },
+      hdd: { name: "Rotational HDD Seek (~5 ms)", human: "6 months", scale: "5,000,000x", detail: "Mechanical spindle rotation and physical arm seek." },
+      wan: { name: "Transatlantic WAN Ping (~150 ms)", human: "15.8 years", scale: "150,000,000x", detail: "Photons traveling over transatlantic submarine optical cables." }
+    };
+    const m1Out = document.getElementById('m1-output');
+    const m1Btns = {
+      cpu: document.getElementById('m1-btn-cpu'),
+      l1: document.getElementById('m1-btn-l1'),
+      ram: document.getElementById('m1-btn-ram'),
+      ssd: document.getElementById('m1-btn-ssd'),
+      hdd: document.getElementById('m1-btn-hdd'),
+      wan: document.getElementById('m1-btn-wan')
+    };
+
+    function setM1Tier(key) {
+      Object.values(m1Btns).forEach(b => b.classList.remove('active'));
+      m1Btns[key].classList.add('active');
+      const d = m1Tiers[key];
+      m1Out.innerHTML = `<strong>Selected Tier:</strong> ${d.name}<br><strong>Relative Ratio:</strong> ${d.scale} compared to 1 cycle.<br><strong>If 1 CPU Cycle was 1 Second:</strong> This operation takes <strong>${d.human}</strong>.<br><em>Mechanism:</em> ${d.detail}`;
+    }
+    m1Btns.cpu.addEventListener('click', () => setM1Tier('cpu'));
+    m1Btns.l1.addEventListener('click', () => setM1Tier('l1'));
+    m1Btns.ram.addEventListener('click', () => setM1Tier('ram'));
+    m1Btns.ssd.addEventListener('click', () => setM1Tier('ssd'));
+    m1Btns.hdd.addEventListener('click', () => setM1Tier('hdd'));
+    m1Btns.wan.addEventListener('click', () => setM1Tier('wan'));
+
+    // INTERACTIVE 2: Napkin Budget Builder
+    let m2CacheMode = 'hit'; // hit, ssd, hdd
+    let m2NetMode = 'local'; // local, cross, wan
+    const m2Out = document.getElementById('m2-budget-output');
+    const m2BtnHit = document.getElementById('m2-btn-hit');
+    const m2BtnSSD = document.getElementById('m2-btn-miss-ssd');
+    const m2BtnHDD = document.getElementById('m2-btn-miss-hdd');
+    const m2BtnLocal = document.getElementById('m2-btn-local');
+    const m2BtnCross = document.getElementById('m2-btn-cross');
+    const m2BtnWAN = document.getElementById('m2-btn-wan');
+
+    function updateM2Budget() {
+      let netMs = 1.0;
+      if (m2NetMode === 'cross') netMs = 40.0;
+      if (m2NetMode === 'wan') netMs = 150.0;
+
+      let storageMs = 0.0001; // RAM hit
+      let storageLabel = "Buffer Pool DRAM (0.0001 ms)";
+      if (m2CacheMode === 'ssd') { storageMs = 0.05; storageLabel = "NVMe SSD Read (0.05 ms)"; }
+      if (m2CacheMode === 'hdd') { storageMs = 5.0; storageLabel = "Rotational HDD Seek (5.0 ms)"; }
+
+      const cpuParseMs = 0.01;
+      const serialMs = 0.04;
+      const total = netMs + storageMs + cpuParseMs + serialMs;
+
+      const netPct = ((netMs / total) * 100).toFixed(1);
+      const storPct = ((storageMs / total) * 100).toFixed(1);
+
+      m2Out.innerHTML = `<strong>Calculated Latency Budget:</strong> ${total.toFixed(3)} ms<br>
+      • Network Round-Trip: ${netMs.toFixed(1)} ms (${netPct}%)<br>
+      • Storage Page Fetch: ${storageLabel} (${storPct}%)<br>
+      • Parsing &amp; Index Traversal: ${cpuParseMs} ms<br>
+      • Serialization &amp; Socket Return: ${serialMs} ms<br>
+      <em>Diagnostic Takeaway:</em> Any observed time significantly above ${total.toFixed(2)} ms indicates queuing delays or lock waiting, not raw hardware slowness!`;
+    }
+
+    m2BtnHit.addEventListener('click', () => {
+      [m2BtnHit, m2BtnSSD, m2BtnHDD].forEach(b => b.classList.remove('active'));
+      m2BtnHit.classList.add('active');
+      m2CacheMode = 'hit';
+      updateM2Budget();
+    });
+    m2BtnSSD.addEventListener('click', () => {
+      [m2BtnHit, m2BtnSSD, m2BtnHDD].forEach(b => b.classList.remove('active'));
+      m2BtnSSD.classList.add('active');
+      m2CacheMode = 'ssd';
+      updateM2Budget();
+    });
+    m2BtnHDD.addEventListener('click', () => {
+      [m2BtnHit, m2BtnSSD, m2BtnHDD].forEach(b => b.classList.remove('active'));
+      m2BtnHDD.classList.add('active');
+      m2CacheMode = 'hdd';
+      updateM2Budget();
+    });
+
+    m2BtnLocal.addEventListener('click', () => {
+      [m2BtnLocal, m2BtnCross, m2BtnWAN].forEach(b => b.classList.remove('active'));
+      m2BtnLocal.classList.add('active');
+      m2NetMode = 'local';
+      updateM2Budget();
+    });
+    m2BtnCross.addEventListener('click', () => {
+      [m2BtnLocal, m2BtnCross, m2BtnWAN].forEach(b => b.classList.remove('active'));
+      m2BtnCross.classList.add('active');
+      m2NetMode = 'cross';
+      updateM2Budget();
+    });
+    m2BtnWAN.addEventListener('click', () => {
+      [m2BtnLocal, m2BtnCross, m2BtnWAN].forEach(b => b.classList.remove('active'));
+      m2BtnWAN.classList.add('active');
+      m2NetMode = 'wan';
+      updateM2Budget();
+    });
+
+    // INTERACTIVE 3: Scalability Law Simulator
+    const m4Cores = document.getElementById('m4-cores');
+    const m4Alpha = document.getElementById('m4-alpha');
+    const m4Beta = document.getElementById('m4-beta');
+    const m4CoresVal = document.getElementById('m4-cores-val');
+    const m4AlphaVal = document.getElementById('m4-alpha-val');
+    const m4BetaVal = document.getElementById('m4-beta-val');
+    const m4Out = document.getElementById('m4-usl-output');
+    const m4LinearPath = document.getElementById('m4-linear-path');
+    const m4UslPath = document.getElementById('m4-usl-path');
+    const m4CurPoint = document.getElementById('m4-current-point');
+
+    function calcUSL(N, alpha, beta) {
+      return N / (1 + alpha * (N - 1) + beta * N * (N - 1));
+    }
+
+    function renderUSLPlot() {
+      const N = parseInt(m4Cores.value, 10);
+      const a = parseFloat(m4Alpha.value);
+      const b = parseFloat(m4Beta.value);
+
+      m4CoresVal.textContent = `${N} Cores`;
+      m4AlphaVal.textContent = `${(a * 100).toFixed(1)}%`;
+      m4BetaVal.textContent = `${(b * 100).toFixed(2)}%`;
+
+      const speedup = calcUSL(N, a, b);
+      const eff = ((speedup / N) * 100).toFixed(1);
+
+      let statusMsg = "Healthy parallel scaling with low contention.";
+      if (eff < 60 && eff >= 30) statusMsg = "Significant contention; throughput gains are flattening.";
+      if (eff < 30) statusMsg = "Severe coherency degradation (retrograde scaling)! Cores are fighting over locks.";
+
+      m4Out.innerHTML = `<strong>Relative Speedup:</strong> ${speedup.toFixed(1)}x on ${N} cores (Ideal Linear = ${N}.0x)<br>
+      <strong>Scaling Efficiency:</strong> ${eff}%<br>
+      <strong>Analysis:</strong> ${statusMsg}`;
+
+      // Plot coordinates: X from 60 to 800 (1 to 128 cores), Y from 280 to 40 (0 to 64 speedup)
+      const maxCores = 128;
+      const maxY = 64;
+
+      let linD = "M 60 280";
+      let uslD = "M 60 280";
+
+      for (let c = 1; c <= maxCores; c += 2) {
+        const x = 60 + ((c - 1) / (maxCores - 1)) * 740;
+        const linY = Math.max(40, 280 - (c / maxY) * 240);
+        const uSpeed = calcUSL(c, a, b);
+        const uslY = Math.max(30, 280 - (uSpeed / maxY) * 240);
+
+        if (c === 1) {
+          linD = `M ${x.toFixed(1)} ${linY.toFixed(1)}`;
+          uslD = `M ${x.toFixed(1)} ${uslY.toFixed(1)}`;
+        } else {
+          linD += ` L ${x.toFixed(1)} ${linY.toFixed(1)}`;
+          uslD += ` L ${x.toFixed(1)} ${uslY.toFixed(1)}`;
+        }
+      }
+
+      m4LinearPath.setAttribute('d', linD);
+      m4UslPath.setAttribute('d', uslD);
+
+      const curX = 60 + ((N - 1) / (maxCores - 1)) * 740;
+      const curY = Math.max(30, 280 - (speedup / maxY) * 240);
+      m4CurPoint.setAttribute('cx', curX.toFixed(1));
+      m4CurPoint.setAttribute('cy', curY.toFixed(1));
+    }
+
+    m4Cores.addEventListener('input', renderUSLPlot);
+    m4Alpha.addEventListener('input', renderUSLPlot);
+    m4Beta.addEventListener('input', renderUSLPlot);
+    renderUSLPlot();
+
+    // INTERACTIVE 4: Traffic & Cache Simulator
+    let m6Traffic = 'normal';
+    let m6Arch = 'fixed';
+    const m6BtnNormal = document.getElementById('m6-btn-normal');
+    const m6BtnSpike = document.getElementById('m6-btn-spike');
+    const m6BtnFixed = document.getElementById('m6-btn-fixed');
+    const m6BtnServerless = document.getElementById('m6-btn-serverless');
+    const m6Out = document.getElementById('m6-sim-output');
+
+    function updateM6Sim() {
+      if (m6Arch === 'fixed') {
+        if (m6Traffic === 'normal') {
+          m6Out.innerHTML = `<strong>Architecture:</strong> Fixed Pre-Provisioned Capacity<br>
+          <strong>Traffic:</strong> Diurnal Wave (Normal load)<br>
+          <strong>Cache Hit Rate:</strong> 99.4% (Buffer pool remains hot in DRAM)<br>
+          <strong>Observed Latency:</strong> 1.8 ms p95.<br>
+          <em>Verdict:</em> Predictable cost, zero cold-cache penalties.`;
+        } else {
+          m6Out.innerHTML = `<strong>Architecture:</strong> Fixed Pre-Provisioned (Pre-Warmed for Black Friday)<br>
+          <strong>Traffic:</strong> 10x Burst Spike<br>
+          <strong>Cache Hit Rate:</strong> 98.6% (Large buffer cache continues serving hot keys)<br>
+          <strong>Observed Latency:</strong> 2.4 ms p95.<br>
+          <em>Verdict:</em> Headroom absorbed the surge cleanly without page faults.`;
+        }
+      } else {
+        if (m6Traffic === 'normal') {
+          m6Out.innerHTML = `<strong>Architecture:</strong> Reactive Serverless Auto-Scale<br>
+          <strong>Traffic:</strong> Diurnal Wave (Gradual scale)<br>
+          <strong>Cache Hit Rate:</strong> 93.1% (Minor churn as idle nodes shut down)<br>
+          <strong>Observed Latency:</strong> 4.2 ms p95.<br>
+          <em>Verdict:</em> Moderate cost, minor cache churn during scale down.`;
+        } else {
+          m6Out.innerHTML = `<strong>Architecture:</strong> Reactive Serverless Auto-Scale<br>
+          <strong>Traffic:</strong> Sudden 10x Spike!<br>
+          <strong>Cache Hit Rate:</strong> <span style="color:var(--accent-rose);font-weight:bold;">64.2% (COLD CACHE COLLAPSE)</span><br>
+          <strong>Observed Latency:</strong> 48.0 ms p95 (Massive 20x spike)<br>
+          <em>Why it failed:</em> New instances spun up with completely empty buffer pools, forcing every query to queue synchronously on flash disk reads while warming memory!`;
+        }
+      }
+    }
+
+    m6BtnNormal.addEventListener('click', () => {
+      m6BtnNormal.classList.add('active'); m6BtnSpike.classList.remove('active');
+      m6Traffic = 'normal'; updateM6Sim();
+    });
+    m6BtnSpike.addEventListener('click', () => {
+      m6BtnSpike.classList.add('active'); m6BtnNormal.classList.remove('active');
+      m6Traffic = 'spike'; updateM6Sim();
+    });
+    m6BtnFixed.addEventListener('click', () => {
+      m6BtnFixed.classList.add('active'); m6BtnServerless.classList.remove('active');
+      m6Arch = 'fixed'; updateM6Sim();
+    });
+    m6BtnServerless.addEventListener('click', () => {
+      m6BtnServerless.classList.add('active'); m6BtnFixed.classList.remove('active');
+      m6Arch = 'serverless'; updateM6Sim();
+    });
+
+    // Quiz evaluation engine
+    const quizzes = document.querySelectorAll('.quiz-box');
+    quizzes.forEach(box => {
+      const correctIdx = parseInt(box.getAttribute('data-answer'), 10);
+      const options = box.querySelectorAll('.qopt');
+      const fb = box.querySelector('.qfb');
+
+      options.forEach((btn, idx) => {
+        btn.addEventListener('click', () => {
+          options.forEach(b => b.disabled = true);
+          if (idx === correctIdx) {
+            btn.classList.add('correct');
+            fb.textContent = "Correct! Your answer aligns with physical hardware realities.";
+            fb.className = "qfb show correct";
+          } else {
+            btn.classList.add('wrong');
+            options[correctIdx].classList.add('correct');
+            fb.textContent = "Incorrect. Review the hardware scale and architectural explanations above.";
+            fb.className = "qfb show wrong";
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

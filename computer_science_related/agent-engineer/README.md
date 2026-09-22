@@ -50,7 +50,12 @@ This course is split into three parts:
 | 16 | [MCP deep dive](./16-mcp-deep-dive/README.md) | How MCP works under the hood, MCP vs. CLI tools, and security considerations |
 | 17 | [Agent skills](./17-agent-skills/README.md) | Packaging reusable domain expertise as portable skill modules |
 | 18 | [Orchestrators](./18-orchestrators/README.md) | Managing agent control flow - patterns, frameworks, and best practices |
-| 19 | [Where to go from here](./19-where-to-go-from-here/README.md) | Resources, codelabs, community, and next steps |
+| 19 | [Agent harnesses](./19-agent-harnesses/README.md) | Runtime environments, tool sandboxing, interceptors, and eval harnesses |
+| 20 | [Looping](./20-looping/README.md) | The autonomous execution cycle - perceive, reason, act, observe |
+| 21 | [Loop engineering](./21-loop-engineering/README.md) | Hardening loops - termination predicates, stagnation breakers, context compaction |
+| 22 | [Graph engineering](./22-graph-engineering/README.md) | Explicit state topologies - nodes, edges, typed state schemas, and checkpoints |
+| 23 | [Loop vs graph](./23-loop-vs-graph/README.md) | Architectural decision matrix, trade-offs between autonomy and governance, and hybrid patterns |
+| 24 | [Where to go from here](./24-where-to-go-from-here/README.md) | Resources, learning paths, codelabs, community, and next steps |
 
 ## How to use this course
 

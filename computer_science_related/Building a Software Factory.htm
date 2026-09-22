@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Building a Software Factory — Lesson Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  :root, [data-theme="light"] {
+    --font-body: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'Fira Code', 'SF Mono', Consolas, monospace;
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --surface-elevated: #ffffff;
+    --border: rgba(15, 35, 65, 0.12);
+    --border-bright: rgba(15, 35, 65, 0.24);
+    --text: #0f1f33;
+    --text-dim: #5b6b82;
+    --accent: #1d4ed8;
+    --accent-dim: rgba(29, 78, 216, 0.08);
+    --node-a: #1d4ed8;
+    --node-a-dim: rgba(29, 78, 216, 0.08);
+    --node-b: #b45309;
+    --node-b-dim: rgba(180, 83, 9, 0.09);
+    --node-c: #0f766e;
+    --node-c-dim: rgba(15, 118, 110, 0.09);
+  }
+  [data-theme="dark"] {
+    --bg: #0a1120;
+    --surface: #101a2e;
+    --surface-elevated: #14213b;
+    --border: rgba(148, 197, 255, 0.14);
+    --border-bright: rgba(148, 197, 255, 0.26);
+    --text: #e7eefc;
+    --text-dim: #93a5c4;
+    --accent: #5b9bff;
+    --accent-dim: rgba(91, 155, 255, 0.14);
+    --node-a: #5b9bff;
+    --node-a-dim: rgba(91, 155, 255, 0.14);
+    --node-b: #f0a839;
+    --node-b-dim: rgba(240, 168, 57, 0.14);
+    --node-c: #34d1b8;
+    --node-c-dim: rgba(52, 209, 184, 0.14);
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 34px 34px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent); }
+  p { max-width: 68ch; }
+  ul, ol { padding-left: 1.3em; max-width: 68ch; }
+  li { margin-bottom: 6px; }
+  li::marker { color: var(--node-a); font-weight: 600; }
+  strong { color: var(--text); }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--accent-dim);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--accent);
+  }
+
+  .theme-toggle {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    z-index: 300;
+    color: var(--text-dim);
+  }
+  [data-theme="light"] .theme-toggle__moon { display: none; }
+  [data-theme="dark"] .theme-toggle__sun { display: none; }
+
+  /* ---------- Layout / TOC ---------- */
+  .wrap {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 0 40px 100px;
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    gap: 0 44px;
+  }
+  .main { min-width: 0; padding-top: 24px; }
+  .toc {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    padding: 22px 0 14px;
+    grid-row: 1 / -1;
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+  }
+  .toc::-webkit-scrollbar { width: 3px; }
+  .toc::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+  .toc-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    padding: 0 8px 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toc a {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 5px 8px;
+    border-radius: 5px;
+    border-left: 2px solid transparent;
+    transition: all .15s;
+    line-height: 1.4;
+  }
+  .toc a:hover { color: var(--text); background: var(--accent-dim); }
+  .toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+
+  @media (max-width: 1000px) {
+    .wrap { grid-template-columns: 1fr; padding: 0 20px 80px; }
+    .toc {
+      position: sticky; top: 0; z-index: 200; max-height: none;
+      display: flex; gap: 4px; align-items: center; overflow-x: auto;
+      -webkit-overflow-scrolling: touch; background: var(--bg);
+      border-bottom: 1px solid var(--border); padding: 10px 0;
+      margin: 0 -20px; padding-left: 20px; padding-right: 20px; grid-row: auto;
+    }
+    .toc::-webkit-scrollbar { display: none; }
+    .toc-title { display: none; }
+    .toc a { white-space: nowrap; flex-shrink: 0; border-left: none; border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0; padding: 6px 10px; }
+    .toc a.active { border-left: none; border-bottom-color: var(--accent); background: var(--accent-dim); }
+    .main { padding-top: 16px; }
+    .sec-head { scroll-margin-top: 54px; }
+    .grid-3, .grid-2, .grid-4 { grid-template-columns: 1fr !important; }
+  }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    padding: 20px 4px 40px;
+    border-bottom: 1px dashed var(--border-bright);
+    margin-bottom: 44px;
+  }
+  .hero__kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    color: var(--node-b);
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 18px;
+  }
+  .hero__kicker::before { content:''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .hero__title {
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -1px;
+    margin: 0 0 18px;
+    max-width: 16ch;
+  }
+  .hero__subtitle {
+    font-size: 18px;
+    color: var(--text-dim);
+    max-width: 62ch;
+    margin: 0 0 24px;
+  }
+  .hero__meta {
+    display: flex; flex-wrap: wrap; gap: 10px 28px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .hero__meta b { color: var(--text); font-weight: 600; }
+  .agenda {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 28px;
+  }
+  .agenda span {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-bright);
+    border-radius: 20px;
+    color: var(--text-dim);
+  }
+
+  /* ---------- Section heads ---------- */
+  .sec-head {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin: 64px 0 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .sec-head span.num { color: var(--accent); }
+  .sec-intro { color: var(--text-dim); margin: 0 0 26px; }
+
+  /* ---------- Cards ---------- */
+  .ve-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    position: relative;
+    min-width: 0;
+  }
+  .ve-card--a { border-left: 3px solid var(--node-a); }
+  .ve-card--b { border-left: 3px solid var(--node-b); }
+  .ve-card--c { border-left: 3px solid var(--node-c); }
+  .ve-card--hero {
+    background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+    border-color: color-mix(in srgb, var(--border) 50%, var(--accent) 50%);
+  }
+  .ve-card__label {
+    font-family: var(--font-mono);
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--node-a);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .ve-card__label::before { content:''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .ve-card--b .ve-card__label { color: var(--node-b); }
+  .ve-card--c .ve-card__label { color: var(--node-c); }
+  .ve-card h3 { margin: 0 0 8px; font-size: 18px; }
+  .ve-card p, .ve-card ul { font-size: 14.5px; color: var(--text-dim); margin: 0; }
+  .ve-card ul { margin-top: 10px; }
+  .ve-card ul li { color: var(--text); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+
+  /* ---------- Ladder (levels of autonomy) ---------- */
+  .ladder { margin: 30px 0 10px 6px; border-left: 2px solid var(--border-bright); }
+  .ladder-step { position: relative; padding: 0 0 26px 36px; }
+  .ladder-step:last-child { padding-bottom: 4px; }
+  .ladder-step::before {
+    content: attr(data-step);
+    position: absolute; left: -23px; top: -2px;
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--text-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--text-dim);
+  }
+  .ladder-step:nth-child(2)::before, .ladder-step:nth-child(3)::before { border-color: var(--node-a); color: var(--node-a); }
+  .ladder-step:nth-child(4)::before { border-color: var(--node-b); color: var(--node-b); }
+  .ladder-step:last-child::before { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px var(--accent-dim); }
+  .ladder-step .ve-card { margin-left: 4px; }
+  .ladder-step:last-child .ve-card { border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%); background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%); }
+
+  /* ---------- Step list (practical build walkthrough) ---------- */
+  .step-list { margin: 30px 0 10px; }
+  .step-item { display: flex; gap: 20px; padding-bottom: 26px; position: relative; }
+  .step-item:not(:last-child)::after {
+    content: ''; position: absolute; left: 23px; top: 50px; bottom: 0;
+    width: 2px; background: var(--border-bright);
+  }
+  .step-num {
+    flex-shrink: 0; width: 48px; height: 48px; border-radius: 9px;
+    background: var(--accent-dim); border: 1px solid var(--border-bright);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--accent);
+  }
+  .step-content { min-width: 0; padding-top: 4px; }
+  .step-content h3 { margin: 0 0 6px; font-size: 16.5px; }
+  .step-content p { margin: 0; font-size: 14.5px; color: var(--text-dim); max-width: 62ch; }
+  .step-content code { white-space: nowrap; }
+
+  /* ---------- Shift rows (worker->manager) ---------- */
+  .shift { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; flex-wrap: wrap; }
+  .shift-box { flex: 1; min-width: 180px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .shift-box .k { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 4px; }
+  .shift-box .v { font-size: 17px; font-weight: 700; }
+  .shift-box--to { border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%); background: var(--accent-dim); }
+  .shift-box--to .v { color: var(--accent); }
+  .shift-arrow { color: var(--text-dim); flex-shrink: 0; }
+
+  /* ---------- Callouts ---------- */
+  .callout { padding: 16px 20px; border-radius: 8px; border-left: 4px solid var(--callout-border); background: var(--callout-bg); margin: 28px 0; }
+  .callout--info { --callout-border: var(--accent); --callout-bg: var(--accent-dim); }
+  .callout--amber { --callout-border: var(--node-b); --callout-bg: var(--node-b-dim); }
+  .callout__title { font-weight: 700; margin-bottom: 6px; color: var(--callout-border); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; font-family: var(--font-mono); }
+  .callout p { margin: 0; font-size: 14.5px; color: var(--text); max-width: none; }
+
+  /* ---------- Takeaways ---------- */
+  .takeaways { padding: 30px 32px; }
+  .takeaways ol { padding-left: 0; list-style: none; max-width: none; }
+  .takeaways li { position: relative; padding: 10px 0 10px 40px; border-bottom: 1px solid var(--border); font-size: 15.5px; }
+  .takeaways li:last-child { border-bottom: none; }
+  .takeaways li::before {
+    counter-increment: tw;
+    content: counter(tw, decimal-leading-zero);
+    position: absolute; left: 0; top: 10px;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent);
+  }
+  .takeaways ol { counter-reset: tw; }
+  .takeaways li strong { display: block; margin-bottom: 2px; }
+  .takeaways li span { color: var(--text-dim); font-size: 14px; }
+
+  /* ---------- Q&A ---------- */
+  .qa { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  .qa summary {
+    cursor: pointer; padding: 16px 20px; font-weight: 600; font-size: 15px;
+    list-style: none; display: flex; align-items: center; gap: 12px;
+  }
+  .qa summary::-webkit-details-marker { display: none; }
+  .qa summary::before {
+    content: '?'; flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--node-c-dim); color: var(--node-c); font-family: var(--font-mono);
+    font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  .qa[open] summary { border-bottom: 1px solid var(--border); }
+  .qa-body { padding: 4px 20px 18px 56px; color: var(--text-dim); font-size: 14.5px; }
+  .qa-body p { margin: 0; max-width: none; }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    margin-top: 70px; padding-top: 20px; border-top: 1px dashed var(--border-bright);
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+  <svg class="theme-toggle__sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+  <svg class="theme-toggle__moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+</button>
+
+<div class="wrap">
+
+  <nav class="toc" id="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#s1">01 · Levels of Autonomy</a>
+    <a href="#s2">02 · Why a Factory</a>
+    <a href="#s3">03 · Building It</a>
+    <a href="#s4">04 · How to Build It</a>
+    <a href="#s5">05 · The Checklist</a>
+    <a href="#s6">06 · Running It</a>
+    <a href="#s7">07 · Live Automations</a>
+    <a href="#s8">08 · Scaling It</a>
+    <a href="#s9">09 · Key Takeaways</a>
+    <a href="#s10">10 · From the Q&amp;A</a>
+  </nav>
+
+  <div class="main">
+
+    <header class="hero">
+      <div class="hero__kicker">Lesson notes</div>
+      <h1 class="hero__title">Building a Software Factory</h1>
+      <p class="hero__subtitle">How a developer-experience engineer at Cursor thinks about turning an AI coding assistant into something closer to a production line — the primitives, the guardrails, and the mindset shift from writer to manager.</p>
+      <div class="hero__meta">
+        <span>Speaker: <b>Eric</b>, Engineer — Developer Experience &amp; Product, Cursor</span>
+        <span>Format: <b>Conference talk + Q&amp;A</b></span>
+        <span>Core claim: <b>"We're not there yet — but here's the shape of it"</b></span>
+      </div>
+      <div class="agenda">
+        <span>Levels of autonomy</span><span>Why a factory</span><span>Building it</span>
+        <span>Running it</span><span>Scaling it</span><span>Q&amp;A</span>
+      </div>
+    </header>
+
+    <!-- 01 -->
+    <div id="s1" class="sec-head"><span class="num">01</span> Levels of Autonomy</div>
+    <p class="sec-intro">Eric frames the whole talk around a ladder of AI-assisted coding, borrowed loosely from Dan Shapiro's stage model. Most teams today sit around the middle rungs — the interesting question is what the top rung actually requires.</p>
+
+    <div class="ladder">
+      <div class="ladder-step" data-step="1">
+        <div class="ve-card">
+          <div class="ve-card__label">Spicy Autocomplete</div>
+          <h3>In-editor, single-line suggestions</h3>
+          <p>Where Cursor itself started back in 2022–23. The model completes the line you're already writing — it doesn't hold a plan.</p>
+        </div>
+      </div>
+      <div class="ladder-step" data-step="2">
+        <div class="ve-card">
+          <div class="ve-card__label">Pair Programmer</div>
+          <h3>Back-and-forth with the agent</h3>
+          <p>You ask questions, get suggestions, hand off small tasks, and finish the work together. Most people adopting AI tools today sit between this rung and the next.</p>
+        </div>
+      </div>
+      <div class="ladder-step" data-step="3">
+        <div class="ve-card">
+          <div class="ve-card__label">AI Writes the Majority</div>
+          <h3>Human stays in the loop, reviewing</h3>
+          <p>The agent produces most of the code. You follow traces and review diffs rather than typing — but you're still reading closely.</p>
+        </div>
+      </div>
+      <div class="ladder-step" data-step="4">
+        <div class="ve-card">
+          <div class="ve-card__label">Delegator</div>
+          <h3>You review outcomes, not code</h3>
+          <p>As much work as possible goes to agents. You review what came out before you review how it was written — Eric places himself here for most projects today.</p>
+        </div>
+      </div>
+      <div class="ladder-step" data-step="5">
+        <div class="ve-card ve-card--hero">
+          <div class="ve-card__label">The Dark Factory</div>
+          <h3>A black box that plans, ships, and tests itself</h3>
+          <p>Agents plan, write, test, and ship on their own. You no longer supply instructions — only intent and a goal. Nobody is fully here yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 02 -->
+    <div id="s2" class="sec-head"><span class="num">02</span> Why a Factory</div>
+    <p class="sec-intro">Three reasons Eric gives for wanting one at all — each borrowed, deliberately, from how physical factories work.</p>
+    <div class="grid-3">
+      <div class="ve-card ve-card--a">
+        <div class="ve-card__label">Throughput</div>
+        <h3>More output, fewer humans</h3>
+        <p>Agents can run 24/7 — no sleep, no food, no burnout. You scale by adding agents, not headcount.</p>
+      </div>
+      <div class="ve-card ve-card--b">
+        <div class="ve-card__label">Consistency</div>
+        <h3>Assembly lines produce assembly-line output</h3>
+        <p>A well-built factory is deterministic. Feeling like agents are getting "more probabilistic" over time is usually a signal you need more guardrails, not better luck.</p>
+      </div>
+      <div class="ve-card ve-card--c">
+        <div class="ve-card__label">Leverage</div>
+        <h3>Your taste, multiplied</h3>
+        <p>The factory gets more of your creativity out into the world instead of bottlenecking it on how fast you personally can type.</p>
+      </div>
+    </div>
+
+    <!-- 03 -->
+    <div id="s3" class="sec-head"><span class="num">03</span> Building It — Three Pillars</div>
+    <p class="sec-intro">Eric organizes the actual construction work into primitives and patterns, guardrails, and enablers. Each answers a different question about what the agent can find, what it can't touch, and what it's allowed to use.</p>
+    <div class="grid-3">
+      <div class="ve-card ve-card--a">
+        <div class="ve-card__label">Primitives &amp; Patterns</div>
+        <h3>Structure the codebase can be discovered in</h3>
+        <ul>
+          <li>Modularized, co-located code — an agent that can <code>ls</code> one folder and find everything relevant beats one that greps the whole repo.</li>
+          <li>Established usage patterns for auth, startup scripts, and tests, so an agent can be pointed at an existing reference and asked to reproduce it.</li>
+        </ul>
+      </div>
+      <div class="ve-card ve-card--b">
+        <div class="ve-card__label">Guardrails</div>
+        <h3>What agents can't do, and how you know when they drift</h3>
+        <ul>
+          <li><strong>Hooks</strong> block agents from touching the most sensitive code — auth, encryption — where a mistake is expensive.</li>
+          <li><strong>Rules</strong> should emerge from real failures, not be bulk-installed from a directory. A rule is really an SOP for the model.</li>
+          <li><strong>Tests</strong> let the agent verify its own work instead of just producing plausible-looking diffs.</li>
+        </ul>
+      </div>
+      <div class="ve-card ve-card--c">
+        <div class="ve-card__label">Enablers</div>
+        <h3>What you actually let the agent use</h3>
+        <ul>
+          <li>Skills and MCPs give agents access to external context and capability — e.g. a skill that lets an agent ship a change behind a feature flag and report back.</li>
+          <li>Environment access — if the agent can start your dev environment unattended, it can scale across separate VMs with no practical ceiling.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout callout--amber">
+      <div class="callout__title">On rules specifically</div>
+      <p>Eric calls blanket rule-installation "probably the most misunderstood concept" since Cursor Rules shipped. The instinct is to install every rule for your stack up front; what actually works better is letting rules show up only once you've watched an agent go off the rails and needed to correct it.</p>
+    </div>
+
+    <!-- 04 -->
+    <div id="s4" class="sec-head"><span class="num">04</span> How to Build It — A Practical Walkthrough</div>
+    <p class="sec-intro">Eric demoed this live rather than describing it in the abstract. Six moves, in the order he actually made them, that turn the three pillars above into a working factory.</p>
+    <div class="step-list">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>Let the agent find its own start command</h3>
+          <p>No special setup — point it at the repo. A normal <code>package.json</code> with a start script is enough; the agent already knows to look there first, because that pattern is heavily in-distribution.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>Write the constitution file</h3>
+          <p>An <code>AGENTS.md</code> at the repo root — a rules file that works across harnesses (Cursor, Claude, others) — spelling out what this specific project's agent can and can't do.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>Give it a way to check its own work</h3>
+          <p>End-to-end tests — Eric used Playwright — that spawn a real browser and click through the actual user flow. Every change gets run against these before it's trusted.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h3>Add a second, automated reviewer</h3>
+          <p>Layer an automated code-review pass — Cursor's own Bugbot, in Eric's case — on top of tests. It catches the things a passing test suite doesn't: style, risk, forgotten edge cases.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h3>Isolate each agent's environment</h3>
+          <p>For real parallel work, give each agent its own VM with a full reproducible environment — database, cache, services included — rather than one shared workspace. Git worktrees are fine for shallow tasks, but any stateful service still needs to be branched to keep agents from stepping on each other.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <h3>Let it prove UI work, not just claim it</h3>
+          <p>For frontend changes, computer-use agents can click through the interface themselves and hand back a recording or screenshots — the fastest way Eric found to trust a visual change without reading every line of the diff.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 05 -->
+    <div id="s5" class="sec-head"><span class="num">05</span> The Build Checklist</div>
+    <p class="sec-intro">Three questions Eric runs through before calling a piece of the factory done.</p>
+    <div class="grid-3">
+      <div class="ve-card ve-card--a">
+        <div class="ve-card__label">Runnable</div>
+        <h3>Can it start itself?</h3>
+        <p>Can the agent boot the project — dev server, database, dependencies — with zero human in the loop?</p>
+      </div>
+      <div class="ve-card ve-card--b">
+        <div class="ve-card__label">Accessible</div>
+        <h3>Can it reach the context?</h3>
+        <p>Does it have a way into Linear, Notion, Datadog, or Slack, so it understands the broader intent behind the task, not just the diff?</p>
+      </div>
+      <div class="ve-card ve-card--c">
+        <div class="ve-card__label">Verifiable</div>
+        <h3>Can it check its own work?</h3>
+        <p>Unit and integration tests cover this well for backend systems with clean contracts. UI work needs the agent to actually click around and confirm buttons, spinners, and flows behave.</p>
+      </div>
+    </div>
+
+    <!-- 06 -->
+    <div id="s6" class="sec-head"><span class="num">06</span> Running It — Worker to Manager</div>
+    <p class="sec-intro">Once the factory exists, Eric says the job changes more than the code does. Two shifts happen at once.</p>
+
+    <div class="shift">
+      <div class="shift-box"><div class="k">From</div><div class="v">Worker</div></div>
+      <svg class="shift-arrow" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      <div class="shift-box shift-box--to"><div class="k">To</div><div class="v">Manager</div></div>
+    </div>
+    <div class="shift">
+      <div class="shift-box"><div class="k">From</div><div class="v">Sync</div></div>
+      <svg class="shift-arrow" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      <div class="shift-box shift-box--to"><div class="k">To</div><div class="v">Async</div></div>
+    </div>
+
+    <p>You look at less code and spend more time overseeing agents. Most of the work now happens in the background, so the harder problem becomes aggregating what's changing across every agent you've spawned — not reviewing any single one of them line by line.</p>
+
+    <div class="grid-3" style="margin-top: 22px;">
+      <div class="ve-card ve-card--a">
+        <div class="ve-card__label">Scope &amp; Parallelize</div>
+        <p>One unit of work per agent. Two agents touching the same part of the codebase at once just means merge conflicts later — scoping is still a human job.</p>
+      </div>
+      <div class="ve-card ve-card--b">
+        <div class="ve-card__label">Preserve Tribal Knowledge</div>
+        <p>Still know how data flows and which parts are critical, so you're directing agents deliberately instead of outsourcing understanding along with the typing.</p>
+      </div>
+      <div class="ve-card ve-card--c">
+        <div class="ve-card__label">Frontload Trust</div>
+        <p>Longer async tasks need more context up front — a plan or a spec — given before you send the agent off, not corrections fed in afterward.</p>
+      </div>
+    </div>
+
+    <!-- 07 -->
+    <div id="s7" class="sec-head"><span class="num">07</span> Live Automations at Cursor</div>
+    <p class="sec-intro">Four things Eric's team actually automated once they noticed themselves doing the same task by hand, repeatedly.</p>
+    <div class="grid-4">
+      <div class="ve-card ve-card--a">
+        <div class="ve-card__label">01 · Daily Review</div>
+        <h3>A standing agent, not a habit</h3>
+        <p>Reads Slack and GitHub each morning and sends a personal summary of the day before — replacing the manual note-taking Eric used to do himself.</p>
+      </div>
+      <div class="ve-card ve-card--b">
+        <div class="ve-card__label">02 · PR Comment Mining</div>
+        <h3>Turning review comments into signal</h3>
+        <p>After every merge, an agent reads the human comments left during review — high-signal feedback — and stores the pattern so future agents can learn from it.</p>
+      </div>
+      <div class="ve-card ve-card--c">
+        <div class="ve-card__label">03 · Agentic Code Owner</div>
+        <h3>Fixing the 20% that blocked everyone</h3>
+        <p>Human code owners were right ~80% of the time but caused real bottlenecks the rest — wrong time zone, blocked merges. Now an agent scores each PR's risk: low-risk changes self-approve, high-risk ones automatically pull in the right reviewer's prior feedback.</p>
+      </div>
+      <div class="ve-card ve-card--a">
+        <div class="ve-card__label">04 · Continual Learning</div>
+        <h3>Rules you were too lazy to write</h3>
+        <p>Instead of manually writing a rule every time he corrects an agent, a plugin scans past transcripts for repeated corrections and turns them into rules on his behalf.</p>
+      </div>
+    </div>
+
+    <!-- 08 -->
+    <div id="s8" class="sec-head"><span class="num">08</span> Scaling It</div>
+    <p class="sec-intro">The last stretch — from a handful of agents to a fleet.</p>
+    <div class="grid-3">
+      <div class="ve-card ve-card--a">
+        <h3>Observe outcomes</h3>
+        <p>Keep watching where agents go off the rails and what they produce, then feed that back in as a new rule or a piece of design-system context.</p>
+      </div>
+      <div class="ve-card ve-card--b">
+        <h3>Automate the repetitive</h3>
+        <p>Anything you catch yourself doing by hand more than once — copy-pasting logs, exporting a spec from Notion — is a candidate for an automation.</p>
+      </div>
+      <div class="ve-card ve-card--c">
+        <h3>Climb another level</h3>
+        <p>You go from managing 5–10 agents directly to, eventually, an agent that manages other agents underneath you — the same way human orgs grow managers of managers.</p>
+      </div>
+    </div>
+    <div class="callout callout--info">
+      <div class="callout__title">No shortcut</div>
+      <p>Eric is direct about this: there's no clever trick that skips the work. You run a large number of agents, watch what they actually do, and use that observation to keep tightening the guardrails — as long as the safety rails are solid, that trial-and-error is the process, not a failure of it.</p>
+    </div>
+
+    <!-- 09 -->
+    <div id="s9" class="sec-head"><span class="num">09</span> Key Takeaways</div>
+    <div class="ve-card ve-card--hero takeaways">
+      <ol>
+        <li><strong>Be explicit about intent.</strong><span>Think hard about the actual problem before you delegate it — vague intent produces vague output at scale.</span></li>
+        <li><strong>Don't outsource the decisions that matter.</strong><span>Safety, security, databases, auth, and payments stay human-reviewed, whatever else you automate.</span></li>
+        <li><strong>Build the tools before you chase the output.</strong><span>Flywheels and systems are what actually constrain quality over time — not any single prompt.</span></li>
+        <li><strong>Store context for later.</strong><span>Transcripts and "this looked good" artifacts teach the agent — and the team — what good actually looks like.</span></li>
+        <li><strong>Let the agents be free where it's safe to.</strong><span>Give them the access they're missing, and pay attention when they start complaining about what they can't do.</span></li>
+      </ol>
+    </div>
+
+    <!-- 10 -->
+    <div id="s10" class="sec-head"><span class="num">10</span> From the Q&amp;A</div>
+    <p class="sec-intro">A few exchanges from the audience that sharpen the talk's edges — expand any of these.</p>
+
+    <details class="qa">
+      <summary>Won't code quality and architecture rot if nobody's reviewing line by line?</summary>
+      <div class="qa-body"><p>Agents share the same "finish the task now" completion bias humans have, without a mental picture of how the code should evolve. Pointing them at good existing references helps, since they tend to continue whatever pattern they see. Eric expects the human role to shift toward more architectural review and periodic refactoring passes, and less line-by-line code review.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>How do you keep a team's rules from splintering into one silo per engineer?</summary>
+      <div class="qa-body"><p>Rules tend to start as one person's preference and stay local because nobody wants to force their style on everyone else. Eric compares it to how PR review became a shared team ritual for code — he thinks rules and guardrails need the same kind of forum and consensus-building, and admits the team hasn't fully solved this yet.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>What changes for mission-critical, brownfield systems that can't fail?</summary>
+      <div class="qa-body"><p>Spend compute and human attention up front rather than after the fact: hand-write tests for the truly critical paths and run agents against them repeatedly. Cursor's own security team built a narrow "sentinel" automation that checks specific invariants whenever a PR touches sensitive files — closer to red-teaming than to a normal review.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>How do you verify a UI actually looks right, not just that it functions?</summary>
+      <div class="qa-body"><p>Cloud agents with computer use can navigate a live site, click through flows, and hand back screenshots or a recording — closer to instructing a QA contractor than to writing a deterministic test. For broader consistency checks, Eric has had an agent open every page referencing a recent change and return screenshots for a human to skim before merging.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>Who's accountable when an autonomous change causes an outage?</summary>
+      <div class="qa-body"><p>Shipping more agent-written code doesn't change who's responsible for it — humans remain accountable, so observability and monitoring have to scale alongside the automation. Eric suggests the most sensitive parts of a system may still warrant fully human-written, human-reviewed code rather than agent output at all.</p></div>
+    </details>
+
+    <div class="footer">Condensed and reorganized from a conference talk by Eric (Developer Experience &amp; Product, Cursor) for study purposes — paraphrased throughout, not a transcript.</div>
+
+  </div><!-- /main -->
+</div><!-- /wrap -->
+
+<script>
+(function() {
+  const preferred = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', preferred);
+})();
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  document.documentElement.setAttribute('data-theme', current === 'light' ? 'dark' : 'light');
+}
+(function() {
+  const toc = document.getElementById('toc');
+  const links = toc.querySelectorAll('a');
+  const sections = [];
+  links.forEach(link => {
+    const id = link.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) sections.push({ id, el, link });
+  });
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = sections.find(s => s.el === entry.target);
+        if (match) {
+          match.link.classList.add('active');
+          if (window.innerWidth <= 1000) {
+            match.link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }
+      }
+    });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  sections.forEach(s => observer.observe(s.el));
+  links.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + id); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

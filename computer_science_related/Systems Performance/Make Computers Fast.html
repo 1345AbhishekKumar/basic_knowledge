@@ -1,0 +1,3010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Make Computers Fast — Systems Performance Fundamentals</title>
+  <!-- PER-LESSON DESIGN SYSTEM: Terminal Slate & Phosphor Teal (Telemetry Console) -->
+  <!-- Layout: Split Atlas — sticky navigation rail on the left, high-density telemetry stages on the right -->
+  <!-- Single-File Self-Contained Invariant: Zero external scripts, zero external fonts. Completely offline file:// compatible. -->
+  <style>
+    :root {
+      /* Base Theme: Washi light (Engineering Paper) */
+      --washi: #F4F6F8;
+      --sumi: #111827;
+      --ai-iro: #0D7A72;
+      --rikyushiro: #64748B;
+
+      /* Typography */
+      --font-heading: Georgia, 'Times New Roman', serif;
+      --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+      /* Spacing (Ma) */
+      --space-1: 8px;
+      --space-2: 16px;
+      --space-3: 28px;
+      --space-4: 52px;
+      --measure: 72ch;
+
+      /* Motion */
+      --dur-fade: 0.85s;
+      --ease-organic: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+      /* §5B Diagram Tokens (Light Mode) */
+      --panel: #FFFFFF;
+      --panel-2: #EAEFF4;
+      --node: #FFFFFF;
+      --node-strong: #E2E8F0;
+      --border: rgba(17, 24, 39, 0.12);
+      --border-strong: rgba(17, 24, 39, 0.26);
+      --text: #111827;
+      --muted: #475569;
+      --muted-2: #64748B;
+      --line: rgba(13, 122, 114, 0.7);
+      --line-dim: rgba(17, 24, 39, 0.14);
+      --chip: #E2E8F0;
+
+      /* Accent states */
+      --accent-soft: rgba(13, 122, 114, 0.09);
+      --accent-hover: #0a5f58;
+      --accent-border: rgba(13, 122, 114, 0.35);
+      --success: #15803d;
+      --success-soft: rgba(21, 128, 61, 0.1);
+      --danger: #b91c1c;
+      --danger-soft: rgba(185, 28, 28, 0.1);
+      --warning: #b45309;
+      --warning-soft: rgba(180, 83, 9, 0.1);
+    }
+
+    body.dark {
+      /* Base Theme: True Black Obsidian Console */
+      --washi: #000000;
+      --sumi: #F1F5F9;
+      --ai-iro: #2DD4BF;
+      --rikyushiro: #94A3B8;
+
+      /* §5B Diagram Tokens (Dark Mode) */
+      --panel: #0E1217;
+      --panel-2: #151B22;
+      --node: #121820;
+      --node-strong: #1B232E;
+      --border: rgba(255, 255, 255, 0.11);
+      --border-strong: rgba(255, 255, 255, 0.22);
+      --text: #F1F5F9;
+      --muted: #94A3B8;
+      --muted-2: #64748B;
+      --line: rgba(45, 212, 191, 0.65);
+      --line-dim: rgba(255, 255, 255, 0.14);
+      --chip: #151D28;
+
+      --accent-soft: rgba(45, 212, 191, 0.12);
+      --accent-hover: #5eead4;
+      --accent-border: rgba(45, 212, 191, 0.4);
+      --success: #4ade80;
+      --success-soft: rgba(74, 222, 128, 0.15);
+      --danger: #f87171;
+      --danger-soft: rgba(248, 113, 113, 0.15);
+      --warning: #fbbf24;
+      --warning-soft: rgba(251, 191, 36, 0.15);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: 86px; scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--washi);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.68;
+      font-size: 16px;
+      font-weight: 400;
+      transition: background var(--dur-fade) var(--ease-organic), color var(--dur-fade) var(--ease-organic);
+    }
+
+    /* Subtle subtle technical grain overlay */
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Ccircle cx='10' cy='10' r='1' fill='%23777'/%3E%3Ccircle cx='50' cy='50' r='1' fill='%23777'/%3E%3C/svg%3E");
+      z-index: 9999;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 {
+      color: var(--text);
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+      margin-top: 0;
+    }
+
+    h1 {
+      font-family: var(--font-heading);
+      font-size: clamp(34px, 4.8vw, 54px);
+      font-weight: 400;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      font-family: var(--font-heading);
+      font-size: clamp(26px, 3.4vw, 38px);
+      font-weight: 400;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-family: var(--font-body);
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 0 0 16px;
+      max-width: var(--measure);
+    }
+
+    a {
+      color: var(--ai-iro);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: color 0.2s ease;
+    }
+
+    a:hover {
+      color: var(--accent-hover);
+    }
+
+    code, pre, .mono {
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+    }
+
+    /* Sticky Topbar */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: color-mix(in srgb, var(--washi) 88%, transparent);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .topbar-brand-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      background: var(--chip);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .progress-text {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted-2);
+    }
+
+    .theme-toggle-btn {
+      background: var(--panel);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      padding: 7px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--panel-2);
+      border-color: var(--ai-iro);
+    }
+
+    /* Scroll progress bar */
+    .progress-bar-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: transparent;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--ai-iro);
+      transition: width 0.1s linear;
+    }
+
+    /* Main Split Atlas Layout */
+    .atlas-container {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: calc(100vh - 72px);
+    }
+
+    /* Left Nav Rail */
+    .atlas-rail {
+      position: sticky;
+      top: 72px;
+      height: calc(100vh - 72px);
+      overflow-y: auto;
+      padding: 32px 20px;
+      border-right: 1px solid var(--border);
+      background: color-mix(in srgb, var(--washi) 94%, transparent);
+    }
+
+    .atlas-rail::-webkit-scrollbar {
+      width: 5px;
+    }
+    .atlas-rail::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 4px;
+    }
+
+    .rail-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted-2);
+      margin-bottom: 14px;
+      font-family: var(--font-mono);
+    }
+
+    .rail-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .rail-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      line-height: 1.35;
+      transition: all 0.2s ease;
+      border-left: 2px solid transparent;
+    }
+
+    .rail-link:hover {
+      color: var(--text);
+      background: var(--panel-2);
+    }
+
+    .rail-link.active {
+      color: var(--ai-iro);
+      font-weight: 600;
+      background: var(--accent-soft);
+      border-left-color: var(--ai-iro);
+    }
+
+    .rail-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted-2);
+      min-width: 18px;
+    }
+
+    /* Right Main Stage */
+    .atlas-stage {
+      padding: 44px 56px 80px;
+      max-width: 1080px;
+    }
+
+    /* Hero Section */
+    .hero-wrap {
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ai-iro);
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+
+    .hero-lead {
+      font-size: 19px;
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: var(--measure);
+    }
+
+    /* What You'll Learn Card */
+    .outcomes-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px 32px;
+      margin: 32px 0 48px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    }
+
+    .outcomes-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .outcomes-title {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .outcomes-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 24px;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .outcome-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14.5px;
+      color: var(--muted);
+    }
+
+    .outcome-bullet {
+      color: var(--ai-iro);
+      font-size: 16px;
+      line-height: 1.2;
+      flex-shrink: 0;
+    }
+
+    /* Section Rhythm (§5B.5) */
+    .module-container {
+      margin-bottom: 84px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 32px;
+      margin-bottom: 28px;
+    }
+
+    .section-index {
+      color: var(--muted-2);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding-top: 6px;
+      letter-spacing: 0.08em;
+    }
+
+    .section-label {
+      color: var(--ai-iro);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 8px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+
+    .section-intro {
+      font-size: 17px;
+      color: var(--muted);
+      max-width: 730px;
+      line-height: 1.6;
+    }
+
+    /* Core Content Formatting */
+    .core-body {
+      margin: 24px 0 32px;
+    }
+
+    .core-body p {
+      font-size: 16px;
+      line-height: 1.72;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .term-def {
+      font-weight: 600;
+      color: var(--ai-iro);
+    }
+
+    /* Steps Box */
+    .steps-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 26px;
+      margin: 24px 0;
+    }
+
+    .steps-box-title {
+      font-size: 13px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted-2);
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .steps-list {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .steps-list li {
+      margin-bottom: 8px;
+      font-size: 15px;
+      color: var(--text);
+    }
+
+    /* Real-life Story Cards */
+    .examples-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin: 28px 0;
+    }
+
+    .example-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .example-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-strong);
+    }
+
+    .example-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted-2);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .example-card p {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+      margin: 0;
+    }
+
+    /* Pill Badges: Analogy, Gotcha, Why It Matters */
+    .insights-strip {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    .insight-pill {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 14.5px;
+      line-height: 1.55;
+    }
+
+    .insight-analogy {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      color: var(--text);
+    }
+
+    .insight-gotcha {
+      background: var(--danger-soft);
+      border: 1px solid rgba(185, 28, 28, 0.25);
+      color: var(--text);
+    }
+
+    .insight-why {
+      background: var(--success-soft);
+      border: 1px solid rgba(21, 128, 61, 0.25);
+      color: var(--text);
+    }
+
+    .insight-icon {
+      font-weight: 700;
+      flex-shrink: 0;
+      font-size: 13px;
+      font-family: var(--font-mono);
+    }
+
+    .module-link-bar {
+      margin: 18px 0;
+      font-size: 13.5px;
+      color: var(--muted);
+    }
+
+    /* Compact Interactive Scenario (§5B.6) */
+    .scenario-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin: 28px 0;
+    }
+
+    .scenario-title {
+      font-size: 13px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ai-iro);
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .scenario-prompt {
+      font-size: 15px;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .scenario-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .scenario-btn {
+      text-align: left;
+      background: var(--panel-2);
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-size: 14px;
+      cursor: pointer;
+      line-height: 1.45;
+      transition: all 0.2s ease;
+    }
+
+    .scenario-btn:hover {
+      background: var(--accent-soft);
+      border-color: var(--ai-iro);
+    }
+
+    .scenario-feedback {
+      display: none;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-top: 12px;
+    }
+
+    .scenario-feedback.revealed {
+      display: block;
+    }
+
+    /* Retrieval Prompt (Active Recall §4B) */
+    .recall-box {
+      background: var(--panel-2);
+      border: 1px dashed var(--border-strong);
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin: 24px 0;
+    }
+
+    .recall-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .recall-label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .recall-q {
+      font-size: 14.5px;
+      color: var(--text);
+      margin: 8px 0 10px;
+      font-weight: 500;
+    }
+
+    .recall-answer {
+      display: none;
+      font-size: 14px;
+      color: var(--muted);
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .recall-answer.revealed {
+      display: block;
+    }
+
+    /* Module Quiz Engine */
+    .quiz-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin: 28px 0;
+    }
+
+    .quiz-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted-2);
+      margin-bottom: 10px;
+    }
+
+    .quiz-question {
+      font-size: 15.5px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .quiz-choices {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .quiz-choice {
+      text-align: left;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 16px;
+      font-size: 14px;
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      line-height: 1.4;
+    }
+
+    .quiz-choice:hover:not(:disabled) {
+      border-color: var(--ai-iro);
+      background: var(--accent-soft);
+    }
+
+    .quiz-choice.correct {
+      background: var(--success-soft) !important;
+      border-color: var(--success) !important;
+      color: var(--text) !important;
+      font-weight: 600;
+    }
+
+    .quiz-choice.incorrect {
+      background: var(--danger-soft) !important;
+      border-color: var(--danger) !important;
+      color: var(--text) !important;
+    }
+
+    .quiz-explanation {
+      display: none;
+      margin-top: 14px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+
+    .quiz-explanation.revealed {
+      display: block;
+    }
+
+    /* §5B Diagram Shell (Mandatory Architecture) */
+    .diagram-wrap {
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--panel);
+      overflow: hidden;
+      margin: 30px 0 36px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+    }
+
+    .diagram-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      flex-wrap: wrap;
+      background: var(--panel);
+    }
+
+    .diagram-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .diagram-subtitle {
+      font-size: 11px;
+      color: var(--muted-2);
+      margin-top: 2px;
+    }
+
+    .diagram-stage {
+      min-height: 440px;
+      padding: 24px;
+      overflow: auto;
+      background: var(--panel);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .diagram-stage svg {
+      width: 100%;
+      min-width: 680px;
+      height: auto;
+      display: block;
+    }
+
+    /* §5B.3 The 7 SVG Classes */
+    .svg-node { fill: var(--node); stroke: var(--border-strong); stroke-width: 1; }
+    .svg-node-strong { fill: var(--node-strong); stroke: var(--border-strong); stroke-width: 1.4; }
+    .svg-text { fill: var(--text); font-size: 13px; font-weight: 700; font-family: var(--font-body); }
+    .svg-small { fill: var(--muted); font-size: 11px; font-family: var(--font-body); }
+    .svg-mono { fill: var(--muted-2); font-size: 10px; font-family: var(--font-mono); }
+    .svg-line { stroke: var(--line); stroke-width: 1.4; fill: none; }
+    .svg-line-dim { stroke: var(--line-dim); stroke-width: 1; fill: none; }
+
+    /* Animation Controls Bar */
+    .ctrls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      background: var(--panel-2);
+      border-top: 1px solid var(--border);
+    }
+
+    .ctrls button {
+      background: var(--panel);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      transition: all 0.2s ease;
+    }
+
+    .ctrls button:hover {
+      background: var(--chip);
+      border-color: var(--ai-iro);
+    }
+
+    .cap {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0;
+      padding: 8px 20px 12px;
+      background: var(--panel-2);
+      font-family: var(--font-mono);
+    }
+
+    .fallback {
+      padding: 24px;
+      background: var(--panel);
+    }
+
+    /* Summary & Cheat Sheet Section (§11) */
+    .cheat-section {
+      margin-top: 80px;
+      padding-top: 40px;
+      border-top: 2px solid var(--border-strong);
+    }
+
+    .cheat-search-bar {
+      display: flex;
+      gap: 12px;
+      margin: 20px 0 28px;
+    }
+
+    .cheat-input {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 14.5px;
+      color: var(--text);
+      outline: none;
+    }
+
+    .cheat-input:focus {
+      border-color: var(--ai-iro);
+    }
+
+    .cheat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .cheat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .cheat-card:hover {
+      border-color: var(--ai-iro);
+      transform: translateY(-2px);
+    }
+
+    .cheat-term-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+
+    .cheat-term {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text);
+    }
+
+    .cheat-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted-2);
+    }
+
+    .cheat-def {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.55;
+      display: none;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+
+    .cheat-card.revealed .cheat-def {
+      display: block;
+    }
+
+    /* Decision Table & Formulas */
+    .reference-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 24px 0 40px;
+      background: var(--panel);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .reference-table th, .reference-table td {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 13.5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .reference-table th {
+      background: var(--panel-2);
+      font-weight: 600;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+    }
+
+    /* FAQ Section (§11) */
+    .faq-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin: 28px 0 48px;
+    }
+
+    .faq-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+
+    .faq-q {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .faq-a {
+      font-size: 14.5px;
+      color: var(--muted);
+      line-height: 1.65;
+      margin: 0;
+    }
+
+    .faq-takeaway {
+      margin-top: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ai-iro);
+    }
+
+    /* Next Steps (§11) */
+    .next-steps-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 30px 34px;
+      margin: 36px 0 54px;
+    }
+
+    /* Footer (§3/§11) */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0 60px;
+      margin-top: 60px;
+      font-size: 13px;
+      color: var(--muted-2);
+    }
+
+    .footer-content {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-source a {
+      color: var(--ai-iro);
+    }
+
+    .footer-stuck {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Print Optimization (§17.6) */
+    @media print {
+      body { background: #fff !important; color: #000 !important; }
+      .topbar, .atlas-rail, .ctrls, .theme-toggle-btn, .quiz-card, .scenario-box, .recall-box { display: none !important; }
+      .atlas-container { display: block !important; }
+      .atlas-stage { padding: 0 !important; max-width: 100% !important; }
+      .diagram-wrap { border: 1px solid #999 !important; break-inside: avoid; }
+      .cheat-def { display: block !important; }
+      a { text-decoration: none !important; color: #000 !important; }
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .atlas-container { grid-template-columns: 1fr; }
+      .atlas-rail { display: none; }
+      .atlas-stage { padding: 24px 20px 60px; }
+      .section-head { grid-template-columns: 1fr; gap: 8px; }
+      .examples-grid, .outcomes-grid, .cheat-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Topbar Navigation (§7) -->
+  <header class="topbar">
+    <a href="#hero" class="topbar-brand">
+      <span>Systems Performance</span>
+      <span class="topbar-brand-badge">CH. 01 MANUAL</span>
+    </a>
+    <div class="topbar-actions">
+      <span class="progress-text" id="progress-indicator">0% complete</span>
+      <button type="button" class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle dark mode">
+        <span id="theme-icon">◐</span>
+        <span id="theme-label">Mode</span>
+      </button>
+    </div>
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+  </header>
+
+  <div class="atlas-container">
+
+    <!-- Left Navigation Rail (Split Atlas Layout §2) -->
+    <nav class="atlas-rail" aria-label="Module Navigation">
+      <div class="rail-title">Table of Modules</div>
+      <div class="rail-nav">
+        <a href="#module-1" class="rail-link active" data-mod="module-1">
+          <span class="rail-num">01</span>
+          <span>The Full Computer Stack</span>
+        </a>
+        <a href="#module-2" class="rail-link" data-mod="module-2">
+          <span class="rail-num">02</span>
+          <span>System Calls & Boundaries</span>
+        </a>
+        <a href="#module-3" class="rail-link" data-mod="module-3">
+          <span class="rail-num">03</span>
+          <span>Distributed Topologies</span>
+        </a>
+        <a href="#module-4" class="rail-link" data-mod="module-4">
+          <span class="rail-num">04</span>
+          <span>Triangulating Latency Spikes</span>
+        </a>
+        <a href="#module-5" class="rail-link" data-mod="module-5">
+          <span class="rail-num">05</span>
+          <span>Page Cache & Memory Traps</span>
+        </a>
+        <a href="#module-6" class="rail-link" data-mod="module-6">
+          <span class="rail-num">06</span>
+          <span>Profiling vs. Tracing</span>
+        </a>
+        <a href="#module-7" class="rail-link" data-mod="module-7">
+          <span class="rail-num">07</span>
+          <span>Flame Graphs & Database Internals</span>
+        </a>
+        <a href="#summary-cheat-sheet" class="rail-link" data-mod="summary-cheat-sheet">
+          <span class="rail-num">📋</span>
+          <span>Summary &amp; Cheat Sheet</span>
+        </a>
+        <a href="#faq" class="rail-link" data-mod="faq">
+          <span class="rail-num">❓</span>
+          <span>Frequently Asked Questions</span>
+        </a>
+        <a href="#next-steps" class="rail-link" data-mod="next-steps">
+          <span class="rail-num">🚀</span>
+          <span>Next Steps &amp; Practice</span>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Main Content Stage -->
+    <main class="atlas-stage">
+
+      <!-- Hero Header -->
+      <header class="hero-wrap" id="hero">
+        <span class="hero-badge">Systems Performance · Chapter 1</span>
+        <h1>Make Computers Fast</h1>
+        <p class="hero-lead">
+          Software performance is rarely just about writing faster loops. Real systems slow down across the boundaries where application code, system libraries, kernel managers, and storage devices meet. Here is your definitive engineering blueprint to finding and removing bottlenecks.
+        </p>
+
+        <!-- What You'll Learn (§3) -->
+        <section class="outcomes-card" aria-labelledby="outcomes-heading">
+          <div class="outcomes-header">
+            <h2 id="outcomes-heading" class="outcomes-title">What You'll Learn</h2>
+          </div>
+          <ul class="outcomes-grid">
+            <li class="outcome-item">
+              <span class="outcome-bullet">✓</span>
+              <span><strong>Full-Stack Visibility:</strong> Map operations across user applications, system libraries, kernel subsystems, and physical chips (Modules 01–02).</span>
+            </li>
+            <li class="outcome-item">
+              <span class="outcome-bullet">✓</span>
+              <span><strong>Distributed Analysis:</strong> Disentangle multi-tier bottlenecks across application servers, database instances, and queues (Module 03).</span>
+            </li>
+            <li class="outcome-item">
+              <span class="outcome-bullet">✓</span>
+              <span><strong>Tail Latency Triangulation:</strong> Diagnose sudden P99 latency jumps when CPU utilization remains calm (Module 04).</span>
+            </li>
+            <li class="outcome-item">
+              <span class="outcome-bullet">✓</span>
+              <span><strong>Memory Cache Defense:</strong> Stop noisy neighbor containers from starving the operating system page cache (Module 05).</span>
+            </li>
+            <li class="outcome-item">
+              <span class="outcome-bullet">✓</span>
+              <span><strong>Diagnostic Strategy:</strong> Deploy low-overhead statistical sampling profilers safely in live production fleets (Module 06).</span>
+            </li>
+            <li class="outcome-item">
+              <span class="outcome-bullet">✓</span>
+              <span><strong>Flame Graph Mastery:</strong> Read execution call stacks like an x-ray to isolate hot database routines and sync barriers (Module 07).</span>
+            </li>
+          </ul>
+        </section>
+      </header>
+
+      <!-- MODULE 01 -->
+      <article class="module-container" id="module-1">
+        <div class="section-head">
+          <div class="section-index">01 / FOUNDATION</div>
+          <div>
+            <div class="section-label">Layered Architecture</div>
+            <h2>Performance Lives Across the Entire Stack</h2>
+            <p class="section-intro">
+              Your software does not run on bare copper. Every business operation journeys downward through standard libraries, operating system handlers, and hardware buses.
+            </p>
+          </div>
+        </div>
+
+        <!-- Big Picture Visual (§5B SVG) -->
+        <div class="diagram-wrap">
+          <div class="diagram-toolbar">
+            <div>
+              <div class="diagram-title">The Single-Host Computer Stack</div>
+              <div class="diagram-subtitle">Proves how applications hand work down through user space, kernel subsystems, and hardware controllers.</div>
+            </div>
+          </div>
+          <div class="diagram-stage">
+            <svg viewBox="0 0 740 420" role="img" aria-label="Diagram showing the computer stack from application down to hardware">
+              <title>The Full Computer Stack Architecture</title>
+              <defs>
+                <marker id="arr-m1" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+                </marker>
+              </defs>
+              <!-- Layer 1: Userland Applications -->
+              <rect x="40" y="30" width="660" height="55" rx="10" class="svg-node"/>
+              <text x="60" y="63" class="svg-text">Userland Applications</text>
+              <text x="260" y="63" class="svg-small">Web Browsers · Databases (Postgres, SQLite) · Background Daemons</text>
+              <text x="640" y="63" class="svg-mono">USER</text>
+
+              <path d="M370 85 L370 105" class="svg-line" marker-end="url(#arr-m1)"/>
+
+              <!-- Layer 2: System Libraries -->
+              <rect x="40" y="105" width="660" height="50" rx="10" class="svg-node"/>
+              <text x="60" y="136" class="svg-text">System Libraries</text>
+              <text x="210" y="136" class="svg-small">libc (string, alloc) · libcrypto (hashes, TLS) · Driver connectors</text>
+              <text x="640" y="136" class="svg-mono">LIBS</text>
+
+              <path d="M370 155 L370 175" class="svg-line" marker-end="url(#arr-m1)"/>
+
+              <!-- Boundary: System Call Interface -->
+              <line x1="40" y1="180" x2="700" y2="180" stroke="var(--ai-iro)" stroke-dasharray="6,4" stroke-width="1.5"/>
+              <text x="370" y="174" text-anchor="middle" class="svg-mono" fill="var(--ai-iro)">── SYSTEM CALL BOUNDARY (TRAP / PRIVILEGE ELEVATION) ──</text>
+
+              <!-- Layer 3: Kernel Space (The Master Conductor) -->
+              <rect x="40" y="195" width="660" height="115" rx="12" class="svg-node-strong"/>
+              <text x="60" y="222" class="svg-text">Operating System Kernel</text>
+              <text x="640" y="222" class="svg-mono">RING 0</text>
+
+              <!-- Sub-boxes in Kernel -->
+              <rect x="60" y="235" width="140" height="60" rx="8" class="svg-node"/>
+              <text x="130" y="260" text-anchor="middle" class="svg-text" font-size="12">Scheduler</text>
+              <text x="130" y="278" text-anchor="middle" class="svg-small">Threads / Procs</text>
+
+              <rect x="215" y="235" width="140" height="60" rx="8" class="svg-node"/>
+              <text x="285" y="260" text-anchor="middle" class="svg-text" font-size="12">File System</text>
+              <text x="285" y="278" text-anchor="middle" class="svg-small">Page Cache / VFS</text>
+
+              <rect x="370" y="235" width="140" height="60" rx="8" class="svg-node"/>
+              <text x="440" y="260" text-anchor="middle" class="svg-text" font-size="12">Virtual Memory</text>
+              <text x="440" y="278" text-anchor="middle" class="svg-small">Paging / Swap</text>
+
+              <rect x="525" y="235" width="155" height="60" rx="8" class="svg-node"/>
+              <text x="602" y="260" text-anchor="middle" class="svg-text" font-size="12">Network Stack</text>
+              <text x="602" y="278" text-anchor="middle" class="svg-small">TCP/IP Sockets</text>
+
+              <path d="M370 310 L370 330" class="svg-line" marker-end="url(#arr-m1)"/>
+
+              <!-- Layer 4: Hardware -->
+              <rect x="40" y="335" width="660" height="55" rx="10" class="svg-node"/>
+              <text x="60" y="368" class="svg-text">Physical Hardware Devices</text>
+              <text x="270" y="368" class="svg-small">CPU Cores · DRAM Chips · NVMe / SSD Flash · NIC Cards</text>
+              <text x="640" y="368" class="svg-mono">HW</text>
+            </svg>
+          </div>
+        </div>
+
+        <div class="core-body">
+          <p>
+            When a program runs, its instructions don't touch memory silicon or hard disk platters directly. Your code lives in <span class="term-def">user space (= the restricted memory area where ordinary programs run safely)</span>.
+          </p>
+          <p>
+            If your application needs to write records, allocate heap buffers, or speak across the web, it delegates work down to <span class="term-def">system libraries (= shared pre-compiled code packages like libc or OpenSSL)</span>. These libraries format your intent and pass it through a gate called a system call.
+          </p>
+          <p>
+            Beneath that gate sits the <span class="term-def">operating system kernel (= the master supervisor program that commands physical hardware)</span>. Inside the kernel, distinct components manage time on CPU cores (the scheduler), organize files (the file system), divide physical memory (virtual memory), and manage packets (the network stack).
+          </p>
+          <p>
+            If you only measure the lines of code you personally authored, you remain blind to 80% of what decides execution speed. A bottleneck can hide in an unoptimized system library, a saturated scheduler queue, or an exhausted disk bus.
+          </p>
+        </div>
+
+        <div class="steps-box">
+          <div class="steps-box-title">Step-by-step execution path</div>
+          <ol class="steps-list">
+            <li>Your application code executes local functions entirely in user space registers and CPU caches.</li>
+            <li>A utility function calls a pre-installed system library for cryptographic hashing or formatting.</li>
+            <li>The library triggers a hardware trap, temporarily freezing user mode to transition into the kernel.</li>
+            <li>The kernel validates permissions, schedules hardware device controllers, and returns data upward.</li>
+          </ol>
+        </div>
+
+        <!-- 2 Simple Everyday Examples (Zero What/So what labels) -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Storage Trap</span>
+            <p>
+              Maya wrote a simple Python script to copy one hundred thousand small images and could not understand why her eight-core CPU barely registered 5% activity. Her script issued a separate file opening request for each tiny image, forcing the machine to spend all its time waiting on file system inode lookups. When she packed the images into an uncompressed archive first, the transfer finished twenty times faster.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Library Stumble</span>
+            <p>
+              Lucas managed a payment microservice that mysteriously slowed down under heavy traffic despite clean algorithmic loops. A diagnostic trace revealed that an older system library on the operating system was using a single global lock whenever generating random tokens. Replacing the shared library configuration enabled each worker thread to generate tokens independently, clearing the queue instantly.
+            </p>
+          </div>
+        </div>
+
+        <!-- Insight Pills -->
+        <div class="insights-strip">
+          <div class="insight-pill insight-analogy">
+            <span class="insight-icon">ANALOGY</span>
+            <span>The stack is like a corporate skyscraper: executive staff on top write proposals, but nothing leaves the building without administrative clerks, security guards, and basement loading dock handlers.</span>
+          </div>
+          <div class="insight-pill insight-gotcha">
+            <span class="insight-icon">GOTCHA</span>
+            <span>Assuming that an algorithm with optimal mathematical complexity will automatically yield fast wall-clock speed in production.</span>
+          </div>
+          <div class="insight-pill insight-why">
+            <span class="insight-icon">WHY IT MATTERS</span>
+            <span>Real performance engineering requires knowing which tier of the stack is actually saturated so you do not waste weeks rewriting healthy code.</span>
+          </div>
+        </div>
+
+        <div class="module-link-bar">
+          Next: Learn how crossing between userland and the kernel incurs concrete overhead in <a href="#module-2">Module 02: System Calls &amp; Boundaries</a>.
+        </div>
+
+        <!-- Compact Interactive Scenario -->
+        <div class="scenario-box">
+          <div class="scenario-title">Interactive Scenario · Pinpoint the Tier</div>
+          <p class="scenario-prompt">
+            Your database client on Linux reports that simple queries take 85 milliseconds, yet the database engine itself reports processing each query in 1 millisecond. Where should you look first?
+          </p>
+          <div class="scenario-options">
+            <button type="button" class="scenario-btn" onclick="revealScenario('s1', 'a')">Option A: Rewrite the SQL database queries to eliminate inner joins.</button>
+            <button type="button" class="scenario-btn" onclick="revealScenario('s1', 'b')">Option B: Inspect network socket transmission times and client-side system library serialization.</button>
+          </div>
+          <div class="scenario-feedback" id="s1-feedback"></div>
+        </div>
+
+        <!-- Retrieval Prompt (§4B) -->
+        <div class="recall-box">
+          <div class="recall-header" onclick="toggleRecall('r1')">
+            <span class="recall-label">Test Your Recall (Click to reveal)</span>
+            <span>▼</span>
+          </div>
+          <div class="recall-q">What critical boundary must every program cross when it needs to read data from a physical disk drive?</div>
+          <div class="recall-answer" id="r1">
+            The program must cross the <strong>system call boundary</strong> from user space into kernel space, because only the operating system kernel holds the privilege to operate physical hardware buses.
+          </div>
+        </div>
+
+        <!-- Module Quiz -->
+        <div class="quiz-card">
+          <div class="quiz-title">Module 01 Checkpoint</div>
+          <div class="quiz-question">Why can two programs with identical algorithm logic deliver drastically different speeds on the same machine?</div>
+          <div class="quiz-choices">
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q1', 'Choice A misses the point; CPU frequency affects both programs identically.')">Different CPU clock speeds are assigned to different programming languages.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, true, 'q1', 'Correct! One program may issue frequent unbuffered system calls or rely on slower system libraries, burning cycles outside user code.')">One program interacts more efficiently with system libraries and kernel system calls.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q1', 'Incorrect. Hardware memory buses operate identically regardless of how user code is written.')">The physical RAM chips run at higher speeds for certain approved algorithms.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q1', 'Incorrect. Operating system schedulers balance threads fairly rather than selectively disabling cores.')">The operating system scheduler refuses to execute functions that contain nested loops.</button>
+          </div>
+          <div class="quiz-explanation" id="q1-expl"></div>
+        </div>
+      </article>
+
+      <!-- MODULE 02 -->
+      <article class="module-container" id="module-2">
+        <div class="section-head">
+          <div class="section-index">02 / MECHANISMS</div>
+          <div>
+            <div class="section-label">Boundary Crossings</div>
+            <h2>System Calls and the Context Switch Toll</h2>
+            <p class="section-intro">
+              Crossing between userland and the operating system kernel is not an instantaneous leap. Every trip involves saving state, changing privilege rings, and clearing CPU pipelines.
+            </p>
+          </div>
+        </div>
+
+        <!-- Big Picture Visual (§5B SVG with animation & fallback) -->
+        <div class="diagram-wrap">
+          <div class="diagram-toolbar">
+            <div>
+              <div class="diagram-title">System Call Context Transition</div>
+              <div class="diagram-subtitle">Step through the 3 phases of a hardware-mediated system call transition.</div>
+            </div>
+          </div>
+          <div class="diagram-stage">
+            <div class="anim-wrap" id="m2-anim" style="width:100%;">
+              <svg viewBox="0 0 700 240" role="img" aria-label="Step-by-step animation of a system call crossing into the kernel">
+                <title>System Call Transition Stages</title>
+                <defs>
+                  <marker id="arr-m2" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+                  </marker>
+                </defs>
+
+                <!-- Stage 1: User Request -->
+                <g id="m2-s1" opacity="1" style="transition: opacity 0.8s ease;">
+                  <rect x="50" y="30" width="180" height="90" rx="10" class="svg-node-strong"/>
+                  <text x="140" y="70" text-anchor="middle" class="svg-text">1. App User Code</text>
+                  <text x="140" y="92" text-anchor="middle" class="svg-small">Issues write() / read()</text>
+                  <path d="M230 75 L285 75" class="svg-line" marker-end="url(#arr-m2)"/>
+                </g>
+
+                <!-- Stage 2: Trap & Context Switch -->
+                <g id="m2-s2" opacity="0.15" style="transition: opacity 0.8s ease;">
+                  <rect x="290" y="30" width="180" height="90" rx="10" class="svg-node-strong"/>
+                  <text x="380" y="65" text-anchor="middle" class="svg-text">2. Trap &amp; Switch</text>
+                  <text x="380" y="85" text-anchor="middle" class="svg-small">Save registers</text>
+                  <text x="380" y="102" text-anchor="middle" class="svg-mono">Elevate to Ring 0</text>
+                  <path d="M470 75 L525 75" class="svg-line" marker-end="url(#arr-m2)"/>
+                </g>
+
+                <!-- Stage 3: Kernel Execution -->
+                <g id="m2-s3" opacity="0.15" style="transition: opacity 0.8s ease;">
+                  <rect x="530" y="30" width="140" height="90" rx="10" class="svg-node-strong"/>
+                  <text x="600" y="65" text-anchor="middle" class="svg-text">3. Kernel Work</text>
+                  <text x="600" y="85" text-anchor="middle" class="svg-small">Drive hardware</text>
+                  <text x="600" y="102" text-anchor="middle" class="svg-mono">Return result</text>
+                </g>
+
+                <line x1="50" y1="160" x2="670" y2="160" stroke="var(--border-strong)" stroke-width="1"/>
+                <text x="360" y="195" text-anchor="middle" class="svg-small" id="m2-step-desc">Stage 1: Application prepares arguments and triggers interrupt.</text>
+              </svg>
+
+              <div class="ctrls">
+                <button type="button" id="m2-play">▶ Play Stages</button>
+                <button type="button" id="m2-pause">❚❚ Pause</button>
+                <button type="button" id="m2-replay">↺ Replay</button>
+              </div>
+              <p class="cap" id="m2-cap">Press Play to walk through how the CPU halts user execution to service kernel requests.</p>
+
+              <!-- Paired Static Fallback Container (§13) -->
+              <div class="fallback" id="m2-fallback" hidden>
+                <svg viewBox="0 0 680 140" role="img" aria-label="Static diagram of system call steps">
+                  <title>Static System Call Stages</title>
+                  <rect x="20" y="30" width="190" height="80" rx="8" class="svg-node"/>
+                  <text x="115" y="75" text-anchor="middle" class="svg-text">1. User Space Call</text>
+                  <line x1="210" y1="70" x2="250" y2="70" class="svg-line"/>
+                  <rect x="250" y="30" width="190" height="80" rx="8" class="svg-node"/>
+                  <text x="345" y="75" text-anchor="middle" class="svg-text">2. CPU Context Switch</text>
+                  <line x1="440" y1="70" x2="480" y2="70" class="svg-line"/>
+                  <rect x="480" y="30" width="180" height="80" rx="8" class="svg-node"/>
+                  <text x="570" y="75" text-anchor="middle" class="svg-text">3. Kernel Service &amp; Return</text>
+                </svg>
+                <p class="cap">Static view: Every system call switches execution privilege rings and saves CPU registers before continuing.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="core-body">
+          <p>
+            Operating systems separate code into privilege levels to protect stability. When an app needs file or network data, it triggers a <span class="term-def">system call (= a privileged software request asking the operating system kernel to perform hardware tasks)</span>.
+          </p>
+          <p>
+            When a system call occurs, the processor must freeze your application's current instruction flow. This operation is called a <span class="term-def">context switch (= the procedure of saving CPU register states and switching privileges so another task or the kernel can run)</span>.
+          </p>
+          <p>
+            One single context switch takes only a few hundred nanoseconds. But if an application calls the kernel ten thousand times per second to write single-byte records, those tiny pauses add up to massive CPU waste. The CPU spends more energy switching uniforms than doing real work.
+          </p>
+          <p>
+            Modern high-performance architectures bypass this penalty by buffering operations in user space or using batched ring buffers like io_uring, allowing programs to queue hundreds of I/O operations with a single boundary crossing.
+          </p>
+        </div>
+
+        <div class="steps-box">
+          <div class="steps-box-title">The anatomy of a context switch</div>
+          <ol class="steps-list">
+            <li>User program loads arguments into specific CPU registers and issues an interrupt instruction.</li>
+            <li>The processor saves user register values to kernel memory and elevates security to Ring 0.</li>
+            <li>The kernel executes the requested driver routine (e.g., writing bytes to disk cache).</li>
+            <li>CPU restores the original application registers, drops privilege to Ring 3, and resumes user code.</li>
+          </ol>
+        </div>
+
+        <!-- 2 Simple Everyday Examples -->
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Chatty Logging</span>
+            <p>
+              Carlos noticed his web server slowing to a crawl whenever users submitted forms. Profiling showed the server was executing an unbuffered file write call after every single sentence typed in the feedback box. When he changed the logger to store messages in a small memory buffer and flush to disk only once every thousand entries, CPU usage dropped from 85% to 4%.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Socket Buffering</span>
+            <p>
+              Elena built a real-time multiplayer server that sent player coordinates using separate tiny network packets every few milliseconds. Her server cores quickly became saturated managing packet headers and network interrupt calls. By packing multiple player coordinate updates into a single combined packet buffer, she reduced boundary crossings by 70% while keeping the game completely smooth.
+            </p>
+          </div>
+        </div>
+
+        <div class="insights-strip">
+          <div class="insight-pill insight-analogy">
+            <span class="insight-icon">ANALOGY</span>
+            <span>A system call is like clearing airport customs: you must stop walking, present your passport, wait for clearance, and pack your documents before taking another step.</span>
+          </div>
+          <div class="insight-pill insight-gotcha">
+            <span class="insight-icon">GOTCHA</span>
+            <span>Treating system calls as free function calls rather than heavy administrative transitions across privilege domains.</span>
+          </div>
+          <div class="insight-pill insight-why">
+            <span class="insight-icon">WHY IT MATTERS</span>
+            <span>High-throughput systems achieve massive speedups simply by buffering data in user space to minimize round trips into the kernel.</span>
+          </div>
+        </div>
+
+        <div class="module-link-bar">
+          Connecting these machines across a network expands latency even further. See <a href="#module-3">Module 03: Distributed Topologies</a>.
+        </div>
+
+        <!-- Compact Interactive Scenario -->
+        <div class="scenario-box">
+          <div class="scenario-title">Interactive Scenario · Architectural Trade-off</div>
+          <p class="scenario-prompt">
+            Your telemetry worker needs to append 50,000 sensor measurements per second to an on-disk journal. How should you design the write loop?
+          </p>
+          <div class="scenario-options">
+            <button type="button" class="scenario-btn" onclick="revealScenario('s2', 'a')">Option A: Call write() immediately after receiving every single sensor point to guarantee absolute immediacy.</button>
+            <button type="button" class="scenario-btn" onclick="revealScenario('s2', 'b')">Option B: Accumulate points into a 64KB user space buffer and flush via one write() call when full.</button>
+          </div>
+          <div class="scenario-feedback" id="s2-feedback"></div>
+        </div>
+
+        <!-- Retrieval Prompt -->
+        <div class="recall-box">
+          <div class="recall-header" onclick="toggleRecall('r2')">
+            <span class="recall-label">Test Your Recall (Click to reveal)</span>
+            <span>▼</span>
+          </div>
+          <div class="recall-q">What is the primary performance penalty of issuing many small unbuffered system calls?</div>
+          <div class="recall-answer" id="r2">
+            The penalty is the cumulative overhead of <strong>CPU context switches</strong>, where the processor must repeatedly freeze user execution, save state, change privilege levels, and flush internal pipelines.
+          </div>
+        </div>
+
+        <!-- Module Quiz -->
+        <div class="quiz-card">
+          <div class="quiz-title">Module 02 Checkpoint</div>
+          <div class="quiz-question">Which design technique most effectively reduces the CPU toll caused by frequent system calls?</div>
+          <div class="quiz-choices">
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q2', 'Incorrect. Raising CPU voltage increases heat without reducing the frequency of context switches.')">Increasing CPU voltage to force hardware interrupt lines to process faster.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, true, 'q2', 'Correct! Buffering batches many small data records into one single system call, slashing context switch overhead.')">Batching small payloads into a memory buffer before issuing a single write.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q2', 'Incorrect. Renaming variables has zero impact on compiled machine code or system call behavior.')">Renaming function identifiers to match standard operating system conventions.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q2', 'Incorrect. Moving files between folders does not alter how userland applications communicate with the kernel.')">Storing user files in separate nested subdirectories on the storage volume.</button>
+          </div>
+          <div class="quiz-explanation" id="q2-expl"></div>
+        </div>
+      </article>
+
+      <!-- MODULE 03 -->
+      <article class="module-container" id="module-3">
+        <div class="section-head">
+          <div class="section-index">03 / ARCHITECTURE</div>
+          <div>
+            <div class="section-label">Topology &amp; Hops</div>
+            <h2>Distributed Systems and Compounding Latency</h2>
+            <p class="section-intro">
+              Servers rarely work alone. A single client click triggers a cascade across application servers, database instances, background queues, and analytics engines.
+            </p>
+          </div>
+        </div>
+
+        <!-- Big Picture Visual (§5B SVG) -->
+        <div class="diagram-wrap">
+          <div class="diagram-toolbar">
+            <div>
+              <div class="diagram-title">Distributed Multi-Tier Service Flow</div>
+              <div class="diagram-subtitle">Illustrates how network hops, serialization, and asynchronous queues compound overall user response latency.</div>
+            </div>
+          </div>
+          <div class="diagram-stage">
+            <svg viewBox="0 0 720 380" role="img" aria-label="Distributed architecture flow from client to app server, database, queue, and analytics">
+              <title>Distributed Request Lifecycle</title>
+              <defs>
+                <marker id="arr-m3" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+                </marker>
+              </defs>
+
+              <!-- Node 1: Client Browser -->
+              <rect x="30" y="140" width="120" height="80" rx="10" class="svg-node"/>
+              <text x="90" y="175" text-anchor="middle" class="svg-text">Client</text>
+              <text x="90" y="195" text-anchor="middle" class="svg-small">Mobile / Web</text>
+
+              <path d="M150 180 L210 180" class="svg-line" marker-end="url(#arr-m3)"/>
+              <text x="180" y="170" text-anchor="middle" class="svg-mono">WAN Hop</text>
+
+              <!-- Node 2: App Server -->
+              <rect x="210" y="120" width="160" height="120" rx="12" class="svg-node-strong"/>
+              <text x="290" y="155" text-anchor="middle" class="svg-text">Application Server</text>
+              <text x="290" y="175" text-anchor="middle" class="svg-small">Business Logic</text>
+              <text x="290" y="195" text-anchor="middle" class="svg-small">Serialization / JSON</text>
+              <text x="290" y="215" text-anchor="middle" class="svg-mono">Host A (OS + Libs)</text>
+
+              <!-- Branch A: Database Server -->
+              <path d="M370 160 L450 90" class="svg-line" marker-end="url(#arr-m3)"/>
+              <text x="420" y="115" text-anchor="middle" class="svg-mono">SQL / Net</text>
+
+              <rect x="450" y="50" width="180" height="80" rx="10" class="svg-node"/>
+              <text x="540" y="85" text-anchor="middle" class="svg-text">Database Host</text>
+              <text x="540" y="105" text-anchor="middle" class="svg-small">Relational Engine (Disk I/O)</text>
+
+              <!-- Branch B: Job Queue & Analytics -->
+              <path d="M370 200 L450 270" class="svg-line" marker-end="url(#arr-m3)"/>
+              <text x="410" y="245" text-anchor="middle" class="svg-mono">Async Enqueue</text>
+
+              <rect x="450" y="230" width="180" height="80" rx="10" class="svg-node"/>
+              <text x="540" y="265" text-anchor="middle" class="svg-text">Message Queue</text>
+              <text x="540" y="285" text-anchor="middle" class="svg-small">Worker Pool / Kafka</text>
+
+              <path d="M540 310 L540 340" class="svg-line-dim" marker-end="url(#arr-m3)"/>
+              <text x="540" y="360" text-anchor="middle" class="svg-mono">Analytics Warehouse</text>
+            </svg>
+          </div>
+        </div>
+
+        <div class="core-body">
+          <p>
+            When diagnosing slowness in modern environments, looking at a single machine is rarely enough. A single customer action might trigger an entire cascade of downstream communications.
+          </p>
+          <p>
+            Every hop over a physical network introduces <span class="term-def">latency (= the elapsed delay between initiating an action and receiving its response)</span>. Even on a private datacenter network, serializing objects into network packets, passing through network interface cards, and waiting on switch buffers takes precious milliseconds.
+          </p>
+          <p>
+            A common trap is assuming that because the database server shows low latency on its internal query graphs, the database tier is exonerated. If an application server issues twenty sequential queries in an unbatched loop, the total time is dominated by network round-trip overhead rather than database execution.
+          </p>
+          <p>
+            Methodical systems performance requires understanding the entire topology. We must distinguish between compute delays on a single machine, lock queuing inside shared data stores, and transmission latency across the wire.
+          </p>
+        </div>
+
+        <div class="steps-box">
+          <div class="steps-box-title">Tracing a distributed request</div>
+          <ol class="steps-list">
+            <li>User browser initiates a secure web connection across public Internet routers.</li>
+            <li>Application gateway terminates the connection and forwards the request to an app server.</li>
+            <li>App server executes business rules and issues relational queries over internal networking.</li>
+            <li>Database engine processes transactions and pushes asynchronous events into a background worker queue.</li>
+          </ol>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · The Chatty Loop</span>
+            <p>
+              Sophia investigated an e-commerce checkout endpoint that took nearly three seconds to render. The database query metrics looked immaculate, showing queries finishing in less than three milliseconds. She discovered the application code was running a loop that issued sixty separate single-item queries one after another across the internal network. Replacing the loop with one batched query reduced total response time to fifty milliseconds.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Blocking Analytics</span>
+            <p>
+              Tariq managed a reporting portal that would intermittently freeze for ten seconds at a time. He discovered that whenever an admin requested an export, the application server would synchronously wait on a remote analytics database before returning the page to the user. Moving the export job into an asynchronous message queue allowed the user interface to respond instantly while the file generated in the background.
+            </p>
+          </div>
+        </div>
+
+        <div class="insights-strip">
+          <div class="insight-pill insight-analogy">
+            <span class="insight-icon">ANALOGY</span>
+            <span>A distributed system is like an international courier chain: your package can move across the warehouse floor in seconds, but transit time between regional dispatch hubs dominates delivery speed.</span>
+          </div>
+          <div class="insight-pill insight-gotcha">
+            <span class="insight-icon">GOTCHA</span>
+            <span>Focusing solely on database server execution metrics while ignoring network round-trip overhead caused by repetitive query loops.</span>
+          </div>
+          <div class="insight-pill insight-why">
+            <span class="insight-icon">WHY IT MATTERS</span>
+            <span>Diagnosing distributed systems prevents developers from tuning healthy databases when the real culprit is excessive network chattiness.</span>
+          </div>
+        </div>
+
+        <div class="module-link-bar">
+          Learn how to methodically diagnose mystery slowdowns without guessing in <a href="#module-4">Module 04: Triangulating Latency Spikes</a>.
+        </div>
+
+        <!-- Compact Interactive Scenario -->
+        <div class="scenario-box">
+          <div class="scenario-title">Interactive Scenario · Spot the Bottleneck</div>
+          <p class="scenario-prompt">
+            Your web service takes 1.2 seconds to return user profile data. Server CPU usage is 10%, database CPU is 15%, and database internal execution time is 12ms. What is the most probable issue?
+          </p>
+          <div class="scenario-options">
+            <button type="button" class="scenario-btn" onclick="revealScenario('s3', 'a')">Option A: The database engine requires hardware memory upgrades to handle complex joins.</button>
+            <button type="button" class="scenario-btn" onclick="revealScenario('s3', 'b')">Option B: The application code is issuing multiple sequential queries over the network in an N+1 loop.</button>
+          </div>
+          <div class="scenario-feedback" id="s3-feedback"></div>
+        </div>
+
+        <!-- Retrieval Prompt -->
+        <div class="recall-box">
+          <div class="recall-header" onclick="toggleRecall('r3')">
+            <span class="recall-label">Test Your Recall (Click to reveal)</span>
+            <span>▼</span>
+          </div>
+          <div class="recall-q">Why does the classic N+1 query pattern destroy application latency even when individual queries are fast?</div>
+          <div class="recall-answer" id="r3">
+            Because each individual query must pay the <strong>network round-trip latency</strong> to travel between the application server and the database, causing wait times to compound multiplicatively.
+          </div>
+        </div>
+
+        <!-- Module Quiz -->
+        <div class="quiz-card">
+          <div class="quiz-title">Module 03 Checkpoint</div>
+          <div class="quiz-question">What metric provides the clearest indication that an application is suffering from network chattiness rather than slow database compute?</div>
+          <div class="quiz-choices">
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q3', 'Incorrect. High database CPU indicates heavy computational load on the database itself.')">Database CPU load reaches 100% while processing transactions.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, true, 'q3', 'Correct! Fast query runtimes combined with high overall request latency indicate that time is lost in network transit.')">Total request latency is high while individual query execution times are very low.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q3', 'Incorrect. Storage drive capacity has no correlation with network serialization frequency.')">The physical storage drive has less than ten percent free space remaining.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q3', 'Incorrect. Symmetric read and write rates do not indicate network transmission round trips.')">The application issues an identical number of read and write statements.</button>
+          </div>
+          <div class="quiz-explanation" id="q3-expl"></div>
+        </div>
+      </article>
+
+      <!-- MODULE 04 -->
+      <article class="module-container" id="module-4">
+        <div class="section-head">
+          <div class="section-index">04 / INVESTIGATION</div>
+          <div>
+            <div class="section-label">Diagnostic Methodology</div>
+            <h2>Root-Cause Triangulation: The Case of the Spiking P99</h2>
+            <p class="section-intro">
+              When latency jumps out of nowhere, panic and premature tuning only cause damage. Methodical engineers isolate variables across latency, IOPS, and resource capacity.
+            </p>
+          </div>
+        </div>
+
+        <!-- Big Picture Visual (§5B SVG with interactive toggle) -->
+        <div class="diagram-wrap">
+          <div class="diagram-toolbar">
+            <div>
+              <div class="diagram-title">System Telemetry Dashboard Triangulation</div>
+              <div class="diagram-subtitle">Correlate P99 latency, IOPS throughput, CPU load, and disk latency across a 7-day timeline.</div>
+            </div>
+            <div class="ctrls" style="padding:0; border:none; background:transparent;">
+              <button type="button" class="ctrl-btn state-toggle" id="m4-highlight-btn" onclick="toggleTelemetryHighlight()">Highlight Regression (Day 5)</button>
+            </div>
+          </div>
+          <div class="diagram-stage">
+            <svg viewBox="0 0 740 360" role="img" aria-label="Telemetry charts showing P99 and IOPS spiking while CPU and disk latency stay flat">
+              <title>Telemetry Triangulation Charts</title>
+              <!-- Chart 1: P99 Query Latency -->
+              <rect x="40" y="30" width="310" height="135" rx="8" class="svg-node"/>
+              <text x="55" y="55" class="svg-text">Postgres P99 Latency</text>
+              <text x="55" y="72" class="svg-mono">2ms → 50ms spike on Day 5</text>
+              <!-- Baseline line -->
+              <path d="M60 130 L180 130" stroke="var(--ai-iro)" stroke-width="2" fill="none"/>
+              <!-- Jump on Day 5 -->
+              <path d="M180 130 L220 70 L330 70" stroke="var(--danger)" stroke-width="2.5" fill="none"/>
+              <circle cx="220" cy="70" r="4" fill="var(--danger)"/>
+              <text x="230" y="65" class="svg-mono" fill="var(--danger)">50ms</text>
+              <text x="60" y="148" class="svg-small">Day 1-4</text>
+              <text x="260" y="148" class="svg-small">Day 5-7</text>
+
+              <!-- Chart 2: Disk IOPS -->
+              <rect x="390" y="30" width="310" height="135" rx="8" class="svg-node"/>
+              <text x="405" y="55" class="svg-text">Physical Disk IOPS</text>
+              <text x="405" y="72" class="svg-mono">1,000 → 10,000 IOPS spike</text>
+              <path d="M410 130 L530 130" stroke="var(--ai-iro)" stroke-width="2" fill="none"/>
+              <path d="M530 130 L570 65 L680 65" stroke="var(--danger)" stroke-width="2.5" fill="none"/>
+              <circle cx="570" cy="65" r="4" fill="var(--danger)"/>
+              <text x="580" y="60" class="svg-mono" fill="var(--danger)">10k IOPS</text>
+              <text x="410" y="148" class="svg-small">Day 1-4</text>
+              <text x="610" y="148" class="svg-small">Day 5-7</text>
+
+              <!-- Chart 3: CPU Utilization -->
+              <rect x="40" y="190" width="310" height="135" rx="8" class="svg-node"/>
+              <text x="55" y="215" class="svg-text">CPU Utilization</text>
+              <text x="55" y="232" class="svg-mono">Flat at 50% (NOT a bottleneck)</text>
+              <path d="M60 270 L330 270" stroke="var(--ai-iro)" stroke-width="2" fill="none"/>
+              <text x="280" y="262" class="svg-mono">50%</text>
+              <text x="60" y="308" class="svg-small">No correlation with latency jump</text>
+
+              <!-- Chart 4: Disk Latency per I/O -->
+              <rect x="390" y="190" width="310" height="135" rx="8" class="svg-node"/>
+              <text x="405" y="215" class="svg-text">Storage Device Latency</text>
+              <text x="405" y="232" class="svg-mono">Flat at 0.1ms (Hardware healthy)</text>
+              <path d="M410 280 L680 280" stroke="var(--ai-iro)" stroke-width="2" fill="none"/>
+              <text x="630" y="272" class="svg-mono">0.1ms</text>
+              <text x="410" y="308" class="svg-small">Drive is fast, but handling 10x more requests</text>
+
+              <!-- Highlight Box for Day 5 -->
+              <rect id="m4-highlight" x="180" y="20" width="45" height="320" fill="var(--accent-soft)" stroke="var(--ai-iro)" stroke-dasharray="4,4" opacity="0"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="core-body">
+          <p>
+            Consider a classic systems mystery discussed by Brendan Gregg. A production database running happily for months suddenly encounters severe sluggishness.
+          </p>
+          <p>
+            The telemetry graphs show that <span class="term-def">P99 latency (= the response time that 99 percent of queries finish within, isolating tail slowness)</span> jumped from a nimble 2 milliseconds up to 50 milliseconds. At the exact same hour, <span class="term-def">IOPS (= I/O operations per second, measuring reads and writes sent to the storage drive)</span> exploded tenfold from 1,000 to 10,000.
+          </p>
+          <p>
+            A hasty engineer might blame the storage drive and demand an immediate hardware upgrade. But looking deeper reveals two crucial contradictions:
+          </p>
+          <p>
+            First, CPU utilization remained completely constant at 50%. Second, physical disk latency per operation stayed rock-solid at 0.1 milliseconds. The drive wasn't failing; each read took the same tiny fraction of a millisecond as it always had. The drive was simply being asked to perform ten times more reads.
+          </p>
+          <p>
+            Methodical investigation eliminates variables step by step:
+            Application traffic? Identical query counts and patterns.
+            Database size? Steady at 100 gigabytes.
+            Database configuration? No knobs were changed.
+            What caused identical queries on identical data to suddenly issue ten times more physical disk reads? The answer lives in memory management.
+          </p>
+        </div>
+
+        <div class="steps-box">
+          <div class="steps-box-title">Methodical hypothesis elimination</div>
+          <ol class="steps-list">
+            <li>Verify tail latency metrics (P99) to establish the precise timestamp of the regression.</li>
+            <li>Inspect physical resource indicators (CPU utilization, network throughput, disk latency per I/O).</li>
+            <li>Confirm workload invariance (check query arrival rates, client deployments, and database row volume).</li>
+            <li>Analyze subsystem handoffs between memory caching and persistent disk storage.</li>
+          </ol>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Premature Scaling</span>
+            <p>
+              Liam noticed customer checkout queries slowing down and immediately upgraded his cloud database server from 8 CPU cores to 16 cores. His monthly cloud bill doubled, but query latency did not improve by a single millisecond. When he inspected the telemetry dashboard, he saw the CPU was never exceeding 30% utilization because the server was entirely bottlenecked waiting for disk reads.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Correlating Metrics</span>
+            <p>
+              Zoe observed a sudden jump in response times on a gaming backend. Instead of changing database settings randomly, she aligned CPU, memory, and disk charts on the same time axis. She saw that while CPU and active player counts stayed flat, physical disk reads jumped tenfold at 2:00 AM. That precise timestamp allowed her to link the issue to a scheduled cron job that stripped memory buffers.
+            </p>
+          </div>
+        </div>
+
+        <div class="insights-strip">
+          <div class="insight-pill insight-analogy">
+            <span class="insight-icon">ANALOGY</span>
+            <span>Triangulating telemetry is like taking an engine reading: checking battery voltage (CPU) tells you if power is flowing, but fuel pressure (IOPS) reveals why the car refuses to accelerate.</span>
+          </div>
+          <div class="insight-pill insight-gotcha">
+            <span class="insight-icon">GOTCHA</span>
+            <span>Assuming that sluggish performance always implies a pinned 100% CPU, blinding engineers to severe I/O and memory starvation bottlenecks.</span>
+          </div>
+          <div class="insight-pill insight-why">
+            <span class="insight-icon">WHY IT MATTERS</span>
+            <span>Triangulation prevents expensive, futile hardware upgrades by isolating the exact physical subsystem causing the delay.</span>
+          </div>
+        </div>
+
+        <div class="module-link-bar">
+          Discover why identical queries suddenly generated ten times more disk reads in <a href="#module-5">Module 05: Page Cache &amp; Memory Traps</a>.
+        </div>
+
+        <!-- Compact Interactive Scenario -->
+        <div class="scenario-box">
+          <div class="scenario-title">Interactive Scenario · Evaluate the Evidence</div>
+          <p class="scenario-prompt">
+            Your telemetry shows query P99 latency increasing from 5ms to 80ms. CPU usage is steady at 40%, and disk latency per operation is 0.1ms. How should you proceed?
+          </p>
+          <div class="scenario-options">
+            <button type="button" class="scenario-btn" onclick="revealScenario('s4', 'a')">Option A: Conclude that the storage drive is experiencing hardware failure and replace it.</button>
+            <button type="button" class="scenario-btn" onclick="revealScenario('s4', 'b')">Option B: Investigate why the system is generating so many extra I/O operations despite fast drive responses.</button>
+          </div>
+          <div class="scenario-feedback" id="s4-feedback"></div>
+        </div>
+
+        <!-- Retrieval Prompt -->
+        <div class="recall-box">
+          <div class="recall-header" onclick="toggleRecall('r4')">
+            <span class="recall-label">Test Your Recall (Click to reveal)</span>
+            <span>▼</span>
+          </div>
+          <div class="recall-q">If query latency jumps twentyfold while disk latency per read stays at 0.1ms, what does this tell you about the storage device?</div>
+          <div class="recall-answer" id="r4">
+            It proves the <strong>physical disk is healthy and operating at peak speed</strong>. The performance regression is caused by something forcing the system to issue a vastly higher volume of physical read operations.
+          </div>
+        </div>
+
+        <!-- Module Quiz -->
+        <div class="quiz-card">
+          <div class="quiz-title">Module 04 Checkpoint</div>
+          <div class="quiz-question">Why is tail latency (P99) more useful than average latency (P50) when diagnosing production performance regressions?</div>
+          <div class="quiz-choices">
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q4', 'Incorrect. P99 is computed through standard quantile sorting rather than hardware counters.')">P99 latency is measured directly by hardware circuits rather than software counters.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, true, 'q4', 'Correct! P99 isolates the slowest 1% of transactions, which are masked by the comforting average of the majority.')">P99 reveals severe delays affecting outliers that are hidden by flattering average numbers.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q4', 'Incorrect. P99 measures latency exclusively rather than total request throughput volume.')">P99 automatically calculates the maximum throughput volume a server can handle.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q4', 'Incorrect. Tail latency analysis is universally applicable across small and large scale systems.')">P99 is only valid when an application processes fewer than ten queries per second.</button>
+          </div>
+          <div class="quiz-explanation" id="q4-expl"></div>
+        </div>
+      </article>
+
+      <!-- MODULE 05 -->
+      <article class="module-container" id="module-5">
+        <div class="section-head">
+          <div class="section-index">05 / MEMORY SYSTEMS</div>
+          <div>
+            <div class="section-label">Page Cache Mechanics</div>
+            <h2>The Operating System Page Cache &amp; Noisy Neighbors</h2>
+            <p class="section-intro">
+              High-speed databases avoid disk access by caching data in memory. When another process steals RAM, disk reads skyrocket without a single line of code changing.
+            </p>
+          </div>
+        </div>
+
+        <!-- Big Picture Visual (§5B SVG with interactive state toggle) -->
+        <div class="diagram-wrap">
+          <div class="diagram-toolbar">
+            <div>
+              <div class="diagram-title">RAM Resource Partitioning (64 GB Host)</div>
+              <div class="diagram-subtitle">Toggle between Normal State and Degraded State (Noisy Neighbor Contention) to visualize cache eviction.</div>
+            </div>
+            <div class="ctrls" style="padding:0; border:none; background:transparent;">
+              <button type="button" class="ctrl-btn state-toggle" id="m5-state-btn" onclick="toggleMemoryState()">Toggle Noisy Neighbor State</button>
+            </div>
+          </div>
+          <div class="diagram-stage">
+            <svg viewBox="0 0 740 340" role="img" aria-label="Visualizing 64GB RAM allocation before and after test container steals cache">
+              <title>Page Cache Memory Contention</title>
+              <defs>
+                <marker id="arr-m5" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+                </marker>
+              </defs>
+
+              <!-- State Label -->
+              <text x="50" y="40" class="svg-text" font-size="15" id="m5-state-label">NORMAL STATE: 50 GB Dedicated to Database Page Cache</text>
+              <text x="50" y="62" class="svg-small" id="m5-state-sub">95% Cache Hit Ratio · 1,000 Disk IOPS · P99 Latency: 2ms</text>
+
+              <!-- 64GB RAM Bar Frame -->
+              <rect x="50" y="85" width="640" height="70" rx="10" class="svg-node"/>
+
+              <!-- OS & daemons: 10GB -->
+              <rect x="50" y="85" width="100" height="70" rx="8" class="svg-node-strong"/>
+              <text x="100" y="125" text-anchor="middle" class="svg-text">10 GB</text>
+              <text x="100" y="142" text-anchor="middle" class="svg-mono">OS &amp; Daemons</text>
+
+              <!-- Dynamic Allocations -->
+              <!-- Prod Database Cache Block -->
+              <rect id="m5-prod-bar" x="150" y="85" width="540" height="70" rx="8" fill="var(--ai-iro)" opacity="0.85" style="transition: width 0.7s ease;"/>
+              <text id="m5-prod-txt" x="420" y="125" text-anchor="middle" fill="#FFFFFF" font-weight="bold" font-size="14">50 GB Page Cache for Database</text>
+              <text id="m5-prod-sub" x="420" y="142" text-anchor="middle" fill="#FFFFFF" class="svg-mono">Hot data pages reside in RAM</text>
+
+              <!-- Noisy Neighbor Block (initially width 0) -->
+              <rect id="m5-noise-bar" x="440" y="85" width="0" height="70" rx="8" fill="var(--danger)" opacity="0.9" style="transition: width 0.7s ease, x 0.7s ease;"/>
+              <text id="m5-noise-txt" x="560" y="125" text-anchor="middle" fill="#FFFFFF" font-weight="bold" font-size="13" opacity="0">25 GB Test Container</text>
+              <text id="m5-noise-sub" x="560" y="142" text-anchor="middle" fill="#FFFFFF" class="svg-mono" opacity="0">Noisy Neighbor Allocation</text>
+
+              <!-- Explanation Box -->
+              <rect x="50" y="190" width="640" height="110" rx="10" class="svg-node"/>
+              <text x="70" y="220" class="svg-text">Root Cause Revealed:</text>
+              <text x="70" y="245" class="svg-small" id="m5-exp-1">In normal operation, 50 GB of free RAM serves as the operating system page cache.</text>
+              <text x="70" y="268" class="svg-small" id="m5-exp-2">Most read queries find their disk blocks already waiting in RAM, avoiding physical storage.</text>
+              <text x="70" y="290" class="svg-mono" id="m5-exp-3" fill="var(--ai-iro)">No disk bottleneck · CPU load steady · Latency optimal</text>
+            </svg>
+          </div>
+        </div>
+
+        <div class="core-body">
+          <p>
+            The resolution to our mystery highlights how operating systems manage memory. Physical disk drives, even modern NVMe solid-state drives, are thousands of times slower than computer RAM.
+          </p>
+          <p>
+            To protect speed, the operating system kernel dedicates all otherwise unused memory to the <span class="term-def">page cache (= a kernel memory buffer that mirrors recently read or written disk blocks in fast RAM)</span>. When a database queries a table, the kernel first inspects the page cache. If the data block resides in memory, it is returned in nanoseconds.
+          </p>
+          <p>
+            On our 64-gigabyte server, 50 gigabytes of RAM were serving as page cache for the 100-gigabyte database. This meant half the entire database was cached in memory, yielding a 95% cache hit ratio.
+          </p>
+          <p>
+            On Day 5, an engineer launched an auxiliary test container on the same production host. That container claimed 25 gigabytes of RAM. Because physical memory is strictly finite, the operating system kernel was forced to reclaim memory by shrinking the database's page cache from 50 gigabytes down to 25 gigabytes.
+          </p>
+          <p>
+            Half of the hot database pages were evicted from RAM. Now, queries that previously retrieved data from memory were forced to wait on physical disk reads. The query workload had not changed, the database code had not changed, and the hardware had not failed. A noisy neighbor process had simply stolen the memory cache.
+          </p>
+        </div>
+
+        <div class="steps-box">
+          <div class="steps-box-title">The mechanics of cache starvation</div>
+          <ol class="steps-list">
+            <li>Operating system assigns all free physical memory to buffer active disk files.</li>
+            <li>A secondary process or container spins up and allocates working memory.</li>
+            <li>The kernel evicts file system cache pages to satisfy the new process's memory demand.</li>
+            <li>Subsequent database queries suffer cache misses, multiplying physical disk I/O ten times over.</li>
+          </ol>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Midnight Backup</span>
+            <p>
+              Marcus managed a web publishing platform that served thousands of readers per second from memory. Every night at midnight, an automated backup script compressed gigabytes of raw server archives into a tarball. The backup process flooded the operating system page cache with backup archive data, evicting all cached blog posts. For the next hour, readers suffered sluggish response times while the cache slowly rebuilt.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Staging Intrusion</span>
+            <p>
+              Nina deployed two testing applications onto a single development server to save cloud hosting expenses. Whenever her coworker launched a machine-learning script that consumed all available memory, Nina's web application ground to an agonizing halt. Once she configured strict cgroup memory isolation limits for the training process, her web app's page cache remained protected.
+            </p>
+          </div>
+        </div>
+
+        <div class="insights-strip">
+          <div class="insight-pill insight-analogy">
+            <span class="insight-icon">ANALOGY</span>
+            <span>The page cache is like keeping the reference books you need right on your desk; if a colleague stacks fifty new boxes on your desk, your books get relegated to basement shelves, and every lookup requires a flight of stairs.</span>
+          </div>
+          <div class="insight-pill insight-gotcha">
+            <span class="insight-icon">GOTCHA</span>
+            <span>Believing that free memory reported by the operating system is wasted, failing to recognize that the kernel uses that free space to accelerate disk reads.</span>
+          </div>
+          <div class="insight-pill insight-why">
+            <span class="insight-icon">WHY IT MATTERS</span>
+            <span>Protecting database memory from noisy neighbors or background tasks is vital to maintaining predictable I/O throughput.</span>
+          </div>
+        </div>
+
+        <div class="module-link-bar">
+          Learn how to inspect which specific functions are consuming cycles in <a href="#module-6">Module 06: Profiling vs. Tracing</a>.
+        </div>
+
+        <!-- Compact Interactive Scenario -->
+        <div class="scenario-box">
+          <div class="scenario-title">Interactive Scenario · Protect the Cache</div>
+          <p class="scenario-prompt">
+            You must run an hourly batch script that reads 40GB of log files on the same host as your primary database. How do you prevent it from wiping out the database page cache?
+          </p>
+          <div class="scenario-options">
+            <button type="button" class="scenario-btn" onclick="revealScenario('s5', 'a')">Option A: Increase the process priority of the database server using the nice command.</button>
+            <button type="button" class="scenario-btn" onclick="revealScenario('s5', 'b')">Option B: Use memory cgroups or direct I/O (fadvise DONTNEED) so the batch reads do not evict database pages.</button>
+          </div>
+          <div class="scenario-feedback" id="s5-feedback"></div>
+        </div>
+
+        <!-- Retrieval Prompt -->
+        <div class="recall-box">
+          <div class="recall-header" onclick="toggleRecall('r5')">
+            <span class="recall-label">Test Your Recall (Click to reveal)</span>
+            <span>▼</span>
+          </div>
+          <div class="recall-q">Why does cutting a database server's page cache in half often cause a tenfold increase in physical disk reads?</div>
+          <div class="recall-answer" id="r5">
+            Because database access patterns follow skewed distributions where a small set of hot pages satisfies the vast majority of queries. Shrinking cache below the active working set size triggers a cliff of <strong>cache misses</strong> that hit physical storage.
+          </div>
+        </div>
+
+        <!-- Module Quiz -->
+        <div class="quiz-card">
+          <div class="quiz-title">Module 05 Checkpoint</div>
+          <div class="quiz-question">What is the role of the operating system page cache during read operations?</div>
+          <div class="quiz-choices">
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q5', 'Incorrect. The page cache buffers raw file system disk blocks rather than validating SQL syntax.')">It compiles and verifies SQL queries before passing them to the database engine.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, true, 'q5', 'Correct! The page cache retains recently accessed disk blocks in RAM to eliminate mechanical drive access.')">It stores copies of recently accessed disk blocks in memory to serve subsequent reads rapidly.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q5', 'Incorrect. The page cache is managed dynamically in RAM and does not alter disk sectors permanently.')">It permanently reorganizes physical sectors on solid-state drives to prevent sector wear.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q5', 'Incorrect. Network socket negotiation is handled by the network stack rather than the file page cache.')">It encrypts network interface socket data before passing packets to client applications.</button>
+          </div>
+          <div class="quiz-explanation" id="q5-expl"></div>
+        </div>
+      </article>
+
+      <!-- MODULE 06 -->
+      <article class="module-container" id="module-6">
+        <div class="section-head">
+          <div class="section-index">06 / OBSERVABILITY</div>
+          <div>
+            <div class="section-label">Measurement Techniques</div>
+            <h2>Sampling Profiles vs. Event-Driven Traces</h2>
+            <p class="section-intro">
+              You cannot fix what you cannot observe. Profiling captures statistical snapshots with minimal overhead, while tracing logs discrete events with absolute precision.
+            </p>
+          </div>
+        </div>
+
+        <!-- Big Picture Visual (§5B SVG) -->
+        <div class="diagram-wrap">
+          <div class="diagram-toolbar">
+            <div>
+              <div class="diagram-title">Profiling vs. Tracing Operational Comparison</div>
+              <div class="diagram-subtitle">Contrasts periodic sampling timers against deterministic event probe instrumentation.</div>
+            </div>
+          </div>
+          <div class="diagram-stage">
+            <svg viewBox="0 0 720 360" role="img" aria-label="Comparison between sampling profiling and event tracing">
+              <title>Sampling Profiler vs Event Tracer</title>
+              <defs>
+                <marker id="arr-m6" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+                </marker>
+              </defs>
+
+              <!-- Panel Left: Sampling Profiler -->
+              <rect x="30" y="30" width="315" height="300" rx="12" class="svg-node-strong"/>
+              <text x="50" y="65" class="svg-text">Statistical Sampling Profiler</text>
+              <text x="50" y="85" class="svg-small">Tools: Linux perf · async-profiler</text>
+
+              <!-- Timeline with ticks -->
+              <line x1="50" y1="130" x2="320" y2="130" class="svg-line"/>
+              <circle cx="90" cy="130" r="4" fill="var(--ai-iro)"/>
+              <circle cx="150" cy="130" r="4" fill="var(--ai-iro)"/>
+              <circle cx="210" cy="130" r="4" fill="var(--ai-iro)"/>
+              <circle cx="270" cy="130" r="4" fill="var(--ai-iro)"/>
+              <text x="180" y="115" text-anchor="middle" class="svg-mono">Periodic 99Hz Timer Ticks</text>
+
+              <rect x="50" y="160" width="275" height="60" rx="8" class="svg-node"/>
+              <text x="65" y="185" class="svg-text" font-size="12">Low Overhead (0.5% – 2%)</text>
+              <text x="65" y="205" class="svg-small">Safe for high-traffic live production systems</text>
+
+              <rect x="50" y="235" width="275" height="75" rx="8" class="svg-node"/>
+              <text x="65" y="260" class="svg-text" font-size="12">Statistical Representation</text>
+              <text x="65" y="280" class="svg-small">Gathers thousands of stack samples</text>
+              <text x="65" y="298" class="svg-small">Builds accurate aggregate heatmaps</text>
+
+              <!-- Panel Right: Event Tracing -->
+              <rect x="375" y="30" width="315" height="300" rx="12" class="svg-node"/>
+              <text x="395" y="65" class="svg-text">Deterministic Event Tracing</text>
+              <text x="395" y="85" class="svg-small">Tools: eBPF · strace · ftrace</text>
+
+              <!-- Timeline with every call intercepted -->
+              <line x1="395" y1="130" x2="665" y2="130" class="svg-line"/>
+              <rect x="420" y="122" width="16" height="16" fill="var(--danger)" rx="3"/>
+              <rect x="450" y="122" width="16" height="16" fill="var(--danger)" rx="3"/>
+              <rect x="480" y="122" width="16" height="16" fill="var(--danger)" rx="3"/>
+              <rect x="510" y="122" width="16" height="16" fill="var(--danger)" rx="3"/>
+              <rect x="540" y="122" width="16" height="16" fill="var(--danger)" rx="3"/>
+              <rect x="570" y="122" width="16" height="16" fill="var(--danger)" rx="3"/>
+              <text x="530" y="115" text-anchor="middle" class="svg-mono">Every Event Hooked</text>
+
+              <rect x="395" y="160" width="275" height="60" rx="8" class="svg-node"/>
+              <text x="410" y="185" class="svg-text" font-size="12">Higher Overhead (5% – 500%)</text>
+              <text x="410" y="205" class="svg-small">Can stall production if applied carelessly</text>
+
+              <rect x="395" y="235" width="275" height="75" rx="8" class="svg-node"/>
+              <text x="410" y="260" class="svg-text" font-size="12">100% Granular Detail</text>
+              <text x="410" y="280" class="svg-small">Logs function parameters &amp; exact durations</text>
+              <text x="410" y="298" class="svg-small">Catches single rare anomalous events</text>
+            </svg>
+          </div>
+        </div>
+
+        <div class="core-body">
+          <p>
+            When application code runs too slow, engineers need tools to observe what functions the CPU is executing. There are two primary philosophies: profiling and tracing.
+          </p>
+          <p>
+            <span class="term-def">Profiling (= periodic sampling of the program call stack to build statistical execution summaries)</span> works by pausing the processor at calibrated intervals (for example, 99 times every second). The profiler records the active function names and immediately lets the CPU continue. By aggregating ten thousand samples, you get a statistical heat map showing which routines occupied the most time.
+          </p>
+          <p>
+            Because sampling only interrupts execution ninety-nine times a second, its overhead is negligible—typically less than one percent of CPU capacity. This makes profiling exceptionally safe for live production fleets.
+          </p>
+          <p>
+            <span class="term-def">Tracing (= instrumenting specific code locations to record every individual invocation)</span> attaches probe handlers to every function entry and exit. Tracing provides exact timestamps and function parameters, which is invaluable when hunting a rare glitch affecting one query in a million. However, tracing high-frequency functions can slow execution down tenfold.
+          </p>
+          <p>
+            Engineers choose sampling profilers for general hot-spot discovery, and reserve targeted event tracing for rare latency anomalies.
+          </p>
+        </div>
+
+        <div class="steps-box">
+          <div class="steps-box-title">How a sampling profiler operates</div>
+          <ol class="steps-list">
+            <li>Profiler registers a high-resolution timer interrupt with the operating system kernel.</li>
+            <li>Timer fires at a prime rate (such as 99 Hertz) to avoid harmonizing with cyclic cron jobs.</li>
+            <li>The kernel pauses the target thread and walks its stack frame pointers in memory.</li>
+            <li>Aggregated stack frames are merged into call-frequency trees ready for visualization.</li>
+          </ol>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · The strace Catastrophe</span>
+            <p>
+              David wanted to understand why his production web cluster was consuming 90% CPU, so he attached the traditional `strace` tool to every running worker process. The tracing tool intercepted every single system call, creating severe lock contention that ground response times to a standstill. He quickly replaced it with a 99Hz sampling profiler, which uncovered the hot function in thirty seconds with zero user impact.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · The Elusive Outlier</span>
+            <p>
+              Rachel monitored a payment gateway where one in twenty thousand transactions stalled for four seconds, but an aggregate sampling profile failed to show the issue. Because the event occurred so rarely, statistical timer ticks almost never caught it. She wrote a lightweight eBPF probe configured to log only database calls taking longer than one second, catching the exact lock conflict immediately.
+            </p>
+          </div>
+        </div>
+
+        <div class="insights-strip">
+          <div class="insight-pill insight-analogy">
+            <span class="insight-icon">ANALOGY</span>
+            <span>Profiling is like snapping a photograph of a traffic intersection once a minute to see which lane backs up; tracing is like putting a GPS tracking beacon on every single car to record every turn.</span>
+          </div>
+          <div class="insight-pill insight-gotcha">
+            <span class="insight-icon">GOTCHA</span>
+            <span>Attaching heavy tracing utilities to high-frequency production loops, inadvertently worsening the very slowdown you are trying to diagnose.</span>
+          </div>
+          <div class="insight-pill insight-why">
+            <span class="insight-icon">WHY IT MATTERS</span>
+            <span>Understanding the trade-off between statistical safety and granular precision allows engineers to diagnose production servers without risking outages.</span>
+          </div>
+        </div>
+
+        <div class="module-link-bar">
+          Learn how to turn thousands of stack samples into intuitive visual maps in <a href="#module-7">Module 07: Flame Graphs &amp; Database Internals</a>.
+        </div>
+
+        <!-- Compact Interactive Scenario -->
+        <div class="scenario-box">
+          <div class="scenario-title">Interactive Scenario · Choose Your Weapon</div>
+          <p class="scenario-prompt">
+            Your production database handles 40,000 queries per second and you need to determine which internal routines are burning 70% CPU during peak hours. Which tool should you use?
+          </p>
+          <div class="scenario-options">
+            <button type="button" class="scenario-btn" onclick="revealScenario('s6', 'a')">Option A: Attach strace to capture every single read and write system call across all database threads.</button>
+            <button type="button" class="scenario-btn" onclick="revealScenario('s6', 'b')">Option B: Run a statistical sampling profiler at 99Hz for thirty seconds to gather call stack distributions.</button>
+          </div>
+          <div class="scenario-feedback" id="s6-feedback"></div>
+        </div>
+
+        <!-- Retrieval Prompt -->
+        <div class="recall-box">
+          <div class="recall-header" onclick="toggleRecall('r6')">
+            <span class="recall-label">Test Your Recall (Click to reveal)</span>
+            <span>▼</span>
+          </div>
+          <div class="recall-q">Why do systems engineers configure sampling profilers to fire at prime numbers like 99Hz or 997Hz rather than round numbers like 100Hz?</div>
+          <div class="recall-answer" id="r6">
+            Using prime frequencies prevents the profiler from accidentally falling into <strong>lock-step synchronization</strong> with periodic operating system timers, cron routines, or network interrupt clocks.
+          </div>
+        </div>
+
+        <!-- Module Quiz -->
+        <div class="quiz-card">
+          <div class="quiz-title">Module 06 Checkpoint</div>
+          <div class="quiz-question">What is the primary operational advantage of statistical profiling over full event tracing in production?</div>
+          <div class="quiz-choices">
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q6', 'Incorrect. Profiling and tracing can both inspect compiled machine binaries.')">Statistical profiling functions without requiring access to compiled program binaries.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, true, 'q6', 'Correct! By sampling periodically rather than hooking every event, profiling keeps overhead well under 1-2%.')">Statistical profiling introduces minimal CPU overhead, making it safe for live traffic.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q6', 'Incorrect. Profiling produces statistical estimates rather than capturing every discrete transaction.')">Statistical profiling guarantees that zero individual transactions will be missed.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q6', 'Incorrect. Profilers require standard kernel sampling permissions and hardware timers.')">Statistical profiling completely avoids needing operating system kernel privileges.</button>
+          </div>
+          <div class="quiz-explanation" id="q6-expl"></div>
+        </div>
+      </article>
+
+      <!-- MODULE 07 -->
+      <article class="module-container" id="module-7">
+        <div class="section-head">
+          <div class="section-index">07 / DEEP DIVE</div>
+          <div>
+            <div class="section-label">Call Stack Visualization</div>
+            <h2>Flame Graphs and Database Internals</h2>
+            <p class="section-intro">
+              Invented by Brendan Gregg, flame graphs transform thousands of raw text call stacks into an intuitive visual hierarchy where block width directly reveals where time is spent.
+            </p>
+          </div>
+        </div>
+
+        <!-- Big Picture Visual (§5B SVG with interactive stack inspector) -->
+        <div class="diagram-wrap">
+          <div class="diagram-toolbar">
+            <div>
+              <div class="diagram-title">Interactive Postgres Query Execution Flame Graph</div>
+              <div class="diagram-subtitle">Click on any horizontal stack plate to inspect execution percentage, subsystem function, and tuning angle.</div>
+            </div>
+          </div>
+          <div class="diagram-stage">
+            <svg viewBox="0 0 740 330" role="img" aria-label="Interactive flame graph representing Postgres query execution">
+              <title>Postgres Execution Flame Graph</title>
+              <!-- Level 0: main -->
+              <rect x="50" y="270" width="640" height="32" rx="4" fill="var(--node-strong)" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('main', '100%', 'Process Entrypoint', 'Root parent of the database execution runtime.')"/>
+              <text x="370" y="291" text-anchor="middle" class="svg-text" font-size="12">main() [100% of execution samples]</text>
+
+              <!-- Level 1: PostgresMain -->
+              <rect x="50" y="230" width="620" height="32" rx="4" fill="var(--node)" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('PostgresMain', '97%', 'Database Backend Loop', 'Dispatches incoming SQL requests from user connection.')"/>
+              <text x="360" y="251" text-anchor="middle" class="svg-text" font-size="12">PostgresMain() [97%]</text>
+
+              <!-- Level 2: PortalRun -->
+              <rect x="60" y="190" width="590" height="32" rx="4" fill="var(--node)" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('PortalRun', '92%', 'Query Execution Portal', 'Coordinates query plan execution trees.')"/>
+              <text x="355" y="211" text-anchor="middle" class="svg-text" font-size="12">PortalRun() [92%]</text>
+
+              <!-- Level 3: Split Execution Modules -->
+              <!-- Block A: exec_scan -->
+              <rect x="60" y="140" width="240" height="38" rx="4" fill="var(--ai-iro)" opacity="0.85" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('exec_scan', '38%', 'Sequential Table Scan', 'Scans heap rows and computes MD5 text hashes.')"/>
+              <text x="180" y="164" text-anchor="middle" fill="#FFFFFF" font-weight="bold" font-size="12">exec_scan() [38%]</text>
+
+              <!-- Block B: exec_check_index_constraints -->
+              <rect x="305" y="140" width="160" height="38" rx="4" fill="var(--warning)" opacity="0.85" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('exec_check_index_constraints', '25%', 'Constraint Verification', 'Validates foreign key relations and unique constraints.')"/>
+              <text x="385" y="164" text-anchor="middle" fill="#FFFFFF" font-weight="bold" font-size="11">check_constraints() [25%]</text>
+
+              <!-- Block C: exec_insert_index_tuples -->
+              <rect x="470" y="140" width="100" height="38" rx="4" fill="var(--node)" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('insert_index', '16%', 'B-Tree Index Update', 'Appends new tuple pointers into B-tree leaves.')"/>
+              <text x="520" y="164" text-anchor="middle" class="svg-text" font-size="11">insert_index() [16%]</text>
+
+              <!-- Block D: pg_fsync & heap_insert -->
+              <rect x="575" y="140" width="75" height="38" rx="4" fill="var(--danger)" opacity="0.85" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('pg_fsync', '12%', 'Storage Sync Barrier', 'Compels disk controllers to commit volatile cache to permanent flash.')"/>
+              <text x="612" y="164" text-anchor="middle" fill="#FFFFFF" font-weight="bold" font-size="11">fsync() [12%]</text>
+
+              <!-- Level 4: Deep Leaf Routines -->
+              <rect x="70" y="95" width="90" height="32" rx="4" fill="var(--node-strong)" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('libcrypto MD5', '14%', 'System Library Hash', 'Computes cryptographic hash inside libcrypto shared library.')"/>
+              <text x="115" y="115" text-anchor="middle" class="svg-mono" font-size="10">libcrypto:MD5 [14%]</text>
+
+              <rect x="165" y="95" width="125" height="32" rx="4" fill="var(--node)" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('heap_getnext', '20%', 'Storage Engine Row Read', 'Fetches raw data records from disk heap pages.')"/>
+              <text x="227" y="115" text-anchor="middle" class="svg-mono" font-size="10">heap_getnext() [20%]</text>
+
+              <rect x="315" y="95" width="140" height="32" rx="4" fill="var(--node)" stroke="var(--border-strong)" style="cursor:pointer;" onclick="inspectFlame('bsearch_keys', '22%', 'Binary Key Search', 'Traverses index pages searching for duplicate key collisions.')"/>
+              <text x="385" y="115" text-anchor="middle" class="svg-mono" font-size="10">bsearch_keys() [22%]</text>
+            </svg>
+          </div>
+          <!-- Click Inspector Panel -->
+          <div class="cap" id="flame-inspector" style="background:var(--panel-2); border-top:1px solid var(--border); padding:14px 20px;">
+            <strong>Flame Graph Inspector:</strong> Click on any block above to view details. Width corresponds to total execution sample percentage.
+          </div>
+        </div>
+
+        <div class="core-body">
+          <p>
+            Raw profiler outputs consist of thousands of lines of cryptic stack traces. A <span class="term-def">flame graph (= a visual chart where the horizontal X-axis represents execution time share and the vertical Y-axis represents call stack depth)</span> makes this data instantly readable.
+          </p>
+          <p>
+            When reading a flame graph:
+            The vertical Y-axis represents depth. The bottom rectangle is the root function (like `main`), and each block stacked above it represents a child function that was called.
+            The horizontal X-axis does <em>not</em> represent chronological time from morning to evening. Instead, it shows the percentage of all collected samples where that function was active.
+          </p>
+          <p>
+            The wider a plate is, the more CPU time or wall-clock time was spent inside that function. Look for wide plateaus at the top of the graph: these are the "hot spots" where the processor spent its cycles.
+          </p>
+          <p>
+            In Ben Dicken's analysis of a real PostgreSQL execution profile:
+            The `exec_scan` plate occupied 38% of runtime, containing a slice inside the `libcrypto` system library calculating MD5 hashes.
+            The `exec_check_index_constraints` plate consumed a massive 25% of runtime, proving that validating database uniqueness and foreign key rules carries measurable CPU costs.
+            Finally, the `pg_fsync` plate highlights the <span class="term-def">fsync trade-off (= forcing physical disk drives to confirm write permanence before proceeding, trading speed for crash safety)</span>. If a system requires absolute zero data loss, it must accept waiting for storage buffers to sync.
+          </p>
+        </div>
+
+        <div class="steps-box">
+          <div class="steps-box-title">How to read a flame graph</div>
+          <ol class="steps-list">
+            <li>Scan from bottom to top to identify the main branches of execution.</li>
+            <li>Look for wide plateaus on top; the wider the box, the greater the optimization opportunity.</li>
+            <li>Identify external system library blocks (such as OpenSSL or libc) versus application logic.</li>
+            <li>Check if heavy routines reflect fundamental work or accidental overhead (e.g., redundant constraint checks).</li>
+          </ol>
+        </div>
+
+        <div class="examples-grid">
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · Uncovering Index Overhead</span>
+            <p>
+              Kevin spent days tuning an SQL insert statement that was lagging under production write volume. Generating a flame graph revealed that 30% of total write time was spent inside `exec_check_index_constraints`. The database was validating five separate unused secondary indexes created years earlier for discarded features. Removing the dead indexes immediately slashed write latency by a third.
+            </p>
+          </div>
+          <div class="example-card">
+            <span class="example-tag">Everyday Story · The Fsync Bottleneck</span>
+            <p>
+              Claire managed an ingestion pipeline writing thousands of sensor records one at a time. Her flame graph showed a wide plate for `pg_fsync`, indicating the database spent 40% of its time waiting on drive confirmation. By wrapping individual records into batched transactions of five hundred rows, she amortized the single physical disk sync barrier across hundreds of records and multiplied write speed ten times.
+            </p>
+          </div>
+        </div>
+
+        <div class="insights-strip">
+          <div class="insight-pill insight-analogy">
+            <span class="insight-icon">ANALOGY</span>
+            <span>A flame graph is like a thermal heat loss scan of an apartment: wide bright red patches instantly point out the drafty windows where heat escapes so you can insulate the right room.</span>
+          </div>
+          <div class="insight-pill insight-gotcha">
+            <span class="insight-icon">GOTCHA</span>
+            <span>Assuming that the left-to-right axis represents chronological time, when it actually represents alphabetically sorted sample frequency.</span>
+          </div>
+          <div class="insight-pill insight-why">
+            <span class="insight-icon">WHY IT MATTERS</span>
+            <span>Flame graphs eliminate speculative arguments about code performance by displaying an objective mathematical map of execution time.</span>
+          </div>
+        </div>
+
+        <div class="module-link-bar">
+          Review all canonical formulas, definitions, and diagnostic rules in the <a href="#summary-cheat-sheet">Summary &amp; Cheat Sheet</a>.
+        </div>
+
+        <!-- Compact Interactive Scenario -->
+        <div class="scenario-box">
+          <div class="scenario-title">Interactive Scenario · Interpret the Graph</div>
+          <p class="scenario-prompt">
+            Your flame graph shows a 35% wide plate for pg_fsync during single-record insertions. Your application requires crash safety against sudden power failure. What is the optimal architectural remedy?
+          </p>
+          <div class="scenario-options">
+            <button type="button" class="scenario-btn" onclick="revealScenario('s7', 'a')">Option A: Disable fsync globally in the database configuration to remove the sync barrier completely.</button>
+            <button type="button" class="scenario-btn" onclick="revealScenario('s7', 'b')">Option B: Group individual single-record inserts into batched transactions to amortize the fsync barrier across many records.</button>
+          </div>
+          <div class="scenario-feedback" id="s7-feedback"></div>
+        </div>
+
+        <!-- Retrieval Prompt -->
+        <div class="recall-box">
+          <div class="recall-header" onclick="toggleRecall('r7')">
+            <span class="recall-label">Test Your Recall (Click to reveal)</span>
+            <span>▼</span>
+          </div>
+          <div class="recall-q">In a flame graph, what does the horizontal width of an individual block represent?</div>
+          <div class="recall-answer" id="r7">
+            The width represents the <strong>proportion of time (or percentage of collected samples)</strong> that the function and its descendants were executing during the profiling period.
+          </div>
+        </div>
+
+        <!-- Module Quiz -->
+        <div class="quiz-card">
+          <div class="quiz-title">Module 07 Checkpoint</div>
+          <div class="quiz-question">What does the vertical axis (Y-axis) represent in a standard systems performance flame graph?</div>
+          <div class="quiz-choices">
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q7', 'Incorrect. Memory allocation volume is visualized in specialized memory flame graphs, not standard call stacks.')">The total volume of physical RAM allocated by each function.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, true, 'q7', 'Correct! The Y-axis represents call stack depth, with parent callers on the bottom and leaf functions on top.')">The depth of the function call stack, with parents below children.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q7', 'Incorrect. Chronological time is not plotted on the vertical axis.')">The chronological wall-clock time elapsed since the program started.</button>
+            <button type="button" class="quiz-choice" onclick="answerQuiz(this, false, 'q7', 'Incorrect. Privilege rings are architecture modes, not flame graph axes.')">The hardware security privilege ring assigned to the running process.</button>
+          </div>
+          <div class="quiz-explanation" id="q7-expl"></div>
+        </div>
+      </article>
+
+      <!-- SUMMARY & CHEAT SHEET (§11 / §17.6) -->
+      <section class="cheat-section" id="summary-cheat-sheet">
+        <div class="section-head">
+          <div class="section-index">SUMMARY / REFERENCE</div>
+          <div>
+            <div class="section-label">Permanent Field Manual</div>
+            <h2>Summary &amp; Operational Cheat Sheet</h2>
+            <p class="section-intro">
+              Canonical vocabulary, diagnostic decision matrices, and operational formulas. Click any term card to test your recall. Press <code>/</code> to search.
+            </p>
+          </div>
+        </div>
+
+        <!-- Search Filter (§6 Canonical Pattern) -->
+        <div class="cheat-search-bar">
+          <input type="text" class="cheat-input" id="cheat-filter" placeholder="Filter terms or concepts (Press / to focus, Esc to clear)..." aria-label="Filter terms">
+        </div>
+
+        <!-- Canonical Terms Grid (§11) -->
+        <div class="cheat-grid" id="cheat-terms-container">
+          <div class="cheat-card" onclick="this.classList.toggle('revealed')" data-term="latency delay response time">
+            <div class="cheat-term-head">
+              <span class="cheat-term">Latency</span>
+              <span class="cheat-badge">RECALL-FIRST</span>
+            </div>
+            <div class="cheat-def">
+              The duration of time an operation takes to complete, measured from request initiation to response receipt. Focus on P99 tail metrics rather than misleading averages.
+            </div>
+          </div>
+
+          <div class="cheat-card" onclick="this.classList.toggle('revealed')" data-term="throughput iops operations rate">
+            <div class="cheat-term-head">
+              <span class="cheat-term">Throughput (IOPS)</span>
+              <span class="cheat-badge">RECALL-FIRST</span>
+            </div>
+            <div class="cheat-def">
+              The rate of work completed per unit of time (such as I/O operations per second). High IOPS without CPU load indicates storage bus pressure.
+            </div>
+          </div>
+
+          <div class="cheat-card" onclick="this.classList.toggle('revealed')" data-term="system call syscall trap kernel boundary">
+            <div class="cheat-term-head">
+              <span class="cheat-term">System Call</span>
+              <span class="cheat-badge">RECALL-FIRST</span>
+            </div>
+            <div class="cheat-def">
+              A privileged software programmatic request crossing the boundary from user space into the operating system kernel to access hardware or storage.
+            </div>
+          </div>
+
+          <div class="cheat-card" onclick="this.classList.toggle('revealed')" data-term="context switch cpu state registers">
+            <div class="cheat-term-head">
+              <span class="cheat-term">Context Switch</span>
+              <span class="cheat-badge">RECALL-FIRST</span>
+            </div>
+            <div class="cheat-def">
+              The hardware and kernel procedure of saving active CPU register states and switching privilege levels so another task or kernel routine can execute.
+            </div>
+          </div>
+
+          <div class="cheat-card" onclick="this.classList.toggle('revealed')" data-term="page cache buffer memory ram storage">
+            <div class="cheat-term-head">
+              <span class="cheat-term">Page Cache</span>
+              <span class="cheat-badge">RECALL-FIRST</span>
+            </div>
+            <div class="cheat-def">
+              A kernel-managed buffer in physical RAM that holds copies of recent disk blocks, eliminating physical drive reads when data is requested repeatedly.
+            </div>
+          </div>
+
+          <div class="cheat-card" onclick="this.classList.toggle('revealed')" data-term="profiling sampling timer stack">
+            <div class="cheat-term-head">
+              <span class="cheat-term">Statistical Profiling</span>
+              <span class="cheat-badge">RECALL-FIRST</span>
+            </div>
+            <div class="cheat-def">
+              Periodically interrupting execution via timer interrupts (e.g., 99Hz) to record call stacks, yielding low-overhead aggregate heat maps.
+            </div>
+          </div>
+
+          <div class="cheat-card" onclick="this.classList.toggle('revealed')" data-term="tracing ebpf probe events">
+            <div class="cheat-term-head">
+              <span class="cheat-term">Event Tracing</span>
+              <span class="cheat-badge">RECALL-FIRST</span>
+            </div>
+            <div class="cheat-def">
+              Instrumenting specific function entry and exit points to capture every discrete invocation, providing 100% precision at the risk of higher overhead.
+            </div>
+          </div>
+
+          <div class="cheat-card" onclick="this.classList.toggle('revealed')" data-term="flame graph brendan gregg visualization call stack">
+            <div class="cheat-term-head">
+              <span class="cheat-term">Flame Graph</span>
+              <span class="cheat-badge">RECALL-FIRST</span>
+            </div>
+            <div class="cheat-def">
+              A visual representation of profiled software execution where horizontal width represents sample frequency share and vertical height represents call stack depth.
+            </div>
+          </div>
+
+          <div class="cheat-card" onclick="this.classList.toggle('revealed')" data-term="fsync durability barrier disk commit">
+            <div class="cheat-term-head">
+              <span class="cheat-term">Fsync Barrier</span>
+              <span class="cheat-badge">RECALL-FIRST</span>
+            </div>
+            <div class="cheat-def">
+              A system call forcing storage controllers to flush volatile write buffers to non-volatile physical storage, guaranteeing data durability at the cost of serialization delay.
+            </div>
+          </div>
+        </div>
+
+        <!-- Diagnostic Decision Matrix (§17.6) -->
+        <h3>Diagnostic Triangulation Matrix</h3>
+        <table class="reference-table">
+          <thead>
+            <tr>
+              <th>Observed Symptom</th>
+              <th>Resource Signatures</th>
+              <th>Probable Root Cause</th>
+              <th>Actionable Remedy</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Spiking P99 Latency</strong></td>
+              <td>High IOPS · Flat CPU (50%) · Fast Disk (0.1ms)</td>
+              <td>Page Cache Eviction / Starvation</td>
+              <td>Isolate memory cgroups; stop noisy neighbor containers from stealing RAM.</td>
+            </tr>
+            <tr>
+              <td><strong>High User Latency</strong></td>
+              <td>Low IOPS · Low DB CPU · Fast DB Queries (2ms)</td>
+              <td>Network Chattiness / N+1 Query Loop</td>
+              <td>Batch multiple single-row requests into a single network round trip.</td>
+            </tr>
+            <tr>
+              <td><strong>High CPU Utilization</strong></td>
+              <td>Normal IOPS · Pegged CPU (95%) · Normal Memory</td>
+              <td>Hot Algorithmic Loop / Lock Spin</td>
+              <td>Run a 99Hz sampling profile; generate a flame graph to isolate hot plates.</td>
+            </tr>
+            <tr>
+              <td><strong>Slow Commit Latency</strong></td>
+              <td>High Wait in pg_fsync · Low Drive Throughput</td>
+              <td>Single-Row Transaction Sync Barriers</td>
+              <td>Batch write operations into combined transactions to amortize disk syncs.</td>
+            </tr>
+            <tr>
+              <td><strong>Slow System Call Return</strong></td>
+              <td>High Context Switch Rate · Modest User Work</td>
+              <td>Unbuffered I/O Loop in User Space</td>
+              <td>Buffer data into userland memory chunks before issuing write() calls.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- FREQUENTLY ASKED QUESTIONS (§11) -->
+      <section class="module-container" id="faq">
+        <div class="section-head">
+          <div class="section-index">FAQ / CLARIFICATIONS</div>
+          <div>
+            <div class="section-label">Still Confused?</div>
+            <h2>Frequently Asked Questions</h2>
+            <p class="section-intro">
+              Deep-dive explanations for subtle edge cases and counter-intuitive systems performance questions.
+            </p>
+          </div>
+        </div>
+
+        <div class="faq-grid">
+          <div class="faq-item">
+            <div class="faq-q">Why is tail latency (P99) so much more important than average latency (P50)?</div>
+            <p class="faq-a">
+              In a distributed system, a single web request often triggers dozens of downstream database queries and service calls. If a user needs twenty sub-queries to load a page, the chance of hitting the slowest 1% tail latency climbs to nearly twenty percent. Flattering averages mask the outliers that ruin the actual user experience.
+            </p>
+            <div class="faq-takeaway">Takeaway: In distributed architectures, users experience the slowest tail component, not the average.</div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q">Can an application be bottlenecked by the kernel even if my user code has zero bugs?</div>
+            <p class="faq-a">
+              Yes. If your application code issues millions of tiny unbuffered reads, invokes inefficient system libraries, or competes with a noisy neighbor process for memory, the kernel will spend all its time switching contexts or waiting on physical drive buses. Healthy user code running on an unbuffered I/O loop will grind to a halt.
+            </p>
+            <div class="faq-takeaway">Takeaway: Performance is holistic; optimal algorithms cannot compensate for excessive boundary crossings.</div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q">How does the operating system decide what to keep in the page cache?</div>
+            <p class="faq-a">
+              Most operating systems use an adaptive variant of Least Recently Used (LRU) or page replacement algorithms. Pages accessed frequently remain in the active list, while pages that have not been read recently drift to an inactive list. When a competing program allocates working memory, the kernel evicts the inactive file cache pages first.
+            </p>
+            <div class="faq-takeaway">Takeaway: The kernel prioritizes active process allocations over file cache buffers.</div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q">Why shouldn't I run traditional strace on high-traffic production databases?</div>
+            <p class="faq-a">
+              Traditional strace works by attaching ptrace breakpoints to every single system call invocation. In an engine handling tens of thousands of queries per second, this introduces two context switches per call and forces thread serialization, frequently slowing production execution down by 5x to 10x and causing service outages.
+            </p>
+            <div class="faq-takeaway">Takeaway: Use lightweight sampling profilers or eBPF in live production fleets.</div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q">What is the difference between CPU time and wall-clock time in profiling?</div>
+            <p class="faq-a">
+              CPU time measures only the clock cycles when a processor was actively executing instructions for that thread. Wall-clock time measures total real-world elapsed time, including periods when the thread was asleep, waiting on locks, or stalled on disk I/O. If a program is blocked waiting for storage, CPU time will look deceptively low.
+            </p>
+            <div class="faq-takeaway">Takeaway: Always verify whether your profiler captures on-CPU cycles or off-CPU wait states.</div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q">Is disabling fsync ever an acceptable way to make a database faster?</div>
+            <p class="faq-a">
+              Only for non-critical, completely ephemeral data like scratch caches or disposable unit test runners. In production, disabling fsync means that if the host suffers a power outage or kernel panic, uncommitted memory buffers vanish, corrupting table files permanently.
+            </p>
+            <div class="faq-takeaway">Takeaway: Never disable fsync for persistent data; batch operations into transactions instead.</div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q">Why did the case study show 50% CPU even when the database was slow?</div>
+            <p class="faq-a">
+              The database was not CPU-bound; it was I/O bound. The CPU cores spent half their time executing instructions and the rest of their time waiting on the memory controller and storage queue. Adding more CPU cores would not speed up the queries because the bottleneck was missing cache pages.
+            </p>
+            <div class="faq-takeaway">Takeaway: Saturated storage or memory starvation leaves CPU utilization deceptively low.</div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-q">How do containerized environments like Docker affect memory cache isolation?</div>
+            <p class="faq-a">
+              By default, containers running on the same Linux host share the same underlying operating system kernel and page cache. Unless explicit memory cgroups limits are configured, a rogue container can allocate large memory buffers and silently evict file cache pages needed by neighboring production containers.
+            </p>
+            <div class="faq-takeaway">Takeaway: Always configure strict memory limits on shared multi-tenant hosts.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- NEXT STEPS (§11) -->
+      <section class="next-steps-card" id="next-steps">
+        <div class="section-index">ACTION PLAN</div>
+        <div class="section-label">Real-World Practice</div>
+        <h2>Next Steps &amp; Practical Exercises</h2>
+        <p>
+          Mastering systems performance requires putting diagnostic theory into physical practice on real machines. Re-watch the original primary source material at <a href="https://www.youtube.com/@benjdick">Ben Dicken's Systems Performance Series</a> and study <a href="https://www.brendangregg.com/systems-performance-2nd-edition-book.html">Brendan Gregg's Systems Performance Book</a>:
+        </p>
+
+        <ol class="steps-list" style="margin-bottom: 24px;">
+          <li>
+            <strong>Solo Telemetry Lab:</strong> Log into a Linux test server and run <code>vmstat 1</code> and <code>iostat -xz 1</code> while issuing heavy file operations. Observe how the <code>bi</code> (blocks in) and <code>bo</code> (blocks out) columns correspond directly to disk IOPS and page cache behavior.
+          </li>
+          <li>
+            <strong>Generate Your First Flame Graph:</strong> Install a sampling profiler (such as Linux <code>perf</code> or <code>async-profiler</code>) and generate an SVG flame graph for a local Python or Node application under test load. Locate the widest plate and trace its caller hierarchy.
+          </li>
+          <li>
+            <strong>Primary Source Video Segments:</strong> Rewatch the corresponding segments from Ben Dicken's Chapter 1 livestream series:
+            <ul style="margin-top: 6px;">
+              <li>00:00–25:00: Software stack philosophy &amp; userland vs kernel layers.</li>
+              <li>25:00–55:00: Multi-tier distributed topology &amp; network latency compounding.</li>
+              <li>55:00–1:25:00: The P99 latency mystery &amp; page cache contention case study.</li>
+              <li>1:25:00–2:00:00: Sampling profiling, tracing trade-offs, and interactive flame graph analysis.</li>
+            </ul>
+          </li>
+          <li>
+            <strong>Community Wisdom &amp; Code Review:</strong> Share your flame graph insights and discuss database tuning with fellow systems practitioners on the <a href="https://www.reddit.com/r/systems/">r/systems subreddit</a>, the <a href="https://www.reddit.com/r/database/">r/database community</a>, or the <a href="https://planetscale.com/community">PlanetScale Community</a>.
+          </li>
+        </ol>
+      </section>
+
+      <!-- Footer (§3/§11 Mandatory Elements) -->
+      <footer>
+        <div class="footer-content">
+          <div class="footer-source">
+            Primary Source Material:
+            <a href="https://www.youtube.com/@benjdick" target="_blank" rel="noopener noreferrer">Systems Performance Chapter 1 Livestream Series by Ben Dicken</a>
+            · Reference Literature:
+            <a href="https://www.brendangregg.com/systems-performance-2nd-edition-book.html" target="_blank" rel="noopener noreferrer">Systems Performance: Enterprise and the Cloud (2nd Edition) by Brendan Gregg</a>
+          </div>
+          <div class="footer-stuck">
+            Stuck? Ask the agent a follow-up question about any module.
+          </div>
+        </div>
+      </footer>
+
+    </main>
+  </div>
+
+  <!-- Interactive JavaScript State Machines & Logic -->
+  <script>
+    (function() {
+      // 1. Theme Persistence & Toggle
+      var themeToggleBtn = document.getElementById('theme-toggle');
+      var themeLabel = document.getElementById('theme-label');
+      var themeIcon = document.getElementById('theme-icon');
+
+      function applyTheme(isDark) {
+        if (isDark) {
+          document.body.classList.add('dark');
+          if (themeLabel) themeLabel.textContent = 'Light';
+          if (themeIcon) themeIcon.textContent = '☼';
+        } else {
+          document.body.classList.remove('dark');
+          if (themeLabel) themeLabel.textContent = 'Dark';
+          if (themeIcon) themeIcon.textContent = '◐';
+        }
+        try {
+          localStorage.setItem('lesson-theme', isDark ? 'dark' : 'light');
+        } catch(e) {}
+      }
+
+      // Initialize from localStorage or prefers-color-scheme
+      try {
+        var savedTheme = localStorage.getItem('lesson-theme');
+        if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          applyTheme(true);
+        } else {
+          applyTheme(false);
+        }
+      } catch(e) {
+        applyTheme(false);
+      }
+
+      if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', function() {
+          var isCurrentDark = document.body.classList.contains('dark');
+          applyTheme(!isCurrentDark);
+        });
+      }
+
+      // 2. Reading Progress & Scrollspy
+      var progressBar = document.getElementById('progress-bar');
+      var progressIndicator = document.getElementById('progress-indicator');
+      var railLinks = document.querySelectorAll('.rail-link');
+      var modules = document.querySelectorAll('.module-container, #hero, #summary-cheat-sheet, #faq, #next-steps');
+
+      function updateProgress() {
+        var scrollTop = window.scrollY || document.documentElement.scrollTop;
+        var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        var pct = docHeight > 0 ? Math.min(100, Math.max(0, Math.round((scrollTop / docHeight) * 100))) : 0;
+
+        if (progressBar) progressBar.style.width = pct + '%';
+        if (progressIndicator) progressIndicator.textContent = pct + '% complete';
+
+        try {
+          localStorage.setItem('lesson-progress', JSON.stringify({ pct: pct, scroll: scrollTop }));
+        } catch(e) {}
+
+        // Scrollspy for active rail link
+        var currentId = 'hero';
+        modules.forEach(function(mod) {
+          var rect = mod.getBoundingClientRect();
+          if (rect.top <= 120 && rect.bottom >= 120) {
+            currentId = mod.id;
+          }
+        });
+
+        railLinks.forEach(function(link) {
+          if (link.getAttribute('data-mod') === currentId) {
+            link.classList.add('active');
+          } else {
+            link.classList.remove('active');
+          }
+        });
+      }
+
+      window.addEventListener('scroll', updateProgress, { passive: true });
+      updateProgress();
+
+      // 3. Module 02 Staged SVG Animation Driver (§13)
+      (function() {
+        var s1 = document.getElementById('m2-s1');
+        var s2 = document.getElementById('m2-s2');
+        var s3 = document.getElementById('m2-s3');
+        var stepDesc = document.getElementById('m2-step-desc');
+        var cap = document.getElementById('m2-cap');
+        var playBtn = document.getElementById('m2-play');
+        var pauseBtn = document.getElementById('m2-pause');
+        var replayBtn = document.getElementById('m2-replay');
+        var animWrap = document.getElementById('m2-anim');
+
+        var stages = [s1, s2, s3];
+        var descs = [
+          'Stage 1: User program executes read/write request and issues interrupt trap.',
+          'Stage 2: CPU freezes user context, saves hardware registers, and elevates to Ring 0.',
+          'Stage 3: Kernel executes device routine, updates buffers, and returns control to userland.'
+        ];
+        var currentStage = 0;
+        var timer = null;
+
+        function setStage(idx) {
+          currentStage = idx;
+          stages.forEach(function(st, i) {
+            if (st) st.style.opacity = (i === idx) ? '1' : '0.15';
+          });
+          if (stepDesc) stepDesc.textContent = descs[idx];
+          if (cap) cap.textContent = 'Active: ' + descs[idx];
+        }
+
+        function stopAnim() {
+          if (timer) {
+            clearInterval(timer);
+            timer = null;
+          }
+        }
+
+        function startAnim() {
+          stopAnim();
+          timer = setInterval(function() {
+            var next = (currentStage + 1) % stages.length;
+            setStage(next);
+          }, 1800);
+        }
+
+        if (playBtn) playBtn.addEventListener('click', startAnim);
+        if (pauseBtn) pauseBtn.addEventListener('click', stopAnim);
+        if (replayBtn) replayBtn.addEventListener('click', function() {
+          stopAnim();
+          setStage(0);
+          startAnim();
+        });
+
+        // IntersectionObserver pause
+        if ('IntersectionObserver' in window && animWrap) {
+          new IntersectionObserver(function(entries) {
+            entries.forEach(function(e) {
+              if (!e.isIntersecting) stopAnim();
+            });
+          }).observe(animWrap);
+        }
+
+        setStage(0);
+      })();
+
+      // 4. Module 04 Telemetry Highlight Toggle
+      window.toggleTelemetryHighlight = function() {
+        var hl = document.getElementById('m4-highlight');
+        if (!hl) return;
+        var isVis = hl.getAttribute('opacity') === '0.75';
+        hl.setAttribute('opacity', isVis ? '0' : '0.75');
+      };
+
+      // 5. Module 05 Memory Bar Toggle
+      var isDegradedMemory = false;
+      window.toggleMemoryState = function() {
+        isDegradedMemory = !isDegradedMemory;
+        var prodBar = document.getElementById('m5-prod-bar');
+        var prodTxt = document.getElementById('m5-prod-txt');
+        var prodSub = document.getElementById('m5-prod-sub');
+        var noiseBar = document.getElementById('m5-noise-bar');
+        var noiseTxt = document.getElementById('m5-noise-txt');
+        var noiseSub = document.getElementById('m5-noise-sub');
+        var label = document.getElementById('m5-state-label');
+        var sub = document.getElementById('m5-state-sub');
+        var exp1 = document.getElementById('m5-exp-1');
+        var exp2 = document.getElementById('m5-exp-2');
+        var exp3 = document.getElementById('m5-exp-3');
+
+        if (isDegradedMemory) {
+          if (prodBar) prodBar.setAttribute('width', '270');
+          if (prodTxt) { prodTxt.setAttribute('x', '285'); prodTxt.textContent = '25 GB Cache'; }
+          if (prodSub) { prodSub.setAttribute('x', '285'); prodSub.textContent = 'Slashed by 50%'; }
+          if (noiseBar) { noiseBar.setAttribute('x', '420'); noiseBar.setAttribute('width', '270'); }
+          if (noiseTxt) noiseTxt.setAttribute('opacity', '1');
+          if (noiseSub) noiseSub.setAttribute('opacity', '1');
+
+          if (label) label.textContent = 'DEGRADED STATE: Noisy Neighbor Stole 25 GB of Memory';
+          if (sub) sub.textContent = 'Cache Hit Ratio plummeted to 60% · 10,000 Disk IOPS (10x jump!) · P99: 50ms';
+          if (exp1) exp1.textContent = 'The secondary container claimed 25GB RAM, forcing the kernel to evict database cache pages.';
+          if (exp2) exp2.textContent = 'Queries that previously found data in RAM now must wait for physical disk reads.';
+          if (exp3) { exp3.textContent = 'Result: 10x IOPS surge with identical query volume!'; exp3.setAttribute('fill', 'var(--danger)'); }
+        } else {
+          if (prodBar) prodBar.setAttribute('width', '540');
+          if (prodTxt) { prodTxt.setAttribute('x', '420'); prodTxt.textContent = '50 GB Page Cache for Database'; }
+          if (prodSub) { prodSub.setAttribute('x', '420'); prodSub.textContent = 'Hot data pages reside in RAM'; }
+          if (noiseBar) { noiseBar.setAttribute('width', '0'); }
+          if (noiseTxt) noiseTxt.setAttribute('opacity', '0');
+          if (noiseSub) noiseSub.setAttribute('opacity', '0');
+
+          if (label) label.textContent = 'NORMAL STATE: 50 GB Dedicated to Database Page Cache';
+          if (sub) sub.textContent = '95% Cache Hit Ratio · 1,000 Disk IOPS · P99 Latency: 2ms';
+          if (exp1) exp1.textContent = 'In normal operation, 50 GB of free RAM serves as the operating system page cache.';
+          if (exp2) exp2.textContent = 'Most read queries find their disk blocks already waiting in RAM, avoiding physical storage.';
+          if (exp3) { exp3.textContent = 'No disk bottleneck · CPU load steady · Latency optimal'; exp3.setAttribute('fill', 'var(--ai-iro)'); }
+        }
+      };
+
+      // 6. Module 07 Flame Graph Inspector
+      window.inspectFlame = function(fnName, pct, subSys, desc) {
+        var inspector = document.getElementById('flame-inspector');
+        if (!inspector) return;
+        inspector.innerHTML = '<strong>' + fnName + ' (' + pct + ')</strong> · ' +
+          '<span style="color:var(--ai-iro); font-weight:600;">[' + subSys + ']</span> ' +
+          desc + ' <span style="color:var(--muted-2); font-family:var(--font-mono); font-size:11px;">(Width = sample percentage)</span>';
+      };
+
+      // 7. Compact Interactive Scenario Resolver
+      var scenarioData = {
+        's1': {
+          'a': { ok: false, msg: 'Incorrect. The database engine processed the SQL in 1ms. Rewriting SQL will not solve an 84ms client or network delay.' },
+          'b': { ok: true, msg: 'Correct! When internal database compute is 1ms but the client waits 85ms, the delay stems from client-side network transmission or driver serialization.' }
+        },
+        's2': {
+          'a': { ok: false, msg: 'Incorrect. Issuing 50,000 write calls per second will saturate the CPU with context switches and privilege elevations.' },
+          'b': { ok: true, msg: 'Correct! Buffering records in user space and writing in 64KB batches reduces context switches by over 95%.' }
+        },
+        's3': {
+          'a': { ok: false, msg: 'Incorrect. The database is finishing each query in 12ms and CPU is low; adding RAM will not solve network round trips.' },
+          'b': { ok: true, msg: 'Correct! Low CPU and fast database runtimes paired with high overall latency is the signature of an unbatched N+1 network loop.' }
+        },
+        's4': {
+          'a': { ok: false, msg: 'Incorrect. Physical disk latency per I/O remained at 0.1ms, proving the hardware is perfectly healthy.' },
+          'b': { ok: true, msg: 'Correct! Triangulation proves the drive is fast; something else in the system is generating ten times more read requests.' }
+        },
+        's5': {
+          'a': { ok: false, msg: 'Incorrect. Process priority (nice) affects CPU scheduling, not memory page cache eviction.' },
+          'b': { ok: true, msg: 'Correct! Using cgroups or direct I/O hints prevents sequential log reads from replacing active database cache pages.' }
+        },
+        's6': {
+          'a': { ok: false, msg: 'Incorrect. Attaching strace to a 40,000 QPS production service can stall execution and cause a catastrophic outage.' },
+          'b': { ok: true, msg: 'Correct! A 99Hz sampling profiler introduces less than 1% overhead, making it safe to run in live production.' }
+        },
+        's7': {
+          'a': { ok: false, msg: 'Incorrect. Disabling fsync risks catastrophic database corruption and permanent data loss upon unexpected reboot.' },
+          'b': { ok: true, msg: 'Correct! Grouping writes into batched transactions amortizes the physical fsync barrier across hundreds of records.' }
+        }
+      };
+
+      window.revealScenario = function(scId, opt) {
+        var fb = document.getElementById(scId + '-feedback');
+        if (!fb) return;
+        var info = scenarioData[scId][opt];
+        fb.className = 'scenario-feedback revealed ' + (info.ok ? 'insight-why' : 'insight-gotcha');
+        fb.textContent = info.msg;
+      };
+
+      // 8. Recall Prompt Toggle
+      window.toggleRecall = function(rId) {
+        var el = document.getElementById(rId);
+        if (!el) return;
+        el.classList.toggle('revealed');
+      };
+
+      // 9. Module Quiz Engine
+      window.answerQuiz = function(btn, isCorrect, qId, explanationText) {
+        var container = btn.closest('.quiz-choices');
+        var buttons = container.querySelectorAll('.quiz-choice');
+        buttons.forEach(function(b) {
+          b.disabled = true;
+          b.style.cursor = 'default';
+        });
+
+        if (isCorrect) {
+          btn.classList.add('correct');
+        } else {
+          btn.classList.add('incorrect');
+          buttons.forEach(function(b) {
+            if (b.getAttribute('onclick').indexOf('true') !== -1) {
+              b.classList.add('correct');
+            }
+          });
+        }
+
+        var explBox = document.getElementById(qId + '-expl');
+        if (explBox) {
+          explBox.className = 'quiz-explanation revealed ' + (isCorrect ? 'insight-why' : 'insight-gotcha');
+          explBox.textContent = explanationText;
+        }
+      };
+
+      // 10. Live Search for Cheat Sheet Cards (§6)
+      var cheatInput = document.getElementById('cheat-filter');
+      var cheatCards = document.querySelectorAll('.cheat-card');
+
+      if (cheatInput) {
+        cheatInput.addEventListener('input', function() {
+          var query = this.value.toLowerCase().trim();
+          cheatCards.forEach(function(card) {
+            var termText = (card.getAttribute('data-term') || '') + ' ' + card.textContent.toLowerCase();
+            if (termText.indexOf(query) !== -1) {
+              card.style.display = 'block';
+            } else {
+              card.style.display = 'none';
+            }
+          });
+        });
+
+        window.addEventListener('keydown', function(e) {
+          if (e.key === '/' && document.activeElement !== cheatInput) {
+            e.preventDefault();
+            cheatInput.focus();
+          } else if (e.key === 'Escape' && document.activeElement === cheatInput) {
+            cheatInput.value = '';
+            cheatInput.blur();
+            cheatCards.forEach(function(c) { c.style.display = 'block'; });
+          }
+        });
+      }
+
+    })();
+  </script>
+</body>
+</html>

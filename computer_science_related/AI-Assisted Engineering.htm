@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Trust Curve — Working With AI Coding Agents</title>
+<style>
+  :root{
+    --bg:#0b0e14;
+    --bg2:#121722;
+    --panel:#161c28;
+    --panel2:#1c2433;
+    --line:#26303f;
+    --txt:#e6ecf5;
+    --muted:#8e9bb0;
+    --accent:#5eead4;
+    --accent2:#818cf8;
+    --warn:#fbbf24;
+    --bad:#f87171;
+    --good:#4ade80;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:radial-gradient(1200px 700px at 15% -10%, #1a2438 0%, transparent 60%),
+               radial-gradient(900px 600px at 95% 5%, #241a38 0%, transparent 55%),
+               var(--bg);
+    color:var(--txt);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:80px;
+  }
+
+  /* ---------- Progress bar ---------- */
+  #progress{
+    position:fixed;top:0;left:0;height:3px;width:0%;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    z-index:999;transition:width .12s linear;
+    box-shadow:0 0 12px rgba(94,234,212,.6);
+  }
+
+  /* ---------- Nav ---------- */
+  nav{
+    position:sticky;top:0;z-index:900;
+    backdrop-filter:blur(14px);
+    background:rgba(11,14,20,.82);
+    border-bottom:1px solid var(--line);
+    padding:10px 20px;
+    display:flex;gap:6px;overflow-x:auto;
+    scrollbar-width:none;
+  }
+  nav::-webkit-scrollbar{display:none}
+  nav a{
+    color:var(--muted);text-decoration:none;font-size:.78rem;font-weight:600;
+    padding:7px 13px;border-radius:999px;white-space:nowrap;
+    border:1px solid transparent;transition:.2s;
+  }
+  nav a:hover{color:var(--txt);background:var(--panel2)}
+  nav a.active{color:#062a26;background:var(--accent);border-color:var(--accent)}
+
+  /* ---------- Layout ---------- */
+  .wrap{max-width:960px;margin:0 auto;padding:0 22px}
+  section{padding:70px 0 30px;scroll-margin-top:70px}
+  .kicker{
+    font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin-bottom:12px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .kicker::before{content:'';width:26px;height:2px;background:var(--accent);border-radius:2px}
+  h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.1;font-weight:800;letter-spacing:-.03em}
+  h2{font-size:clamp(1.45rem,3.4vw,2.1rem);line-height:1.2;font-weight:750;letter-spacing:-.02em;margin-bottom:14px}
+  h3{font-size:1.05rem;font-weight:700;margin-bottom:8px}
+  p{color:#c3cddd;margin-bottom:14px}
+  .lead{font-size:1.08rem;color:#aab6c9}
+  strong{color:var(--txt);font-weight:650}
+  em{color:var(--accent);font-style:normal;font-weight:600}
+
+  /* ---------- Hero ---------- */
+  header.hero{
+    padding:80px 0 40px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(94,234,212,.05),transparent 70%);
+  }
+  .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+  .tag{
+    font-size:.72rem;font-weight:600;padding:5px 12px;border-radius:999px;
+    background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+  }
+  .hero-meta{
+    display:flex;flex-wrap:wrap;gap:26px;margin-top:30px;
+    padding-top:22px;border-top:1px solid var(--line);
+  }
+  .hero-meta div span{display:block;font-size:1.5rem;font-weight:800;color:var(--accent)}
+  .hero-meta div small{font-size:.75rem;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+
+  /* ---------- Cards / panels ---------- */
+  .card{
+    background:linear-gradient(160deg,var(--panel),var(--bg2));
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px;margin:18px 0;
+  }
+  .card.accent{border-color:rgba(94,234,212,.35);box-shadow:0 0 0 1px rgba(94,234,212,.08),0 14px 40px -20px rgba(94,234,212,.35)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  .quote{
+    border-left:3px solid var(--accent);
+    background:rgba(94,234,212,.06);
+    padding:14px 18px;border-radius:0 12px 12px 0;
+    font-style:italic;color:#cfdae9;margin:18px 0;
+  }
+  .quote cite{display:block;font-style:normal;font-size:.78rem;color:var(--muted);margin-top:8px}
+
+  /* ---------- Trust curve ---------- */
+  .chart-box{
+    background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;margin:22px 0;
+  }
+  svg{width:100%;height:auto;display:block}
+  .stage-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;justify-content:center}
+  .stage-btns button{
+    flex:1;min-width:130px;
+    background:var(--panel2);color:var(--muted);border:1px solid var(--line);
+    padding:11px 10px;border-radius:11px;cursor:pointer;
+    font-size:.78rem;font-weight:650;font-family:inherit;transition:.2s;
+  }
+  .stage-btns button:hover{border-color:var(--accent2);color:var(--txt)}
+  .stage-btns button.active{
+    background:linear-gradient(140deg,rgba(94,234,212,.18),rgba(129,140,248,.18));
+    border-color:var(--accent);color:var(--accent);
+  }
+  .stage-info{
+    margin-top:18px;padding:18px;border-radius:12px;
+    background:var(--panel);border:1px solid var(--line);
+    min-height:120px;transition:.25s;
+  }
+  .stage-info h3{color:var(--accent);display:flex;align-items:center;gap:9px}
+  .stage-info .num{
+    width:24px;height:24px;border-radius:50%;background:var(--accent);color:#062a26;
+    display:grid;place-items:center;font-size:.75rem;font-weight:800;flex-shrink:0;
+  }
+  .stage-info ul{margin:10px 0 0 18px;color:#b9c4d6;font-size:.92rem}
+  .stage-info li{margin-bottom:5px}
+
+  /* ---------- Flip cards ---------- */
+  .flip-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin:20px 0}
+  .flip{perspective:1200px;height:180px;cursor:pointer}
+  .flip-inner{
+    position:relative;width:100%;height:100%;
+    transition:transform .65s cubic-bezier(.4,.2,.2,1);
+    transform-style:preserve-3d;
+  }
+  .flip.flipped .flip-inner{transform:rotateY(180deg)}
+  .flip-face{
+    position:absolute;inset:0;backface-visibility:hidden;
+    border-radius:14px;padding:18px;
+    display:flex;flex-direction:column;justify-content:center;
+    border:1px solid var(--line);
+  }
+  .flip-front{background:linear-gradient(150deg,var(--panel2),var(--panel));text-align:center}
+  .flip-front .ico{font-size:1.8rem;margin-bottom:10px}
+  .flip-front h3{margin:0;font-size:1rem}
+  .flip-front small{color:var(--muted);font-size:.72rem;margin-top:8px;display:block}
+  .flip-back{
+    background:linear-gradient(150deg,rgba(94,234,212,.14),rgba(129,140,248,.12));
+    transform:rotateY(180deg);font-size:.85rem;color:#cfdae9;
+    border-color:rgba(94,234,212,.35);
+  }
+  .flip-back b{color:var(--accent)}
+
+  /* ---------- Enforcement pyramid ---------- */
+  .layer{
+    border:1px solid var(--line);border-radius:12px;margin-bottom:10px;
+    overflow:hidden;background:var(--panel);cursor:pointer;transition:.2s;
+  }
+  .layer:hover{border-color:var(--accent2)}
+  .layer-head{
+    display:flex;align-items:center;gap:12px;padding:14px 16px;
+    font-weight:650;font-size:.93rem;
+  }
+  .layer-head .idx{
+    width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+    font-size:.75rem;font-weight:800;background:var(--panel2);color:var(--muted);flex-shrink:0;
+  }
+  .layer-head .badge{
+    margin-left:auto;font-size:.66rem;font-weight:800;letter-spacing:.1em;
+    padding:3px 9px;border-radius:999px;text-transform:uppercase;
+  }
+  .badge.hard{background:rgba(248,113,113,.16);color:var(--bad);border:1px solid rgba(248,113,113,.3)}
+  .badge.soft{background:rgba(251,191,36,.14);color:var(--warn);border:1px solid rgba(251,191,36,.3)}
+  .layer-body{
+    max-height:0;overflow:hidden;transition:max-height .35s ease;
+    padding:0 16px;color:#b3bfd1;font-size:.88rem;
+  }
+  .layer.open .layer-body{max-height:260px;padding:0 16px 16px}
+  .layer.open .layer-head .idx{background:var(--accent);color:#062a26}
+
+  /* ---------- Quiz ---------- */
+  .q{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px}
+  .q p.qtext{font-weight:650;color:var(--txt);margin-bottom:14px;font-size:.98rem}
+  .opt{
+    display:block;width:100%;text-align:left;font-family:inherit;
+    background:var(--panel2);border:1px solid var(--line);color:#c3cddd;
+    padding:12px 15px;border-radius:10px;margin-bottom:8px;cursor:pointer;
+    font-size:.89rem;transition:.18s;
+  }
+  .opt:hover:not(:disabled){border-color:var(--accent2);color:var(--txt);transform:translateX(3px)}
+  .opt:disabled{cursor:default;opacity:.85}
+  .opt.correct{background:rgba(74,222,128,.14);border-color:var(--good);color:var(--good);font-weight:600;opacity:1}
+  .opt.wrong{background:rgba(248,113,113,.13);border-color:var(--bad);color:var(--bad);opacity:1}
+  .fb{
+    font-size:.85rem;margin-top:10px;padding:12px 14px;border-radius:10px;
+    display:none;background:var(--bg2);border-left:3px solid var(--accent2);color:#b9c4d6;
+  }
+  .fb.show{display:block;animation:fade .3s}
+  @keyframes fade{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+  #score{
+    text-align:center;font-size:1.05rem;font-weight:700;
+    padding:18px;border-radius:14px;margin-top:18px;
+    background:var(--panel2);border:1px dashed var(--line);color:var(--muted);
+  }
+  #score.done{color:var(--accent);border-color:var(--accent);background:rgba(94,234,212,.08)}
+
+  /* ---------- Checklist ---------- */
+  .check{
+    display:flex;gap:13px;align-items:flex-start;padding:13px 15px;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    margin-bottom:9px;cursor:pointer;transition:.18s;user-select:none;
+  }
+  .check:hover{border-color:var(--accent2)}
+  .check.done{border-color:rgba(94,234,212,.4);background:rgba(94,234,212,.06)}
+  .box{
+    width:20px;height:20px;border-radius:6px;border:2px solid var(--line);
+    flex-shrink:0;margin-top:2px;display:grid;place-items:center;
+    font-size:.7rem;color:transparent;transition:.2s;
+  }
+  .check.done .box{background:var(--accent);border-color:var(--accent);color:#062a26}
+  .check span{font-size:.9rem;color:#c3cddd}
+  .check.done span{color:var(--txt)}
+
+  /* ---------- Misc ---------- */
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:18px 0}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;text-align:center}
+  .stat b{display:block;font-size:1.5rem;color:var(--accent);font-weight:800;letter-spacing:-.02em}
+  .stat small{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}
+  @media(max-width:700px){.vs{grid-template-columns:1fr}}
+  .vs > div{border-radius:14px;padding:18px;border:1px solid var(--line)}
+  .vs .a{background:rgba(248,113,113,.06);border-color:rgba(248,113,113,.25)}
+  .vs .b{background:rgba(74,222,128,.06);border-color:rgba(74,222,128,.25)}
+  .vs h3{font-size:.95rem;margin-bottom:10px}
+  .vs ul{margin-left:17px;font-size:.86rem;color:#b9c4d6}
+  .vs li{margin-bottom:5px}
+
+  footer{
+    text-align:center;padding:50px 22px 20px;color:var(--muted);
+    font-size:.82rem;border-top:1px solid var(--line);margin-top:60px;
+  }
+  .reveal{opacity:0;transform:translateY(24px);transition:.7s cubic-bezier(.2,.7,.3,1)}
+  .reveal.in{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<nav id="nav">
+  <a href="#intro" class="active">Start</a>
+  <a href="#curve">Trust Curve</a>
+  <a href="#verify">Verification</a>
+  <a href="#skills">Skills &amp; Pstack</a>
+  <a href="#evals">Evals</a>
+  <a href="#cloud">Cloud Agents</a>
+  <a href="#arch">Architecture</a>
+  <a href="#layers">Enforcement</a>
+  <a href="#roi">ROI</a>
+  <a href="#quiz">Quiz</a>
+  <a href="#takeaways">Takeaways</a>
+</nav>
+
+<!-- ================= HERO ================= -->
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">Interactive Lesson · AI-Assisted Engineering</div>
+    <h1>The Trust Curve</h1>
+    <p class="lead" style="margin-top:16px;max-width:660px">
+      How one engineer went from babysitting a single AI agent to waking up to
+      <strong>20 pull requests already merged</strong> — and why the whole journey
+      is really about one thing: <em>trust</em>.
+    </p>
+    <div class="hero-tags">
+      <span class="tag">🤖 Agentic Coding</span>
+      <span class="tag">🔍 Verification</span>
+      <span class="tag">📏 Constraints &amp; CI</span>
+      <span class="tag">🧪 Evals</span>
+      <span class="tag">☁️ Cloud Agents</span>
+    </div>
+    <div class="hero-meta">
+      <div><span>1,000</span><small>PRs / month</small></div>
+      <div><span>600+</span><small>PRs to refactor</small></div>
+      <div><span>5 mo</span><small>Trust climb</small></div>
+      <div><span>0</span><small>Lines read now</small></div>
+    </div>
+  </div>
+</header>
+
+<!-- ================= INTRO ================= -->
+<section id="intro">
+  <div class="wrap reveal">
+    <div class="kicker">The Premise</div>
+    <h2>Your agent should be a colleague, not a tool</h2>
+    <p>
+      The starting question wasn't "how do I make AI write code faster?" It was:
+      <em>what would it look like if your agent was really more like a colleague?</em>
+      A colleague you could hand a bug report to before you go to sleep — and trust to
+      have it fixed by morning.
+    </p>
+    <div class="quote">
+      "The big theme for me, as I've been using agents to write code, is
+      <strong>how do you trust it?</strong> When you don't have much trust in your agents,
+      you really can't get the most out of them."
+    </div>
+
+    <div class="card accent">
+      <h3>🧑‍💼 The Management Analogy</h3>
+      <p style="margin:0">
+        If you're an engineering manager and you <strong>don't trust your team</strong>,
+        you end up micromanaging — looking over shoulders, checking every commit,
+        reviewing every line. You become the bottleneck. Agents work exactly the same way.
+        The only way to scale from 1 agent to 100 is to build trust.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TRUST CURVE ================= -->
+<section id="curve">
+  <div class="wrap reveal">
+    <div class="kicker">Module 01</div>
+    <h2>The Trust Curve</h2>
+    <p>
+      Trust isn't a switch you flip — it's a curve you climb. Click a stage below
+      (or drag the slider) to see what each phase of the journey looks like.
+    </p>
+
+    <div class="chart-box">
+      <svg viewBox="0 0 700 340" role="img" aria-label="Trust curve chart">
+        <defs>
+          <linearGradient id="curveGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#f87171"/>
+            <stop offset="50%" stop-color="#fbbf24"/>
+            <stop offset="100%" stop-color="#5eead4"/>
+          </linearGradient>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(94,234,212,.28)"/>
+            <stop offset="100%" stop-color="rgba(94,234,212,0)"/>
+          </linearGradient>
+        </defs>
+
+        <!-- grid -->
+        <g stroke="#26303f" stroke-width="1">
+          <line x1="70" y1="60"  x2="660" y2="60"/>
+          <line x1="70" y1="120" x2="660" y2="120"/>
+          <line x1="70" y1="180" x2="660" y2="180"/>
+          <line x1="70" y1="240" x2="660" y2="240"/>
+        </g>
+        <!-- axes -->
+        <line x1="70" y1="20" x2="70" y2="290" stroke="#3a4657" stroke-width="1.5"/>
+        <line x1="70" y1="290" x2="670" y2="290" stroke="#3a4657" stroke-width="1.5"/>
+
+        <!-- area under curve -->
+        <path d="M100 268 C 190 262, 220 236, 280 218 C 350 197, 400 160, 460 122 C 520 88, 560 66, 625 56 L625 290 L100 290 Z"
+              fill="url(#areaGrad)"/>
+
+        <!-- curve -->
+        <path id="curvePath"
+              d="M100 268 C 190 262, 220 236, 280 218 C 350 197, 400 160, 460 122 C 520 88, 560 66, 625 56"
+              fill="none" stroke="url(#curveGrad)" stroke-width="4" stroke-linecap="round"/>
+
+        <!-- static dots -->
+        <g fill="#0b0e14">
+          <circle cx="100" cy="268" r="7" stroke="#f87171" stroke-width="3"/>
+          <circle cx="280" cy="218" r="7" stroke="#fbbf24" stroke-width="3"/>
+          <circle cx="460" cy="122" r="7" stroke="#a3e635" stroke-width="3"/>
+          <circle cx="625" cy="56"  r="7" stroke="#5eead4" stroke-width="3"/>
+        </g>
+
+        <!-- moving marker -->
+        <g id="marker" transform="translate(100,268)" style="transition:transform .55s cubic-bezier(.3,.8,.3,1)">
+          <circle r="14" fill="#5eead4" opacity=".18"/>
+          <circle r="7" fill="#5eead4" stroke="#0b0e14" stroke-width="3"/>
+        </g>
+
+        <!-- labels -->
+        <g fill="#8e9bb0" font-size="11" font-family="Inter,sans-serif">
+          <text x="78" y="310">Month 1</text>
+          <text x="270" y="310">Month 2–3</text>
+          <text x="440" y="310">Month 4</text>
+          <text x="590" y="310">Month 5+</text>
+          <text x="14" y="160" transform="rotate(-90 14 160)" font-size="10.5" letter-spacing="1">AUTONOMY →</text>
+        </g>
+      </svg>
+
+      <div class="stage-btns">
+        <button data-stage="0" class="active">1 · In the Loop</button>
+        <button data-stage="1">2 · Building Trust</button>
+        <button data-stage="2">3 · Out of the Loop</button>
+        <button data-stage="3">4 · Auto-Merge</button>
+      </div>
+    </div>
+
+    <div class="stage-info" id="stageInfo"></div>
+  </div>
+</section>
+
+<!-- ================= VERIFICATION ================= -->
+<section id="verify">
+  <div class="wrap reveal">
+    <div class="kicker">Module 02</div>
+    <h2>Verification: The #1 Skill</h2>
+    <p>
+      If you take one thing from this lesson, take this: <em>the most important skill
+      in your toolbox is verification.</em>
+    </p>
+
+    <div class="card accent">
+      <h3>What "verification" actually means</h3>
+      <p style="margin-bottom:0">
+        The ability for an agent to <strong>actually run the code</strong> — to take CPU
+        traces, heap snapshots, open an iOS simulator, drive a browser. However your
+        application is exposed to users, the agent can do the same thing and
+        <em>test for real</em>.
+      </p>
+    </div>
+
+    <div class="quote">
+      "It doesn't guarantee your agent writes <strong>good</strong> code — but it allows
+      it to at least write <strong>correct</strong> code. That's a really big step forward
+      for being able to trust your agents."
+    </div>
+
+    <h3 style="margin-top:30px">The bottleneck problem</h3>
+    <p>Without a verification skill, <strong>you are the verifier</strong>. The loop looks like this:</p>
+
+    <div class="card">
+      <div style="display:flex;flex-direction:column;gap:9px;font-size:.88rem">
+        <div style="display:flex;gap:11px;align-items:center"><span style="background:rgba(248,113,113,.15);color:#f87171;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.72rem;flex-shrink:0">1</span> You tell the agent what to do</div>
+        <div style="display:flex;gap:11px;align-items:center"><span style="background:rgba(248,113,113,.15);color:#f87171;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.72rem;flex-shrink:0">2</span> It writes some code</div>
+        <div style="display:flex;gap:11px;align-items:center"><span style="background:rgba(248,113,113,.15);color:#f87171;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.72rem;flex-shrink:0">3</span> You open your local dev build and test it manually</div>
+        <div style="display:flex;gap:11px;align-items:center"><span style="background:rgba(248,113,113,.15);color:#f87171;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.72rem;flex-shrink:0">4</span> Copy-paste screenshots / console errors back to the agent</div>
+        <div style="display:flex;gap:11px;align-items:center"><span style="background:rgba(248,113,113,.15);color:#f87171;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.72rem;flex-shrink:0">5</span> Repeat forever. <strong style="color:#f87171">Zero parallelism.</strong></div>
+      </div>
+    </div>
+
+    <p style="margin-top:22px">
+      The fix is the <strong>"control glass" skill</strong> — teaching the agent to drive
+      the Chrome DevTools Protocol (or Apple's simulator utilities) so it can launch the
+      app, click around, take traces, and read its own results.
+    </p>
+
+    <div class="grid2">
+      <div class="card">
+        <h3 style="color:#f87171">❌ Before</h3>
+        <p style="font-size:.87rem;margin:0">
+          Agent guesses at a flame graph. "It kind of looks like this thing." You fix it.
+          Turns out that wasn't the problem. Slow, expensive, trust-destroying.
+        </p>
+      </div>
+      <div class="card">
+        <h3 style="color:#4ade80">✅ After</h3>
+        <p style="font-size:.87rem;margin:0">
+          Agent launches the app itself, reproduces the bug, reads the trace, and
+          confirms the fix — <strong>without you in the loop at all.</strong>
+        </p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:34px">The Feature Map</h3>
+    <p>
+      A verification skill alone isn't enough. The agent can run the app but has
+      <strong>no idea what anything is</strong>. Enter the <em>feature map</em>: a file
+      that teaches the agent how to <strong>navigate to every feature</strong> you have.
+    </p>
+
+    <div class="flip-grid">
+      <div class="flip" tabindex="0">
+        <div class="flip-inner">
+          <div class="flip-face flip-front">
+            <div class="ico">🗺️</div><h3>Feature Map</h3>
+            <small>Tap to flip</small>
+          </div>
+          <div class="flip-face flip-back">
+            <b>What it contains:</b> how to reach each feature from the user's POV,
+            keyboard shortcuts, DOM selectors/attributes used via CDP, and all sub-features.
+          </div>
+        </div>
+      </div>
+      <div class="flip" tabindex="0">
+        <div class="flip-inner">
+          <div class="flip-face flip-front">
+            <div class="ico">💬</div><h3>Bad Bug Reports</h3>
+            <small>Tap to flip</small>
+          </div>
+          <div class="flip-face flip-back">
+            Real Slack reports are often just a screenshot and <b>"???"</b>. Without a
+            feature map, the agent has no clue. With one, it has enough context to navigate
+            there itself.
+          </div>
+        </div>
+      </div>
+      <div class="flip" tabindex="0">
+        <div class="flip-inner">
+          <div class="flip-face flip-front">
+            <div class="ico">🔧</div><h3>Two Skills</h3>
+            <small>Tap to flip</small>
+          </div>
+          <div class="flip-face flip-back">
+            <b>create-verification</b> bootstraps the setup by exploring your codebase,
+            and <b>maintain-verification</b> keeps the feature map current as the product
+            changes.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SKILLS ================= -->
+<section id="skills">
+  <div class="wrap reveal">
+    <div class="kicker">Module 03</div>
+    <h2>Skills: Teaching a Brilliant Amnesiac</h2>
+    <p>
+      Imagine hiring an engineer who is a phenomenal coder but has
+      <strong>zero business context</strong> — they onboarded five seconds ago.
+      How do you make them effective? You teach them. With agents, that teaching
+      is called a <em>skill</em>.
+    </p>
+
+    <div class="card">
+      <h3>🧠 "Pulling the agent into a different latent space"</h3>
+      <p style="margin:0">
+        A skill is just markdown. But because LLMs predict the next token, feeding them
+        <strong>high-quality tokens up front</strong> lets them pattern-match at a higher,
+        smarter level. The fancy phrase for this is "pulling the agent into a different
+        latent space." Practically: give it good context and it behaves better.
+      </p>
+    </div>
+
+    <h3 style="margin-top:30px">How skills get built: failure-driven</h3>
+    <p>
+      The speaker's plugin, <strong>Pstack</strong> (a playful nod to Gary Tan's "GStack"),
+      wasn't designed up front. It grew <em>one failure at a time</em>:
+    </p>
+
+    <div class="card">
+      <div style="display:flex;flex-direction:column;gap:12px;font-size:.9rem">
+        <div style="display:flex;gap:12px"><span style="color:var(--accent);font-weight:800">→</span>
+          <div><strong>Observe a failure mode.</strong> Agent confidently says "it has to be this thing!"</div></div>
+        <div style="display:flex;gap:12px"><span style="color:var(--accent);font-weight:800">→</span>
+          <div><strong>Inspect the tool calls.</strong> Notice it never actually read the file that mattered.</div></div>
+        <div style="display:flex;gap:12px"><span style="color:var(--accent);font-weight:800">→</span>
+          <div><strong>Write a skill for it.</strong> "Stop hallucinating. Actually search. Use sub-agents. Stop guessing."</div></div>
+        <div style="display:flex;gap:12px"><span style="color:var(--accent);font-weight:800">→</span>
+          <div><strong>Repeat</strong> for every new failure you catch.</div></div>
+      </div>
+    </div>
+
+    <div class="quote">
+      "You don't want to just be a passive observer of your agent. You want to be
+      <strong>very in the driver seat</strong> in the initial stages... open up all the tool
+      calls, read the code, read the thinking blocks. That's a great way to see where
+      they fail."
+    </div>
+  </div>
+</section>
+
+<!-- ================= EVALS ================= -->
+<section id="evals">
+  <div class="wrap reveal">
+    <div class="kicker">Module 04</div>
+    <h2>Evals: Unit Tests for Your Agent</h2>
+    <p>
+      Skills rot. Products change. So how do you know a skill still does what you think
+      it does? <em>Evals.</em> Think of an eval as a <strong>unit test for an agent</strong>.
+    </p>
+
+    <div class="card accent">
+      <h3>The eval playbook</h3>
+      <ol style="margin-left:19px;color:#b9c4d6;font-size:.91rem">
+        <li style="margin-bottom:7px">A <strong>coordinator agent</strong> writes a rubric for what the skill should accomplish.</li>
+        <li style="margin-bottom:7px">It spawns many <strong>sub-agents</strong> in individual directories.</li>
+        <li style="margin-bottom:7px">Directories are <strong>cleverly named so sub-agents don't realize they're being evaluated</strong> — agents change behavior when they know.</li>
+        <li style="margin-bottom:7px">A <strong>judge agent on a different model</strong> cross-checks the first model's scoring to avoid bias.</li>
+        <li>Run across <strong>many models</strong> to see how the skill performs across the matrix.</li>
+      </ol>
+    </div>
+
+    <div class="grid2" style="margin-top:20px">
+      <div class="card">
+        <h3>📈 Hill climbing</h3>
+        <p style="margin:0;font-size:.9rem">
+          Because evals produce a <strong>score</strong>, you can loop on them.
+          Use <code style="background:var(--panel2);padding:2px 7px;border-radius:5px;color:var(--accent)">/loop</code>
+          and tell the agent: <em>"keep looping until everything is 10/10."</em>
+          Then walk away.
+        </p>
+      </div>
+      <div class="card">
+        <h3>🎯 Harder than it sounds</h3>
+        <p style="margin:0;font-size:.9rem">
+          Maintaining skills requires <strong>taste and observation</strong>.
+          It's like being a great backseat driver during pair programming — you ask
+          the questions a good reviewer would ask.
+        </p>
+      </div>
+    </div>
+
+    <div class="quote">
+      "Every time I modify a skill, I run an eval and make sure it's actually leading
+      to the result I want."
+    </div>
+  </div>
+</section>
+
+<!-- ================= CLOUD ================= -->
+<section id="cloud">
+  <div class="wrap reveal">
+    <div class="kicker">Module 05</div>
+    <h2>Going Cloud: Where the Leverage Is</h2>
+    <p>
+      Start <strong>local</strong>, because you can observe what the agent does. But the
+      real payoff comes when verification skills run in the <strong>cloud</strong> —
+      because then it's not just you who gets faster. <em>Your whole team does.</em>
+    </p>
+
+    <div class="card accent">
+      <h3>🤖 Meet "Benny"</h3>
+      <p>
+        An always-on cloud agent that takes every incoming bug report and, on its own
+        machine running its own editor, uses the <strong>same control skills</strong> to
+        launch the app and try to <strong>reproduce the bug</strong>.
+      </p>
+      <div class="stat-row">
+        <div class="stat"><b>Auto</b><small>Reproduce</small></div>
+        <div class="stat"><b>Auto</b><small>Diagnose</small></div>
+        <div class="stat"><b>Auto</b><small>Report</small></div>
+      </div>
+      <p style="margin-bottom:0">
+        Real example: Benny reproduced a reported bug, then discovered
+        <strong>it was already fixed on main</strong> — so the only remaining action was
+        to cut a new release. That's an hour of investigation saved, <em>per report</em>,
+        for everyone.
+      </p>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3>🖥️ Local first</h3>
+        <ul style="margin-left:17px;font-size:.88rem;color:#b9c4d6">
+          <li>You can watch the agent interact</li>
+          <li>You see how it calls APIs</li>
+          <li>Fast feedback on your skill design</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>☁️ Then cloud</h3>
+        <ul style="margin-left:17px;font-size:.88rem;color:#b9c4d6">
+          <li>Massive parallelism</li>
+          <li>Levels up the entire team/company</li>
+          <li>Enables automations on real signals</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.05)">
+      <h3 style="color:var(--warn)">⚠️ Don't skip the curve</h3>
+      <p style="margin:0">
+        If you're still in "1 agent, watching every output" mode, do <strong>not</strong>
+        jump to spawning thousands of cloud agents. You'll waste enormous amounts of
+        tokens and money. There is <em>no shortcut</em> — the curve is about
+        <strong>your personal level of trust</strong>, and trust is earned in stages.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ARCHITECTURE ================= -->
+<section id="arch">
+  <div class="wrap reveal">
+    <div class="kicker">Module 06</div>
+    <h2>Architecture: Brownfield vs. Greenfield</h2>
+    <p>
+      Conventional wisdom says <em>never rewrite</em>. The speaker makes a case for
+      reconsidering — because agents change the math.
+    </p>
+
+    <div class="vs">
+      <div class="a">
+        <h3 style="color:#4ade80">🏢 Brownfield (existing code)</h3>
+        <ul>
+          <li>Often actually in a <strong>good spot</strong></li>
+          <li>Big-tech style guardrails already exist</li>
+          <li>Frameworks, conventions, restricted credentials</li>
+          <li>Agents inherit the safety rails</li>
+        </ul>
+      </div>
+      <div class="b">
+        <h3 style="color:#fbbf24">🌱 Greenfield (vibe-coded)</h3>
+        <ul>
+          <li>Biggest <strong>risk</strong> — zero guardrails</li>
+          <li>Agents solve tasks the most <em>convenient</em> way</li>
+          <li>Codebase spirals into "organic architecture"</li>
+          <li>Optimized for shortcuts, not for humans</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="quote">
+      "Before AI slop, we had <strong>human slop</strong>. Big tech infra is actually
+      designed for the least capable engineer on your team — you build frameworks,
+      conventions, and guardrails so your intern doesn't wipe the production database.
+      If you already have that, your agents can do a very solid job."
+    </div>
+
+    <h3 style="margin-top:32px">The Dune Philosophy</h3>
+    <p>
+      "Dune" is the internal codename for an architecture built <em>specifically for
+      agents to write</em> — think <strong>Next.js for Electron apps</strong>.
+    </p>
+
+    <div class="card accent">
+      <h3>🎯 Core principle: <em>The shortest path is the best path</em></h3>
+      <p style="margin:0">
+        Agents love shortcuts. They'll find the quickest way to solve a problem.
+        So instead of fighting that, <strong>make the shortest path the correct path.</strong>
+      </p>
+    </div>
+
+    <div class="grid3" style="margin-top:18px">
+      <div class="card">
+        <h3>📁 Features in one directory</h3>
+        <p style="font-size:.86rem;margin:0">All code for a feature lives together.
+        Agent working on onboarding? It stays in the onboarding folder.
+        Encapsulated for ~80% of work.</p>
+      </div>
+      <div class="card">
+        <h3>🚫 Banned <code>useEffect</code></h3>
+        <p style="font-size:.86rem;margin:0">React's biggest footgun is banned outright.
+        CI fails and yells at you if it appears.</p>
+      </div>
+      <div class="card">
+        <h3>💬 Banned comments</h3>
+        <p style="font-size:.86rem;margin:0">Agents write comments describing irrelevant
+        history ("Lauren said never do this"). 99% of the time they're noise.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🔒 Process isolation, enforced by CI</h3>
+      <p style="margin:0;font-size:.9rem">
+        Electron apps have a <strong>renderer thread</strong> (UI, 16ms per frame budget)
+        and a <strong>main thread</strong>. Accidentally pulling heavy work or IO into the
+        renderer causes jank — dropped frames, long tasks, choppy UI. So Grokbot has
+        separate <code style="background:var(--panel2);padding:2px 6px;border-radius:5px;color:var(--accent)">electron-main</code>
+        and <code style="background:var(--panel2);padding:2px 6px;border-radius:5px;color:var(--accent)">electron-renderer</code>
+        directories, with a CI check that inspects the <strong>dependency graph</strong> to
+        block illegal cross-imports.
+      </p>
+    </div>
+
+    <div class="quote">
+      "It's actually very annoying to write code in Grokbot. But <strong>agents absorb
+      all of that annoyance.</strong>"
+    </div>
+  </div>
+</section>
+
+<!-- ================= LAYERS ================= -->
+<section id="layers">
+  <div class="wrap reveal">
+    <div class="kicker">Module 07</div>
+    <h2>Layers of Enforcement</h2>
+    <p>
+      Not all constraints are equal. Some are <strong>hard</strong> — the agent literally
+      cannot merge bad code. Others are <strong>soft</strong> — the agent can forget.
+      Click each layer to expand.
+    </p>
+
+    <div id="layerList"></div>
+
+    <div class="card" style="border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.05);margin-top:20px">
+      <h3 style="color:var(--bad)">🚨 The worst place to be: "Code Review Land"</h3>
+      <p style="margin:0">
+        If the only thing enforcing your invariants is <strong>a human reading the
+        PR</strong> and commenting "you shouldn't do this" — that's a code smell.
+        Every time it happens, ask:
+        <em>How do I turn this into a lint rule? A CI failure? How do I eliminate this
+        category of problem entirely?</em>
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>🦀 Why tech stack choice matters</h3>
+      <p style="margin:0">
+        Rust is getting popular again in the agent era because <strong>the compiler is
+        brutal</strong>. The borrow checker forces correctness. If you keep agents away
+        from <code style="background:var(--panel2);padding:2px 6px;border-radius:5px;color:var(--accent)">unsafe</code>
+        blocks, then "it compiles" becomes a meaningful proxy for "it probably works."
+        <strong>You offload trust to the compiler instead of to your own eyes.</strong>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ROI ================= -->
+<section id="roi">
+  <div class="wrap reveal">
+    <div class="kicker">Module 08</div>
+    <h2>The ROI Question</h2>
+    <p>
+      "Not everyone has unlimited tokens." Fair. So is this whole approach realistic?
+      The answer is a trade-off analysis.
+    </p>
+
+    <div class="vs">
+      <div class="a">
+        <h3 style="color:#f87171">💸 Hire more engineers</h3>
+        <ul>
+          <li>High salary cost, ongoing</li>
+          <li>Coordination overhead grows</li>
+          <li>Planning meetings, process, politics</li>
+          <li>Becomes a 10,000-person org</li>
+        </ul>
+      </div>
+      <div class="b">
+        <h3 style="color:#4ade80">🪙 Spend tokens up front</h3>
+        <ul>
+          <li>Expensive <em>initially</em></li>
+          <li>Refactoring + constraints cost tokens</li>
+          <li>Pays dividends forever after</li>
+          <li>Even "non-frontier" models do excellent work</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="quote">
+      "The thing I couldn't do before is enforce this level of constraint in a codebase
+      <strong>by myself</strong>. It would have taken me years to build this framework
+      and do all the refactoring and verify it. My salary is pretty high."
+    </div>
+
+    <div class="card accent">
+      <h3>🔄 The real payoff isn't just you</h3>
+      <p style="margin-bottom:0">
+        Once the codebase is agent-friendly, <strong>PMs and designers can ship features
+        directly.</strong> They fix a bug, open a PR, and the engineer just reviews and
+        stamps it. The architecture holds up under contributors who aren't engineers —
+        because the constraints do the guarding.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>🧑‍🍳 The chef analogy</h3>
+      <p style="margin:0">
+        You're no longer cooking every dish. You're the <strong>head chef</strong>.
+        You have line cooks, a sous chef, different stations. Your job is to
+        <em>design the environment</em> — set up the kitchen, define the stations,
+        assign the tasks. That's what engineering becomes.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= QUIZ ================= -->
+<section id="quiz">
+  <div class="wrap reveal">
+    <div class="kicker">Check Your Understanding</div>
+    <h2>Knowledge Check</h2>
+    <p>Six questions. Instant feedback on each.</p>
+    <div id="quizBox"></div>
+    <div id="score">Answer the questions above to see your score.</div>
+  </div>
+</section>
+
+<!-- ================= TAKEAWAYS ================= -->
+<section id="takeaways">
+  <div class="wrap reveal">
+    <div class="kicker">Wrap Up</div>
+    <h2>Your Action Checklist</h2>
+    <p>Click each item as you commit to it. (Resets on reload — this is for you, not a database.)</p>
+    <div id="checkList"></div>
+    <div id="checkProgress" style="text-align:center;margin-top:18px;color:var(--muted);font-size:.85rem"></div>
+  </div>
+</section>
+
+<footer>
+  Interactive lesson generated from a talk transcript on agentic software engineering.<br>
+  Built as a single self-contained HTML file — no dependencies, no tracking.
+</footer>
+
+<script>
+/* ================= PROGRESS BAR + NAV ================= */
+const progress = document.getElementById('progress');
+const navLinks = [...document.querySelectorAll('nav a')];
+const sections = [...document.querySelectorAll('section')];
+
+function onScroll(){
+  const h = document.documentElement;
+  const pct = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+  progress.style.width = Math.min(100, Math.max(0, pct)) + '%';
+
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+}
+window.addEventListener('scroll', onScroll, {passive:true});
+onScroll();
+
+/* ================= REVEAL ON SCROLL ================= */
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+}, {threshold:.12});
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* ================= TRUST CURVE ================= */
+const stages = [
+  {
+    title: 'In the Loop',
+    sub: 'Month 1',
+    x: 100, y: 268,
+    body: [
+      '1–5 agents, all local',
+      'You watch every single output',
+      'You prompt constantly — you ARE the verifier',
+      'No parallelism possible',
+      'Productivity is low; you\'re still learning the codebase'
+    ]
+  },
+  {
+    title: 'Building Trust',
+    sub: 'Month 2–3',
+    x: 280, y: 218,
+    body: [
+      'Verification skills give agents the ability to run the code',
+      'Feature maps teach navigation',
+      'Evals unit-test your skills across models',
+      'You stop being the bottleneck for correctness',
+      'Still reviewing, but no longer babysitting every step'
+    ]
+  },
+  {
+    title: 'Out of the Loop',
+    sub: 'Month 4',
+    x: 460, y: 122,
+    body: [
+      'Cloud agents pick up bug reports autonomously',
+      '"Benny" reproduces issues without human help',
+      'PRs arrive already written',
+      'Hard CI constraints catch what agents miss',
+      'Velocity climbs sharply'
+    ]
+  },
+  {
+    title: 'Auto-Merge',
+    sub: 'Month 5+',
+    x: 625, y: 56,
+    body: [
+      'Agents auto-merge PRs; you review on main',
+      '~1,000 PRs landed in a month',
+      'Woke up to 20 PRs already landed — and they were good',
+      'PMs and designers ship features directly',
+      'You design the environment; the agents do the cooking'
+    ]
+  }
+];
+
+const marker = document.getElementById('marker');
+const stageInfo = document.getElementById('stageInfo');
+const stageBtns = [...document.querySelectorAll('.stage-btns button')];
+
+function setStage(i){
+  const s = stages[i];
+  marker.setAttribute('transform', `translate(${s.x},${s.y})`);
+  stageInfo.innerHTML = `
+    <h3><span class="num">${i+1}</span> ${s.title} <span style="color:var(--muted);font-weight:500;font-size:.82rem;margin-left:6px">${s.sub}</span></h3>
+    <ul>${s.body.map(b => `<li>${b}</li>`).join('')}</ul>
+  `;
+  stageBtns.forEach((b, idx) => b.classList.toggle('active', idx === i));
+}
+stageBtns.forEach((b, i) => b.addEventListener('click', () => setStage(i)));
+setStage(0);
+
+/* ================= FLIP CARDS ================= */
+document.querySelectorAll('.flip').forEach(card => {
+  const toggle = () => card.classList.toggle('flipped');
+  card.addEventListener('click', toggle);
+  card.addEventListener('keydown', e => {
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggle(); }
+  });
+});
+
+/* ================= ENFORCEMENT LAYERS ================= */
+const layers = [
+  {
+    name: 'Codebase Architecture',
+    badge: 'hard',
+    desc: 'Features co-located in single directories. Import-blocking rules across electron-main / electron-renderer, enforced by CI inspecting the dependency graph. The strongest enforcement because <strong>agents love to copy existing patterns</strong> — make the right pattern the only pattern.'
+  },
+  {
+    name: 'Static Analysis & Lints',
+    badge: 'hard',
+    desc: 'Lint rules for every bad pattern you observe. Banned <code>useEffect</code>. Banned code comments. These produce a <strong>red CI</strong> — the agent physically cannot merge.'
+  },
+  {
+    name: 'Compiler Diagnostics',
+    badge: 'hard',
+    desc: 'The compiler as a correctness oracle. This is why Rust is resurging in the agent era: the borrow checker is unforgiving. If it compiles (and no <code>unsafe</code>), it probably works.'
+  },
+  {
+    name: 'Rules & Skills (agents.md)',
+    badge: 'soft',
+    desc: 'Markdown instructions describing conventions. Extremely valuable, but <strong>the agent can forget or apply them inconsistently</strong>. Never rely on these as your only source of enforcement.'
+  },
+  {
+    name: 'Code Review Bots',
+    badge: 'soft',
+    desc: 'Automated review tooling that flags issues on PRs. Useful as a safety net, but advisory. If a human is the last line of defense, you are stuck in "Code Review Land" — turn each comment into a hard rule instead.'
+  }
+];
+
+const layerList = document.getElementById('layerList');
+layers.forEach((l, i) => {
+  const div = document.createElement('div');
+  div.className = 'layer';
+  div.innerHTML = `
+    <div class="layer-head">
+      <span class="idx">${i+1}</span>
+      <span>${l.name}</span>
+      <span class="badge ${l.badge}">${l.badge}</span>
+    </div>
+    <div class="layer-body">${l.desc}</div>
+  `;
+  div.addEventListener('click', () => div.classList.toggle('open'));
+  layerList.appendChild(div);
+});
+
+/* ================= QUIZ ================= */
+const questions = [
+  {
+    q: 'What does the speaker call the single most important skill when working with agents?',
+    opts: ['Prompt engineering', 'Verification', 'Context window management', 'Model selection'],
+    a: 1,
+    fb: 'Verification — the ability for an agent to actually run the code, take traces, and test for real. It closes the loop and is what makes trust possible.'
+  },
+  {
+    q: 'Why is a "feature map" necessary on top of a control/verification skill?',
+    opts: [
+      'It speeds up the model inference',
+      'It replaces the need for CI',
+      'It teaches the agent how to navigate to each feature in the UI',
+      'It stores API keys securely'
+    ],
+    a: 2,
+    fb: 'The control skill lets the agent drive the app, but the feature map tells it what exists and how to reach it — including keyboard shortcuts and DOM selectors.'
+  },
+  {
+    q: 'In the eval playbook, why are sub-agent directories "cleverly named"?',
+    opts: [
+      'To reduce token usage',
+      'So agents don\'t realize they\'re being evaluated and change their behavior',
+      'To avoid name collisions in git',
+      'To make logs easier to read'
+    ],
+    a: 1,
+    fb: 'Agents can tell when they\'re being evaluated, and they change their behavior when they do. Naming hides the context from them.'
+  },
+  {
+    q: 'What is the core principle behind the "Dune" architecture?',
+    opts: [
+      'Always use the most modern framework',
+      'Minimize the number of files',
+      'The shortest path is the best path',
+      'Never refactor working code'
+    ],
+    a: 2,
+    fb: 'Agents naturally take shortcuts. So instead of fighting that instinct, the architecture makes the shortest path also the correct path.'
+  },
+  {
+    q: 'According to the speaker, what is the WORST place to be in terms of enforcement?',
+    opts: [
+      'Relying only on rules and skills',
+      'Having no CI at all',
+      'Enforcing invariants only through human code review',
+      'Using an unpopular tech stack'
+    ],
+    a: 2,
+    fb: '"Code Review Land" — where a human reading the PR is the only thing preventing bad code. Every such comment should become a lint rule, a CI failure, or a categorically eliminated problem.'
+  },
+  {
+    q: 'Why does the speaker warn against jumping straight to hundreds of cloud agents?',
+    opts: [
+      'Cloud agents are less capable than local ones',
+      'Trust must be built in stages — otherwise you waste huge amounts of tokens',
+      'Cloud agents cannot access the codebase',
+      'It violates most companies\' security policies'
+    ],
+    a: 1,
+    fb: 'The curve is about your personal level of trust. Skipping stages means burning enormous token spend without the judgment to use the output well.'
+  }
+];
+
+let answered = 0, correct = 0;
+const quizBox = document.getElementById('quizBox');
+const scoreEl = document.getElementById('score');
+
+questions.forEach((q, qi) => {
+  const div = document.createElement('div');
+  div.className = 'q';
+  div.innerHTML = `<p class="qtext">${qi+1}. ${q.q}</p>`;
+  const fb = document.createElement('div');
+  fb.className = 'fb';
+
+  q.opts.forEach((opt, oi) => {
+    const btn = document.createElement('button');
+    btn.className = 'opt';
+    btn.textContent = opt;
+    btn.addEventListener('click', () => {
+      if(div.dataset.done) return;
+      div.dataset.done = '1';
+      answered++;
+      const isRight = oi === q.a;
+      if(isRight) correct++;
+
+      [...div.querySelectorAll('.opt')].forEach((b, bi) => {
+        b.disabled = true;
+        if(bi === q.a) b.classList.add('correct');
+        else if(bi === oi) b.classList.add('wrong');
+      });
+
+      fb.innerHTML = (isRight ? '✅ <strong>Correct.</strong> ' : '❌ <strong>Not quite.</strong> ') + q.fb;
+      fb.classList.add('show');
+
+      if(answered === questions.length){
+        scoreEl.classList.add('done');
+        const pct = Math.round(correct / questions.length * 100);
+        let msg = pct === 100 ? '🏆 Perfect score. You could give this talk.'
+                : pct >= 66 ? '👏 Solid. Revisit the sections you missed.'
+                : '📚 Worth a second pass through the modules above.';
+        scoreEl.innerHTML = `You scored <strong>${correct} / ${questions.length}</strong> (${pct}%). ${msg}`;
+      } else {
+        scoreEl.textContent = `${answered} of ${questions.length} answered — ${correct} correct so far.`;
+      }
+    });
+    div.appendChild(btn);
+  });
+
+  div.appendChild(fb);
+  quizBox.appendChild(div);
+});
+
+/* ================= CHECKLIST ================= */
+const items = [
+  'Pick ONE agent workflow and build a verification skill for it — locally, where you can observe.',
+  'Write a feature map: how does an agent navigate to each of your product\'s features?',
+  'Ban one footgun in CI. Pick the pattern your agents get wrong most often.',
+  'Take a recurring code-review comment and convert it into a lint rule or CI check.',
+  'Write a first eval for your most important skill, and run it across two different models.',
+  'Watch your agent\'s tool calls for one session. Note every failure mode you see — then write a skill for the worst one.',
+  'Identify one thing a human must currently enforce and ask: how do I eliminate this category entirely?',
+  'Estimate the token cost of refactoring toward stronger constraints vs. the cost of the status quo.'
+];
+
+const checkList = document.getElementById('checkList');
+const checkProgress = document.getElementById('checkProgress');
+
+items.forEach(text => {
+  const d = document.createElement('div');
+  d.className = 'check';
+  d.innerHTML = `<div class="box">✓</div><span>${text}</span>`;
+  d.addEventListener('click', () => {
+    d.classList.toggle('done');
+    updateCheckProgress();
+  });
+  checkList.appendChild(d);
+});
+
+function updateCheckProgress(){
+  const total = items.length;
+  const done = document.querySelectorAll('.check.done').length;
+  checkProgress.textContent = `${done} of ${total} committed`;
+  checkProgress.style.color = done === total ? 'var(--accent)' : 'var(--muted)';
+  checkProgress.style.fontWeight = done === total ? '700' : '400';
+}
+updateCheckProgress();
+</script>
+</body>
+</html>
